@@ -14,6 +14,7 @@ import {
   GanttItem,
   GanttProject,
   ProjectTemplate,
+  SavedScenario,
   TaskColor,
 } from '../types/gantt';
 
@@ -938,3 +939,373 @@ export function getProjectTemplates(): ProjectTemplate[] {
     },
   ];
 }
+
+/**
+ * Sanitizes a SavedScenario object, ensuring valid projects, items, and metadata.
+ */
+export function sanitizeScenario(
+  raw: Partial<SavedScenario>,
+  fallbackIndex = 0
+): SavedScenario {
+  const id =
+    raw.id?.trim() ||
+    `scen-${fallbackIndex + 1}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  const name = (raw.name || '').trim() || `Escenario ${fallbackIndex + 1}`;
+  const cleanItems = Array.isArray(raw.items)
+    ? raw.items.map((it, idx) => sanitizeGanttItem(it, idx))
+    : [];
+
+  const baseProjects =
+    Array.isArray(raw.projects) && raw.projects.length > 0
+      ? raw.projects.map((p, idx) => sanitizeProject(p, idx))
+      : [
+          sanitizeProject(
+            {
+              id: 'proj-default',
+              name: 'Proyecto 1: General',
+              color: 'indigo',
+              collapsed: false,
+            },
+            0
+          ),
+        ];
+
+  const syncedGroups = groupItemsByProject(
+    computeGanttMetrics(cleanItems),
+    baseProjects
+  );
+
+  return {
+    id,
+    name,
+    projects: syncedGroups.map((g) => g.project),
+    items: cleanItems,
+    updatedAt: raw.updatedAt || new Date().toISOString(),
+    sourceTemplateId: raw.sourceTemplateId,
+  };
+}
+
+/**
+ * Upserts a scenario into a list of saved scenarios without losing existing scenarios.
+ */
+export function upsertScenarioInList(
+  scenarios: SavedScenario[],
+  scenario: Partial<SavedScenario>
+): SavedScenario[] {
+  const cleanList = Array.isArray(scenarios)
+    ? scenarios.map((s, idx) => sanitizeScenario(s, idx))
+    : [];
+  const cleanTarget = sanitizeScenario(scenario, cleanList.length);
+  const existsIdx = cleanList.findIndex((s) => s.id === cleanTarget.id);
+  if (existsIdx >= 0) {
+    const next = [...cleanList];
+    next[existsIdx] = cleanTarget;
+    return next;
+  }
+  return [...cleanList, cleanTarget];
+}
+
+/**
+ * Creates a brand-new user scenario (either clean with starter structure or duplicated from current workspace).
+ */
+export function createNewScenario(
+  name?: string,
+  mode: 'blank' | 'duplicate' = 'blank',
+  source?: { projects: GanttProject[]; items: GanttItem[] }
+): SavedScenario {
+  const uid = `scen-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  const trimmedName = (name || '').trim() || 'Nuevo Escenario';
+  const todayStr = formatDateISO(startOfDay(new Date()));
+
+  if (mode === 'duplicate' && source) {
+    return sanitizeScenario({
+      id: uid,
+      name: trimmedName,
+      projects: source.projects.map((p, idx) => sanitizeProject(p, idx)),
+      items: source.items.map((it, idx) => sanitizeGanttItem(it, idx)),
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  const starterProjectId = `proj-${Date.now()}-1`;
+  return sanitizeScenario({
+    id: uid,
+    name: trimmedName,
+    projects: [
+      {
+        id: starterProjectId,
+        name: 'Proyecto 1: Principal',
+        color: 'indigo',
+        collapsed: false,
+      },
+    ],
+    items: [
+      sanitizeGanttItem({
+        id: `t-${Date.now()}-1`,
+        name: 'Fase 1: Planificación Inicial',
+        type: 'task',
+        projectId: starterProjectId,
+        startDate: todayStr,
+        duration: 4,
+        slack: 0,
+        progress: 0,
+        color: 'indigo',
+      }),
+    ],
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+/**
+ * Preserves the current active user scenario in `savedScenarios` and loads a template
+ * into the active workspace so the user can inspect or work with a template and switch back
+ * to their saved scenario anytime without losing data.
+ */
+export function switchWorkspaceToTemplate(
+  current: {
+    activeScenarioId: string;
+    projectName: string;
+    projects: GanttProject[];
+    items: GanttItem[];
+  },
+  savedScenarios: SavedScenario[],
+  templateId: string,
+  templatesList?: ProjectTemplate[]
+): {
+  activeScenarioId: string;
+  projectName: string;
+  projects: GanttProject[];
+  items: GanttItem[];
+  savedScenarios: SavedScenario[];
+} {
+  const templates = templatesList || getProjectTemplates();
+  const found = templates.find((t) => t.id === templateId);
+  if (!found) {
+    return {
+      ...current,
+      savedScenarios,
+    };
+  }
+
+  let nextScenarios = [...savedScenarios];
+  if (current.activeScenarioId && !current.activeScenarioId.startsWith('template:')) {
+    nextScenarios = upsertScenarioInList(nextScenarios, {
+      id: current.activeScenarioId,
+      name: current.projectName,
+      projects: current.projects,
+      items: current.items,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  return {
+    activeScenarioId: `template:${found.id}`,
+    projectName: found.name,
+    projects: found.projects.map((p, idx) => sanitizeProject(p, idx)),
+    items: found.items.map((it, idx) => sanitizeGanttItem(it, idx)),
+    savedScenarios: nextScenarios,
+  };
+}
+
+/**
+ * Preserves the current user scenario (if active) and restores a saved scenario by ID.
+ */
+export function switchWorkspaceToScenario(
+  current: {
+    activeScenarioId: string;
+    projectName: string;
+    projects: GanttProject[];
+    items: GanttItem[];
+  },
+  savedScenarios: SavedScenario[],
+  targetScenarioId: string
+): {
+  activeScenarioId: string;
+  projectName: string;
+  projects: GanttProject[];
+  items: GanttItem[];
+  savedScenarios: SavedScenario[];
+} {
+  let nextScenarios = [...savedScenarios];
+  if (current.activeScenarioId && !current.activeScenarioId.startsWith('template:')) {
+    nextScenarios = upsertScenarioInList(nextScenarios, {
+      id: current.activeScenarioId,
+      name: current.projectName,
+      projects: current.projects,
+      items: current.items,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  const target = nextScenarios.find((s) => s.id === targetScenarioId);
+  if (!target) {
+    return {
+      ...current,
+      savedScenarios: nextScenarios,
+    };
+  }
+
+  return {
+    activeScenarioId: target.id,
+    projectName: target.name,
+    projects: target.projects.map((p, idx) => sanitizeProject(p, idx)),
+    items: target.items.map((it, idx) => sanitizeGanttItem(it, idx)),
+    savedScenarios: nextScenarios,
+  };
+}
+
+/**
+ * Returns the custom user scenario for "Plan Xcode 27 & QG5 27.2" with 1 project and the 7 tasks
+ * (actions), assignees (equipos), and exact deadlines from the user's specification.
+ */
+export function getXcode27Scenario(): SavedScenario {
+  const projectId = 'proj-xcode27';
+  return sanitizeScenario({
+    id: 'scen-xcode27',
+    name: 'Plan Xcode 27 & QG5 27.2',
+    updatedAt: new Date().toISOString(),
+    projects: [
+      {
+        id: projectId,
+        name: 'Proyecto 1: Release Xcode 27 & QG5 27.2',
+        color: 'indigo',
+        description:
+          'Plan de entregas y tareas (acciones) por equipo rumbo a QG5 27.2 y Deadline Xcode27.',
+        collapsed: false,
+      },
+    ],
+    items: [
+      {
+        id: 'xc-1',
+        name: 'SDK ARQ, + biocatch, onetrust, RSA actualizados',
+        type: 'task',
+        projectId,
+        startDate: '2026-10-29',
+        endDate: '2026-11-27',
+        duration: 30,
+        slack: 0,
+        dependencies: [],
+        progress: 0,
+        color: 'violet',
+        assignee: 'Arquitectura',
+        notes: 'Deadline: 27/11/2026 — Equipo: Arquitectura',
+      },
+      {
+        id: 'xc-2',
+        name: 'Nuevas Maquinas Mac operativas (apple silicon)',
+        type: 'task',
+        projectId,
+        startDate: '2026-10-29',
+        endDate: '2026-12-02',
+        duration: 35,
+        slack: 0,
+        dependencies: [],
+        progress: 0,
+        color: 'cyan',
+        assignee: 'AWS/Devops',
+        notes: 'Deadline: 02/12/2026 — Equipo: AWS/Devops',
+      },
+      {
+        id: 'xc-3',
+        name: 'Generación build',
+        type: 'task',
+        projectId,
+        startDate: '2026-11-28',
+        endDate: '2026-12-02',
+        duration: 5,
+        slack: 0,
+        dependencies: ['xc-1', 'xc-2'],
+        dependencyTypes: { 'xc-1': 'FS', 'xc-2': 'FF' },
+        progress: 0,
+        color: 'indigo',
+        assignee: 'RM Canales',
+        notes: 'Deadline: 02/12/2026 — Equipo: RM Canales',
+      },
+      {
+        id: 'xc-4',
+        name: 'QA termina las pruebas',
+        type: 'task',
+        projectId,
+        startDate: '2026-12-03',
+        endDate: '2027-01-07',
+        duration: 36,
+        slack: 0,
+        dependencies: ['xc-3'],
+        dependencyTypes: { 'xc-3': 'FS' },
+        progress: 0,
+        color: 'emerald',
+        assignee: 'QA',
+        notes: 'Deadline: 07/01/2027 — Equipo: QA',
+      },
+      {
+        id: 'xc-5',
+        name: 'Fixing',
+        type: 'task',
+        projectId,
+        startDate: '2027-01-08',
+        endDate: '2027-01-15',
+        duration: 8,
+        slack: 0,
+        dependencies: ['xc-4'],
+        dependencyTypes: { 'xc-4': 'FS' },
+        progress: 0,
+        color: 'blue',
+        assignee: 'Desarrollo',
+        notes: 'Deadline: 15/01/2027 — Equipo: Desarrollo',
+      },
+      {
+        id: 'xc-6',
+        name: 'QG5 27.2',
+        type: 'task',
+        projectId,
+        startDate: '2027-01-15',
+        endDate: '2027-01-15',
+        duration: 1,
+        slack: 0,
+        dependencies: ['xc-5'],
+        dependencyTypes: { 'xc-5': 'FF' },
+        progress: 0,
+        color: 'amber',
+        assignee: 'RM',
+        notes: 'Deadline: 15/01/2027 — Equipo: RM',
+      },
+      {
+        id: 'xc-7',
+        name: 'Deadline Xcode27',
+        type: 'task',
+        projectId,
+        startDate: '2027-01-16',
+        endDate: '2027-04-15',
+        duration: 90,
+        slack: 0,
+        dependencies: ['xc-6'],
+        dependencyTypes: { 'xc-6': 'FS' },
+        progress: 0,
+        color: 'rose',
+        assignee: 'Apple',
+        notes: 'Deadline: 15/04/2027 — Equipo: Apple',
+      },
+    ],
+  });
+}
+
+/**
+ * Returns the initial list of saved scenarios so the user has both the Xcode 27 scenario
+ * and the SaaS v2.0 portfolio saved out of the box.
+ */
+export function getDefaultSavedScenarios(): SavedScenario[] {
+  const templates = getProjectTemplates();
+  const saasTpl = templates[0];
+  const saasScenario = sanitizeScenario({
+    id: 'scen-saas-v2',
+    name: saasTpl.name,
+    projects: saasTpl.projects,
+    items: saasTpl.items,
+    updatedAt: new Date().toISOString(),
+    sourceTemplateId: saasTpl.id,
+  });
+
+  return [getXcode27Scenario(), saasScenario];
+}
+
+

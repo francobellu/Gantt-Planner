@@ -2,10 +2,13 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { differenceInCalendarDays } from 'date-fns';
 import {
   AlertTriangle,
+  BookmarkCheck,
+  BookmarkPlus,
   Calendar,
   Check,
   CheckCircle2,
   Compass,
+  Copy,
   Diamond,
   Download,
   FileSpreadsheet,
@@ -16,8 +19,10 @@ import {
   Layers,
   Moon,
   Plus,
+  Save,
   Sparkles,
   Sun,
+  Trash2,
   Upload,
   X,
   ZoomIn,
@@ -26,6 +31,8 @@ import {
   ComputedGanttItem,
   GanttItem,
   GanttProject,
+  ProjectTemplate,
+  SavedScenario,
   TaskColor,
   TaskType,
   ZoomLevel,
@@ -33,18 +40,26 @@ import {
 import {
   cascadeDependencies,
   computeGanttMetrics,
+  createNewScenario,
   formatDateDisplay,
   formatDateISO,
+  getDefaultSavedScenarios,
   getProjectTemplates,
+  getXcode27Scenario,
   groupItemsByProject,
   parseDateSafe,
   sanitizeGanttItem,
   sanitizeProject,
+  sanitizeScenario,
+  switchWorkspaceToScenario,
+  switchWorkspaceToTemplate,
+  upsertScenarioInList,
 } from './utils/ganttEngine';
 import { GanttWorkspace } from './components/GanttWorkspace';
 import { TaskFormModal } from './components/TaskFormModal';
 
 const STORAGE_KEY = 'ganttflow_pro_state_v2';
+const SCENARIOS_STORAGE_KEY = 'ganttflow_pro_scenarios_v2';
 
 const PROJECT_COLORS: { value: TaskColor; bg: string }[] = [
   { value: 'indigo', bg: 'bg-indigo-500' },
@@ -56,55 +71,155 @@ const PROJECT_COLORS: { value: TaskColor; bg: string }[] = [
   { value: 'cyan', bg: 'bg-cyan-500' },
 ];
 
-export function App() {
+interface InitialWorkspaceState {
+  activeScenarioId: string;
+  projectName: string;
+  projects: GanttProject[];
+  items: GanttItem[];
+  savedScenarios: SavedScenario[];
+}
+
+function loadInitialWorkspaceState(
+  templates: ProjectTemplate[],
+  defaultScenarios: SavedScenario[],
+  initialScenarioId?: string
+): InitialWorkspaceState {
+  const xcodeScenario = getXcode27Scenario();
+
+  if (initialScenarioId) {
+    const target =
+      defaultScenarios.find((s) => s.id === initialScenarioId) || defaultScenarios[0];
+    return {
+      activeScenarioId: target.id,
+      projectName: target.name,
+      projects: target.projects,
+      items: target.items,
+      savedScenarios: defaultScenarios,
+    };
+  }
+
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const savedScenariosRaw = window.localStorage.getItem(SCENARIOS_STORAGE_KEY);
+      if (savedScenariosRaw) {
+        const parsed = JSON.parse(savedScenariosRaw);
+        let list: SavedScenario[] = Array.isArray(parsed.savedScenarios)
+          ? parsed.savedScenarios.map((s: Partial<SavedScenario>, i: number) =>
+              sanitizeScenario(s, i)
+            )
+          : [...defaultScenarios];
+
+        if (!list.some((s) => s.id === xcodeScenario.id)) {
+          list = [xcodeScenario, ...list];
+        }
+        if (list.length === 0) {
+          list = [...defaultScenarios];
+        }
+
+        const activeId: string =
+          typeof parsed.activeScenarioId === 'string' && parsed.activeScenarioId
+            ? parsed.activeScenarioId
+            : list[0].id;
+
+        if (activeId.startsWith('template:')) {
+          const tplId = activeId.replace('template:', '');
+          const tpl = templates.find((t) => t.id === tplId);
+          if (tpl) {
+            return {
+              activeScenarioId: activeId,
+              projectName: parsed.projectName || tpl.name,
+              projects:
+                Array.isArray(parsed.projects) && parsed.projects.length > 0
+                  ? parsed.projects.map((p: Partial<GanttProject>, i: number) =>
+                      sanitizeProject(p, i)
+                    )
+                  : tpl.projects,
+              items:
+                Array.isArray(parsed.items) && parsed.items.length > 0
+                  ? parsed.items.map((it: Partial<GanttItem>, i: number) =>
+                      sanitizeGanttItem(it, i)
+                    )
+                  : tpl.items,
+              savedScenarios: list,
+            };
+          }
+        }
+
+        const activeScen = list.find((s) => s.id === activeId) || list[0];
+        return {
+          activeScenarioId: activeScen.id,
+          projectName: activeScen.name,
+          projects: activeScen.projects,
+          items: activeScen.items,
+          savedScenarios: list,
+        };
+      }
+
+      // Migrate legacy single-workspace state if present, while activating the Xcode 27 scenario
+      const legacyRaw = window.localStorage.getItem(STORAGE_KEY);
+      let migratedList = [...defaultScenarios];
+      if (legacyRaw) {
+        const legacy = JSON.parse(legacyRaw);
+        if (Array.isArray(legacy.items) && legacy.items.length > 0) {
+          const legacyName = legacy.projectName || templates[0].name;
+          const isIdenticalDefault = legacyName === templates[0].name;
+          const legacyScenario = sanitizeScenario({
+            id: isIdenticalDefault ? 'scen-saas-v2' : 'scen-migrated-user',
+            name: legacyName,
+            projects: legacy.projects,
+            items: legacy.items,
+            updatedAt: new Date().toISOString(),
+          });
+          migratedList = upsertScenarioInList(migratedList, legacyScenario);
+        }
+      }
+
+      return {
+        activeScenarioId: xcodeScenario.id,
+        projectName: xcodeScenario.name,
+        projects: xcodeScenario.projects,
+        items: xcodeScenario.items,
+        savedScenarios: migratedList,
+      };
+    }
+  } catch {
+    // ignore storage errors
+  }
+
+  // Default SSR fallback (preserves both Xcode 27 and SaaS v2.0 in savedScenarios)
+  const fallback =
+    defaultScenarios.find((s) => s.id === 'scen-saas-v2') || defaultScenarios[0];
+  return {
+    activeScenarioId: fallback.id,
+    projectName: fallback.name,
+    projects: fallback.projects,
+    items: fallback.items,
+    savedScenarios: defaultScenarios,
+  };
+}
+
+export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) {
   const templates = useMemo(() => getProjectTemplates(), []);
+  const defaultScenarios = useMemo(() => getDefaultSavedScenarios(), []);
 
-  const [projectName, setProjectName] = useState<string>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.projectName) return parsed.projectName;
-      }
-    } catch {
-      // ignore storage errors
-    }
-    return templates[0].name;
-  });
+  const initialState = useMemo(
+    () => loadInitialWorkspaceState(templates, defaultScenarios, initialScenarioId),
+    [templates, defaultScenarios, initialScenarioId]
+  );
 
-  const [projects, setProjects] = useState<GanttProject[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed.projects) && parsed.projects.length > 0) {
-          return parsed.projects.map((raw: Partial<GanttProject>, i: number) =>
-            sanitizeProject(raw, i)
-          );
-        }
-      }
-    } catch {
-      // ignore storage errors
-    }
-    return templates[0].projects;
-  });
-
-  const [items, setItems] = useState<GanttItem[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed.items) && parsed.items.length > 0) {
-          return parsed.items.map((raw: Partial<GanttItem>, i: number) =>
-            sanitizeGanttItem(raw, i)
-          );
-        }
-      }
-    } catch {
-      // ignore storage errors
-    }
-    return templates[0].items;
-  });
+  const [savedScenarios, setSavedScenarios] = useState<SavedScenario[]>(
+    () => initialState.savedScenarios
+  );
+  const [activeScenarioId, setActiveScenarioId] = useState<string>(
+    () => initialState.activeScenarioId
+  );
+  const [projectName, setProjectName] = useState<string>(
+    () => initialState.projectName
+  );
+  const [projects, setProjects] = useState<GanttProject[]>(
+    () => initialState.projects
+  );
+  const [items, setItems] = useState<GanttItem[]>(() => initialState.items);
 
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     try {
@@ -120,6 +235,12 @@ export function App() {
   const [autoCascade, setAutoCascade] = useState<boolean>(true);
   const [groupByProject, setGroupByProject] = useState<boolean>(true);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
+
+  // New Scenario inline creator state
+  const [showNewScenarioBar, setShowNewScenarioBar] = useState<boolean>(false);
+  const [newScenarioName, setNewScenarioName] = useState<string>('');
+  const [newScenarioMode, setNewScenarioMode] = useState<'blank' | 'duplicate'>('blank');
+  const [scenarioSavedToast, setScenarioSavedToast] = useState<string | null>(null);
 
   // New Project inline creator state
   const [showNewProjectBar, setShowNewProjectBar] = useState<boolean>(false);
@@ -148,17 +269,6 @@ export function App() {
     }
   }, [darkMode]);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({ projectName, projects, items })
-      );
-    } catch {
-      // ignore quota errors
-    }
-  }, [projectName, projects, items]);
-
   // Compute base enriched items with WBS, Slack End Dates, Critical Path (CPM), and Conflict flags
   const baseComputedItems = useMemo(() => computeGanttMetrics(items), [items]);
 
@@ -173,6 +283,41 @@ export function App() {
     () => projectGroups.map((g) => g.project),
     [projectGroups]
   );
+
+  // Keep active user scenario automatically synced in savedScenarios and localStorage
+  useEffect(() => {
+    let nextScenarios = savedScenarios;
+    if (activeScenarioId && !activeScenarioId.startsWith('template:')) {
+      nextScenarios = upsertScenarioInList(savedScenarios, {
+        id: activeScenarioId,
+        name: projectName,
+        projects: effectiveProjects,
+        items,
+        updatedAt: new Date().toISOString(),
+      });
+      setSavedScenarios(nextScenarios);
+    }
+
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ projectName, projects: effectiveProjects, items })
+      );
+      localStorage.setItem(
+        SCENARIOS_STORAGE_KEY,
+        JSON.stringify({
+          activeScenarioId,
+          projectName,
+          projects: effectiveProjects,
+          items,
+          savedScenarios: nextScenarios,
+        })
+      );
+    } catch {
+      // ignore quota errors
+    }
+  }, [activeScenarioId, projectName, effectiveProjects, items]);
+
 
   // Enrich computedItems with hierarchical wbsCode (e.g. 1.1, 1.2, 2.1) and resolved projectId
   const computedItems = useMemo(() => {
@@ -366,13 +511,149 @@ export function App() {
     }
   };
 
+  const showToast = (msg: string) => {
+    setScenarioSavedToast(msg);
+    setTimeout(() => {
+      setScenarioSavedToast((prev) => (prev === msg ? null : prev));
+    }, 2800);
+  };
+
   const handleTemplateSelect = (templateId: string) => {
-    const found = templates.find((t) => t.id === templateId);
-    if (!found) return;
-    setProjectName(found.name);
-    setProjects(found.projects.map((p, idx) => sanitizeProject(p, idx)));
-    setItems(found.items.map((it, idx) => sanitizeGanttItem(it, idx)));
+    const next = switchWorkspaceToTemplate(
+      {
+        activeScenarioId,
+        projectName,
+        projects: effectiveProjects,
+        items,
+      },
+      savedScenarios,
+      templateId,
+      templates
+    );
+    setSavedScenarios(next.savedScenarios);
+    setActiveScenarioId(next.activeScenarioId);
+    setProjectName(next.projectName);
+    setProjects(next.projects);
+    setItems(next.items);
     setSelectedProjectId('all');
+    showToast('Plantilla cargada · Tus escenarios siguen guardados');
+  };
+
+  const handleScenarioSelect = (scenarioId: string) => {
+    const next = switchWorkspaceToScenario(
+      {
+        activeScenarioId,
+        projectName,
+        projects: effectiveProjects,
+        items,
+      },
+      savedScenarios,
+      scenarioId
+    );
+    setSavedScenarios(next.savedScenarios);
+    setActiveScenarioId(next.activeScenarioId);
+    setProjectName(next.projectName);
+    setProjects(next.projects);
+    setItems(next.items);
+    setSelectedProjectId('all');
+    showToast(`Escenario activo: ${next.projectName}`);
+  };
+
+  const handleSaveCurrentScenario = () => {
+    if (activeScenarioId.startsWith('template:')) {
+      const created = sanitizeScenario({
+        id: `scen-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        name: projectName,
+        projects: effectiveProjects,
+        items,
+        updatedAt: new Date().toISOString(),
+        sourceTemplateId: activeScenarioId.replace('template:', ''),
+      });
+      const nextList = upsertScenarioInList(savedScenarios, created);
+      setSavedScenarios(nextList);
+      setActiveScenarioId(created.id);
+      showToast(`Guardado en Mis Escenarios: "${created.name}"`);
+    } else {
+      const nextList = upsertScenarioInList(savedScenarios, {
+        id: activeScenarioId,
+        name: projectName,
+        projects: effectiveProjects,
+        items,
+        updatedAt: new Date().toISOString(),
+      });
+      setSavedScenarios(nextList);
+      showToast(`Escenario guardado: "${projectName}"`);
+    }
+  };
+
+  const handleDuplicateCurrentScenario = () => {
+    let baseList = savedScenarios;
+    if (activeScenarioId && !activeScenarioId.startsWith('template:')) {
+      baseList = upsertScenarioInList(baseList, {
+        id: activeScenarioId,
+        name: projectName,
+        projects: effectiveProjects,
+        items,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+    const copy = createNewScenario(`${projectName} (Copia)`, 'duplicate', {
+      projects: effectiveProjects,
+      items,
+    });
+    const nextList = upsertScenarioInList(baseList, copy);
+    setSavedScenarios(nextList);
+    setActiveScenarioId(copy.id);
+    setProjectName(copy.name);
+    setProjects(copy.projects);
+    setItems(copy.items);
+    setSelectedProjectId('all');
+    showToast(`Copia guardada: "${copy.name}"`);
+  };
+
+  const handleCreateScenarioFromBar = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = newScenarioName.trim() || `Escenario ${savedScenarios.length + 1}`;
+    let baseList = savedScenarios;
+    if (activeScenarioId && !activeScenarioId.startsWith('template:')) {
+      baseList = upsertScenarioInList(baseList, {
+        id: activeScenarioId,
+        name: projectName,
+        projects: effectiveProjects,
+        items,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+    const created = createNewScenario(trimmed, newScenarioMode, {
+      projects: effectiveProjects,
+      items,
+    });
+    const nextList = upsertScenarioInList(baseList, created);
+    setSavedScenarios(nextList);
+    setActiveScenarioId(created.id);
+    setProjectName(created.name);
+    setProjects(created.projects);
+    setItems(created.items);
+    setSelectedProjectId('all');
+    setNewScenarioName('');
+    setShowNewScenarioBar(false);
+    showToast(`Nuevo escenario creado: "${created.name}"`);
+  };
+
+  const handleDeleteScenario = (scenarioId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (savedScenarios.length <= 1) return;
+    const remaining = savedScenarios.filter((s) => s.id !== scenarioId);
+    setSavedScenarios(remaining);
+    if (activeScenarioId === scenarioId) {
+      const fallback = remaining[0];
+      setActiveScenarioId(fallback.id);
+      setProjectName(fallback.name);
+      setProjects(fallback.projects);
+      setItems(fallback.items);
+      setSelectedProjectId('all');
+    }
+    showToast('Escenario eliminado');
   };
 
   const handleResolveAllConflicts = () => {
@@ -459,8 +740,7 @@ export function App() {
       try {
         const parsed = JSON.parse(String(ev.target?.result));
         if (Array.isArray(parsed.items)) {
-          const importedName = parsed.projectName || projectName;
-          if (parsed.projectName) setProjectName(parsed.projectName);
+          const importedName = parsed.projectName || `Escenario Importado`;
           const cleanItems = parsed.items.map((raw: Partial<GanttItem>, i: number) =>
             sanitizeGanttItem(raw, i)
           );
@@ -484,9 +764,20 @@ export function App() {
             computeGanttMetrics(cleanItems),
             baseProjects
           );
-          setProjects(syncedGroups.map((g) => g.project));
-          setItems(cleanItems);
+          const importedScenario = sanitizeScenario({
+            id: `scen-${Date.now()}-imp`,
+            name: importedName,
+            projects: syncedGroups.map((g) => g.project),
+            items: cleanItems,
+            updatedAt: new Date().toISOString(),
+          });
+          setSavedScenarios((prev) => upsertScenarioInList(prev, importedScenario));
+          setActiveScenarioId(importedScenario.id);
+          setProjectName(importedScenario.name);
+          setProjects(importedScenario.projects);
+          setItems(importedScenario.items);
           setSelectedProjectId('all');
+          showToast(`Escenario importado: "${importedScenario.name}"`);
         }
       } catch {
         alert('Archivo JSON inválido.');
@@ -496,56 +787,108 @@ export function App() {
     e.target.value = '';
   };
 
+  const isViewingTemplate = activeScenarioId.startsWith('template:');
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
       {/* Top Navigation & Portfolio/Project Controls */}
       <header className="sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur border-b border-slate-200 dark:border-slate-800 px-4 lg:px-6 py-3">
         <div className="max-w-[1920px] mx-auto flex flex-wrap items-center justify-between gap-4">
-          {/* Brand + Editable Portfolio/Project Title + Template Selector */}
+          {/* Brand + Editable Portfolio/Project Title + Scenario/Template Selector */}
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2.5">
               <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
                 <FolderKanban className="w-5 h-5" />
               </div>
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <input
                     type="text"
                     value={projectName}
                     onChange={(e) => setProjectName(e.target.value)}
                     className="font-bold text-base sm:text-lg bg-transparent border-b border-transparent hover:border-slate-300 dark:hover:border-slate-700 focus:border-indigo-500 outline-none text-slate-900 dark:text-white px-0.5"
-                    title="Haz clic para renombrar el portafolio o plan maestro"
+                    title="Haz clic para renombrar el escenario o portafolio activo"
                   />
-                  <span className="hidden md:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
-                    Multi-Proyecto + CPM
-                  </span>
+                  {isViewingTemplate ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                      Vista Plantilla
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                      <BookmarkCheck className="w-3 h-3" />
+                      Escenario Guardado
+                    </span>
+                  )}
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 hidden sm:block">
-                  Diagrama de Gantt con tareas agrupadas en proyectos, ruta crítica, holguras (slack) e hitos
+                  Diagrama de Gantt con escenarios guardados, proyectos, ruta crítica, holguras (slack) e hitos
                 </p>
               </div>
             </div>
 
-            {/* Project Template Picker */}
+            {/* Unified Scenario & Template Switcher */}
             <select
-              value=""
+              value={activeScenarioId}
               onChange={(e) => {
-                if (e.target.value) {
-                  handleTemplateSelect(e.target.value);
+                const val = e.target.value;
+                if (!val) return;
+                if (val.startsWith('template:')) {
+                  handleTemplateSelect(val.replace('template:', ''));
+                } else {
+                  handleScenarioSelect(val);
                 }
               }}
               className="text-xs font-medium bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500"
-              title="Cargar o restablecer plantilla de proyecto"
+              title="Cambiar entre tus escenarios guardados o cargar una plantilla sin perder tu trabajo"
             >
-              <option value="" disabled>
-                📂 Cargar plantilla...
-              </option>
-              {templates.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
+              <optgroup label="📌 Mis Escenarios Guardados">
+                {savedScenarios.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    💾 {s.name} ({s.projects.length} proy · {s.items.length} tareas)
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="📂 Plantillas Predeterminadas">
+                {templates.map((t) => (
+                  <option key={`template:${t.id}`} value={`template:${t.id}`}>
+                    📋 Plantilla: {t.name}
+                  </option>
+                ))}
+              </optgroup>
             </select>
+
+            {/* Save Current Scenario Button */}
+            <button
+              type="button"
+              onClick={handleSaveCurrentScenario}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 transition"
+              title={
+                isViewingTemplate
+                  ? 'Guardar esta plantilla como un nuevo escenario en Mis Escenarios'
+                  : 'Guardar escenario actual en Mis Escenarios'
+              }
+            >
+              <Save className="w-3.5 h-3.5" />
+              {isViewingTemplate ? 'Guardar en Mis Escenarios' : 'Guardar Escenario'}
+            </button>
+
+            {/* New Scenario Button */}
+            <button
+              type="button"
+              onClick={() => setShowNewScenarioBar((prev) => !prev)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 transition"
+              title="Crear un nuevo escenario independiente sin perder el escenario actual"
+            >
+              <BookmarkPlus className="w-3.5 h-3.5" />
+              Nuevo Escenario
+            </button>
+
+            {scenarioSavedToast && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-emerald-600 text-white shadow-sm animate-fade-in">
+                <Check className="w-3.5 h-3.5" />
+                {scenarioSavedToast}
+              </span>
+            )}
           </div>
 
           {/* Right Action Controls */}
@@ -797,6 +1140,180 @@ export function App() {
             )}
           </div>
         </div>
+
+        {/* Saved Scenarios & Templates Switcher Bar */}
+        <div
+          data-scenarios-bar="true"
+          className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm"
+        >
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5 mr-1">
+              <BookmarkCheck className="w-3.5 h-3.5 text-emerald-500" />
+              Mis Escenarios ({savedScenarios.length}):
+            </span>
+
+            {savedScenarios.map((scen) => {
+              const isActive = activeScenarioId === scen.id;
+              return (
+                <div
+                  key={scen.id}
+                  onClick={() => handleScenarioSelect(scen.id)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleScenarioSelect(scen.id);
+                    }
+                  }}
+                  data-scenario-pill={scen.id}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-2 border cursor-pointer ${
+                    isActive
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                      : 'bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                  title={`Volver al escenario guardado "${scen.name}" (${scen.projects.length} proyecto(s), ${scen.items.length} tarea(s))`}
+                >
+                  <span
+                    className={`w-2 h-2 rounded-full shrink-0 ${
+                      isActive ? 'bg-white' : 'bg-emerald-500'
+                    }`}
+                  />
+                  <span className="truncate max-w-[220px]">{scen.name}</span>
+                  <span
+                    className={`font-mono text-[10px] px-1.5 py-0.5 rounded-full ${
+                      isActive
+                        ? 'bg-white/20 text-white'
+                        : 'bg-slate-200/80 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    {scen.projects.length}p · {scen.items.length}t
+                  </span>
+                  {savedScenarios.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={(e) => handleDeleteScenario(scen.id, e)}
+                      className={`p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 ${
+                        isActive ? 'text-white/80 hover:text-white' : 'text-slate-400 hover:text-rose-500'
+                      }`}
+                      title={`Eliminar escenario "${scen.name}"`}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+
+            <button
+              type="button"
+              onClick={() => setShowNewScenarioBar((prev) => !prev)}
+              className="px-2.5 py-1.5 rounded-xl text-xs font-semibold border border-dashed border-emerald-500 dark:border-emerald-600 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition flex items-center gap-1"
+              title="Crear un nuevo escenario en blanco o a partir del actual"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Nuevo Escenario
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDuplicateCurrentScenario}
+              className="px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition flex items-center gap-1"
+              title="Guardar una copia independiente del escenario actual en Mis Escenarios"
+            >
+              <Copy className="w-3.5 h-3.5" />
+              Guardar Copia
+            </button>
+          </div>
+
+          {/* Quick Templates Selector on the Right */}
+          <div className="flex items-center gap-2 flex-wrap text-xs">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              Plantillas Base:
+            </span>
+            {templates.map((tpl) => {
+              const isCurrentTpl = activeScenarioId === `template:${tpl.id}`;
+              return (
+                <button
+                  key={tpl.id}
+                  type="button"
+                  onClick={() => handleTemplateSelect(tpl.id)}
+                  className={`px-2.5 py-1 rounded-xl text-xs font-medium border transition ${
+                    isCurrentTpl
+                      ? 'bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300 font-semibold'
+                      : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                  title={`Explorar plantilla "${tpl.name}" (tus escenarios guardados no se borrarán)`}
+                >
+                  📋 {tpl.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Inline New Scenario Creation Bar */}
+        {showNewScenarioBar && (
+          <form
+            onSubmit={handleCreateScenarioFromBar}
+            className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/80 shadow-sm text-xs"
+          >
+            <div className="flex items-center gap-2.5 flex-1 min-w-[240px]">
+              <BookmarkPlus className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span className="font-bold text-emerald-950 dark:text-emerald-200 shrink-0">
+                Nuevo Escenario:
+              </span>
+              <input
+                type="text"
+                required
+                value={newScenarioName}
+                onChange={(e) => setNewScenarioName(e.target.value)}
+                placeholder="Ej. Escenario Plan B / Release Q1 2027"
+                className="flex-1 px-3 py-1.5 rounded-xl border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-xl border border-emerald-200 dark:border-emerald-800">
+                <label className="flex items-center gap-1.5 cursor-pointer font-medium text-slate-700 dark:text-slate-300">
+                  <input
+                    type="radio"
+                    name="scenarioMode"
+                    checked={newScenarioMode === 'blank'}
+                    onChange={() => setNewScenarioMode('blank')}
+                    className="text-emerald-600"
+                  />
+                  <span>Desde cero (1 proyecto limpio)</span>
+                </label>
+                <span className="text-slate-300 dark:text-slate-700">|</span>
+                <label className="flex items-center gap-1.5 cursor-pointer font-medium text-slate-700 dark:text-slate-300">
+                  <input
+                    type="radio"
+                    name="scenarioMode"
+                    checked={newScenarioMode === 'duplicate'}
+                    onChange={() => setNewScenarioMode('duplicate')}
+                    className="text-emerald-600"
+                  />
+                  <span>Clonar escenario actual</span>
+                </label>
+              </div>
+
+              <button
+                type="submit"
+                className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-sm"
+              >
+                Crear y Guardar Escenario
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowNewScenarioBar(false)}
+                className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-200/60 dark:hover:bg-slate-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </form>
+        )}
 
         {/* Project Groups Filter & Management Bar */}
         <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">

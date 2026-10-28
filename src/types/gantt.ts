@@ -72,3 +72,13 @@ export interface ProjectTemplate {
   projects: GanttProject[];
   items: GanttItem[];
 }
+
+export interface SavedScenario {
+  id: string;
+  name: string;
+  projects: GanttProject[];
+  items: GanttItem[];
+  updatedAt: string;
+  sourceTemplateId?: string;
+}
+

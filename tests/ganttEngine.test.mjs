@@ -30,6 +30,13 @@ const {
   computeGanttMetrics,
   groupItemsByProject,
   getProjectTemplates,
+  sanitizeScenario,
+  upsertScenarioInList,
+  createNewScenario,
+  switchWorkspaceToTemplate,
+  switchWorkspaceToScenario,
+  getXcode27Scenario,
+  getDefaultSavedScenarios,
   formatDateISO,
 } = await import(codeUrl);
 
@@ -501,6 +508,211 @@ test('App and GanttWorkspace render complete WBS table, project groups, summary 
     await fs.unlink(tmpFile).catch(() => {});
   }
 });
+
+test('getXcode27Scenario defines 1 project with all 7 tasks (actions), teams, and exact deadlines conflict-free', () => {
+  const xcode = getXcode27Scenario();
+  assert.equal(xcode.id, 'scen-xcode27');
+  assert.equal(xcode.projects.length, 1);
+  assert.equal(xcode.projects[0].id, 'proj-xcode27');
+  assert.equal(xcode.items.length, 7);
+
+  // Every action is configured as a task ('task') in the single project
+  for (const item of xcode.items) {
+    assert.equal(item.type, 'task');
+    assert.equal(item.projectId, 'proj-xcode27');
+  }
+
+  // Verify exact task names, assignees (Equipo), and endDates (Deadline)
+  const expected = [
+    {
+      name: 'SDK ARQ, + biocatch, onetrust, RSA actualizados',
+      assignee: 'Arquitectura',
+      endDate: '2026-11-27',
+    },
+    {
+      name: 'Nuevas Maquinas Mac operativas (apple silicon)',
+      assignee: 'AWS/Devops',
+      endDate: '2026-12-02',
+    },
+    {
+      name: 'Generación build',
+      assignee: 'RM Canales',
+      endDate: '2026-12-02',
+    },
+    {
+      name: 'QA termina las pruebas',
+      assignee: 'QA',
+      endDate: '2027-01-07',
+    },
+    {
+      name: 'Fixing',
+      assignee: 'Desarrollo',
+      endDate: '2027-01-15',
+    },
+    {
+      name: 'QG5 27.2',
+      assignee: 'RM',
+      endDate: '2027-01-15',
+    },
+    {
+      name: 'Deadline Xcode27',
+      assignee: 'Apple',
+      endDate: '2027-04-15',
+    },
+  ];
+
+  assert.deepEqual(
+    xcode.items.map((it) => ({
+      name: it.name,
+      assignee: it.assignee,
+      endDate: it.endDate,
+    })),
+    expected
+  );
+
+  // Verify zero dependency conflicts and valid rollup group
+  const computed = computeGanttMetrics(xcode.items);
+  for (const c of computed) {
+    assert.equal(c.hasConflict, false, `Task ${c.name} should have no conflict`);
+  }
+  const groups = groupItemsByProject(computed, xcode.projects);
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].items.length, 7);
+  assert.equal(groups[0].endDate, '2027-04-15');
+});
+
+test('Scenario manager saves custom scenario, switches to a template, and returns to the saved scenario without data loss', () => {
+  const initialScenarios = getDefaultSavedScenarios();
+  assert.ok(initialScenarios.length >= 2);
+
+  // 1. Create a custom scenario with custom projects and tasks
+  const customScenario = createNewScenario('Mi Escenario Personalizado', 'blank');
+  const customProject = sanitizeProject({
+    id: 'proj-custom-1',
+    name: 'Proyecto Custom Alpha',
+    color: 'emerald',
+  });
+  const customTask = sanitizeGanttItem({
+    id: 't-custom-1',
+    name: 'Tarea Crítica Custom',
+    type: 'task',
+    projectId: 'proj-custom-1',
+    startDate: '2026-11-01',
+    endDate: '2026-11-10',
+    duration: 10,
+    slack: 2,
+    progress: 45,
+  });
+
+  let savedList = upsertScenarioInList(initialScenarios, {
+    ...customScenario,
+    projects: [customProject],
+    items: [customTask],
+  });
+
+  // Simulate user editing the active custom scenario in the workspace
+  const editedTask = sanitizeGanttItem({
+    ...customTask,
+    name: 'Tarea Crítica Custom (Editada)',
+    progress: 80,
+  });
+  const activeWorkspaceBeforeTemplate = {
+    activeScenarioId: customScenario.id,
+    projectName: 'Mi Escenario Personalizado v2',
+    projects: [customProject],
+    items: [editedTask],
+  };
+
+  // 2. Switch to 'cloud-migration' template
+  const afterTemplateSwitch = switchWorkspaceToTemplate(
+    activeWorkspaceBeforeTemplate,
+    savedList,
+    'cloud-migration'
+  );
+
+  assert.equal(afterTemplateSwitch.activeScenarioId, 'template:cloud-migration');
+  assert.equal(afterTemplateSwitch.projectName, 'Migración de Infraestructura Cloud & IA');
+  // Verify the custom scenario was auto-saved with its latest edits in savedScenarios
+  const preserved = afterTemplateSwitch.savedScenarios.find(
+    (s) => s.id === customScenario.id
+  );
+  assert.ok(preserved);
+  assert.equal(preserved.name, 'Mi Escenario Personalizado v2');
+  assert.equal(preserved.items[0].name, 'Tarea Crítica Custom (Editada)');
+  assert.equal(preserved.items[0].progress, 80);
+
+  // 3. Switch back from the template to the user's created scenario
+  const restored = switchWorkspaceToScenario(
+    afterTemplateSwitch,
+    afterTemplateSwitch.savedScenarios,
+    customScenario.id
+  );
+
+  assert.equal(restored.activeScenarioId, customScenario.id);
+  assert.equal(restored.projectName, 'Mi Escenario Personalizado v2');
+  assert.equal(restored.projects.length, 1);
+  assert.equal(restored.projects[0].id, 'proj-custom-1');
+  assert.equal(restored.items.length, 1);
+  assert.equal(restored.items[0].name, 'Tarea Crítica Custom (Editada)');
+  assert.equal(restored.items[0].progress, 80);
+
+  // 4. Switch to Xcode 27 scenario and verify all 7 tasks are intact
+  const switchedToXcode = switchWorkspaceToScenario(
+    restored,
+    restored.savedScenarios,
+    'scen-xcode27'
+  );
+  assert.equal(switchedToXcode.activeScenarioId, 'scen-xcode27');
+  assert.equal(switchedToXcode.projects.length, 1);
+  assert.equal(switchedToXcode.items.length, 7);
+});
+
+test('App renders Xcode 27 scenario and Saved Scenarios bar in SSR', async () => {
+  const { renderToString } = await import('react-dom/server');
+  const appBundle = await build({
+    stdin: {
+      contents: `
+        import React from 'react';
+        import { App } from './src/App.tsx';
+        export function createXcodeApp() {
+          return <App initialScenarioId="scen-xcode27" />;
+        }
+      `,
+      resolveDir: path.resolve(__dirname, '..'),
+      sourcefile: 'ssr-xcode-test.tsx',
+      loader: 'tsx',
+    },
+    bundle: true,
+    format: 'cjs',
+    platform: 'node',
+    external: ['react', 'react-dom'],
+    write: false,
+  });
+
+  const fs = await import('node:fs/promises');
+  const tmpFile = path.resolve(__dirname, './.tmp-ssr-xcode.cjs');
+  await fs.writeFile(tmpFile, appBundle.outputFiles[0].text, 'utf8');
+  try {
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+    const createXcodeApp = mod.createXcodeApp || mod.default?.createXcodeApp;
+    const html = renderToString(createXcodeApp());
+
+    assert.ok(html.includes('Plan Xcode 27 &amp; QG5 27.2'));
+    assert.ok(html.includes('data-scenarios-bar="true"'));
+    assert.ok(html.includes('data-scenario-pill="scen-xcode27"'));
+    assert.ok(html.includes('data-scenario-pill="scen-saas-v2"'));
+    assert.ok(html.includes('SDK ARQ, + biocatch, onetrust, RSA actualizados'));
+    assert.ok(html.includes('Nuevas Maquinas Mac operativas (apple silicon)'));
+    assert.ok(html.includes('Generación build'));
+    assert.ok(html.includes('QA termina las pruebas'));
+    assert.ok(html.includes('Fixing'));
+    assert.ok(html.includes('QG5 27.2'));
+    assert.ok(html.includes('Deadline Xcode27'));
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
 
 
 
