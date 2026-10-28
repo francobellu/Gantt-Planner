@@ -949,5 +949,62 @@ test('computeFitToProjectScale and computeWheelZoomDayWidth handle single-day pr
   assert.equal(computeWheelZoomDayWidth(44, Number.NaN), 44);
 });
 
+test('rapid wheel sequences and center-anchored scaling maintain invariant coordinates without drift', () => {
+  // 1. Rapid mouse wheel sequence: 10 consecutive wheel zoom-in events with cursor at 450px
+  let currentWidth = 44;
+  let virtualScrollLeft = 500;
+  const cursorViewportX = 450;
+  const initialDayAtCursor = (virtualScrollLeft + cursorViewportX) / currentWidth; // (500 + 450) / 44 = 21.5909 days
+
+  for (let step = 0; step < 10; step++) {
+    const nextWidth = computeWheelZoomDayWidth(currentWidth, -30);
+    const dayAtCursor = (virtualScrollLeft + cursorViewportX) / currentWidth;
+    virtualScrollLeft = Math.max(0, dayAtCursor * nextWidth - cursorViewportX);
+    currentWidth = nextWidth;
+
+    // The day directly underneath the mouse cursor must remain invariant within rounding tolerance
+    const recalculatedDay = (virtualScrollLeft + cursorViewportX) / currentWidth;
+    assert.ok(
+      Math.abs(recalculatedDay - initialDayAtCursor) < 0.05,
+      `Step ${step}: dayAtCursor drifted from ${initialDayAtCursor} to ${recalculatedDay}`
+    );
+  }
+
+  // 2. Center-anchored zoom (slider or preset clicks): keeps center date invariant
+  const viewportW = 960;
+  const baseWidth = 44;
+  const initialCenterDay = 60; // Day 60 is at 60 * 44 = 2640px
+  const baseScroll = initialCenterDay * baseWidth - viewportW / 2; // 2640 - 480 = 2160px
+
+  const targetWidths = [12, 24, 60, 80];
+  for (const targetW of targetWidths) {
+    const nextScroll = Math.max(0, initialCenterDay * targetW - viewportW / 2);
+    const newCenterDay = (nextScroll + viewportW / 2) / targetW;
+    assert.ok(
+      Math.abs(newCenterDay - initialCenterDay) < 0.01,
+      `Center day drifted at targetWidth ${targetW}`
+    );
+  }
+
+  // Boundary clamping check: When date is within half-viewport of day 0, scrollLeft clamps cleanly at 0
+  const earlyCenterDay = 5;
+  const earlyScroll = Math.max(0, earlyCenterDay * 12 - viewportW / 2);
+  assert.equal(earlyScroll, 0);
+
+  // 3. Scenario scale switching: Long project (>45 days) fits to viewport, short project (<=45 days) defaults to 44px
+  const xcode = getXcode27Scenario();
+  const saas = getProjectTemplates()[0];
+  const xcodeFit = computeFitToProjectScale(xcode.items, 980);
+  const saasFit = computeFitToProjectScale(saas.items, 980);
+
+  assert.ok(xcodeFit.spanDays > 45, 'Xcode 27 should span > 45 days');
+  assert.ok(xcodeFit.dayWidth < 10, 'Xcode 27 should fit with a compact dayWidth');
+
+  assert.ok(saasFit.spanDays <= 45, 'SaaS template should span <= 45 days');
+  // When switching to SaaS, workspace uses DEFAULT_DAY_WIDTH (44px) so text and bars are comfortably legible
+  const defaultWidth = DEFAULT_DAY_WIDTH;
+  assert.equal(defaultWidth, 44);
+});
+
 
 

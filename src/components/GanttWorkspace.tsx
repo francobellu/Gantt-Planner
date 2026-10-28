@@ -220,6 +220,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   } | null>(null);
 
   const isResizingSplitRef = useRef(false);
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const virtualScrollLeftRef = useRef<number | null>(null);
+  const timelineDaysCountRef = useRef<number>(60);
 
   // Continuous day column width (pixels per day)
   const dayWidth = clampDayWidth(
@@ -235,8 +238,39 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     }
   };
 
+  const handleZoomChange = (next: number, anchorViewportX?: number) => {
+    const clamped = clampDayWidth(next);
+    const container = scrollContainerRef.current;
+    if (container && container.clientWidth > 0 && dayWidth > 0 && clamped !== dayWidth) {
+      const anchorX =
+        anchorViewportX !== undefined
+          ? Math.max(0, Math.min(container.clientWidth, anchorViewportX))
+          : container.clientWidth / 2;
+      const currentScroll =
+        virtualScrollLeftRef.current !== null
+          ? virtualScrollLeftRef.current
+          : container.scrollLeft;
+      const dayAtAnchor = (currentScroll + anchorX) / dayWidth;
+      const nextScrollLeft = Math.max(0, dayAtAnchor * clamped - anchorX);
+
+      virtualScrollLeftRef.current = nextScrollLeft;
+      if (canvasRef.current) {
+        canvasRef.current.style.width = `${timelineDaysCountRef.current * clamped}px`;
+      }
+      container.scrollLeft = nextScrollLeft;
+    }
+
+    updateDayWidth(clamped);
+  };
+
   const handleFitProjectAction = (targetProjectId?: string) => {
     const pid = targetProjectId || selectedProjectId || 'all';
+    if (targetProjectId && onToggleProjectCollapse) {
+      const targetProj = projects.find((p) => p.id === targetProjectId);
+      if (targetProj?.collapsed) {
+        onToggleProjectCollapse(targetProjectId);
+      }
+    }
     if (onFitToProject) {
       onFitToProject(pid);
       return;
@@ -244,6 +278,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     const container = scrollContainerRef.current;
     const viewportW = container && container.clientWidth > 0 ? container.clientWidth : 960;
     const fit = computeFitToProjectScale(items, viewportW, { projectId: pid });
+    if (canvasRef.current) {
+      canvasRef.current.style.width = `${timelineDaysCountRef.current * fit.dayWidth}px`;
+    }
+    virtualScrollLeftRef.current = fit.scrollLeft;
     updateDayWidth(fit.dayWidth);
     if (container) {
       requestAnimationFrame(() => {
@@ -259,7 +297,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   const onChangeDayWidthRef = useRef(onChangeDayWidth);
   onChangeDayWidthRef.current = onChangeDayWidth;
 
-  // Attach native non-passive wheel listener to timeline scroll container for smooth cursor-anchored zoom
+  // Attach native non-passive wheel listener and scroll tracker to timeline container
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
@@ -284,26 +322,48 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         0,
         Math.min(rect.width, e.clientX - rect.left)
       );
-      const dayAtCursor = (container.scrollLeft + cursorViewportX) / oldWidth;
+
+      const currentScrollLeft =
+        virtualScrollLeftRef.current !== null
+          ? virtualScrollLeftRef.current
+          : container.scrollLeft;
+
+      const dayAtCursor = (currentScrollLeft + cursorViewportX) / oldWidth;
       const nextScrollLeft = Math.max(0, dayAtCursor * nextWidth - cursorViewportX);
 
+      virtualScrollLeftRef.current = nextScrollLeft;
       dayWidthRef.current = nextWidth;
+
+      if (canvasRef.current) {
+        canvasRef.current.style.width = `${timelineDaysCountRef.current * nextWidth}px`;
+      }
+      container.scrollLeft = nextScrollLeft;
+
       if (onChangeDayWidthRef.current) {
         onChangeDayWidthRef.current(nextWidth);
       } else {
         setFallbackDayWidth(nextWidth);
       }
+    };
 
-      requestAnimationFrame(() => {
-        container.scrollLeft = nextScrollLeft;
-      });
+    const handleScroll = () => {
+      virtualScrollLeftRef.current = container.scrollLeft;
     };
 
     container.addEventListener('wheel', handleWheel, { passive: false });
+    container.addEventListener('scroll', handleScroll, { passive: true });
     return () => {
       container.removeEventListener('wheel', handleWheel);
+      container.removeEventListener('scroll', handleScroll);
     };
   }, [scrollContainerRef]);
+
+  // Synchronize scroll position when dayWidth state changes
+  useEffect(() => {
+    if (virtualScrollLeftRef.current !== null && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollLeft = virtualScrollLeftRef.current;
+    }
+  }, [dayWidth]);
 
   // Apply live drag preview delta to items so project summary bars and rolled-up dates update in real time while dragging
   const effectiveItems = useMemo(() => {
@@ -424,6 +484,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     }
 
     const tIdx = days.findIndex((d) => isSameDay(d, today));
+    timelineDaysCountRef.current = days.length;
 
     return {
       timelineDays: days,
@@ -663,7 +724,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xs">
             <button
               type="button"
-              onClick={() => updateDayWidth(computeWheelZoomDayWidth(dayWidth, 65))}
+              onClick={() => handleZoomChange(computeWheelZoomDayWidth(dayWidth, 65))}
               className="p-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"
               title="Alejar escala visual (-)"
             >
@@ -676,7 +737,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               max={MAX_DAY_WIDTH}
               step={0.5}
               value={dayWidth}
-              onChange={(e) => updateDayWidth( parseFloat(e.target.value) )}
+              onChange={(e) => handleZoomChange(parseFloat(e.target.value))}
               data-zoom-slider="true"
               className="w-24 sm:w-28 accent-indigo-600 cursor-pointer h-1.5"
               title={`Escala continua del cronograma: ${dayWidth} px/día (arrastra o usa la rueda del mouse sobre el diagrama)`}
@@ -684,7 +745,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
             <button
               type="button"
-              onClick={() => updateDayWidth(computeWheelZoomDayWidth(dayWidth, -65))}
+              onClick={() => handleZoomChange(computeWheelZoomDayWidth(dayWidth, -65))}
               className="p-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"
               title="Acercar escala visual (+)"
             >
@@ -1272,7 +1333,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
           ref={scrollContainerRef}
           className="flex-1 overflow-x-auto overflow-y-hidden relative bg-white dark:bg-slate-950 select-none"
         >
-          <div style={{ width: totalCanvasWidth, minHeight: totalCanvasHeight }} className="relative">
+          <div
+            ref={canvasRef}
+            style={{ width: totalCanvasWidth, minHeight: totalCanvasHeight }}
+            className="relative"
+          >
             {/* Two-Tier Timeline Header (60px total height) */}
             <div
               style={{ height: HEADER_HEIGHT }}
@@ -1818,7 +1883,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         )}
 
                         {/* Outside Label when bar is narrow */}
-                        {barWidth < 110 && (
+                        {barWidth < 56 && (
                           <span className="ml-2 text-[11px] font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap pointer-events-none">
                             {item.name} ({coords.effectiveDuration}d)
                           </span>

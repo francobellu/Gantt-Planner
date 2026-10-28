@@ -43,6 +43,7 @@ import {
   clampDayWidth,
   computeFitToProjectScale,
   computeGanttMetrics,
+  computeTimelineBounds,
   createNewScenario,
   DEFAULT_DAY_WIDTH,
   formatDateDisplay,
@@ -677,8 +678,18 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
   };
 
   const handleSelectZoomPreset = (preset: ZoomLevel) => {
+    const newDayWidth = getDayWidthForPreset(preset);
+    const container = scrollContainerRef.current;
+    if (container && container.clientWidth > 0 && dayWidth > 0 && newDayWidth !== dayWidth) {
+      const centerX = container.clientWidth / 2;
+      const dayAtCenter = (container.scrollLeft + centerX) / dayWidth;
+      const nextScrollLeft = Math.max(0, dayAtCenter * newDayWidth - centerX);
+      requestAnimationFrame(() => {
+        container.scrollTo({ left: nextScrollLeft, behavior: 'smooth' });
+      });
+    }
     setZoom(preset);
-    setDayWidth(getDayWidthForPreset(preset));
+    setDayWidth(newDayWidth);
   };
 
   const handleChangeDayWidth = (nextWidth: number) => {
@@ -715,18 +726,39 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
     }
   };
 
-  // Auto-fit on initial browser mount if the active scenario spans more than 45 days
+  // Auto-fit or reset scale on scenario switch / mount
   useEffect(() => {
     const container = scrollContainerRef.current;
-    if (!container || container.clientWidth <= 0) return;
-    const fit = computeFitToProjectScale(computedItems, container.clientWidth, {
+    const viewportW = container && container.clientWidth > 0 ? container.clientWidth : 980;
+    const fit = computeFitToProjectScale(computedItems, viewportW, {
       projectId: selectedProjectId,
     });
     if (fit.spanDays > 45) {
       setDayWidth(fit.dayWidth);
-      requestAnimationFrame(() => {
-        container.scrollLeft = fit.scrollLeft;
-      });
+      const matched = resolveZoomPresetFromDayWidth(fit.dayWidth);
+      if (matched !== 'custom') setZoom(matched);
+      if (container) {
+        requestAnimationFrame(() => {
+          container.scrollLeft = fit.scrollLeft;
+        });
+      }
+    } else {
+      const targetWidth = DEFAULT_DAY_WIDTH;
+      setDayWidth(targetWidth);
+      setZoom('day');
+      if (container && computedItems.length > 0) {
+        const { timelineStart } = computeTimelineBounds(computedItems);
+        let earliest = parseDateSafe(computedItems[0].startDate);
+        for (const it of computedItems) {
+          const s = parseDateSafe(it.startDate);
+          if (s < earliest) earliest = s;
+        }
+        const startOffsetDays = differenceInCalendarDays(earliest, timelineStart);
+        const scrollLeft = Math.max(0, Math.round(startOffsetDays * targetWidth - 36));
+        requestAnimationFrame(() => {
+          container.scrollLeft = scrollLeft;
+        });
+      }
     }
   }, [activeScenarioId]);
 
