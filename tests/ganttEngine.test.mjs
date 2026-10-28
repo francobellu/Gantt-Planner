@@ -539,6 +539,44 @@ test('App and GanttWorkspace render complete WBS table, project groups, summary 
             />
           );
         }
+        export function createMultiMilestonesWorkspaceElement() {
+          const tpl = getProjectTemplates()[0];
+          const items = [
+            ...tpl.items,
+            {
+              id: 'm-2',
+              projectId: 'proj-discovery',
+              name: 'Hito Auditoría Seguridad',
+              type: 'milestone',
+              startDate: '2026-11-06',
+              endDate: '2026-11-06',
+              duration: 0,
+              slack: 0,
+              dependencies: [],
+              progress: 0,
+              color: 'amber',
+            },
+          ];
+          const computed = computeGanttMetrics(items);
+          return (
+            <GanttWorkspace
+              items={computed}
+              projects={tpl.projects}
+              groupByProject={true}
+              selectedProjectId="all"
+              zoom="day"
+              showCriticalPath={true}
+              showCpmFloat={false}
+              autoCascade={true}
+              onUpdateItem={() => {}}
+              onEditModal={() => {}}
+              onDeleteItem={() => {}}
+              onDuplicateItem={() => {}}
+              onQuickAdd={() => {}}
+              scrollContainerRef={{ current: null }}
+            />
+          );
+        }
       `,
       resolveDir: path.resolve(__dirname, '..'),
       sourcefile: 'ssr-test.tsx',
@@ -565,6 +603,8 @@ test('App and GanttWorkspace render complete WBS table, project groups, summary 
       mod.createInspectedWorkspaceElement || mod.default?.createInspectedWorkspaceElement;
     const createScrubberWorkspaceElement =
       mod.createScrubberWorkspaceElement || mod.default?.createScrubberWorkspaceElement;
+    const createMultiMilestonesWorkspaceElement =
+      mod.createMultiMilestonesWorkspaceElement || mod.default?.createMultiMilestonesWorkspaceElement;
     const html = renderToString(createAppElement());
 
     // Verify default template title, project groups, project summary bars, tasks, milestones, slack badges, and today marker render
@@ -586,6 +626,7 @@ test('App and GanttWorkspace render complete WBS table, project groups, summary 
       html.includes('border-r-2 border-slate-300 dark:border-slate-700'),
       'Month separators must use distinct 2px border across canvas body and calendar header'
     );
+    assert.ok(html.includes('z-[5]'), 'Month dividers must have z-[5] to render above row backgrounds');
 
     // Requirement 2: Milestone Vertical Guide Lines from Top to Bottom
     assert.ok(html.includes('data-milestone-guide="m-1"'), 'Must render vertical guide for milestone m-1');
@@ -624,6 +665,20 @@ test('App and GanttWorkspace render complete WBS table, project groups, summary 
     assert.ok(scrubberHtml.includes('data-cursor-x="350"'));
     assert.ok(scrubberHtml.includes('data-cursor-date="28 Oct 2026"'));
     assert.ok(scrubberHtml.includes('28 Oct 2026'));
+
+    // Requirement 3 (Edge Case): Scrubber badge boundary clamp near left canvas edge (x=10)
+    const leftScrubberHtml = renderToString(
+      createScrubberWorkspaceElement(10, new Date('2026-10-28T12:00:00Z'))
+    );
+    assert.ok(leftScrubberHtml.includes('id="timeline-cursor-scrubber"'));
+    assert.ok(leftScrubberHtml.includes('translateX(calc(-50% + 50px))'));
+
+    // Requirement 2 (Edge Case): Multiple milestones on identical dates get tiered vertically to prevent visual label collision
+    const multiMilestoneHtml = renderToString(createMultiMilestonesWorkspaceElement());
+    assert.ok(multiMilestoneHtml.includes('data-milestone-guide="m-1"'));
+    assert.ok(multiMilestoneHtml.includes('data-milestone-guide="m-2"'));
+    assert.ok(multiMilestoneHtml.includes('top-0.5'), 'First milestone on date is at top-0.5 tier');
+    assert.ok(multiMilestoneHtml.includes('top-6'), 'Second milestone on date is tiered at top-6 to prevent overlap');
 
     // Requirement 4: Non-intrusive Top-Right Docked Inspection Panel on Click
     const inspectedHtml = renderToString(createInspectedWorkspaceElement('t-2'));
@@ -1236,6 +1291,16 @@ test('formatScrubberDate correctly formats Spanish calendar dates with capitaliz
   // Feb 29, 2028 -> 29 Feb 2028 (leap year)
   const d5 = new Date(2028, 1, 29, 12, 0, 0); // 1 = Feb
   assert.equal(formatScrubberDate(d5), '29 Feb 2028');
+
+  // Null, undefined, empty, and invalid dates return empty string safely without throw
+  assert.equal(formatScrubberDate(null), '');
+  assert.equal(formatScrubberDate(undefined), '');
+  assert.equal(formatScrubberDate(''), '');
+  assert.equal(formatScrubberDate(new Date('invalid')), '');
+
+  // ISO string inputs supported
+  assert.equal(formatScrubberDate('2026-10-28'), '28 Oct 2026');
+  assert.equal(formatScrubberDate('2027-01-15'), '15 Ene 2027');
 });
 
 test('month dividers, milestone guide lines, and date scrubber handle extreme edge cases gracefully', () => {

@@ -988,9 +988,50 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   const totalCanvasWidth = timelineDays.length * dayWidth;
   const totalCanvasHeight = Math.max(displayRows.length * ROW_HEIGHT + 56, 360);
 
+  // Group and tier milestone vertical guides to avoid label collision when dates coincide or are adjacent
+  const milestoneGuides = useMemo(() => {
+    const list = visibleMilestones.map((m) => {
+      const mCoords = itemRowMap.get(m.id);
+      const milestoneX = mCoords
+        ? mCoords.startX
+        : differenceInCalendarDays(parseDateSafe(m.startDate), timelineStart) * dayWidth + dayWidth / 2;
+      return { milestone: m, milestoneX };
+    });
+
+    // Sort chronologically by X coordinate
+    list.sort((a, b) => a.milestoneX - b.milestoneX);
+
+    let lastX = -9999;
+    let currentTier = 0;
+
+    return list.map((entry) => {
+      if (Math.abs(entry.milestoneX - lastX) < 76) {
+        currentTier = (currentTier + 1) % 3;
+      } else {
+        currentTier = 0;
+      }
+      lastX = entry.milestoneX;
+
+      // Safe clamp offset so badges near left/right canvas boundaries don't clip
+      const halfBadge = 50;
+      let badgeClampOffset = 0;
+      if (entry.milestoneX < halfBadge + 4) {
+        badgeClampOffset = halfBadge + 4 - entry.milestoneX;
+      } else if (entry.milestoneX > totalCanvasWidth - halfBadge - 4) {
+        badgeClampOffset = totalCanvasWidth - halfBadge - 4 - entry.milestoneX;
+      }
+
+      return {
+        ...entry,
+        tier: currentTier,
+        badgeClampOffset,
+      };
+    });
+  }, [visibleMilestones, itemRowMap, timelineStart, dayWidth, totalCanvasWidth]);
+
   // Track cursor position and exact calendar date over timeline canvas for the date scrubber
   const handleTimelineMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (dragState) {
+    if (dragState || isResizingSplitRef.current) {
       if (cursorScrubber) setCursorScrubber(null);
       return;
     }
@@ -1718,23 +1759,38 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             className="relative"
           >
             {/* Interactive Mouse Cursor Date Scrubber */}
-            {cursorScrubber && (
-              <div
-                id="timeline-cursor-scrubber"
-                data-cursor-x={cursorScrubber.x}
-                data-cursor-date={formatScrubberDate(cursorScrubber.date)}
-                style={{ left: cursorScrubber.x }}
-                className="absolute top-0 bottom-0 pointer-events-none z-30 flex flex-col items-center"
-              >
-                {/* Floating pill badge at the top displaying exact calendar date */}
-                <div className="sticky top-1.5 -translate-x-1/2 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-900/95 dark:bg-slate-100/95 text-white dark:text-slate-900 shadow-lg border border-slate-700/60 dark:border-slate-300/60 text-[10px] font-mono font-bold whitespace-nowrap z-40 transition-transform">
-                  <Calendar className="w-3 h-3 text-indigo-400 dark:text-indigo-600 shrink-0" />
-                  <span>{formatScrubberDate(cursorScrubber.date)}</span>
+            {cursorScrubber && (() => {
+              const halfBadge = 56;
+              let badgeClampOffset = 0;
+              if (cursorScrubber.x < halfBadge + 4) {
+                badgeClampOffset = halfBadge + 4 - cursorScrubber.x;
+              } else if (cursorScrubber.x > totalCanvasWidth - halfBadge - 4) {
+                badgeClampOffset = totalCanvasWidth - halfBadge - 4 - cursorScrubber.x;
+              }
+
+              return (
+                <div
+                  id="timeline-cursor-scrubber"
+                  data-cursor-x={cursorScrubber.x}
+                  data-cursor-date={formatScrubberDate(cursorScrubber.date)}
+                  style={{ left: cursorScrubber.x }}
+                  className="absolute top-0 bottom-0 pointer-events-none z-30 flex flex-col items-center"
+                >
+                  {/* Floating pill badge at the top displaying exact calendar date */}
+                  <div
+                    style={{
+                      transform: `translateX(calc(-50% + ${badgeClampOffset}px))`,
+                    }}
+                    className="sticky top-1.5 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-900/95 dark:bg-slate-100/95 text-white dark:text-slate-900 shadow-lg border border-slate-700/60 dark:border-slate-300/60 text-[10px] font-mono font-bold whitespace-nowrap z-40 transition-transform"
+                  >
+                    <Calendar className="w-3 h-3 text-indigo-400 dark:text-indigo-600 shrink-0" />
+                    <span>{formatScrubberDate(cursorScrubber.date)}</span>
+                  </div>
+                  {/* Sleek vertical tracking line */}
+                  <div className="w-px h-full bg-indigo-500/80 dark:bg-indigo-400/80 shadow-xs" />
                 </div>
-                {/* Sleek vertical tracking line */}
-                <div className="w-px h-full bg-indigo-500/80 dark:bg-indigo-400/80 shadow-xs" />
-              </div>
-            )}
+              );
+            })()}
 
             {/* Two-Tier Timeline Header (60px total height) */}
             <div
@@ -1853,7 +1909,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               </div>
 
               {/* Vertical Month Separators across Canvas Body */}
-              <div className="absolute inset-0 flex pointer-events-none z-0">
+              <div className="absolute inset-0 flex pointer-events-none z-[5]">
                 {monthGroups.map((group, mIdx) => (
                   <div
                     key={`month-divider-${mIdx}`}
@@ -1867,39 +1923,42 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               </div>
 
               {/* Milestone Vertical Guide Lines */}
-              {visibleMilestones.map((m) => {
-                const mCoords = itemRowMap.get(m.id);
-                const milestoneX = mCoords
-                  ? mCoords.startX
-                  : differenceInCalendarDays(parseDateSafe(m.startDate), timelineStart) * dayWidth + dayWidth / 2;
-                const isCrit = showCriticalPath && m.isCritical;
+              {milestoneGuides.map(
+                ({ milestone: m, milestoneX, tier, badgeClampOffset }) => {
+                  const isCrit = showCriticalPath && m.isCritical;
+                  const tierTopClass =
+                    tier === 1 ? 'top-6' : tier === 2 ? 'top-11.5' : 'top-0.5';
 
-                return (
-                  <div
-                    key={`milestone-guide-${m.id}`}
-                    data-milestone-guide={m.id}
-                    data-milestone-x={milestoneX}
-                    style={{ left: milestoneX }}
-                    className="absolute top-0 bottom-0 pointer-events-none z-10 flex flex-col items-center"
-                  >
-                    {/* Top Diamond Pill Marker */}
+                  return (
                     <div
-                      className={`absolute top-0.5 -translate-x-1/2 flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold shadow-sm whitespace-nowrap z-20 ${
-                        isCrit
-                          ? 'bg-rose-500 text-white ring-1 ring-rose-400'
-                          : 'bg-amber-500 text-white ring-1 ring-amber-400'
-                      }`}
-                      title={`Hito: ${m.name} (${formatDateDisplay(m.startDate, 'dd MMM yyyy')})`}
+                      key={`milestone-guide-${m.id}`}
+                      data-milestone-guide={m.id}
+                      data-milestone-x={milestoneX}
+                      style={{ left: milestoneX }}
+                      className="absolute top-0 bottom-0 pointer-events-none z-10 flex flex-col items-center"
                     >
-                      <span className="text-[8px] leading-none">◆</span>
-                      <span className="max-w-[80px] sm:max-w-[120px] truncate">{m.name}</span>
-                    </div>
+                      {/* Top Diamond Pill Marker */}
+                      <div
+                        style={{
+                          transform: `translateX(calc(-50% + ${badgeClampOffset}px))`,
+                        }}
+                        className={`absolute ${tierTopClass} flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold shadow-sm whitespace-nowrap z-20 ${
+                          isCrit
+                            ? 'bg-rose-500 text-white ring-1 ring-rose-400'
+                            : 'bg-amber-500 text-white ring-1 ring-amber-400'
+                        }`}
+                        title={`Hito: ${m.name} (${formatDateDisplay(m.startDate, 'dd MMM yyyy')})`}
+                      >
+                        <span className="text-[8px] leading-none">◆</span>
+                        <span className="max-w-[80px] sm:max-w-[120px] truncate">{m.name}</span>
+                      </div>
 
-                    {/* Vertical Dashed Guide Line from Top to Bottom */}
-                    <div className="w-0 h-full border-l-2 border-dashed border-amber-500/60 dark:border-amber-400/60" />
-                  </div>
-                );
-              })}
+                      {/* Vertical Dashed Guide Line from Top to Bottom */}
+                      <div className="w-0 h-full border-l-2 border-dashed border-amber-500/60 dark:border-amber-400/60" />
+                    </div>
+                  );
+                }
+              )}
 
               {/* Today ("HOY") Vertical Line Marker */}
               {todayIndex >= 0 && (

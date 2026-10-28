@@ -41,11 +41,14 @@ export function formatDateDisplay(dateStr: string, fmt = 'dd MMM yyyy'): string 
  * Formats a date for the interactive timeline cursor scrubber.
  * Example: '28 Oct 2026', '15 Ene 2027'.
  */
-export function formatScrubberDate(date: Date): string {
-  const day = format(date, 'd');
-  const month = format(date, 'MMM', { locale: es }).replace('.', '');
+export function formatScrubberDate(date: Date | string | null | undefined): string {
+  if (!date) return '';
+  const d = typeof date === 'string' ? parseDateSafe(date) : date;
+  if (!isValid(d) || isNaN(d.getTime())) return '';
+  const day = format(d, 'd');
+  const month = format(d, 'MMM', { locale: es }).replace('.', '');
   const monthCap = month.charAt(0).toUpperCase() + month.slice(1);
-  const year = format(date, 'yyyy');
+  const year = format(d, 'yyyy');
   return `${day} ${monthCap} ${year}`;
 }
 
