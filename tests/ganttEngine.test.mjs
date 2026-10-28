@@ -852,4 +852,102 @@ test('computeFitToProjectScale automatically finds optimal scale to fit all task
   assert.ok(bounds.totalDays > xcodeFit.spanDays);
 });
 
+test('computeFitToProjectScale and computeWheelZoomDayWidth handle single-day projects, single milestones, multi-year spans, and extreme inputs', () => {
+  // 1. Single milestone (duration: 0, startDate == endDate)
+  const singleMilestone = [
+    {
+      id: 'm-single',
+      name: 'Launch Day',
+      type: 'milestone',
+      projectId: 'proj-launch',
+      startDate: '2026-12-01',
+      endDate: '2026-12-01',
+      duration: 0,
+      slack: 0,
+      dependencies: [],
+      progress: 100,
+      color: 'amber',
+    },
+  ];
+  const milestoneFit = computeFitToProjectScale(singleMilestone, 900);
+  assert.equal(milestoneFit.spanDays, 1);
+  assert.equal(milestoneFit.startDate, '2026-12-01');
+  assert.equal(milestoneFit.endDate, '2026-12-01');
+  assert.equal(milestoneFit.dayWidth, MAX_DAY_WIDTH); // Max zoom for single milestone
+  assert.ok(milestoneFit.scrollLeft >= 0);
+
+  // 2. Single 1-day task (duration: 1)
+  const singleDayTask = [
+    {
+      id: 't-1d',
+      name: '1-Day Spike',
+      type: 'task',
+      projectId: 'proj-spike',
+      startDate: '2026-11-15',
+      endDate: '2026-11-15',
+      duration: 1,
+      slack: 0,
+      dependencies: [],
+      progress: 50,
+      color: 'indigo',
+    },
+  ];
+  const dayFit = computeFitToProjectScale(singleDayTask, 1200);
+  assert.equal(dayFit.spanDays, 1);
+  assert.equal(dayFit.dayWidth, MAX_DAY_WIDTH);
+  assert.ok(dayFit.scrollLeft >= 0);
+
+  // 3. Multi-year span (e.g. 3 years / 1095 days)
+  const multiYearTasks = [
+    {
+      id: 't-start',
+      name: 'Project Inception',
+      type: 'task',
+      projectId: 'proj-multiyear',
+      startDate: '2024-01-01',
+      endDate: '2024-01-31',
+      duration: 31,
+      slack: 0,
+      dependencies: [],
+      progress: 100,
+      color: 'blue',
+    },
+    {
+      id: 't-end',
+      name: 'Final Delivery',
+      type: 'milestone',
+      projectId: 'proj-multiyear',
+      startDate: '2026-12-31',
+      endDate: '2026-12-31',
+      duration: 0,
+      slack: 0,
+      dependencies: ['t-start'],
+      progress: 0,
+      color: 'rose',
+    },
+  ];
+  const multiYearFit = computeFitToProjectScale(multiYearTasks, 1000);
+  assert.ok(multiYearFit.spanDays > 1000);
+  assert.equal(multiYearFit.dayWidth, MIN_DAY_WIDTH); // Clamped to minimum 3px/day
+  assert.ok(multiYearFit.scrollLeft >= 0);
+
+  // 4. Invalid or edge-case viewport widths (0, negative, NaN)
+  const zeroViewportFit = computeFitToProjectScale(singleDayTask, 0);
+  assert.ok(zeroViewportFit.dayWidth >= MIN_DAY_WIDTH && zeroViewportFit.dayWidth <= MAX_DAY_WIDTH);
+  const nanViewportFit = computeFitToProjectScale(singleDayTask, Number.NaN);
+  assert.ok(nanViewportFit.dayWidth >= MIN_DAY_WIDTH && nanViewportFit.dayWidth <= MAX_DAY_WIDTH);
+  const negViewportFit = computeFitToProjectScale(singleDayTask, -500);
+  assert.ok(negViewportFit.dayWidth >= MIN_DAY_WIDTH && negViewportFit.dayWidth <= MAX_DAY_WIDTH);
+
+  // 5. Extreme wheel deltas (large trackpad flick or wheel spike +/- 5000)
+  const flickOut = computeWheelZoomDayWidth(44, 5000);
+  assert.ok(flickOut < 44);
+  assert.ok(flickOut >= MIN_DAY_WIDTH);
+  const flickIn = computeWheelZoomDayWidth(44, -5000);
+  assert.ok(flickIn > 44);
+  assert.ok(flickIn <= MAX_DAY_WIDTH);
+  assert.equal(computeWheelZoomDayWidth(44, Number.NaN), 44);
+});
+
+
 
