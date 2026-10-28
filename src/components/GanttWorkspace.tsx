@@ -814,7 +814,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
         if (fromStart) {
           // SS / SF: arrow leaves predecessor going left, enters successor from left
-          const exitX = Math.min(x1, x2) - stepOut;
+          const exitX = Math.max(4, Math.min(x1, x2) - stepOut);
           if (Math.abs(y1 - y2) < 2) {
             waypoints.push({ x: x1, y: y1 }, { x: x2, y: y2 });
           } else {
@@ -831,9 +831,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
           if (gap >= 16) {
             // Forward flow with comfortable gap
-            const minStep = 10;
-            const maxStep = Math.max(minStep, gap - 8);
-            const midX = Math.min(x1 + stepOut, maxStep);
+            const midX = Math.min(x1 + stepOut, x2 - 8);
 
             if (Math.abs(y1 - y2) < 2) {
               waypoints.push({ x: x1, y: y1 }, { x: x2, y: y2 });
@@ -849,10 +847,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             // Overlapping or backwards: x2 is earlier than or within 16px of x1
             // Routes right out of predecessor, detours vertically into row-gap, travels left past x2, and enters x2 from the left
             const exitX = x1 + 12 + laneIndex * 8;
-            const entryX = x2 - 12 - laneIndex * 8;
+            const entryX = Math.max(0, Math.min(x2 - 6, x2 - 12 - laneIndex * 8));
             const goingDown = y2 >= y1;
             const detourDir = goingDown ? 1 : -1;
-            const detourY = y1 + detourDir * (ROW_HEIGHT / 2 + laneIndex * 4);
+            const detourY = y1 + detourDir * (ROW_HEIGHT / 2 + (laneIndex - 2) * 3);
 
             waypoints.push(
               { x: x1, y: y1 },
@@ -1758,7 +1756,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                 <svg
                   width={totalCanvasWidth}
                   height={displayRows.length * ROW_HEIGHT + 52}
-                  className="absolute inset-0 pointer-events-none z-10"
+                  className="absolute inset-0 pointer-events-none z-10 overflow-visible"
                   data-arrow-visibility={arrowVisibility}
                 >
                   <defs>

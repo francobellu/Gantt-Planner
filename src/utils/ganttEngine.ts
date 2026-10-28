@@ -1585,9 +1585,13 @@ export function createRoundedOrthogonalPath(
     const next = points[i + 1];
 
     const isCollinearX =
-      Math.abs(prev.x - curr.x) < 0.05 && Math.abs(curr.x - next.x) < 0.05;
+      Math.abs(prev.x - curr.x) < 0.05 &&
+      Math.abs(curr.x - next.x) < 0.05 &&
+      (curr.y - prev.y) * (next.y - curr.y) > 0;
     const isCollinearY =
-      Math.abs(prev.y - curr.y) < 0.05 && Math.abs(curr.y - next.y) < 0.05;
+      Math.abs(prev.y - curr.y) < 0.05 &&
+      Math.abs(curr.y - next.y) < 0.05 &&
+      (curr.x - prev.x) * (next.x - curr.x) > 0;
 
     if (!isCollinearX && !isCollinearY) {
       collapsed.push(curr);
@@ -1622,9 +1626,10 @@ export function createRoundedOrthogonalPath(
     const uOut = { x: vOut.x / dOut, y: vOut.y / dOut };
 
     // Max fillet radius cannot exceed half of incoming or outgoing segment length
+    const isOrthogonal = Math.abs(uIn.x * uOut.x + uIn.y * uOut.y) < 0.05;
     const r = Math.min(radius, dIn / 2, dOut / 2);
 
-    if (r <= 0.8) {
+    if (r <= 0.8 || !isOrthogonal) {
       d += ` L ${curr.x.toFixed(1)} ${curr.y.toFixed(1)}`;
     } else {
       const pBefore = {

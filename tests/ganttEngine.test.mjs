@@ -534,6 +534,10 @@ test('App and GanttWorkspace render complete WBS table, project groups, summary 
     // Verify default dependency arrow rendering includes data-arrow-visibility="all" and rounded fillet curves (Q)
     assert.ok(html.includes('data-arrow-visibility="all"'));
     assert.ok(html.includes(' Q '));
+    // Verify forward flow dependency links maintain forward midX without jumping back to canvas start
+    // (t-2 -> m-1 from x1=572 to x2=627 routes through midX=584, NOT jumping back to x=47 or 53)
+    assert.ok(html.includes('M 572.0 125.0 L 578.0 125.0 Q 584.0 125.0'));
+    assert.equal(html.includes('M 572.0 125.0 L 53.0'), false);
 
     // Verify collapsed project group hides child task rows while preserving project summary bar and cross-project SVG dependency arrows
     const collapsedHtml = renderToString(createCollapsedWorkspaceElement());
@@ -1105,6 +1109,23 @@ test('createRoundedOrthogonalPath produces smooth fillet curves with quadratic b
   // 5. Degenerate and empty inputs
   assert.equal(createRoundedOrthogonalPath([]), '');
   assert.equal(createRoundedOrthogonalPath([{ x: 0, y: 0 }]), '');
+
+  // 6. Monotone direction check: 180-degree turnaround on same axis does not collapse intermediate point
+  const turnaround = createRoundedOrthogonalPath([
+    { x: 10, y: 0 },
+    { x: 10, y: 50 },
+    { x: 10, y: 10 },
+    { x: 30, y: 10 },
+  ]);
+  assert.ok(turnaround.includes('50.0'), 'Intermediate peak point must be preserved on turnaround');
+
+  // 7. Non-orthogonal vertices fall back to sharp L without Q bezier distortion
+  const diagonal = createRoundedOrthogonalPath([
+    { x: 0, y: 0 },
+    { x: 50, y: 25 },
+    { x: 100, y: 100 },
+  ]);
+  assert.equal(diagonal.includes('Q '), false, 'Diagonal segments should fall back to clean straight L commands');
 });
 
 
