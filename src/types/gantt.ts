@@ -91,3 +91,5 @@ export interface SavedScenario {
   sourceTemplateId?: string;
 }
 
+export type ArrowVisibility = 'all' | 'hover' | 'critical' | 'none';
+

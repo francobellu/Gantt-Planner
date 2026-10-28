@@ -28,8 +28,10 @@ import {
   Trash2,
 } from 'lucide-react';
 import {
+  ArrowVisibility,
   ComputedGanttItem,
   ComputedProjectGroup,
+  DependencyType,
   GanttItem,
   GanttProject,
   TaskColor,
@@ -42,12 +44,14 @@ import {
   computeFitToProjectScale,
   computeTimelineBounds,
   computeWheelZoomDayWidth,
+  createRoundedOrthogonalPath,
   formatDateDisplay,
   formatDateISO,
   getDayWidthForPreset,
   groupItemsByProject,
   MAX_DAY_WIDTH,
   MIN_DAY_WIDTH,
+  OrthogonalPoint,
   parseDateSafe,
 } from '../utils/ganttEngine';
 
@@ -63,6 +67,8 @@ interface GanttWorkspaceProps {
   showCriticalPath: boolean;
   showCpmFloat: boolean;
   autoCascade: boolean;
+  arrowVisibility?: ArrowVisibility;
+  onChangeArrowVisibility?: (visibility: ArrowVisibility) => void;
   onUpdateItem: (updated: GanttItem, cascade: boolean) => void;
   onEditModal: (item: ComputedGanttItem) => void;
   onDeleteItem: (id: string) => void;
@@ -183,6 +189,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   showCriticalPath,
   showCpmFloat,
   autoCascade,
+  arrowVisibility: controlledArrowVisibility,
+  onChangeArrowVisibility,
   onUpdateItem,
   onEditModal,
   onDeleteItem,
@@ -199,9 +207,24 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   const [splitWidth, setSplitWidth] = useState<number>(660);
   const [showTable, setShowTable] = useState<boolean>(true);
   const [wheelZoomEnabled, setWheelZoomEnabled] = useState<boolean>(true);
+  const [fallbackArrowVisibility, setFallbackArrowVisibility] =
+    useState<ArrowVisibility>('all');
   const [fallbackDayWidth, setFallbackDayWidth] = useState<number>(() =>
     getDayWidthForPreset(zoom)
   );
+
+  const arrowVisibility =
+    controlledArrowVisibility !== undefined
+      ? controlledArrowVisibility
+      : fallbackArrowVisibility;
+
+  const handleArrowVisibilityChange = (next: ArrowVisibility) => {
+    if (onChangeArrowVisibility) {
+      onChangeArrowVisibility(next);
+    } else {
+      setFallbackArrowVisibility(next);
+    }
+  };
 
   useEffect(() => {
     if (controlledDayWidth === undefined) {
@@ -677,6 +700,209 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     return set;
   }, [hoveredId, items]);
 
+  // Memoized dependency links with channel separation (multi-lane routing),
+  // unified left-anchor entrance, smooth rounded corners (fillet curves), and density/visibility filtering
+  const dependencyLinks = useMemo(() => {
+    if (arrowVisibility === 'none') return [];
+
+    const incomingMap = new Map<string, string[]>();
+    const outgoingMap = new Map<string, string[]>();
+
+    for (const succ of items) {
+      if (!succ.dependencies || succ.dependencies.length === 0) continue;
+      const succCoords = itemRowMap.get(succ.id);
+      if (!succCoords) continue;
+
+      for (const predId of succ.dependencies) {
+        const predCoords = itemRowMap.get(predId);
+        if (!predCoords) continue;
+        if (
+          predCoords.isCollapsedRow &&
+          succCoords.isCollapsedRow &&
+          predCoords.index === succCoords.index
+        ) {
+          continue;
+        }
+
+        if (!incomingMap.has(succ.id)) incomingMap.set(succ.id, []);
+        incomingMap.get(succ.id)!.push(predId);
+
+        if (!outgoingMap.has(predId)) outgoingMap.set(predId, []);
+        outgoingMap.get(predId)!.push(succ.id);
+      }
+    }
+
+    const list: Array<{
+      key: string;
+      predId: string;
+      succId: string;
+      dPath: string;
+      strokeColor: string;
+      strokeWidth: number;
+      markerEnd: string;
+      hasConflict: boolean;
+      isHighlighted: boolean;
+      isCriticalLink: boolean;
+    }> = [];
+
+    for (const succ of items) {
+      if (!succ.dependencies || succ.dependencies.length === 0) continue;
+      const succCoords = itemRowMap.get(succ.id);
+      if (!succCoords) continue;
+
+      const succPreds = incomingMap.get(succ.id) || [];
+      const totalIncoming = succPreds.length;
+
+      succ.dependencies.forEach((predId) => {
+        const predCoords = itemRowMap.get(predId);
+        if (!predCoords) return;
+        if (
+          predCoords.isCollapsedRow &&
+          succCoords.isCollapsedRow &&
+          predCoords.index === succCoords.index
+        ) {
+          return;
+        }
+
+        const incomingIndex = succPreds.indexOf(predId);
+        const outgoingList = outgoingMap.get(predId) || [];
+        const outgoingIndex = outgoingList.indexOf(succ.id);
+
+        const laneIndex = Math.min(
+          4,
+          Math.max(0, incomingIndex >= 0 ? incomingIndex : 0) +
+            (outgoingIndex > 0 ? outgoingIndex : 0)
+        );
+
+        const depType: DependencyType = succ.dependencyTypes?.[predId] || 'FS';
+        const fromStart = depType === 'SS' || depType === 'SF';
+
+        const isHighlighted = hoveredId === succ.id || hoveredId === predId;
+        const isCriticalLink =
+          showCriticalPath && succ.isCritical && predCoords.item.isCritical;
+
+        // Visibility selector filtering
+        if (arrowVisibility === 'hover' && !isHighlighted) return;
+        if (arrowVisibility === 'critical' && !isCriticalLink && !isHighlighted) return;
+
+        // Predecessor exit anchor (x1, y1)
+        const x1 = fromStart
+          ? predCoords.item.type === 'milestone'
+            ? predCoords.startX - 11
+            : predCoords.startX
+          : predCoords.item.type === 'milestone'
+          ? predCoords.startX + 11
+          : predCoords.endX;
+        const y1 = predCoords.centerY;
+
+        // Successor arrival anchor (x2, y2) — STRICT UNIFIED LEFT-ANCHOR ENTRANCE
+        // Arrows always enter strictly from the left side into the start anchor/left shoulder
+        const x2 =
+          succCoords.item.type === 'milestone'
+            ? succCoords.startX - 11
+            : succCoords.startX;
+
+        // For tasks with multiple incoming links, stagger entrance height across the left shoulder
+        let y2 = succCoords.centerY;
+        if (succCoords.item.type === 'task' && totalIncoming > 1) {
+          const shoulderOffset = (incomingIndex - (totalIncoming - 1) / 2) * 5;
+          y2 = succCoords.centerY + Math.max(-8, Math.min(8, shoulderOffset));
+        }
+
+        const stepOut = 12 + laneIndex * 10;
+        const waypoints: OrthogonalPoint[] = [];
+
+        if (fromStart) {
+          // SS / SF: arrow leaves predecessor going left, enters successor from left
+          const exitX = Math.min(x1, x2) - stepOut;
+          if (Math.abs(y1 - y2) < 2) {
+            waypoints.push({ x: x1, y: y1 }, { x: x2, y: y2 });
+          } else {
+            waypoints.push(
+              { x: x1, y: y1 },
+              { x: exitX, y: y1 },
+              { x: exitX, y: y2 },
+              { x: x2, y: y2 }
+            );
+          }
+        } else {
+          // FS / FF: arrow leaves predecessor going right, enters successor strictly from left
+          const gap = x2 - x1;
+
+          if (gap >= 16) {
+            // Forward flow with comfortable gap
+            const minStep = 10;
+            const maxStep = Math.max(minStep, gap - 8);
+            const midX = Math.min(x1 + stepOut, maxStep);
+
+            if (Math.abs(y1 - y2) < 2) {
+              waypoints.push({ x: x1, y: y1 }, { x: x2, y: y2 });
+            } else {
+              waypoints.push(
+                { x: x1, y: y1 },
+                { x: midX, y: y1 },
+                { x: midX, y: y2 },
+                { x: x2, y: y2 }
+              );
+            }
+          } else {
+            // Overlapping or backwards: x2 is earlier than or within 16px of x1
+            // Routes right out of predecessor, detours vertically into row-gap, travels left past x2, and enters x2 from the left
+            const exitX = x1 + 12 + laneIndex * 8;
+            const entryX = x2 - 12 - laneIndex * 8;
+            const goingDown = y2 >= y1;
+            const detourDir = goingDown ? 1 : -1;
+            const detourY = y1 + detourDir * (ROW_HEIGHT / 2 + laneIndex * 4);
+
+            waypoints.push(
+              { x: x1, y: y1 },
+              { x: exitX, y: y1 },
+              { x: exitX, y: detourY },
+              { x: entryX, y: detourY },
+              { x: entryX, y: y2 },
+              { x: x2, y: y2 }
+            );
+          }
+        }
+
+        const dPath = createRoundedOrthogonalPath(waypoints, 6);
+
+        const strokeColor = isCriticalLink
+          ? '#f43f5e'
+          : isHighlighted
+          ? '#4f46e5'
+          : '#94a3b8';
+
+        const markerEnd = isCriticalLink
+          ? 'url(#arrow-critical)'
+          : isHighlighted
+          ? 'url(#arrow-active)'
+          : 'url(#arrow-normal)';
+
+        list.push({
+          key: `dep-${predId}-${succ.id}`,
+          predId,
+          succId: succ.id,
+          dPath,
+          strokeColor,
+          strokeWidth: isHighlighted || isCriticalLink ? 2.2 : 1.5,
+          markerEnd,
+          hasConflict: succ.hasConflict,
+          isHighlighted,
+          isCriticalLink,
+        });
+      });
+    }
+
+    return list;
+  }, [
+    items,
+    itemRowMap,
+    hoveredId,
+    showCriticalPath,
+    arrowVisibility,
+  ]);
+
   const totalCanvasWidth = timelineDays.length * dayWidth;
   const totalCanvasHeight = Math.max(displayRows.length * ROW_HEIGHT + 56, 360);
 
@@ -785,6 +1011,46 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               <MousePointer className="w-3 h-3" />
               Rueda: {wheelZoomEnabled ? 'Zoom ON' : 'Solo Ctrl'}
             </button>
+          </div>
+
+          {/* Arrow Density / Visibility Selector */}
+          <div
+            data-arrow-visibility-selector="true"
+            data-current-visibility={arrowVisibility}
+            className="flex items-center gap-1 px-2 py-1 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xs"
+            title="Selector de visibilidad y densidad de flechas de dependencia"
+          >
+            <span className="flex items-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400 pl-0.5 pr-1">
+              <GitBranch className="w-3.5 h-3.5 text-indigo-500" />
+              <span className="hidden sm:inline">Flechas:</span>
+            </span>
+            {(
+              [
+                { id: 'all', label: 'Todas', title: 'Mostrar todas las flechas de dependencias' },
+                { id: 'hover', label: 'Al pasar cursor', title: 'Mostrar únicamente flechas al pasar el cursor sobre una tarea o sus dependencias' },
+                { id: 'critical', label: 'Críticas', title: 'Mostrar únicamente flechas de la ruta crítica' },
+                { id: 'none', label: 'Ocultar', title: 'Ocultar todas las flechas de dependencia' },
+              ] as const
+            ).map((opt) => {
+              const isActive = arrowVisibility === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  data-arrow-visibility-option={opt.id}
+                  data-active={isActive ? 'true' : 'false'}
+                  onClick={() => handleArrowVisibilityChange(opt.id)}
+                  className={`px-2 py-0.5 rounded-md text-[10px] font-semibold transition cursor-pointer ${
+                    isActive
+                      ? 'bg-indigo-600 text-white shadow-2xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
+                  }`}
+                  title={opt.title}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -1488,137 +1754,66 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               })}
 
               {/* Orthogonal SVG Dependency Lines Overlay */}
-              <svg
-                width={totalCanvasWidth}
-                height={displayRows.length * ROW_HEIGHT + 52}
-                className="absolute inset-0 pointer-events-none z-10"
-              >
-                <defs>
-                  <marker
-                    id="arrow-normal"
-                    viewBox="0 0 10 10"
-                    refX="7"
-                    refY="5"
-                    markerWidth="6"
-                    markerHeight="6"
-                    orient="auto-start-reverse"
-                  >
-                    <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#64748b" />
-                  </marker>
-                  <marker
-                    id="arrow-active"
-                    viewBox="0 0 10 10"
-                    refX="7"
-                    refY="5"
-                    markerWidth="6"
-                    markerHeight="6"
-                    orient="auto-start-reverse"
-                  >
-                    <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#4f46e5" />
-                  </marker>
-                  <marker
-                    id="arrow-critical"
-                    viewBox="0 0 10 10"
-                    refX="7"
-                    refY="5"
-                    markerWidth="6"
-                    markerHeight="6"
-                    orient="auto-start-reverse"
-                  >
-                    <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
-                  </marker>
-                </defs>
+              {arrowVisibility !== 'none' && (
+                <svg
+                  width={totalCanvasWidth}
+                  height={displayRows.length * ROW_HEIGHT + 52}
+                  className="absolute inset-0 pointer-events-none z-10"
+                  data-arrow-visibility={arrowVisibility}
+                >
+                  <defs>
+                    <marker
+                      id="arrow-normal"
+                      viewBox="0 0 10 10"
+                      refX="7"
+                      refY="5"
+                      markerWidth="6"
+                      markerHeight="6"
+                      orient="auto-start-reverse"
+                    >
+                      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#64748b" />
+                    </marker>
+                    <marker
+                      id="arrow-active"
+                      viewBox="0 0 10 10"
+                      refX="7"
+                      refY="5"
+                      markerWidth="6"
+                      markerHeight="6"
+                      orient="auto-start-reverse"
+                    >
+                      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#4f46e5" />
+                    </marker>
+                    <marker
+                      id="arrow-critical"
+                      viewBox="0 0 10 10"
+                      refX="7"
+                      refY="5"
+                      markerWidth="6"
+                      markerHeight="6"
+                      orient="auto-start-reverse"
+                    >
+                      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+                    </marker>
+                  </defs>
 
-                {items.map((succ) => {
-                  const succCoords = itemRowMap.get(succ.id);
-                  if (!succCoords) return null;
-
-                  return succ.dependencies.map((predId) => {
-                    const predCoords = itemRowMap.get(predId);
-                    if (!predCoords) return null;
-                    if (
-                      predCoords.isCollapsedRow &&
-                      succCoords.isCollapsedRow &&
-                      predCoords.index === succCoords.index
-                    ) {
-                      return null;
-                    }
-
-                    const depType = succ.dependencyTypes?.[predId] || 'FS';
-                    const fromStart = depType === 'SS' || depType === 'SF';
-                    const toEnd = depType === 'FF' || depType === 'SF';
-
-                    const x1 = fromStart ? predCoords.startX : predCoords.endX;
-                    const y1 = predCoords.centerY;
-                    const x2 = toEnd ? succCoords.endX : succCoords.startX;
-                    const y2 = succCoords.centerY;
-
-                    const isHighlighted =
-                      hoveredId === succ.id || hoveredId === predId;
-                    const isCriticalLink =
-                      showCriticalPath &&
-                      succ.isCritical &&
-                      predCoords.item.isCritical;
-
-                    // Smart orthogonal routing path
-                    let dPath = '';
-                    const stepOut = 12;
-                    if (!fromStart && !toEnd && x2 >= x1 + stepOut) {
-                      const midX = x1 + (x2 - x1) / 2;
-                      dPath = `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`;
-                    } else if (fromStart && !toEnd) {
-                      const leftX = Math.min(x1, x2) - stepOut;
-                      dPath = `M ${x1} ${y1} L ${leftX} ${y1} L ${leftX} ${y2} L ${x2} ${y2}`;
-                    } else if (!fromStart && toEnd) {
-                      const rightX = Math.max(x1, x2) + stepOut;
-                      dPath = `M ${x1} ${y1} L ${rightX} ${y1} L ${rightX} ${y2} L ${x2} ${y2}`;
-                    } else if (fromStart && toEnd) {
-                      const detourY = y1 < y2 ? y1 + ROW_HEIGHT / 2 : y1 - ROW_HEIGHT / 2;
-                      dPath = `M ${x1} ${y1} L ${x1 - stepOut} ${y1} L ${
-                        x1 - stepOut
-                      } ${detourY} L ${x2 + stepOut} ${detourY} L ${
-                        x2 + stepOut
-                      } ${y2} L ${x2} ${y2}`;
-                    } else {
-                      const detourY = y1 < y2 ? y1 + ROW_HEIGHT / 2 : y1 - ROW_HEIGHT / 2;
-                      dPath = `M ${x1} ${y1} L ${x1 + stepOut} ${y1} L ${
-                        x1 + stepOut
-                      } ${detourY} L ${x2 - stepOut} ${detourY} L ${
-                        x2 - stepOut
-                      } ${y2} L ${x2} ${y2}`;
-                    }
-
-                    const strokeColor = isCriticalLink
-                      ? '#f43f5e'
-                      : isHighlighted
-                      ? '#4f46e5'
-                      : '#94a3b8';
-
-                    const markerEnd = isCriticalLink
-                      ? 'url(#arrow-critical)'
-                      : isHighlighted
-                      ? 'url(#arrow-active)'
-                      : 'url(#arrow-normal)';
-
-                    return (
-                      <path
-                        key={`dep-${predId}-${succ.id}`}
-                        d={dPath}
-                        fill="none"
-                        stroke={strokeColor}
-                        strokeWidth={isHighlighted || isCriticalLink ? 2.2 : 1.5}
-                        strokeDasharray={succ.hasConflict ? '4 3' : undefined}
-                        markerEnd={markerEnd}
-                        className="transition-opacity duration-150"
-                        style={{
-                          opacity:
-                            hoveredId && !isHighlighted ? 0.25 : 0.95,
-                        }}
-                      />
-                    );
-                  });
-                })}
-              </svg>
+                  {dependencyLinks.map((link) => (
+                    <path
+                      key={link.key}
+                      d={link.dPath}
+                      fill="none"
+                      stroke={link.strokeColor}
+                      strokeWidth={link.strokeWidth}
+                      strokeDasharray={link.hasConflict ? '4 3' : undefined}
+                      markerEnd={link.markerEnd}
+                      className="transition-opacity duration-150"
+                      style={{
+                        opacity: hoveredId && !link.isHighlighted ? 0.25 : 0.95,
+                      }}
+                    />
+                  ))}
+                </svg>
+              )}
 
               {/* Foreground Project Rollup Summary Bars, Task Bars, Slack Ghost Bars & Milestones */}
               {displayRows.map((row, rowIndex) => {

@@ -31,14 +31,14 @@
       "type": "task",
       "projectId": "proj-xcode27",
       "startDate": "2026-10-29",
-      "endDate": "2026-12-02",
-      "duration": 35,
+      "endDate": "2026-11-27",
+      "duration": 30,
       "slack": 0,
       "dependencies": [],
       "progress": 0,
       "color": "cyan",
       "assignee": "AWS/Devops",
-      "notes": "Deadline: 02/12/2026 — Equipo: AWS/Devops"
+      "notes": "Deadline: 27/11/2026 — Equipo: AWS/Devops"
     },
     {
       "id": "xc-3",
@@ -52,7 +52,7 @@
       "dependencies": ["xc-1", "xc-2"],
       "dependencyTypes": {
         "xc-1": "FS",
-        "xc-2": "FF"
+        "xc-2": "FS"
       },
       "progress": 0,
       "color": "indigo",
@@ -83,8 +83,8 @@
       "type": "task",
       "projectId": "proj-xcode27",
       "startDate": "2027-01-08",
-      "endDate": "2027-01-15",
-      "duration": 8,
+      "endDate": "2027-01-14",
+      "duration": 7,
       "slack": 0,
       "dependencies": ["xc-4"],
       "dependencyTypes": {
@@ -93,7 +93,7 @@
       "progress": 0,
       "color": "blue",
       "assignee": "Desarrollo",
-      "notes": "Deadline: 15/01/2027 — Equipo: Desarrollo"
+      "notes": "Deadline: 14/01/2027 — Equipo: Desarrollo"
     },
     {
       "id": "xc-6",
@@ -106,7 +106,7 @@
       "slack": 0,
       "dependencies": ["xc-5"],
       "dependencyTypes": {
-        "xc-5": "FF"
+        "xc-5": "FS"
       },
       "progress": 0,
       "color": "amber",

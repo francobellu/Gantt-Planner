@@ -1250,14 +1250,14 @@ export function getXcode27Scenario(): SavedScenario {
         type: 'task',
         projectId,
         startDate: '2026-10-29',
-        endDate: '2026-12-02',
-        duration: 35,
+        endDate: '2026-11-27',
+        duration: 30,
         slack: 0,
         dependencies: [],
         progress: 0,
         color: 'cyan',
         assignee: 'AWS/Devops',
-        notes: 'Deadline: 02/12/2026 — Equipo: AWS/Devops',
+        notes: 'Deadline: 27/11/2026 — Equipo: AWS/Devops',
       },
       {
         id: 'xc-3',
@@ -1269,7 +1269,7 @@ export function getXcode27Scenario(): SavedScenario {
         duration: 5,
         slack: 0,
         dependencies: ['xc-1', 'xc-2'],
-        dependencyTypes: { 'xc-1': 'FS', 'xc-2': 'FF' },
+        dependencyTypes: { 'xc-1': 'FS', 'xc-2': 'FS' },
         progress: 0,
         color: 'indigo',
         assignee: 'RM Canales',
@@ -1297,15 +1297,15 @@ export function getXcode27Scenario(): SavedScenario {
         type: 'task',
         projectId,
         startDate: '2027-01-08',
-        endDate: '2027-01-15',
-        duration: 8,
+        endDate: '2027-01-14',
+        duration: 7,
         slack: 0,
         dependencies: ['xc-4'],
         dependencyTypes: { 'xc-4': 'FS' },
         progress: 0,
         color: 'blue',
         assignee: 'Desarrollo',
-        notes: 'Deadline: 15/01/2027 — Equipo: Desarrollo',
+        notes: 'Deadline: 14/01/2027 — Equipo: Desarrollo',
       },
       {
         id: 'xc-6',
@@ -1317,7 +1317,7 @@ export function getXcode27Scenario(): SavedScenario {
         duration: 1,
         slack: 0,
         dependencies: ['xc-5'],
-        dependencyTypes: { 'xc-5': 'FF' },
+        dependencyTypes: { 'xc-5': 'FS' },
         progress: 0,
         color: 'amber',
         assignee: 'RM',
@@ -1547,6 +1547,103 @@ export function computeFitToProjectScale(
     endDate: formatDateISO(maxEnd),
     targetProjectId: filtered.length > 0 ? requestedProjectId : 'all',
   };
+}
+
+export interface OrthogonalPoint {
+  x: number;
+  y: number;
+}
+
+/**
+ * Converts a sequence of orthogonal waypoints into an SVG path string ('M ... L ... Q ...')
+ * with smooth rounded fillet curves (quadratic bezier 'Q') at every 90-degree corner.
+ * If segment lengths are short, the fillet radius is dynamically clamped to prevent overshoot.
+ */
+export function createRoundedOrthogonalPath(
+  rawPoints: OrthogonalPoint[],
+  radius = 6
+): string {
+  if (!rawPoints || rawPoints.length < 2) return '';
+
+  // 1. Filter out duplicate adjacent points
+  const points: OrthogonalPoint[] = [rawPoints[0]];
+  for (let i = 1; i < rawPoints.length; i++) {
+    const prev = points[points.length - 1];
+    const curr = rawPoints[i];
+    if (Math.abs(curr.x - prev.x) > 0.05 || Math.abs(curr.y - prev.y) > 0.05) {
+      points.push(curr);
+    }
+  }
+
+  if (points.length < 2) return '';
+
+  // 2. Collapse collinear segments (e.g. A -> B -> C in a straight horizontal or vertical line)
+  const collapsed: OrthogonalPoint[] = [points[0]];
+  for (let i = 1; i < points.length - 1; i++) {
+    const prev = collapsed[collapsed.length - 1];
+    const curr = points[i];
+    const next = points[i + 1];
+
+    const isCollinearX =
+      Math.abs(prev.x - curr.x) < 0.05 && Math.abs(curr.x - next.x) < 0.05;
+    const isCollinearY =
+      Math.abs(prev.y - curr.y) < 0.05 && Math.abs(curr.y - next.y) < 0.05;
+
+    if (!isCollinearX && !isCollinearY) {
+      collapsed.push(curr);
+    }
+  }
+  collapsed.push(points[points.length - 1]);
+
+  if (collapsed.length < 2) return '';
+  if (collapsed.length === 2) {
+    return `M ${collapsed[0].x.toFixed(1)} ${collapsed[0].y.toFixed(1)} L ${collapsed[1].x.toFixed(1)} ${collapsed[1].y.toFixed(1)}`;
+  }
+
+  // 3. Build SVG path with quadratic bezier fillet curves at interior vertices
+  let d = `M ${collapsed[0].x.toFixed(1)} ${collapsed[0].y.toFixed(1)}`;
+
+  for (let i = 1; i < collapsed.length - 1; i++) {
+    const prev = collapsed[i - 1];
+    const curr = collapsed[i];
+    const next = collapsed[i + 1];
+
+    const vIn = { x: curr.x - prev.x, y: curr.y - prev.y };
+    const dIn = Math.hypot(vIn.x, vIn.y);
+    const vOut = { x: next.x - curr.x, y: next.y - curr.y };
+    const dOut = Math.hypot(vOut.x, vOut.y);
+
+    if (dIn < 0.1 || dOut < 0.1) {
+      d += ` L ${curr.x.toFixed(1)} ${curr.y.toFixed(1)}`;
+      continue;
+    }
+
+    const uIn = { x: vIn.x / dIn, y: vIn.y / dIn };
+    const uOut = { x: vOut.x / dOut, y: vOut.y / dOut };
+
+    // Max fillet radius cannot exceed half of incoming or outgoing segment length
+    const r = Math.min(radius, dIn / 2, dOut / 2);
+
+    if (r <= 0.8) {
+      d += ` L ${curr.x.toFixed(1)} ${curr.y.toFixed(1)}`;
+    } else {
+      const pBefore = {
+        x: curr.x - uIn.x * r,
+        y: curr.y - uIn.y * r,
+      };
+      const pAfter = {
+        x: curr.x + uOut.x * r,
+        y: curr.y + uOut.y * r,
+      };
+      d += ` L ${pBefore.x.toFixed(1)} ${pBefore.y.toFixed(1)}`;
+      d += ` Q ${curr.x.toFixed(1)} ${curr.y.toFixed(1)}, ${pAfter.x.toFixed(1)} ${pAfter.y.toFixed(1)}`;
+    }
+  }
+
+  const last = collapsed[collapsed.length - 1];
+  d += ` L ${last.x.toFixed(1)} ${last.y.toFixed(1)}`;
+
+  return d;
 }
 
 

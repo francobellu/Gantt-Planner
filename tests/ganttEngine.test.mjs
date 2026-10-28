@@ -47,6 +47,7 @@ const {
   computeWheelZoomDayWidth,
   computeTimelineBounds,
   computeFitToProjectScale,
+  createRoundedOrthogonalPath,
 } = await import(codeUrl);
 
 test('calculateEndDateFromDuration & calculateDurationFromDates handle tasks and milestones', () => {
@@ -468,6 +469,29 @@ test('App and GanttWorkspace render complete WBS table, project groups, summary 
             />
           );
         }
+        export function createHiddenArrowsWorkspaceElement() {
+          const tpl = getProjectTemplates()[0];
+          const items = computeGanttMetrics(tpl.items);
+          return (
+            <GanttWorkspace
+              items={items}
+              projects={tpl.projects}
+              groupByProject={true}
+              selectedProjectId="all"
+              zoom="day"
+              showCriticalPath={true}
+              showCpmFloat={false}
+              autoCascade={true}
+              arrowVisibility="none"
+              onUpdateItem={() => {}}
+              onEditModal={() => {}}
+              onDeleteItem={() => {}}
+              onDuplicateItem={() => {}}
+              onQuickAdd={() => {}}
+              scrollContainerRef={{ current: null }}
+            />
+          );
+        }
       `,
       resolveDir: path.resolve(__dirname, '..'),
       sourcefile: 'ssr-test.tsx',
@@ -488,6 +512,8 @@ test('App and GanttWorkspace render complete WBS table, project groups, summary 
     const createAppElement = mod.createAppElement || mod.default?.createAppElement;
     const createCollapsedWorkspaceElement =
       mod.createCollapsedWorkspaceElement || mod.default?.createCollapsedWorkspaceElement;
+    const createHiddenArrowsWorkspaceElement =
+      mod.createHiddenArrowsWorkspaceElement || mod.default?.createHiddenArrowsWorkspaceElement;
     const html = renderToString(createAppElement());
 
     // Verify default template title, project groups, project summary bars, tasks, milestones, slack badges, and today marker render
@@ -505,6 +531,9 @@ test('App and GanttWorkspace render complete WBS table, project groups, summary 
     // Verify hierarchical WBS codes appear in the Dependencies column (#1.2,#2.1 for m-1, #1.3 for t-4)
     assert.ok(html.includes('#1.2,#2.1'));
     assert.ok(html.includes('#1.3'));
+    // Verify default dependency arrow rendering includes data-arrow-visibility="all" and rounded fillet curves (Q)
+    assert.ok(html.includes('data-arrow-visibility="all"'));
+    assert.ok(html.includes(' Q '));
 
     // Verify collapsed project group hides child task rows while preserving project summary bar and cross-project SVG dependency arrows
     const collapsedHtml = renderToString(createCollapsedWorkspaceElement());
@@ -513,6 +542,10 @@ test('App and GanttWorkspace render complete WBS table, project groups, summary 
     assert.equal(collapsedHtml.includes('Investigación de Usuarios &amp; Alcance Técnico'), false);
     assert.ok(collapsedHtml.includes('Desarrollo Motor Gantt Interactivo (Frontend)'));
     assert.ok(collapsedHtml.includes('url(#arrow-critical)'));
+
+    // Verify arrowVisibility="none" hides the SVG overlay completely
+    const hiddenHtml = renderToString(createHiddenArrowsWorkspaceElement());
+    assert.equal(hiddenHtml.includes('data-arrow-visibility='), false);
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -541,7 +574,7 @@ test('getXcode27Scenario defines 1 project with all 7 tasks (actions), teams, an
     {
       name: 'Nuevas Maquinas Mac operativas (apple silicon)',
       assignee: 'AWS/Devops',
-      endDate: '2026-12-02',
+      endDate: '2026-11-27',
     },
     {
       name: 'Generación build',
@@ -556,7 +589,7 @@ test('getXcode27Scenario defines 1 project with all 7 tasks (actions), teams, an
     {
       name: 'Fixing',
       assignee: 'Desarrollo',
-      endDate: '2027-01-15',
+      endDate: '2027-01-14',
     },
     {
       name: 'QG5 27.2',
@@ -578,6 +611,15 @@ test('getXcode27Scenario defines 1 project with all 7 tasks (actions), teams, an
     })),
     expected
   );
+
+  // Verify natural Finish-to-Start dependencies without reverse arrows
+  const xc3 = xcode.items.find((it) => it.id === 'xc-3');
+  assert.deepEqual(xc3.dependencies, ['xc-1', 'xc-2']);
+  assert.deepEqual(xc3.dependencyTypes, { 'xc-1': 'FS', 'xc-2': 'FS' });
+
+  const xc6 = xcode.items.find((it) => it.id === 'xc-6');
+  assert.deepEqual(xc6.dependencies, ['xc-5']);
+  assert.deepEqual(xc6.dependencyTypes, { 'xc-5': 'FS' });
 
   // Verify zero dependency conflicts and valid rollup group
   const computed = computeGanttMetrics(xcode.items);
@@ -761,6 +803,12 @@ test('App renders Xcode 27 scenario, all 7 Equipo badges, and Saved Scenarios ba
     assert.ok(html.includes('data-wheel-zoom-toggle="true"'));
     assert.ok(html.includes('Trimestre'));
     assert.ok(html.includes('Ajustar a Proyecto'));
+    // Verify dependency arrow visibility selector renders in toolbar
+    assert.ok(html.includes('data-arrow-visibility-selector="true"'));
+    assert.ok(html.includes('data-arrow-visibility-option="all"'));
+    assert.ok(html.includes('data-arrow-visibility-option="hover"'));
+    assert.ok(html.includes('data-arrow-visibility-option="critical"'));
+    assert.ok(html.includes('data-arrow-visibility-option="none"'));
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -1005,6 +1053,60 @@ test('rapid wheel sequences and center-anchored scaling maintain invariant coord
   const defaultWidth = DEFAULT_DAY_WIDTH;
   assert.equal(defaultWidth, 44);
 });
+
+test('createRoundedOrthogonalPath produces smooth fillet curves with quadratic bezier Q and clamps radius on tight corners', () => {
+  // 1. Standard 2-corner orthogonal polyline (horizontal -> vertical -> horizontal)
+  const path1 = createRoundedOrthogonalPath(
+    [
+      { x: 100, y: 50 },
+      { x: 150, y: 50 },
+      { x: 150, y: 100 },
+      { x: 200, y: 100 },
+    ],
+    6
+  );
+  // Must start at M 100.0 50.0, use Q bezier fillet curves for the corners, and end at L 200.0 100.0
+  assert.ok(path1.startsWith('M 100.0 50.0'));
+  assert.ok(path1.includes('Q 150.0 50.0'));
+  assert.ok(path1.includes('Q 150.0 100.0'));
+  assert.ok(path1.endsWith('L 200.0 100.0'));
+
+  // 2. Short segment clamps fillet radius to half segment length to avoid overshoot
+  const tightCorners = createRoundedOrthogonalPath(
+    [
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+      { x: 10, y: 4 }, // only 4px vertical distance -> radius clamped to <= 2px
+      { x: 20, y: 4 },
+    ],
+    6
+  );
+  assert.ok(tightCorners.includes('Q 10.0 0.0'));
+  assert.ok(tightCorners.includes('Q 10.0 4.0'));
+
+  // 3. Collinear segments and duplicates are collapsed cleanly
+  const redundant = createRoundedOrthogonalPath([
+    { x: 0, y: 0 },
+    { x: 0, y: 0 }, // duplicate
+    { x: 50, y: 0 },
+    { x: 100, y: 0 }, // collinear horizontal segment
+    { x: 100, y: 50 },
+  ]);
+  assert.equal(redundant.includes('Q 50.0'), false, 'Collinear point should be removed');
+  assert.ok(redundant.includes('Q 100.0 0.0'));
+
+  // 4. Straight single segment produces clean 2-point line without unnecessary bezier
+  const straight = createRoundedOrthogonalPath([
+    { x: 0, y: 0 },
+    { x: 100, y: 0 },
+  ]);
+  assert.equal(straight, 'M 0.0 0.0 L 100.0 0.0');
+
+  // 5. Degenerate and empty inputs
+  assert.equal(createRoundedOrthogonalPath([]), '');
+  assert.equal(createRoundedOrthogonalPath([{ x: 0, y: 0 }]), '');
+});
+
 
 
 

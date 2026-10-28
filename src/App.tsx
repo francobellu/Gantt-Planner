@@ -29,6 +29,7 @@ import {
   ZoomIn,
 } from 'lucide-react';
 import {
+  ArrowVisibility,
   ComputedGanttItem,
   GanttItem,
   GanttProject,
@@ -252,6 +253,21 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
   const [autoCascade, setAutoCascade] = useState<boolean>(true);
   const [groupByProject, setGroupByProject] = useState<boolean>(true);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
+  const [arrowVisibility, setArrowVisibility] = useState<ArrowVisibility>(() => {
+    try {
+      const saved = localStorage.getItem('ganttflow_arrow_visibility');
+      if (saved === 'all' || saved === 'hover' || saved === 'critical' || saved === 'none') {
+        return saved as ArrowVisibility;
+      }
+    } catch {}
+    return 'all';
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ganttflow_arrow_visibility', arrowVisibility);
+    } catch {}
+  }, [arrowVisibility]);
 
   // New Scenario inline creator state
   const [showNewScenarioBar, setShowNewScenarioBar] = useState<boolean>(false);
@@ -1645,6 +1661,8 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
           showCriticalPath={showCriticalPath}
           showCpmFloat={showCpmFloat}
           autoCascade={autoCascade}
+          arrowVisibility={arrowVisibility}
+          onChangeArrowVisibility={setArrowVisibility}
           onUpdateItem={handleUpdateInline}
           onEditModal={handleOpenEditModal}
           onDeleteItem={handleDeleteItem}
