@@ -17,6 +17,7 @@ import {
   FolderPlus,
   GitBranch,
   Layers,
+  Maximize2,
   Moon,
   Plus,
   Save,
@@ -39,16 +40,21 @@ import {
 } from './types/gantt';
 import {
   cascadeDependencies,
+  clampDayWidth,
+  computeFitToProjectScale,
   computeGanttMetrics,
   createNewScenario,
+  DEFAULT_DAY_WIDTH,
   formatDateDisplay,
   formatDateISO,
+  getDayWidthForPreset,
   getDefaultSavedScenarios,
   getProjectTemplates,
   getXcode27Scenario,
   groupItemsByProject,
   parseDateSafe,
   preserveActiveWorkspaceInScenarios,
+  resolveZoomPresetFromDayWidth,
   sanitizeGanttItem,
   sanitizeProject,
   sanitizeScenario,
@@ -236,6 +242,10 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
   });
 
   const [zoom, setZoom] = useState<ZoomLevel>('day');
+  const [dayWidth, setDayWidth] = useState<number>(() => {
+    const fit = computeFitToProjectScale(initialState.items, 980);
+    return fit.spanDays > 45 ? fit.dayWidth : DEFAULT_DAY_WIDTH;
+  });
   const [showCriticalPath, setShowCriticalPath] = useState<boolean>(true);
   const [showCpmFloat, setShowCpmFloat] = useState<boolean>(false);
   const [autoCascade, setAutoCascade] = useState<boolean>(true);
@@ -666,6 +676,60 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
     setItems((prev) => cascadeDependencies(prev));
   };
 
+  const handleSelectZoomPreset = (preset: ZoomLevel) => {
+    setZoom(preset);
+    setDayWidth(getDayWidthForPreset(preset));
+  };
+
+  const handleChangeDayWidth = (nextWidth: number) => {
+    const clamped = clampDayWidth(nextWidth);
+    setDayWidth(clamped);
+    const matchedPreset = resolveZoomPresetFromDayWidth(clamped);
+    if (matchedPreset !== 'custom') {
+      setZoom(matchedPreset);
+    }
+  };
+
+  const handleFitToProject = (targetProjectId?: string, notify = true) => {
+    const container = scrollContainerRef.current;
+    const viewportW = container && container.clientWidth > 0 ? container.clientWidth : 980;
+    const pid = targetProjectId || selectedProjectId || 'all';
+    const fit = computeFitToProjectScale(computedItems, viewportW, {
+      projectId: pid,
+    });
+    setDayWidth(fit.dayWidth);
+    const matchedPreset = resolveZoomPresetFromDayWidth(fit.dayWidth);
+    if (matchedPreset !== 'custom') {
+      setZoom(matchedPreset);
+    }
+    if (container) {
+      requestAnimationFrame(() => {
+        container.scrollTo({
+          left: fit.scrollLeft,
+          behavior: 'smooth',
+        });
+      });
+    }
+    if (notify) {
+      showToast(`Escala auto-ajustada: ${fit.dayWidth} px/día (${fit.spanDays} días en vista)`);
+    }
+  };
+
+  // Auto-fit on initial browser mount if the active scenario spans more than 45 days
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container || container.clientWidth <= 0) return;
+    const fit = computeFitToProjectScale(computedItems, container.clientWidth, {
+      projectId: selectedProjectId,
+    });
+    if (fit.spanDays > 45) {
+      setDayWidth(fit.dayWidth);
+      requestAnimationFrame(() => {
+        container.scrollLeft = fit.scrollLeft;
+      });
+    }
+  }, [activeScenarioId]);
+
   const scrollToToday = () => {
     if (!scrollContainerRef.current) return;
     const container = scrollContainerRef.current;
@@ -947,23 +1011,47 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
               Nuevo Hito
             </button>
 
-            {/* Zoom Switcher */}
-            <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+            {/* Flexible Zoom Switcher + Auto-Fit Project Scale */}
+            <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 gap-0.5">
               <ZoomIn className="w-3.5 h-3.5 text-slate-400 ml-1.5 mr-1 hidden sm:inline" />
-              {(['day', 'week', 'month'] as ZoomLevel[]).map((z) => (
-                <button
-                  key={z}
-                  type="button"
-                  onClick={() => setZoom(z)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition ${
-                    zoom === z
-                      ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                  }`}
-                >
-                  {z === 'day' ? 'Día' : z === 'week' ? 'Semana' : 'Mes'}
-                </button>
-              ))}
+              {(['day', 'week', 'month', 'quarter'] as ZoomLevel[]).map((z) => {
+                const activePreset = resolveZoomPresetFromDayWidth(dayWidth);
+                const isActive = activePreset === z;
+                return (
+                  <button
+                    key={z}
+                    type="button"
+                    onClick={() => handleSelectZoomPreset(z)}
+                    className={`px-2 py-1 rounded-lg text-xs font-semibold transition ${
+                      isActive
+                        ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    {z === 'day'
+                      ? 'Día'
+                      : z === 'week'
+                      ? 'Semana'
+                      : z === 'month'
+                      ? 'Mes'
+                      : 'Trimestre'}
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                data-fit-project-header-btn="true"
+                onClick={() => handleFitToProject()}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition flex items-center gap-1 ${
+                  resolveZoomPresetFromDayWidth(dayWidth) === 'custom'
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-700 dark:text-emerald-300'
+                }`}
+                title="Encontrar automáticamente la escala óptima que abarca todas las tareas del proyecto en pantalla"
+              >
+                <Maximize2 className="w-3 h-3" />
+                <span>Ajustar a Proyecto</span>
+              </button>
             </div>
 
             {/* Critical Path Toggle */}
@@ -1519,6 +1607,9 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
           groupByProject={groupByProject}
           selectedProjectId={selectedProjectId}
           zoom={zoom}
+          dayWidth={dayWidth}
+          onChangeDayWidth={handleChangeDayWidth}
+          onFitToProject={(pid) => handleFitToProject(pid)}
           showCriticalPath={showCriticalPath}
           showCpmFloat={showCpmFloat}
           autoCascade={autoCascade}

@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   addDays,
   differenceInCalendarDays,
@@ -21,6 +21,9 @@ import {
   GitBranch,
   GripHorizontal,
   Layers,
+  Maximize2,
+  Minus,
+  MousePointer,
   Plus,
   Trash2,
 } from 'lucide-react';
@@ -35,9 +38,16 @@ import {
 import {
   calculateDurationFromDates,
   calculateEndDateFromDuration,
+  clampDayWidth,
+  computeFitToProjectScale,
+  computeTimelineBounds,
+  computeWheelZoomDayWidth,
   formatDateDisplay,
   formatDateISO,
+  getDayWidthForPreset,
   groupItemsByProject,
+  MAX_DAY_WIDTH,
+  MIN_DAY_WIDTH,
   parseDateSafe,
 } from '../utils/ganttEngine';
 
@@ -47,6 +57,9 @@ interface GanttWorkspaceProps {
   groupByProject?: boolean;
   selectedProjectId?: string;
   zoom: ZoomLevel;
+  dayWidth?: number;
+  onChangeDayWidth?: (newDayWidth: number) => void;
+  onFitToProject?: (projectId?: string) => void;
   showCriticalPath: boolean;
   showCpmFloat: boolean;
   autoCascade: boolean;
@@ -164,6 +177,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   groupByProject = true,
   selectedProjectId = 'all',
   zoom,
+  dayWidth: controlledDayWidth,
+  onChangeDayWidth,
+  onFitToProject,
   showCriticalPath,
   showCpmFloat,
   autoCascade,
@@ -182,6 +198,16 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [splitWidth, setSplitWidth] = useState<number>(660);
   const [showTable, setShowTable] = useState<boolean>(true);
+  const [wheelZoomEnabled, setWheelZoomEnabled] = useState<boolean>(true);
+  const [fallbackDayWidth, setFallbackDayWidth] = useState<number>(() =>
+    getDayWidthForPreset(zoom)
+  );
+
+  useEffect(() => {
+    if (controlledDayWidth === undefined) {
+      setFallbackDayWidth(getDayWidthForPreset(zoom));
+    }
+  }, [zoom, controlledDayWidth]);
 
   // Interactive drag state for moving or resizing task bars directly on the timeline
   const [dragState, setDragState] = useState<{
@@ -195,8 +221,89 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
   const isResizingSplitRef = useRef(false);
 
-  // Day column width according to zoom level
-  const dayWidth = zoom === 'day' ? 44 : zoom === 'week' ? 28 : 16;
+  // Continuous day column width (pixels per day)
+  const dayWidth = clampDayWidth(
+    controlledDayWidth !== undefined ? controlledDayWidth : fallbackDayWidth
+  );
+
+  const updateDayWidth = (next: number) => {
+    const clamped = clampDayWidth(next);
+    if (onChangeDayWidth) {
+      onChangeDayWidth(clamped);
+    } else {
+      setFallbackDayWidth(clamped);
+    }
+  };
+
+  const handleFitProjectAction = (targetProjectId?: string) => {
+    const pid = targetProjectId || selectedProjectId || 'all';
+    if (onFitToProject) {
+      onFitToProject(pid);
+      return;
+    }
+    const container = scrollContainerRef.current;
+    const viewportW = container && container.clientWidth > 0 ? container.clientWidth : 960;
+    const fit = computeFitToProjectScale(items, viewportW, { projectId: pid });
+    updateDayWidth(fit.dayWidth);
+    if (container) {
+      requestAnimationFrame(() => {
+        container.scrollTo({ left: fit.scrollLeft, behavior: 'smooth' });
+      });
+    }
+  };
+
+  const dayWidthRef = useRef(dayWidth);
+  dayWidthRef.current = dayWidth;
+  const wheelZoomRef = useRef(wheelZoomEnabled);
+  wheelZoomRef.current = wheelZoomEnabled;
+  const onChangeDayWidthRef = useRef(onChangeDayWidth);
+  onChangeDayWidthRef.current = onChangeDayWidth;
+
+  // Attach native non-passive wheel listener to timeline scroll container for smooth cursor-anchored zoom
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      const hasModifier = e.ctrlKey || e.metaKey || e.altKey;
+      const isPrimarilyVertical = Math.abs(e.deltaY) > Math.abs(e.deltaX);
+
+      if (!hasModifier && (!wheelZoomRef.current || !isPrimarilyVertical)) {
+        return;
+      }
+      if (e.deltaY === 0) return;
+
+      e.preventDefault();
+
+      const oldWidth = dayWidthRef.current;
+      const nextWidth = computeWheelZoomDayWidth(oldWidth, e.deltaY);
+      if (nextWidth === oldWidth) return;
+
+      const rect = container.getBoundingClientRect();
+      const cursorViewportX = Math.max(
+        0,
+        Math.min(rect.width, e.clientX - rect.left)
+      );
+      const dayAtCursor = (container.scrollLeft + cursorViewportX) / oldWidth;
+      const nextScrollLeft = Math.max(0, dayAtCursor * nextWidth - cursorViewportX);
+
+      dayWidthRef.current = nextWidth;
+      if (onChangeDayWidthRef.current) {
+        onChangeDayWidthRef.current(nextWidth);
+      } else {
+        setFallbackDayWidth(nextWidth);
+      }
+
+      requestAnimationFrame(() => {
+        container.scrollLeft = nextScrollLeft;
+      });
+    };
+
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      container.removeEventListener('wheel', handleWheel);
+    };
+  }, [scrollContainerRef]);
 
   // Apply live drag preview delta to items so project summary bars and rolled-up dates update in real time while dragging
   const effectiveItems = useMemo(() => {
@@ -299,46 +406,20 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   // Compute timeline date range with padding before and after project
   const { timelineDays, timelineStart, monthGroups, todayIndex } = useMemo(() => {
     const today = startOfDay(new Date());
-    if (items.length === 0) {
-      const start = addDays(today, -5);
-      const end = addDays(today, 25);
-      const days = eachDayOfInterval({ start, end });
-      return {
-        timelineDays: days,
-        timelineStart: start,
-        monthGroups: [{ label: format(today, 'MMMM yyyy', { locale: es }), count: days.length }],
-        todayIndex: 5,
-      };
-    }
-
-    let minDate = parseDateSafe(items[0].startDate);
-    let maxDate = parseDateSafe(items[0].slackEndDate || items[0].endDate);
-
-    for (const it of items) {
-      const s = parseDateSafe(it.startDate);
-      const e = parseDateSafe(it.slackEndDate || it.endDate);
-      const cpmEnd = addDays(parseDateSafe(it.endDate), it.cpmTotalFloat || 0);
-      if (s < minDate) minDate = s;
-      if (e > maxDate) maxDate = e;
-      if (cpmEnd > maxDate) maxDate = cpmEnd;
-    }
-
-    if (today < minDate) minDate = today;
-    if (today > maxDate) maxDate = today;
-
-    const paddedStart = addDays(minDate, -4);
-    const paddedEnd = addDays(maxDate, 12);
+    const { timelineStart: paddedStart, timelineEnd: paddedEnd } =
+      computeTimelineBounds(items, today);
     const days = eachDayOfInterval({ start: paddedStart, end: paddedEnd });
 
     // Group consecutive days by Month + Year for the top header tier
-    const groups: { label: string; count: number }[] = [];
+    const groups: { label: string; shortLabel: string; count: number }[] = [];
     for (const day of days) {
       const label = format(day, 'MMMM yyyy', { locale: es });
+      const shortLabel = format(day, 'MMM yy', { locale: es });
       const last = groups[groups.length - 1];
       if (last && last.label === label) {
         last.count += 1;
       } else {
-        groups.push({ label, count: 1 });
+        groups.push({ label, shortLabel, count: 1 });
       }
     }
 
@@ -540,7 +621,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-      {/* Top Sub-bar for Table Toggle, Project Grouping Toggle & Legend */}
+      {/* Top Sub-bar for Table Toggle, Project Grouping Toggle, Continuous Zoom & Auto-Fit Controls & Legend */}
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 bg-slate-50/80 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 text-xs">
         <div className="flex items-center gap-2 flex-wrap">
           <button
@@ -578,10 +659,72 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             </button>
           )}
 
-          <span className="text-slate-400 hidden xl:inline">|</span>
-          <span className="text-slate-500 dark:text-slate-400 hidden xl:inline">
-            💡 Tip: Las tareas se agrupan en proyectos con barras resumen automáticas, fechas consolidadas y WBS jerárquico.
-          </span>
+          {/* Continuous Zoom Slider + Fit to Project + Wheel Zoom Toggle */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xs">
+            <button
+              type="button"
+              onClick={() => updateDayWidth(computeWheelZoomDayWidth(dayWidth, 65))}
+              className="p-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"
+              title="Alejar escala visual (-)"
+            >
+              <Minus className="w-3.5 h-3.5" />
+            </button>
+
+            <input
+              type="range"
+              min={MIN_DAY_WIDTH}
+              max={MAX_DAY_WIDTH}
+              step={0.5}
+              value={dayWidth}
+              onChange={(e) => updateDayWidth( parseFloat(e.target.value) )}
+              data-zoom-slider="true"
+              className="w-24 sm:w-28 accent-indigo-600 cursor-pointer h-1.5"
+              title={`Escala continua del cronograma: ${dayWidth} px/día (arrastra o usa la rueda del mouse sobre el diagrama)`}
+            />
+
+            <button
+              type="button"
+              onClick={() => updateDayWidth(computeWheelZoomDayWidth(dayWidth, -65))}
+              className="p-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"
+              title="Acercar escala visual (+)"
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+
+            <span
+              data-day-width-badge={dayWidth}
+              className="font-mono text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 min-w-[54px] text-center bg-indigo-500/10 px-1.5 py-0.5 rounded"
+              title="Píxeles por día en la línea de tiempo"
+            >
+              {dayWidth}px/d
+            </span>
+
+            <button
+              type="button"
+              data-fit-timeline-btn="true"
+              onClick={() => handleFitProjectAction()}
+              className="px-2 py-0.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[11px] flex items-center gap-1 shadow-2xs transition cursor-pointer"
+              title="Ajustar automáticamente la escala para abarcar todas las tareas del proyecto activo en pantalla"
+            >
+              <Maximize2 className="w-3 h-3" />
+              Encajar Proyecto
+            </button>
+
+            <button
+              type="button"
+              data-wheel-zoom-toggle="true"
+              onClick={() => setWheelZoomEnabled((prev) => !prev)}
+              className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border flex items-center gap-1 transition ${
+                wheelZoomEnabled
+                  ? 'bg-indigo-500/10 border-indigo-500/40 text-indigo-700 dark:text-indigo-300'
+                  : 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-500'
+              }`}
+              title="Activar/desactivar zoom directo con la rueda del mouse sobre la línea de tiempo (también funciona con Ctrl/Alt + rueda)"
+            >
+              <MousePointer className="w-3 h-3" />
+              Rueda: {wheelZoomEnabled ? 'Zoom ON' : 'Solo Ctrl'}
+            </button>
+          </div>
         </div>
 
         {/* Visual Legend */}
@@ -742,8 +885,17 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               </span>
                             </div>
 
-                            {/* Project Quick Actions (+Task, +Milestone, Delete) */}
+                            {/* Project Quick Actions (Fit to Screen, +Task, +Milestone, Delete) */}
                             <div className="col-span-1 flex items-center justify-end gap-0.5">
+                              <button
+                                type="button"
+                                data-fit-project-row={group.project.id}
+                                onClick={() => handleFitProjectAction(group.project.id)}
+                                className="p-1 rounded hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                                title={`Encajar todas las tareas de ${group.project.name} en pantalla`}
+                              >
+                                <Maximize2 className="w-3.5 h-3.5" />
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => onQuickAdd('task', group.project.id)}
@@ -1128,46 +1280,76 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             >
               {/* Top Tier: Month + Year */}
               <div className="flex h-7 border-b border-slate-200/80 dark:border-slate-800">
-                {monthGroups.map((group, idx) => (
-                  <div
-                    key={idx}
-                    style={{ width: group.count * dayWidth }}
-                    className="px-2 flex items-center text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 border-r border-slate-200/80 dark:border-slate-800 truncate"
-                  >
-                    {group.label}
-                  </div>
-                ))}
+                {monthGroups.map((group, idx) => {
+                  const groupPx = group.count * dayWidth;
+                  return (
+                    <div
+                      key={idx}
+                      style={{ width: groupPx }}
+                      className="px-2 flex items-center text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 border-r border-slate-200/80 dark:border-slate-800 truncate"
+                      title={group.label}
+                    >
+                      {groupPx >= 85
+                        ? group.label
+                        : groupPx >= 36
+                        ? group.shortLabel
+                        : ''}
+                    </div>
+                  );
+                })}
               </div>
 
-              {/* Bottom Tier: Days */}
+              {/* Bottom Tier: Adaptive Days / Weeks / Ticks */}
               <div className="flex flex-1 items-center">
                 {timelineDays.map((day, idx) => {
                   const isToday = idx === todayIndex;
                   const wknd = isWeekend(day);
                   const dayNum = format(day, 'd');
                   const dayLetter = format(day, 'EEEEE', { locale: es }).toUpperCase();
+                  const isMonday = day.getDay() === 1;
+                  const isMonthStart = day.getDate() === 1;
+                  const isMidMonth = day.getDate() === 15;
+
+                  const showTickBorder =
+                    dayWidth >= 14 || isMonday || isMonthStart || isToday;
 
                   return (
                     <div
                       key={idx}
                       style={{ width: dayWidth }}
-                      className={`h-full flex flex-col items-center justify-center border-r border-slate-200/50 dark:border-slate-800/60 text-[10px] font-mono ${
+                      className={`relative h-full flex flex-col items-center justify-center ${
+                        showTickBorder
+                          ? 'border-r border-slate-200/60 dark:border-slate-800/70'
+                          : ''
+                      } text-[10px] font-mono ${
                         isToday
-                          ? 'bg-indigo-600 text-white font-bold'
-                          : wknd
+                          ? 'bg-indigo-600 text-white font-bold z-10'
+                          : wknd && dayWidth >= 8
                           ? 'bg-slate-200/50 dark:bg-slate-800/50 text-slate-400'
                           : 'text-slate-600 dark:text-slate-400'
                       }`}
                     >
-                      {zoom === 'day' ? (
+                      {dayWidth >= 34 ? (
                         <div className="flex items-center gap-0.5">
                           <span className="opacity-70">{dayLetter}</span>
                           <span>{dayNum}</span>
                         </div>
-                      ) : zoom === 'week' ? (
+                      ) : dayWidth >= 18 ? (
                         <span>{dayNum}</span>
-                      ) : (
+                      ) : dayWidth >= 11 ? (
                         idx % 2 === 0 && <span className="text-[9px]">{dayNum}</span>
+                      ) : dayWidth >= 5.5 ? (
+                        isMonday && (
+                          <span className="absolute left-1 text-[9px] font-semibold whitespace-nowrap pointer-events-none">
+                            {dayNum}
+                          </span>
+                        )
+                      ) : (
+                        (isMonthStart || isMidMonth) && (
+                          <span className="absolute left-1 text-[9px] font-semibold whitespace-nowrap pointer-events-none">
+                            {dayNum}
+                          </span>
+                        )
                       )}
                     </div>
                   );
@@ -1181,12 +1363,22 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               <div className="absolute inset-0 flex pointer-events-none">
                 {timelineDays.map((day, idx) => {
                   const wknd = isWeekend(day);
+                  const isMonday = day.getDay() === 1;
+                  const isMonthStart = day.getDate() === 1;
+                  const showGridLine =
+                    dayWidth >= 12 || isMonday || isMonthStart;
                   return (
                     <div
                       key={idx}
                       style={{ width: dayWidth }}
-                      className={`h-full border-r border-slate-100 dark:border-slate-900/80 ${
-                        wknd ? 'bg-slate-100/50 dark:bg-slate-900/40' : ''
+                      className={`h-full ${
+                        showGridLine
+                          ? 'border-r border-slate-100 dark:border-slate-900/80'
+                          : ''
+                      } ${
+                        wknd && dayWidth >= 8
+                          ? 'bg-slate-100/50 dark:bg-slate-900/40'
+                          : ''
                       }`}
                     />
                   );
@@ -1444,7 +1636,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                 const barWidth =
                   item.type === 'milestone'
                     ? 22
-                    : Math.max(dayWidth, coords.endX - coords.startX);
+                    : Math.max(6, dayWidth, coords.endX - coords.startX);
 
                 // Visual Slack width (user-configured slack, plus optional CPM float)
                 const totalSlackDays = showCpmFloat
@@ -1568,29 +1760,31 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             }`}
                           />
 
-                          {/* Task Label Inside Bar */}
-                          <div className="absolute inset-0 px-2.5 flex items-center justify-between text-[11px] font-semibold pointer-events-none">
-                            <span
-                              className={`truncate ${
-                                item.progress > 45
-                                  ? 'text-white drop-shadow-sm'
-                                  : styleTheme.text
-                              }`}
-                            >
-                              {item.name}
-                            </span>
-                            {barWidth >= 70 && (
+                          {/* Task Label Inside Bar (only when bar is wide enough) */}
+                          {barWidth >= 56 && (
+                            <div className="absolute inset-0 px-2.5 flex items-center justify-between text-[11px] font-semibold pointer-events-none">
                               <span
-                                className={`font-mono text-[10px] ml-1 shrink-0 ${
-                                  item.progress > 80
-                                    ? 'text-white/90'
-                                    : 'text-slate-600 dark:text-slate-300'
+                                className={`truncate ${
+                                  item.progress > 45
+                                    ? 'text-white drop-shadow-sm'
+                                    : styleTheme.text
                                 }`}
                               >
-                                {coords.effectiveDuration}d
+                                {item.name}
                               </span>
-                            )}
-                          </div>
+                              {barWidth >= 70 && (
+                                <span
+                                  className={`font-mono text-[10px] ml-1 shrink-0 ${
+                                    item.progress > 80
+                                      ? 'text-white/90'
+                                      : 'text-slate-600 dark:text-slate-300'
+                                  }`}
+                                >
+                                  {coords.effectiveDuration}d
+                                </span>
+                              )}
+                            </div>
+                          )}
 
                           {/* Right-Edge Drag Handle for Duration Resizing */}
                           <div

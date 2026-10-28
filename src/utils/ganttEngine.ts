@@ -11,11 +11,13 @@ import {
   ComputedGanttItem,
   ComputedProjectGroup,
   DependencyType,
+  FitToProjectResult,
   GanttItem,
   GanttProject,
   ProjectTemplate,
   SavedScenario,
   TaskColor,
+  ZoomLevel,
 } from '../types/gantt';
 
 export function parseDateSafe(dateStr: string): Date {
@@ -1359,5 +1361,193 @@ export function getDefaultSavedScenarios(): SavedScenario[] {
 
   return [getXcode27Scenario(), saasScenario];
 }
+
+export const MIN_DAY_WIDTH = 3;
+export const MAX_DAY_WIDTH = 96;
+export const DEFAULT_DAY_WIDTH = 44;
+
+export const ZOOM_PRESET_WIDTHS: Record<ZoomLevel, number> = {
+  day: 44,
+  week: 24,
+  month: 12,
+  quarter: 5,
+};
+
+/**
+ * Clamps a continuous dayWidth (pixels per day) into the supported range [MIN_DAY_WIDTH, MAX_DAY_WIDTH],
+ * rounded to 1 decimal place for crisp layout rendering.
+ */
+export function clampDayWidth(value: number): number {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return DEFAULT_DAY_WIDTH;
+  const clamped = Math.min(MAX_DAY_WIDTH, Math.max(MIN_DAY_WIDTH, num));
+  return Math.round(clamped * 10) / 10;
+}
+
+/**
+ * Returns the nominal dayWidth (pixels per day) for a discrete zoom preset.
+ */
+export function getDayWidthForPreset(zoom: ZoomLevel): number {
+  return ZOOM_PRESET_WIDTHS[zoom] ?? DEFAULT_DAY_WIDTH;
+}
+
+/**
+ * Checks whether a continuous dayWidth matches one of the named presets or is a custom scale.
+ */
+export function resolveZoomPresetFromDayWidth(dayWidth: number): ZoomLevel | 'custom' {
+  const safe = clampDayWidth(dayWidth);
+  const presets: ZoomLevel[] = ['day', 'week', 'month', 'quarter'];
+  for (const preset of presets) {
+    if (Math.abs(safe - ZOOM_PRESET_WIDTHS[preset]) <= 0.6) {
+      return preset;
+    }
+  }
+  return 'custom';
+}
+
+/**
+ * Computes the next dayWidth when zooming via mouse wheel or trackpad gesture.
+ * Negative deltaY (wheel up) zooms in (increases dayWidth); positive deltaY (wheel down) zooms out.
+ */
+export function computeWheelZoomDayWidth(currentDayWidth: number, deltaY: number): number {
+  const base = clampDayWidth(currentDayWidth);
+  if (!Number.isFinite(deltaY) || deltaY === 0) return base;
+
+  const clampedDelta = Math.max(-120, Math.min(120, deltaY));
+  const factor = Math.pow(1.0022, -clampedDelta);
+  let next = clampDayWidth(base * factor);
+
+  // Guarantee a minimum 0.2px step on small scales so wheel zoom never stalls due to rounding
+  if (next === base && Math.abs(deltaY) >= 4) {
+    next = clampDayWidth(base + (deltaY < 0 ? 0.3 : -0.3));
+  }
+
+  return next;
+}
+
+/**
+ * Computes the overall timeline start and end dates (including padding around all items and today)
+ * so timeline rendering and scroll-to-fit calculations share the exact same coordinate origin.
+ */
+export function computeTimelineBounds(
+  items: Array<GanttItem | ComputedGanttItem>,
+  referenceToday?: Date
+): { timelineStart: Date; timelineEnd: Date; totalDays: number } {
+  const today = startOfDay(referenceToday || new Date());
+  if (!items || items.length === 0) {
+    const start = addDays(today, -5);
+    const end = addDays(today, 25);
+    return {
+      timelineStart: start,
+      timelineEnd: end,
+      totalDays: differenceInCalendarDays(end, start) + 1,
+    };
+  }
+
+  let minDate = parseDateSafe(items[0].startDate);
+  let maxDate = parseDateSafe(
+    ('slackEndDate' in items[0] && items[0].slackEndDate) || items[0].endDate
+  );
+
+  for (const it of items) {
+    const s = parseDateSafe(it.startDate);
+    const baseEnd = parseDateSafe(it.endDate);
+    const slackEnd =
+      'slackEndDate' in it && it.slackEndDate
+        ? parseDateSafe(it.slackEndDate)
+        : addDays(baseEnd, Math.max(0, Number(it.slack) || 0));
+    const cpmFloat =
+      'cpmTotalFloat' in it && typeof it.cpmTotalFloat === 'number'
+        ? it.cpmTotalFloat
+        : 0;
+    const cpmEnd = addDays(baseEnd, Math.max(0, cpmFloat));
+
+    if (s < minDate) minDate = s;
+    if (slackEnd > maxDate) maxDate = slackEnd;
+    if (cpmEnd > maxDate) maxDate = cpmEnd;
+  }
+
+  if (today < minDate) minDate = today;
+  if (today > maxDate) maxDate = today;
+
+  const timelineStart = addDays(minDate, -4);
+  const timelineEnd = addDays(maxDate, 12);
+  const totalDays = Math.max(1, differenceInCalendarDays(timelineEnd, timelineStart) + 1);
+
+  return { timelineStart, timelineEnd, totalDays };
+}
+
+/**
+ * Automatically finds the optimal scale (`dayWidth` in px/day) and horizontal scroll position (`scrollLeft`)
+ * so that all tasks of a project (or the entire portfolio when `projectId` is 'all' or omitted)
+ * fit comfortably inside the visible timeline viewport width.
+ */
+export function computeFitToProjectScale(
+  items: Array<GanttItem | ComputedGanttItem>,
+  viewportWidth: number,
+  options?: {
+    projectId?: string;
+    referenceToday?: Date;
+    horizontalPaddingPx?: number;
+  }
+): FitToProjectResult {
+  const todayStr = formatDateISO(startOfDay(options?.referenceToday || new Date()));
+  const requestedProjectId = options?.projectId || 'all';
+
+  if (!items || items.length === 0) {
+    return {
+      dayWidth: DEFAULT_DAY_WIDTH,
+      scrollLeft: 0,
+      spanDays: 1,
+      startDate: todayStr,
+      endDate: todayStr,
+      targetProjectId: requestedProjectId,
+    };
+  }
+
+  const filtered =
+    requestedProjectId !== 'all'
+      ? items.filter((it) => it.projectId === requestedProjectId)
+      : items;
+  const targetItems = filtered.length > 0 ? filtered : items;
+
+  let minStart = parseDateSafe(targetItems[0].startDate);
+  let maxEnd = parseDateSafe(targetItems[0].endDate);
+
+  for (const it of targetItems) {
+    const s = parseDateSafe(it.startDate);
+    const baseEnd = parseDateSafe(it.endDate);
+    const withSlack = addDays(baseEnd, Math.max(0, Number(it.slack) || 0));
+    if (s < minStart) minStart = s;
+    if (withSlack > maxEnd) maxEnd = withSlack;
+  }
+
+  const spanDays = Math.max(1, differenceInCalendarDays(maxEnd, minStart) + 1);
+  const safeViewport = Math.max(240, Number(viewportWidth) || 960);
+  const paddingPx =
+    options?.horizontalPaddingPx ??
+    Math.min(140, Math.max(56, Math.round(safeViewport * 0.1)));
+  const usableWidth = Math.max(180, safeViewport - paddingPx);
+
+  // Add 2 buffer days (1 before start, 1 after end) so bars and labels don't touch the viewport edges
+  const rawDayWidth = usableWidth / Math.max(2, spanDays + 2);
+  const dayWidth = clampDayWidth(rawDayWidth);
+
+  const { timelineStart } = computeTimelineBounds(items, options?.referenceToday);
+  const startOffsetDays = differenceInCalendarDays(minStart, timelineStart);
+  const targetStartX = startOffsetDays * dayWidth;
+  const leftMarginPx = Math.max(16, Math.min(48, dayWidth * 1.5));
+  const scrollLeft = Math.max(0, Math.round(targetStartX - leftMarginPx));
+
+  return {
+    dayWidth,
+    scrollLeft,
+    spanDays,
+    startDate: formatDateISO(minStart),
+    endDate: formatDateISO(maxEnd),
+    targetProjectId: filtered.length > 0 ? requestedProjectId : 'all',
+  };
+}
+
 
 

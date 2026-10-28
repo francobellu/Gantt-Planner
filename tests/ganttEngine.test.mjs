@@ -38,6 +38,15 @@ const {
   getXcode27Scenario,
   getDefaultSavedScenarios,
   formatDateISO,
+  MIN_DAY_WIDTH,
+  MAX_DAY_WIDTH,
+  DEFAULT_DAY_WIDTH,
+  clampDayWidth,
+  getDayWidthForPreset,
+  resolveZoomPresetFromDayWidth,
+  computeWheelZoomDayWidth,
+  computeTimelineBounds,
+  computeFitToProjectScale,
 } = await import(codeUrl);
 
 test('calculateEndDateFromDuration & calculateDurationFromDates handle tasks and milestones', () => {
@@ -744,8 +753,103 @@ test('App renders Xcode 27 scenario, all 7 Equipo badges, and Saved Scenarios ba
     assert.ok(html.includes('data-assignee-badge="Desarrollo"'));
     assert.ok(html.includes('data-assignee-badge="RM"'));
     assert.ok(html.includes('data-assignee-badge="Apple"'));
+    // Verify flexible zoom & fit-to-project UI controls render
+    assert.ok(html.includes('data-zoom-slider="true"'));
+    assert.ok(html.includes('data-fit-timeline-btn="true"'));
+    assert.ok(html.includes('data-fit-project-header-btn="true"'));
+    assert.ok(html.includes('data-fit-project-row="proj-xcode27"'));
+    assert.ok(html.includes('data-wheel-zoom-toggle="true"'));
+    assert.ok(html.includes('Trimestre'));
+    assert.ok(html.includes('Ajustar a Proyecto'));
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
 });
+
+test('clampDayWidth, getDayWidthForPreset, resolveZoomPresetFromDayWidth, and computeWheelZoomDayWidth handle continuous zoom and edge cases', () => {
+  // Preset lookup and resolution
+  assert.equal(getDayWidthForPreset('day'), 44);
+  assert.equal(getDayWidthForPreset('week'), 24);
+  assert.equal(getDayWidthForPreset('month'), 12);
+  assert.equal(getDayWidthForPreset('quarter'), 5);
+
+  assert.equal(resolveZoomPresetFromDayWidth(44), 'day');
+  assert.equal(resolveZoomPresetFromDayWidth(24.3), 'week');
+  assert.equal(resolveZoomPresetFromDayWidth(12), 'month');
+  assert.equal(resolveZoomPresetFromDayWidth(5), 'quarter');
+  assert.equal(resolveZoomPresetFromDayWidth(8.4), 'custom');
+
+  // Clamping and invalid inputs
+  assert.equal(clampDayWidth(0.5), MIN_DAY_WIDTH);
+  assert.equal(clampDayWidth(-20), MIN_DAY_WIDTH);
+  assert.equal(clampDayWidth(500), MAX_DAY_WIDTH);
+  assert.equal(clampDayWidth(Number.NaN), DEFAULT_DAY_WIDTH);
+  assert.equal(clampDayWidth(Number.POSITIVE_INFINITY), DEFAULT_DAY_WIDTH);
+
+  // Mouse wheel zoom: negative deltaY (wheel up) zooms in, positive deltaY (wheel down) zooms out
+  const zoomedIn = computeWheelZoomDayWidth(24, -60);
+  assert.ok(zoomedIn > 24, `Expected ${zoomedIn} > 24 when zooming in`);
+  const zoomedOut = computeWheelZoomDayWidth(24, 60);
+  assert.ok(zoomedOut < 24, `Expected ${zoomedOut} < 24 when zooming out`);
+  assert.equal(computeWheelZoomDayWidth(24, 0), 24);
+
+  // Small scales (e.g. 4px/day) still increment/decrement smoothly without stalling on rounding
+  const smallStepUp = computeWheelZoomDayWidth(4, -10);
+  assert.ok(smallStepUp > 4);
+  const smallStepDown = computeWheelZoomDayWidth(4, 10);
+  assert.ok(smallStepDown < 4);
+
+  // Clamping at bounds during wheel zoom
+  assert.equal(computeWheelZoomDayWidth(MIN_DAY_WIDTH, 100), MIN_DAY_WIDTH);
+  assert.equal(computeWheelZoomDayWidth(MAX_DAY_WIDTH, -100), MAX_DAY_WIDTH);
+});
+
+test('computeFitToProjectScale automatically finds optimal scale to fit all tasks of a project or portfolio', () => {
+  // 1. Fit the 169-day Xcode 27 scenario into a 980px viewport
+  const xcode = getXcode27Scenario();
+  const xcodeFit = computeFitToProjectScale(xcode.items, 980, {
+    referenceToday: new Date('2026-10-28T00:00:00Z'),
+  });
+  assert.equal(xcodeFit.spanDays, 169);
+  assert.equal(xcodeFit.startDate, '2026-10-29');
+  assert.equal(xcodeFit.endDate, '2027-04-15');
+  assert.ok(xcodeFit.dayWidth >= MIN_DAY_WIDTH && xcodeFit.dayWidth <= 8);
+  // All 169 days fit comfortably within the 980px viewport width
+  assert.ok(xcodeFit.spanDays * xcodeFit.dayWidth <= 980);
+  assert.ok(xcodeFit.scrollLeft >= 0);
+
+  // 2. Fit a specific single project vs entire portfolio in SaaS template
+  const saas = getProjectTemplates()[0];
+  const fullPortfolioFit = computeFitToProjectScale(saas.items, 1000, {
+    projectId: 'all',
+  });
+  const singleProjectFit = computeFitToProjectScale(saas.items, 1000, {
+    projectId: 'proj-discovery',
+  });
+  // Single project (11 days) spans fewer days than full portfolio (24 days), so its fitted dayWidth is larger
+  assert.ok(singleProjectFit.spanDays < fullPortfolioFit.spanDays);
+  assert.ok(singleProjectFit.dayWidth > fullPortfolioFit.dayWidth);
+  assert.equal(singleProjectFit.targetProjectId, 'proj-discovery');
+
+  // 3. Edge cases: empty items, unknown projectId fallback, extreme viewport widths
+  const emptyFit = computeFitToProjectScale([], 1000);
+  assert.equal(emptyFit.dayWidth, DEFAULT_DAY_WIDTH);
+  assert.equal(emptyFit.scrollLeft, 0);
+
+  const fallbackProjectFit = computeFitToProjectScale(saas.items, 1000, {
+    projectId: 'non-existent-project',
+  });
+  assert.equal(fallbackProjectFit.targetProjectId, 'all');
+  assert.equal(fallbackProjectFit.spanDays, fullPortfolioFit.spanDays);
+
+  const tinyViewportFit = computeFitToProjectScale(xcode.items, 100);
+  assert.ok(tinyViewportFit.dayWidth >= MIN_DAY_WIDTH);
+
+  const hugeViewportFit = computeFitToProjectScale(saas.items.slice(0, 1), 5000);
+  assert.equal(hugeViewportFit.dayWidth, MAX_DAY_WIDTH);
+
+  const bounds = computeTimelineBounds(xcode.items, new Date('2026-10-28T00:00:00Z'));
+  assert.ok(bounds.totalDays > xcodeFit.spanDays);
+});
+
 

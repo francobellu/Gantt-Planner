@@ -11,7 +11,16 @@ export type TaskColor =
   | 'violet'
   | 'cyan';
 
-export type ZoomLevel = 'day' | 'week' | 'month';
+export type ZoomLevel = 'day' | 'week' | 'month' | 'quarter';
+
+export interface FitToProjectResult {
+  dayWidth: number;
+  scrollLeft: number;
+  spanDays: number;
+  startDate: string;
+  endDate: string;
+  targetProjectId: string;
+}
 
 export interface GanttProject {
   id: string;
