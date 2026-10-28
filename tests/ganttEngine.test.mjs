@@ -388,13 +388,33 @@ test('groupItemsByProject computes rollup dates, durations, progress, hierarchic
   assert.equal(g3.items.length, 1);
   assert.equal(g3.items[0].wbsCode, '3.1');
 
+  // Edge case: milestone-only project on a single day has 0d duration
+  const milestoneOnlyGroups = groupItemsByProject(
+    computeGanttMetrics([
+      sanitizeGanttItem({
+        id: 'm-only',
+        name: 'Hito Único',
+        type: 'milestone',
+        projectId: 'p-1',
+        startDate: '2026-10-15',
+        endDate: '2026-10-15',
+        progress: 100,
+      }),
+    ]),
+    [projects[0]]
+  );
+  assert.equal(milestoneOnlyGroups[0].duration, 0);
+  assert.equal(milestoneOnlyGroups[0].milestonesCount, 1);
+  assert.equal(milestoneOnlyGroups[0].tasksCount, 0);
+  assert.equal(milestoneOnlyGroups[0].progress, 100);
+
   // Edge case: empty projects list falls back to default 'Proyecto General'
   const fallbackGroups = groupItemsByProject(computed.slice(0, 1), []);
   assert.equal(fallbackGroups.length, 1);
   assert.equal(fallbackGroups[0].items.length, 1);
 });
 
-test('App and GanttWorkspace render complete WBS table, project groups, summary bars, milestones, slack bars, and SVG dependency paths', async () => {
+test('App and GanttWorkspace render complete WBS table, project groups, summary bars, collapsed groups, filtered views, milestones, slack bars, and SVG dependency paths', async () => {
   const { renderToString } = await import('react-dom/server');
 
   const appBundle = await build({
@@ -402,8 +422,35 @@ test('App and GanttWorkspace render complete WBS table, project groups, summary 
       contents: `
         import React from 'react';
         import { App } from './src/App.tsx';
+        import { GanttWorkspace } from './src/components/GanttWorkspace.tsx';
+        import { computeGanttMetrics, getProjectTemplates } from './src/utils/ganttEngine.ts';
         export function createAppElement() {
           return <App />;
+        }
+        export function createCollapsedWorkspaceElement() {
+          const tpl = getProjectTemplates()[0];
+          const items = computeGanttMetrics(tpl.items);
+          const collapsedProjects = tpl.projects.map((p, idx) =>
+            idx === 0 ? { ...p, collapsed: true } : p
+          );
+          return (
+            <GanttWorkspace
+              items={items}
+              projects={collapsedProjects}
+              groupByProject={true}
+              selectedProjectId="all"
+              zoom="day"
+              showCriticalPath={true}
+              showCpmFloat={false}
+              autoCascade={true}
+              onUpdateItem={() => {}}
+              onEditModal={() => {}}
+              onDeleteItem={() => {}}
+              onDuplicateItem={() => {}}
+              onQuickAdd={() => {}}
+              scrollContainerRef={{ current: null }}
+            />
+          );
         }
       `,
       resolveDir: path.resolve(__dirname, '..'),
@@ -423,6 +470,8 @@ test('App and GanttWorkspace render complete WBS table, project groups, summary 
   try {
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const createAppElement = mod.createAppElement || mod.default?.createAppElement;
+    const createCollapsedWorkspaceElement =
+      mod.createCollapsedWorkspaceElement || mod.default?.createCollapsedWorkspaceElement;
     const html = renderToString(createAppElement());
 
     // Verify default template title, project groups, project summary bars, tasks, milestones, slack badges, and today marker render
@@ -437,9 +486,21 @@ test('App and GanttWorkspace render complete WBS table, project groups, summary 
     assert.ok(html.includes('Holgura (Slack): +1 día(s)'));
     assert.ok(html.includes('Holgura (Slack): +3 día(s)'));
     assert.ok(html.includes('url(#arrow-critical)'));
+    // Verify hierarchical WBS codes appear in the Dependencies column (#1.2,#2.1 for m-1, #1.3 for t-4)
+    assert.ok(html.includes('#1.2,#2.1'));
+    assert.ok(html.includes('#1.3'));
+
+    // Verify collapsed project group hides child task rows while preserving project summary bar and cross-project SVG dependency arrows
+    const collapsedHtml = renderToString(createCollapsedWorkspaceElement());
+    assert.ok(collapsedHtml.includes('data-project-group="proj-discovery"'));
+    assert.ok(collapsedHtml.includes('data-project-summary-bar="proj-discovery"'));
+    assert.equal(collapsedHtml.includes('Investigación de Usuarios &amp; Alcance Técnico'), false);
+    assert.ok(collapsedHtml.includes('Desarrollo Motor Gantt Interactivo (Frontend)'));
+    assert.ok(collapsedHtml.includes('url(#arrow-critical)'));
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
 });
+
 
 

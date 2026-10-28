@@ -269,6 +269,32 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
     }
   };
 
+  const handleProjectSelectChange = (nextProjectId: string) => {
+    setProjectId(nextProjectId);
+    if (!initialItem) {
+      const projectItems = allItems.filter((it) => it.projectId === nextProjectId);
+      const lastInProj = projectItems[projectItems.length - 1];
+      if (lastInProj) {
+        const nextStart = formatDateISO(addDays(parseDateSafe(lastInProj.endDate), 1));
+        setStartDate(nextStart);
+        setEndDate(
+          type === 'milestone'
+            ? nextStart
+            : calculateEndDateFromDuration(nextStart, duration, 'task')
+        );
+        setDependencies([lastInProj.id]);
+      } else {
+        setStartDate(todayStr);
+        setEndDate(
+          type === 'milestone'
+            ? todayStr
+            : calculateEndDateFromDuration(todayStr, duration, 'task')
+        );
+        setDependencies([]);
+      }
+    }
+  };
+
   const handleCreateInlineProject = () => {
     const trimmed = newProjectName.trim();
     if (!trimmed) return;
@@ -279,7 +305,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
       collapsed: false,
     };
     onCreateProject?.(created);
-    setProjectId(created.id);
+    handleProjectSelectChange(created.id);
     setNewProjectName('');
     setIsCreatingNewProject(false);
   };
@@ -435,7 +461,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
               {!isCreatingNewProject ? (
                 <select
                   value={projectId}
-                  onChange={(e) => setProjectId(e.target.value)}
+                  onChange={(e) => handleProjectSelectChange(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
                 >
                   {projects.map((p, idx) => (
@@ -733,6 +759,9 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                       initialItem &&
                       wouldCreateCycle(allItems, initialItem.id, candidate.id);
                     const depType = dependencyTypes[candidate.id] || 'FS';
+                    const candidateProjIdx = projects.findIndex(
+                      (p) => p.id === candidate.projectId
+                    );
 
                     return (
                       <div
@@ -746,7 +775,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                         }`}
                       >
                         <label
-                          className={`flex items-center gap-2.5 flex-1 ${
+                          className={`flex items-center gap-2 flex-1 min-w-0 ${
                             causesCycle ? 'cursor-not-allowed' : 'cursor-pointer'
                           }`}
                         >
@@ -757,9 +786,17 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                             onChange={() => toggleDependency(candidate.id)}
                             className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                           />
-                          <span className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-                            #{candidate.wbs}
+                          <span className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-400 shrink-0">
+                            #{candidate.wbsCode || candidate.wbs}
                           </span>
+                          {candidateProjIdx >= 0 && (
+                            <span
+                              className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 shrink-0"
+                              title={projects[candidateProjIdx]?.name}
+                            >
+                              P{candidateProjIdx + 1}
+                            </span>
+                          )}
                           {candidate.type === 'milestone' && (
                             <Diamond className="w-3.5 h-3.5 text-amber-500 fill-current shrink-0" />
                           )}

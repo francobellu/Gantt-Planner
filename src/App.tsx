@@ -159,14 +159,31 @@ export function App() {
     }
   }, [projectName, projects, items]);
 
-  // Compute enriched items with WBS, Slack End Dates, Critical Path (CPM), and Conflict flags
-  const computedItems = useMemo(() => computeGanttMetrics(items), [items]);
+  // Compute base enriched items with WBS, Slack End Dates, Critical Path (CPM), and Conflict flags
+  const baseComputedItems = useMemo(() => computeGanttMetrics(items), [items]);
 
   // Compute project groups with rolled-up dates, durations, and hierarchical WBS
   const projectGroups = useMemo(
-    () => groupItemsByProject(computedItems, projects),
-    [computedItems, projects]
+    () => groupItemsByProject(baseComputedItems, projects),
+    [baseComputedItems, projects]
   );
+
+  // Synchronized list of projects (including any auto-recovered orphan project groups)
+  const effectiveProjects = useMemo(
+    () => projectGroups.map((g) => g.project),
+    [projectGroups]
+  );
+
+  // Enrich computedItems with hierarchical wbsCode (e.g. 1.1, 1.2, 2.1) and resolved projectId
+  const computedItems = useMemo(() => {
+    const enrichedMap = new Map<string, ComputedGanttItem>();
+    for (const group of projectGroups) {
+      for (const it of group.items) {
+        enrichedMap.set(it.id, it);
+      }
+    }
+    return baseComputedItems.map((it) => enrichedMap.get(it.id) || it);
+  }, [baseComputedItems, projectGroups]);
 
   // Project KPI metrics
   const metrics = useMemo(() => {
@@ -317,26 +334,26 @@ export function App() {
   };
 
   const handleUpdateProject = (updatedProj: GanttProject) => {
-    setProjects((prev) =>
-      prev.map((p) => (p.id === updatedProj.id ? updatedProj : p))
+    setProjects(() =>
+      effectiveProjects.map((p) => (p.id === updatedProj.id ? updatedProj : p))
     );
   };
 
   const handleToggleProjectCollapse = (projectId: string) => {
-    setProjects((prev) =>
-      prev.map((p) =>
+    setProjects(() =>
+      effectiveProjects.map((p) =>
         p.id === projectId ? { ...p, collapsed: !p.collapsed } : p
       )
     );
   };
 
   const handleExpandCollapseAll = (collapsed: boolean) => {
-    setProjects((prev) => prev.map((p) => ({ ...p, collapsed })));
+    setProjects(() => effectiveProjects.map((p) => ({ ...p, collapsed })));
   };
 
   const handleDeleteProject = (projectId: string) => {
-    if (projects.length <= 1) return;
-    const remaining = projects.filter((p) => p.id !== projectId);
+    if (effectiveProjects.length <= 1) return;
+    const remaining = effectiveProjects.filter((p) => p.id !== projectId);
     const fallbackId = remaining[0].id;
     setProjects(remaining);
     setItems((prev) =>
@@ -375,7 +392,11 @@ export function App() {
   };
 
   const handleExportJSON = () => {
-    const payload = JSON.stringify({ projectName, projects, items }, null, 2);
+    const payload = JSON.stringify(
+      { projectName, projects: effectiveProjects, items },
+      null,
+      2
+    );
     const blob = new Blob([payload], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -386,7 +407,12 @@ export function App() {
   };
 
   const handleExportCSV = () => {
-    const projectMap = new Map(projects.map((p) => [p.id, p.name]));
+    const projectMap = new Map(
+      projectGroups.map((g) => [g.project.id, g.project.name])
+    );
+    const orderedItems = groupByProject
+      ? projectGroups.flatMap((g) => g.items)
+      : computedItems;
     const headers = [
       'WBS',
       'Proyecto',
@@ -401,8 +427,8 @@ export function App() {
       'Ruta Critica',
       'Responsable',
     ];
-    const rows = computedItems.map((it) => [
-      it.wbs,
+    const rows = orderedItems.map((it) => [
+      groupByProject ? it.wbsCode || it.wbs : it.wbs,
       `"${(projectMap.get(it.projectId || '') || 'General').replace(/"/g, '""')}"`,
       it.type === 'milestone' ? 'Hito' : 'Tarea',
       `"${it.name.replace(/"/g, '""')}"`,
@@ -433,19 +459,33 @@ export function App() {
       try {
         const parsed = JSON.parse(String(ev.target?.result));
         if (Array.isArray(parsed.items)) {
+          const importedName = parsed.projectName || projectName;
           if (parsed.projectName) setProjectName(parsed.projectName);
-          if (Array.isArray(parsed.projects) && parsed.projects.length > 0) {
-            setProjects(
-              parsed.projects.map((raw: Partial<GanttProject>, i: number) =>
-                sanitizeProject(raw, i)
-              )
-            );
-          }
-          setItems(
-            parsed.items.map((raw: Partial<GanttItem>, i: number) =>
-              sanitizeGanttItem(raw, i)
-            )
+          const cleanItems = parsed.items.map((raw: Partial<GanttItem>, i: number) =>
+            sanitizeGanttItem(raw, i)
           );
+          const baseProjects =
+            Array.isArray(parsed.projects) && parsed.projects.length > 0
+              ? parsed.projects.map((raw: Partial<GanttProject>, i: number) =>
+                  sanitizeProject(raw, i)
+                )
+              : [
+                  sanitizeProject(
+                    {
+                      id: 'proj-default',
+                      name: importedName || 'Proyecto General',
+                      color: 'indigo',
+                      collapsed: false,
+                    },
+                    0
+                  ),
+                ];
+          const syncedGroups = groupItemsByProject(
+            computeGanttMetrics(cleanItems),
+            baseProjects
+          );
+          setProjects(syncedGroups.map((g) => g.project));
+          setItems(cleanItems);
           setSelectedProjectId('all');
         }
       } catch {
@@ -810,7 +850,7 @@ export function App() {
                     P{group.projectIndex}: {group.project.name}
                   </span>
                   <span
-                    className={`font-mono text-[10px] px-1.5 py-0.2 rounded-full ${
+                    className={`font-mono text-[10px] px-1.5 py-0.5 rounded-full ${
                       isSelected
                         ? 'bg-white/20 text-white'
                         : 'bg-slate-200/80 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
@@ -935,7 +975,7 @@ export function App() {
         {/* Interactive Split-Pane Gantt Chart & WBS Table with Project Grouping */}
         <GanttWorkspace
           items={computedItems}
-          projects={projects}
+          projects={effectiveProjects}
           groupByProject={groupByProject}
           selectedProjectId={selectedProjectId}
           zoom={zoom}
@@ -964,7 +1004,7 @@ export function App() {
         initialItem={editingItem}
         defaultType={defaultModalType}
         defaultProjectId={defaultModalProjectId}
-        projects={projects}
+        projects={effectiveProjects}
         onCreateProject={handleCreateProject}
         allItems={computedItems}
       />

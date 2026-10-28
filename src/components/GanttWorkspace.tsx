@@ -198,11 +198,60 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   // Day column width according to zoom level
   const dayWidth = zoom === 'day' ? 44 : zoom === 'week' ? 28 : 16;
 
+  // Apply live drag preview delta to items so project summary bars and rolled-up dates update in real time while dragging
+  const effectiveItems = useMemo(() => {
+    if (!dragState || dragState.dayDelta === 0) return items;
+    return items.map((it) => {
+      if (it.id !== dragState.itemId) return it;
+      if (dragState.mode === 'move') {
+        const newStart = formatDateISO(addDays(dragState.origStart, dragState.dayDelta));
+        const newEnd =
+          it.type === 'milestone'
+            ? newStart
+            : calculateEndDateFromDuration(newStart, dragState.origDuration, 'task');
+        const newSlackEnd = formatDateISO(
+          addDays(parseDateSafe(newEnd), Math.max(0, it.slack || 0))
+        );
+        return {
+          ...it,
+          startDate: newStart,
+          endDate: newEnd,
+          slackEndDate: newSlackEnd,
+        };
+      }
+      if (dragState.mode === 'resize' && it.type === 'task') {
+        const newDur = Math.max(1, dragState.origDuration + dragState.dayDelta);
+        const newEnd = calculateEndDateFromDuration(it.startDate, newDur, 'task');
+        const newSlackEnd = formatDateISO(
+          addDays(parseDateSafe(newEnd), Math.max(0, it.slack || 0))
+        );
+        return {
+          ...it,
+          duration: newDur,
+          endDate: newEnd,
+          slackEndDate: newSlackEnd,
+        };
+      }
+      return it;
+    });
+  }, [items, dragState]);
+
   // Group items into projects with rolled-up dates, durations, and hierarchical WBS
   const allProjectGroups = useMemo(
-    () => groupItemsByProject(items, projects),
-    [items, projects]
+    () => groupItemsByProject(effectiveItems, projects),
+    [effectiveItems, projects]
   );
+
+  // Fast lookup map of enriched items (including wbsCode) by ID
+  const enrichedItemById = useMemo(() => {
+    const map = new Map<string, ComputedGanttItem>();
+    for (const g of allProjectGroups) {
+      for (const it of g.items) {
+        map.set(it.id, it);
+      }
+    }
+    return map;
+  }, [allProjectGroups]);
 
   const visibleProjectGroups = useMemo(() => {
     if (!selectedProjectId || selectedProjectId === 'all') {
@@ -538,7 +587,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         {/* Visual Legend */}
         <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-600 dark:text-slate-400">
           <span className="flex items-center gap-1.5">
-            <span className="w-4 h-2 rounded-xs bg-slate-700 dark:bg-slate-300 inline-block border-x-2 border-indigo-500" />
+            <span className="w-4 h-2 rounded-sm bg-slate-700 dark:bg-slate-300 inline-block border-x-2 border-indigo-500" />
             Resumen Proyecto
           </span>
           <span className="flex items-center gap-1.5">
@@ -711,7 +760,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               >
                                 <Diamond className="w-3 h-3" />
                               </button>
-                              {projects.length > 1 && onDeleteProject && (
+                              {allProjectGroups.length > 1 && onDeleteProject && (
                                 <button
                                   type="button"
                                   onClick={() => onDeleteProject(group.project.id)}
@@ -774,7 +823,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               className="w-full bg-transparent font-medium text-slate-800 dark:text-slate-100 truncate focus:bg-white dark:focus:bg-slate-800 focus:px-1.5 focus:py-0.5 rounded outline-none focus:ring-1 focus:ring-indigo-500"
                               title={`${item.name} (${group.project.name})`}
                             />
-                            {projects.length > 1 && (
+                            {allProjectGroups.length > 1 && (
                               <select
                                 value={group.project.id}
                                 onChange={(e) =>
@@ -788,9 +837,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 }`}
                                 title={`Proyecto: ${group.project.name} (cambiar de proyecto)`}
                               >
-                                {projects.map((p, idx) => (
-                                  <option key={p.id} value={p.id}>
-                                    P{idx + 1}: {p.name}
+                                {allProjectGroups.map((g) => (
+                                  <option key={g.project.id} value={g.project.id}>
+                                    P{g.projectIndex}: {g.project.name}
                                   </option>
                                 ))}
                               </select>
@@ -953,8 +1002,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 <span>
                                   {item.dependencies
                                     .map((depId) => {
-                                      const found = items.find((x) => x.id === depId);
-                                      return found ? `#${found.wbs}` : '';
+                                      const found = enrichedItemById.get(depId);
+                                      if (!found) return '';
+                                      return groupByProject
+                                        ? `#${found.wbsCode || found.wbs}`
+                                        : `#${found.wbs}`;
                                     })
                                     .filter(Boolean)
                                     .join(',')}
@@ -1357,9 +1409,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             className={`h-full rounded-tl-sm transition-all ${projTheme.fillBg}`}
                           />
                           {/* Left Bracket Downward Cap */}
-                          <div className="absolute -bottom-1.5 left-0 w-2 h-2 bg-slate-800 dark:bg-slate-200 clip-path-bracket-left rounded-bl-xs" />
+                          <div className="absolute -bottom-1.5 left-0 w-2 h-2 bg-slate-800 dark:bg-slate-200 clip-path-bracket-left" />
                           {/* Right Bracket Downward Cap */}
-                          <div className="absolute -bottom-1.5 right-0 w-2 h-2 bg-slate-800 dark:bg-slate-200 clip-path-bracket-right rounded-br-xs" />
+                          <div className="absolute -bottom-1.5 right-0 w-2 h-2 bg-slate-800 dark:bg-slate-200 clip-path-bracket-right" />
                         </div>
                       </div>
                     </div>
@@ -1448,16 +1500,16 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               <span>
                                 #{item.wbsCode || item.wbs} ◆ {item.name}
                               </span>
-                              <span className="px-1.5 py-0.2 rounded bg-indigo-500/30 text-indigo-200 text-[10px] font-normal">
+                              <span className="px-1.5 py-0.5 rounded bg-indigo-500/30 text-indigo-200 text-[10px] font-normal">
                                 📁 {group.project.name}
                               </span>
                               {item.assignee && (
-                                <span className="px-1.5 py-0.2 rounded bg-slate-700 text-slate-200 text-[10px] font-normal">
+                                <span className="px-1.5 py-0.5 rounded bg-slate-700 text-slate-200 text-[10px] font-normal">
                                   👤 {item.assignee}
                                 </span>
                               )}
                               {item.isCritical && (
-                                <span className="px-1.5 py-0.2 rounded bg-rose-500/30 text-rose-300 text-[10px]">
+                                <span className="px-1.5 py-0.5 rounded bg-rose-500/30 text-rose-300 text-[10px]">
                                   Ruta Crítica
                                 </span>
                               )}
@@ -1578,16 +1630,16 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               <span>
                                 #{item.wbsCode || item.wbs} {item.name}
                               </span>
-                              <span className="px-1.5 py-0.2 rounded bg-indigo-500/30 text-indigo-200 text-[10px] font-normal">
+                              <span className="px-1.5 py-0.5 rounded bg-indigo-500/30 text-indigo-200 text-[10px] font-normal">
                                 📁 {group.project.name}
                               </span>
                               {item.assignee && (
-                                <span className="px-1.5 py-0.2 rounded bg-slate-700 text-slate-200 text-[10px] font-normal">
+                                <span className="px-1.5 py-0.5 rounded bg-slate-700 text-slate-200 text-[10px] font-normal">
                                   👤 {item.assignee}
                                 </span>
                               )}
                               {item.isCritical && (
-                                <span className="px-1.5 py-0.2 rounded bg-rose-500/30 text-rose-300 text-[10px]">
+                                <span className="px-1.5 py-0.5 rounded bg-rose-500/30 text-rose-300 text-[10px]">
                                   Ruta Crítica
                                 </span>
                               )}

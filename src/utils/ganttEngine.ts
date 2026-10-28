@@ -561,7 +561,9 @@ export function groupItemsByProject(
     const startDate = formatDateISO(minStart);
     const endDate = formatDateISO(maxEnd);
     const slackEndDate = formatDateISO(maxSlackEnd);
-    const duration = Math.max(1, differenceInCalendarDays(maxEnd, minStart) + 1);
+    const rawSpanDays = differenceInCalendarDays(maxEnd, minStart);
+    const duration =
+      tasksCount === 0 && rawSpanDays === 0 ? 0 : Math.max(1, rawSpanDays + 1);
     const progress =
       tasksCount > 0
         ? Math.round(taskProgressSum / tasksCount)
