@@ -665,9 +665,37 @@ test('Scenario manager saves custom scenario, switches to a template, and return
   assert.equal(switchedToXcode.activeScenarioId, 'scen-xcode27');
   assert.equal(switchedToXcode.projects.length, 1);
   assert.equal(switchedToXcode.items.length, 7);
+
+  // 5. Edge case: Switch to a template, edit a task in Vista Plantilla mode without clicking "Guardar",
+  // and switch back to 'scen-xcode27' — the modified template must be auto-promoted into savedScenarios
+  const countBeforeTemplateEdit = switchedToXcode.savedScenarios.length;
+  const tplView = switchWorkspaceToTemplate(
+    switchedToXcode,
+    switchedToXcode.savedScenarios,
+    'blank-project'
+  );
+  assert.equal(tplView.savedScenarios.length, countBeforeTemplateEdit);
+
+  const editedTemplateWorkspace = {
+    ...tplView,
+    items: tplView.items.map((it, idx) =>
+      idx === 0 ? { ...it, name: 'Tarea Editada en Vista Plantilla' } : it
+    ),
+  };
+  const afterEditedTemplateSwitch = switchWorkspaceToScenario(
+    editedTemplateWorkspace,
+    editedTemplateWorkspace.savedScenarios,
+    'scen-xcode27'
+  );
+  assert.equal(afterEditedTemplateSwitch.savedScenarios.length, countBeforeTemplateEdit + 1);
+  const autoPromoted = afterEditedTemplateSwitch.savedScenarios.find(
+    (s) => s.sourceTemplateId === 'blank-project'
+  );
+  assert.ok(autoPromoted);
+  assert.equal(autoPromoted.items[0].name, 'Tarea Editada en Vista Plantilla');
 });
 
-test('App renders Xcode 27 scenario and Saved Scenarios bar in SSR', async () => {
+test('App renders Xcode 27 scenario, all 7 Equipo badges, and Saved Scenarios bar in SSR', async () => {
   const { renderToString } = await import('react-dom/server');
   const appBundle = await build({
     stdin: {
@@ -708,11 +736,16 @@ test('App renders Xcode 27 scenario and Saved Scenarios bar in SSR', async () =>
     assert.ok(html.includes('Fixing'));
     assert.ok(html.includes('QG5 27.2'));
     assert.ok(html.includes('Deadline Xcode27'));
+    // Verify all 7 Equipo (assignee) badges are visibly rendered in the WBS rows
+    assert.ok(html.includes('data-assignee-badge="Arquitectura"'));
+    assert.ok(html.includes('data-assignee-badge="AWS/Devops"'));
+    assert.ok(html.includes('data-assignee-badge="RM Canales"'));
+    assert.ok(html.includes('data-assignee-badge="QA"'));
+    assert.ok(html.includes('data-assignee-badge="Desarrollo"'));
+    assert.ok(html.includes('data-assignee-badge="RM"'));
+    assert.ok(html.includes('data-assignee-badge="Apple"'));
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
 });
-
-
-
 

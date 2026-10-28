@@ -823,6 +823,15 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               className="w-full bg-transparent font-medium text-slate-800 dark:text-slate-100 truncate focus:bg-white dark:focus:bg-slate-800 focus:px-1.5 focus:py-0.5 rounded outline-none focus:ring-1 focus:ring-indigo-500"
                               title={`${item.name} (${group.project.name})`}
                             />
+                            {item.assignee && (
+                              <span
+                                data-assignee-badge={item.assignee}
+                                className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] font-medium shrink-0 max-w-[92px] truncate border border-slate-200/80 dark:border-slate-700"
+                                title={`Equipo / Responsable: ${item.assignee}`}
+                              >
+                                {item.assignee}
+                              </span>
+                            )}
                             {allProjectGroups.length > 1 && (
                               <select
                                 value={group.project.id}

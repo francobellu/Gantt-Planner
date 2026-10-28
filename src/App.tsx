@@ -48,6 +48,7 @@ import {
   getXcode27Scenario,
   groupItemsByProject,
   parseDateSafe,
+  preserveActiveWorkspaceInScenarios,
   sanitizeGanttItem,
   sanitizeProject,
   sanitizeScenario,
@@ -59,6 +60,7 @@ import { GanttWorkspace } from './components/GanttWorkspace';
 import { TaskFormModal } from './components/TaskFormModal';
 
 const STORAGE_KEY = 'ganttflow_pro_state_v2';
+const LEGACY_STORAGE_KEY_V1 = 'ganttflow_pro_state_v1';
 const SCENARIOS_STORAGE_KEY = 'ganttflow_pro_scenarios_v2';
 
 const PROJECT_COLORS: { value: TaskColor; bg: string }[] = [
@@ -109,17 +111,19 @@ function loadInitialWorkspaceState(
             )
           : [...defaultScenarios];
 
-        if (!list.some((s) => s.id === xcodeScenario.id)) {
+        const hadXcodeScenario = list.some((s) => s.id === xcodeScenario.id);
+        if (!hadXcodeScenario) {
           list = [xcodeScenario, ...list];
         }
         if (list.length === 0) {
           list = [...defaultScenarios];
         }
 
-        const activeId: string =
-          typeof parsed.activeScenarioId === 'string' && parsed.activeScenarioId
-            ? parsed.activeScenarioId
-            : list[0].id;
+        const activeId: string = !hadXcodeScenario
+          ? xcodeScenario.id
+          : typeof parsed.activeScenarioId === 'string' && parsed.activeScenarioId
+          ? parsed.activeScenarioId
+          : list[0].id;
 
         if (activeId.startsWith('template:')) {
           const tplId = activeId.replace('template:', '');
@@ -155,8 +159,10 @@ function loadInitialWorkspaceState(
         };
       }
 
-      // Migrate legacy single-workspace state if present, while activating the Xcode 27 scenario
-      const legacyRaw = window.localStorage.getItem(STORAGE_KEY);
+      // Migrate legacy single-workspace state (v2 or v1) if present, while activating the Xcode 27 scenario
+      const legacyRaw =
+        window.localStorage.getItem(STORAGE_KEY) ||
+        window.localStorage.getItem(LEGACY_STORAGE_KEY_V1);
       let migratedList = [...defaultScenarios];
       if (legacyRaw) {
         const legacy = JSON.parse(legacyRaw);
@@ -587,16 +593,16 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
   };
 
   const handleDuplicateCurrentScenario = () => {
-    let baseList = savedScenarios;
-    if (activeScenarioId && !activeScenarioId.startsWith('template:')) {
-      baseList = upsertScenarioInList(baseList, {
-        id: activeScenarioId,
-        name: projectName,
+    const baseList = preserveActiveWorkspaceInScenarios(
+      {
+        activeScenarioId,
+        projectName,
         projects: effectiveProjects,
         items,
-        updatedAt: new Date().toISOString(),
-      });
-    }
+      },
+      savedScenarios,
+      templates
+    );
     const copy = createNewScenario(`${projectName} (Copia)`, 'duplicate', {
       projects: effectiveProjects,
       items,
@@ -614,16 +620,16 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
   const handleCreateScenarioFromBar = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = newScenarioName.trim() || `Escenario ${savedScenarios.length + 1}`;
-    let baseList = savedScenarios;
-    if (activeScenarioId && !activeScenarioId.startsWith('template:')) {
-      baseList = upsertScenarioInList(baseList, {
-        id: activeScenarioId,
-        name: projectName,
+    const baseList = preserveActiveWorkspaceInScenarios(
+      {
+        activeScenarioId,
+        projectName,
         projects: effectiveProjects,
         items,
-        updatedAt: new Date().toISOString(),
-      });
-    }
+      },
+      savedScenarios,
+      templates
+    );
     const created = createNewScenario(trimmed, newScenarioMode, {
       projects: effectiveProjects,
       items,
@@ -674,7 +680,13 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
 
   const handleExportJSON = () => {
     const payload = JSON.stringify(
-      { projectName, projects: effectiveProjects, items },
+      {
+        id: activeScenarioId,
+        name: projectName,
+        projectName,
+        projects: effectiveProjects,
+        items,
+      },
       null,
       2
     );
@@ -740,7 +752,8 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
       try {
         const parsed = JSON.parse(String(ev.target?.result));
         if (Array.isArray(parsed.items)) {
-          const importedName = parsed.projectName || `Escenario Importado`;
+          const importedName =
+            parsed.projectName || parsed.name || `Escenario Importado`;
           const cleanItems = parsed.items.map((raw: Partial<GanttItem>, i: number) =>
             sanitizeGanttItem(raw, i)
           );
@@ -771,7 +784,17 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
             items: cleanItems,
             updatedAt: new Date().toISOString(),
           });
-          setSavedScenarios((prev) => upsertScenarioInList(prev, importedScenario));
+          const preservedList = preserveActiveWorkspaceInScenarios(
+            {
+              activeScenarioId,
+              projectName,
+              projects: effectiveProjects,
+              items,
+            },
+            savedScenarios,
+            templates
+          );
+          setSavedScenarios(upsertScenarioInList(preservedList, importedScenario));
           setActiveScenarioId(importedScenario.id);
           setProjectName(importedScenario.name);
           setProjects(importedScenario.projects);

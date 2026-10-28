@@ -1057,8 +1057,69 @@ export function createNewScenario(
 }
 
 /**
- * Preserves the current active user scenario in `savedScenarios` and loads a template
- * into the active workspace so the user can inspect or work with a template and switch back
+ * Checks whether the current workspace has unsaved modifications relative to a template,
+ * or belongs to a saved user scenario, and upserts it into `savedScenarios`.
+ */
+export function preserveActiveWorkspaceInScenarios(
+  current: {
+    activeScenarioId: string;
+    projectName: string;
+    projects: GanttProject[];
+    items: GanttItem[];
+  },
+  savedScenarios: SavedScenario[],
+  templatesList?: ProjectTemplate[]
+): SavedScenario[] {
+  let nextScenarios = [...savedScenarios];
+  if (!current.activeScenarioId) return nextScenarios;
+
+  if (!current.activeScenarioId.startsWith('template:')) {
+    return upsertScenarioInList(nextScenarios, {
+      id: current.activeScenarioId,
+      name: current.projectName,
+      projects: current.projects,
+      items: current.items,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  // If currently viewing a template, check if the user modified its name, projects, or items
+  const tplId = current.activeScenarioId.replace('template:', '');
+  const templates = templatesList || getProjectTemplates();
+  const baseTpl = templates.find((t) => t.id === tplId);
+  if (!baseTpl) return nextScenarios;
+
+  const cleanCurrentProjects = current.projects.map((p, idx) => sanitizeProject(p, idx));
+  const cleanBaseProjects = baseTpl.projects.map((p, idx) => sanitizeProject(p, idx));
+  const cleanCurrentItems = current.items.map((it, idx) => sanitizeGanttItem(it, idx));
+  const cleanBaseItems = baseTpl.items.map((it, idx) => sanitizeGanttItem(it, idx));
+
+  const isModified =
+    current.projectName.trim() !== baseTpl.name.trim() ||
+    JSON.stringify(cleanCurrentProjects) !== JSON.stringify(cleanBaseProjects) ||
+    JSON.stringify(cleanCurrentItems) !== JSON.stringify(cleanBaseItems);
+
+  if (isModified) {
+    const promotedName =
+      current.projectName.trim() === baseTpl.name.trim()
+        ? `${baseTpl.name} (Editado)`
+        : current.projectName.trim();
+    nextScenarios = upsertScenarioInList(nextScenarios, {
+      id: `scen-${tplId}-${Date.now()}`,
+      name: promotedName,
+      projects: cleanCurrentProjects,
+      items: cleanCurrentItems,
+      updatedAt: new Date().toISOString(),
+      sourceTemplateId: tplId,
+    });
+  }
+
+  return nextScenarios;
+}
+
+/**
+ * Preserves the current active user scenario (or modified template) in `savedScenarios` and loads
+ * a template into the active workspace so the user can inspect or work with a template and switch back
  * to their saved scenario anytime without losing data.
  */
 export function switchWorkspaceToTemplate(
@@ -1087,16 +1148,11 @@ export function switchWorkspaceToTemplate(
     };
   }
 
-  let nextScenarios = [...savedScenarios];
-  if (current.activeScenarioId && !current.activeScenarioId.startsWith('template:')) {
-    nextScenarios = upsertScenarioInList(nextScenarios, {
-      id: current.activeScenarioId,
-      name: current.projectName,
-      projects: current.projects,
-      items: current.items,
-      updatedAt: new Date().toISOString(),
-    });
-  }
+  const nextScenarios = preserveActiveWorkspaceInScenarios(
+    current,
+    savedScenarios,
+    templates
+  );
 
   return {
     activeScenarioId: `template:${found.id}`,
@@ -1108,7 +1164,7 @@ export function switchWorkspaceToTemplate(
 }
 
 /**
- * Preserves the current user scenario (if active) and restores a saved scenario by ID.
+ * Preserves the current user scenario (or modified template) and restores a saved scenario by ID.
  */
 export function switchWorkspaceToScenario(
   current: {
@@ -1118,7 +1174,8 @@ export function switchWorkspaceToScenario(
     items: GanttItem[];
   },
   savedScenarios: SavedScenario[],
-  targetScenarioId: string
+  targetScenarioId: string,
+  templatesList?: ProjectTemplate[]
 ): {
   activeScenarioId: string;
   projectName: string;
@@ -1126,16 +1183,11 @@ export function switchWorkspaceToScenario(
   items: GanttItem[];
   savedScenarios: SavedScenario[];
 } {
-  let nextScenarios = [...savedScenarios];
-  if (current.activeScenarioId && !current.activeScenarioId.startsWith('template:')) {
-    nextScenarios = upsertScenarioInList(nextScenarios, {
-      id: current.activeScenarioId,
-      name: current.projectName,
-      projects: current.projects,
-      items: current.items,
-      updatedAt: new Date().toISOString(),
-    });
-  }
+  const nextScenarios = preserveActiveWorkspaceInScenarios(
+    current,
+    savedScenarios,
+    templatesList
+  );
 
   const target = nextScenarios.find((s) => s.id === targetScenarioId);
   if (!target) {
