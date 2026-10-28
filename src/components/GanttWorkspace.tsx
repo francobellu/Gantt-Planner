@@ -11,26 +11,41 @@ import {
 import { es } from 'date-fns/locale';
 import {
   AlertTriangle,
+  ChevronDown,
+  ChevronRight,
   Copy,
   Diamond,
   Edit3,
   Flame,
+  FolderKanban,
   GitBranch,
   GripHorizontal,
+  Layers,
   Plus,
   Trash2,
 } from 'lucide-react';
-import { ComputedGanttItem, GanttItem, TaskColor, ZoomLevel } from '../types/gantt';
+import {
+  ComputedGanttItem,
+  ComputedProjectGroup,
+  GanttItem,
+  GanttProject,
+  TaskColor,
+  ZoomLevel,
+} from '../types/gantt';
 import {
   calculateDurationFromDates,
   calculateEndDateFromDuration,
   formatDateDisplay,
   formatDateISO,
+  groupItemsByProject,
   parseDateSafe,
 } from '../utils/ganttEngine';
 
 interface GanttWorkspaceProps {
   items: ComputedGanttItem[];
+  projects?: GanttProject[];
+  groupByProject?: boolean;
+  selectedProjectId?: string;
   zoom: ZoomLevel;
   showCriticalPath: boolean;
   showCpmFloat: boolean;
@@ -39,16 +54,42 @@ interface GanttWorkspaceProps {
   onEditModal: (item: ComputedGanttItem) => void;
   onDeleteItem: (id: string) => void;
   onDuplicateItem: (item: ComputedGanttItem) => void;
-  onQuickAdd: (type: 'task' | 'milestone') => void;
+  onQuickAdd: (type: 'task' | 'milestone', projectId?: string) => void;
+  onToggleGroupByProject?: () => void;
+  onToggleProjectCollapse?: (projectId: string) => void;
+  onUpdateProject?: (project: GanttProject) => void;
+  onDeleteProject?: (projectId: string) => void;
+  onCreateProject?: () => void;
   scrollContainerRef: React.RefObject<HTMLDivElement>;
 }
+
+type DisplayRow =
+  | {
+      kind: 'project';
+      rowId: string;
+      group: ComputedProjectGroup;
+    }
+  | {
+      kind: 'item';
+      rowId: string;
+      item: ComputedGanttItem;
+      group: ComputedProjectGroup;
+    };
 
 const ROW_HEIGHT = 50;
 const HEADER_HEIGHT = 60;
 
 const COLOR_STYLES: Record<
   TaskColor,
-  { barBg: string; fillBg: string; border: string; text: string; badge: string }
+  {
+    barBg: string;
+    fillBg: string;
+    border: string;
+    text: string;
+    badge: string;
+    groupRowBg: string;
+    groupBadgeBg: string;
+  }
 > = {
   indigo: {
     barBg: 'bg-indigo-500/25 dark:bg-indigo-500/30',
@@ -56,6 +97,8 @@ const COLOR_STYLES: Record<
     border: 'border-indigo-600/60 dark:border-indigo-400/60',
     text: 'text-indigo-950 dark:text-indigo-100',
     badge: 'bg-indigo-500',
+    groupRowBg: 'bg-indigo-50/70 dark:bg-indigo-950/35',
+    groupBadgeBg: 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-500/30',
   },
   blue: {
     barBg: 'bg-blue-500/25 dark:bg-blue-500/30',
@@ -63,6 +106,8 @@ const COLOR_STYLES: Record<
     border: 'border-blue-600/60 dark:border-blue-400/60',
     text: 'text-blue-950 dark:text-blue-100',
     badge: 'bg-blue-500',
+    groupRowBg: 'bg-blue-50/70 dark:bg-blue-950/35',
+    groupBadgeBg: 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30',
   },
   emerald: {
     barBg: 'bg-emerald-500/25 dark:bg-emerald-500/30',
@@ -70,6 +115,9 @@ const COLOR_STYLES: Record<
     border: 'border-emerald-600/60 dark:border-emerald-400/60',
     text: 'text-emerald-950 dark:text-emerald-100',
     badge: 'bg-emerald-500',
+    groupRowBg: 'bg-emerald-50/70 dark:bg-emerald-950/35',
+    groupBadgeBg:
+      'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
   },
   amber: {
     barBg: 'bg-amber-500/25 dark:bg-amber-500/30',
@@ -77,6 +125,8 @@ const COLOR_STYLES: Record<
     border: 'border-amber-600/60 dark:border-amber-400/60',
     text: 'text-amber-950 dark:text-amber-100',
     badge: 'bg-amber-500',
+    groupRowBg: 'bg-amber-50/70 dark:bg-amber-950/35',
+    groupBadgeBg: 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30',
   },
   rose: {
     barBg: 'bg-rose-500/25 dark:bg-rose-500/30',
@@ -84,6 +134,8 @@ const COLOR_STYLES: Record<
     border: 'border-rose-600/60 dark:border-rose-400/60',
     text: 'text-rose-950 dark:text-rose-100',
     badge: 'bg-rose-500',
+    groupRowBg: 'bg-rose-50/70 dark:bg-rose-950/35',
+    groupBadgeBg: 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30',
   },
   violet: {
     barBg: 'bg-violet-500/25 dark:bg-violet-500/30',
@@ -91,6 +143,9 @@ const COLOR_STYLES: Record<
     border: 'border-violet-600/60 dark:border-violet-400/60',
     text: 'text-violet-950 dark:text-violet-100',
     badge: 'bg-violet-500',
+    groupRowBg: 'bg-violet-50/70 dark:bg-violet-950/35',
+    groupBadgeBg:
+      'bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-500/30',
   },
   cyan: {
     barBg: 'bg-cyan-500/25 dark:bg-cyan-500/30',
@@ -98,11 +153,16 @@ const COLOR_STYLES: Record<
     border: 'border-cyan-600/60 dark:border-cyan-400/60',
     text: 'text-cyan-950 dark:text-cyan-100',
     badge: 'bg-cyan-500',
+    groupRowBg: 'bg-cyan-50/70 dark:bg-cyan-950/35',
+    groupBadgeBg: 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border-cyan-500/30',
   },
 };
 
 export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   items,
+  projects = [],
+  groupByProject = true,
+  selectedProjectId = 'all',
   zoom,
   showCriticalPath,
   showCpmFloat,
@@ -112,10 +172,15 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   onDeleteItem,
   onDuplicateItem,
   onQuickAdd,
+  onToggleGroupByProject,
+  onToggleProjectCollapse,
+  onUpdateProject,
+  onDeleteProject,
+  onCreateProject,
   scrollContainerRef,
 }) => {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const [splitWidth, setSplitWidth] = useState<number>(640);
+  const [splitWidth, setSplitWidth] = useState<number>(660);
   const [showTable, setShowTable] = useState<boolean>(true);
 
   // Interactive drag state for moving or resizing task bars directly on the timeline
@@ -132,6 +197,55 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
   // Day column width according to zoom level
   const dayWidth = zoom === 'day' ? 44 : zoom === 'week' ? 28 : 16;
+
+  // Group items into projects with rolled-up dates, durations, and hierarchical WBS
+  const allProjectGroups = useMemo(
+    () => groupItemsByProject(items, projects),
+    [items, projects]
+  );
+
+  const visibleProjectGroups = useMemo(() => {
+    if (!selectedProjectId || selectedProjectId === 'all') {
+      return allProjectGroups;
+    }
+    return allProjectGroups.filter((g) => g.project.id === selectedProjectId);
+  }, [allProjectGroups, selectedProjectId]);
+
+  // Unified row list (Project group headers + Task/Milestone rows) so Left WBS Table and Right Timeline stay 100% aligned
+  const displayRows = useMemo<DisplayRow[]>(() => {
+    const rows: DisplayRow[] = [];
+    if (groupByProject) {
+      for (const group of visibleProjectGroups) {
+        rows.push({
+          kind: 'project',
+          rowId: `proj-${group.project.id}`,
+          group,
+        });
+        if (!group.project.collapsed) {
+          for (const item of group.items) {
+            rows.push({
+              kind: 'item',
+              rowId: item.id,
+              item,
+              group,
+            });
+          }
+        }
+      }
+    } else {
+      for (const group of visibleProjectGroups) {
+        for (const item of group.items) {
+          rows.push({
+            kind: 'item',
+            rowId: item.id,
+            item,
+            group,
+          });
+        }
+      }
+    }
+    return rows;
+  }, [groupByProject, visibleProjectGroups]);
 
   // Compute timeline date range with padding before and after project
   const { timelineDays, timelineStart, monthGroups, todayIndex } = useMemo(() => {
@@ -266,7 +380,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
     const onMove = (me: MouseEvent) => {
       if (!isResizingSplitRef.current) return;
-      const nextWidth = Math.max(360, Math.min(920, origWidth + (me.clientX - startX)));
+      const nextWidth = Math.max(360, Math.min(960, origWidth + (me.clientX - startX)));
       setSplitWidth(nextWidth);
     };
 
@@ -280,7 +394,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     window.addEventListener('mouseup', onUp);
   };
 
-  // Map item ID to row index and coordinates for SVG dependency lines
+  // Map item ID to display row index and coordinates for SVG dependency lines and bars
   const itemRowMap = useMemo(() => {
     const map = new Map<
       string,
@@ -293,10 +407,15 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         effectiveStartStr: string;
         effectiveEndStr: string;
         effectiveDuration: number;
+        isCollapsedRow?: boolean;
       }
     >();
 
-    items.forEach((it, index) => {
+    const computeCoordsForItem = (
+      it: ComputedGanttItem,
+      rowIndex: number,
+      isCollapsedRow = false
+    ) => {
       const isDraggingThis = dragState && dragState.itemId === it.id;
       const baseStart = parseDateSafe(it.startDate);
       const effectiveStart =
@@ -322,10 +441,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         it.type === 'milestone'
           ? startX + dayWidth / 2
           : startX + effectiveDuration * dayWidth;
-      const centerY = index * ROW_HEIGHT + ROW_HEIGHT / 2;
+      const centerY = rowIndex * ROW_HEIGHT + ROW_HEIGHT / 2;
 
-      map.set(it.id, {
-        index,
+      return {
+        index: rowIndex,
         item: it,
         startX: it.type === 'milestone' ? startX + dayWidth / 2 : startX,
         endX,
@@ -333,11 +452,23 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         effectiveStartStr,
         effectiveEndStr,
         effectiveDuration,
-      });
+        isCollapsedRow,
+      };
+    };
+
+    displayRows.forEach((row, rowIndex) => {
+      if (row.kind === 'item') {
+        map.set(row.item.id, computeCoordsForItem(row.item, rowIndex, false));
+      } else if (row.kind === 'project' && row.group.project.collapsed) {
+        // Anchor collapsed items to their parent project summary row so cross-project dependency lines still connect
+        for (const collapsedItem of row.group.items) {
+          map.set(collapsedItem.id, computeCoordsForItem(collapsedItem, rowIndex, true));
+        }
+      }
     });
 
     return map;
-  }, [items, dragState, timelineStart, dayWidth]);
+  }, [displayRows, dragState, timelineStart, dayWidth]);
 
   // Check if two tasks are directly connected to highlight on hover
   const relatedIds = useMemo(() => {
@@ -356,13 +487,13 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   }, [hoveredId, items]);
 
   const totalCanvasWidth = timelineDays.length * dayWidth;
-  const totalCanvasHeight = Math.max(items.length * ROW_HEIGHT + 56, 360);
+  const totalCanvasHeight = Math.max(displayRows.length * ROW_HEIGHT + 56, 360);
 
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-      {/* Top Sub-bar for Table Toggle & Legend */}
+      {/* Top Sub-bar for Table Toggle, Project Grouping Toggle & Legend */}
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 bg-slate-50/80 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 text-xs">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
             onClick={() => setShowTable((prev) => !prev)}
@@ -370,14 +501,46 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
           >
             {showTable ? 'Ocultar Tabla WBS' : 'Mostrar Tabla WBS'}
           </button>
-          <span className="text-slate-400 hidden sm:inline">|</span>
-          <span className="text-slate-500 dark:text-slate-400 hidden sm:inline">
-            💡 Tip: Edita fechas, duración o slack directamente en la tabla o arrastra las barras en el gráfico.
+
+          {onToggleGroupByProject && (
+            <button
+              type="button"
+              onClick={onToggleGroupByProject}
+              className={`px-2.5 py-1 rounded-lg border font-semibold flex items-center gap-1.5 transition ${
+                groupByProject
+                  ? 'bg-indigo-600/10 border-indigo-500/40 text-indigo-700 dark:text-indigo-300'
+                  : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+              }`}
+              title="Agrupar o desagrupar tareas por proyecto en la tabla y el cronograma"
+            >
+              <FolderKanban className="w-3.5 h-3.5" />
+              {groupByProject ? 'Agrupado por Proyectos' : 'Vista Plana (Sin Agrupar)'}
+            </button>
+          )}
+
+          {onCreateProject && (
+            <button
+              type="button"
+              onClick={onCreateProject}
+              className="px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50/80 dark:bg-indigo-950/50 font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition flex items-center gap-1"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Nuevo Proyecto
+            </button>
+          )}
+
+          <span className="text-slate-400 hidden xl:inline">|</span>
+          <span className="text-slate-500 dark:text-slate-400 hidden xl:inline">
+            💡 Tip: Las tareas se agrupan en proyectos con barras resumen automáticas, fechas consolidadas y WBS jerárquico.
           </span>
         </div>
 
         {/* Visual Legend */}
         <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-600 dark:text-slate-400">
+          <span className="flex items-center gap-1.5">
+            <span className="w-4 h-2 rounded-xs bg-slate-700 dark:bg-slate-300 inline-block border-x-2 border-indigo-500" />
+            Resumen Proyecto
+          </span>
           <span className="flex items-center gap-1.5">
             <span className="w-3 h-3 rounded-sm bg-indigo-600 inline-block" />
             Progreso / Tarea
@@ -415,17 +578,20 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               className="shrink-0 flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden select-none"
             >
               <div className="overflow-x-auto flex-1 flex flex-col">
-                <div className="min-w-[620px] flex-1 flex flex-col">
+                <div className="min-w-[640px] flex-1 flex flex-col">
                   {/* Table Header (matches timeline HEADER_HEIGHT = 60px) */}
                   <div
                     style={{ height: HEADER_HEIGHT }}
                     className="grid grid-cols-12 items-center px-3 bg-slate-100/80 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 shrink-0"
                   >
-                    <div className="col-span-4 pl-1">WBS / Tarea o Hito</div>
+                    <div className="col-span-4 pl-1">WBS / Proyecto · Tarea · Hito</div>
                     <div className="col-span-2 text-center">Initial Date</div>
                     <div className="col-span-2 text-center">Final Date</div>
                     <div className="col-span-1 text-center">Dur.</div>
-                    <div className="col-span-1 text-center" title="Slack / Holgura en días (default 0)">
+                    <div
+                      className="col-span-1 text-center"
+                      title="Slack / Holgura en días (default 0)"
+                    >
                       Slack
                     </div>
                     <div className="col-span-1 text-center">Deps</div>
@@ -434,12 +600,139 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
                   {/* Table Body Rows */}
                   <div className="divide-y divide-slate-100 dark:divide-slate-800/70">
-                    {items.map((item) => {
+                    {displayRows.map((row) => {
+                      if (row.kind === 'project') {
+                        const { group } = row;
+                        const projTheme =
+                          COLOR_STYLES[group.project.color] || COLOR_STYLES.indigo;
+                        const isCollapsed = Boolean(group.project.collapsed);
+
+                        return (
+                          <div
+                            key={row.rowId}
+                            data-project-group={group.project.id}
+                            style={{ height: ROW_HEIGHT }}
+                            className={`grid grid-cols-12 items-center px-3 text-xs font-semibold border-y border-slate-200/80 dark:border-slate-800 transition-colors ${projTheme.groupRowBg}`}
+                          >
+                            {/* Project Header Title + Collapse Toggle */}
+                            <div className="col-span-4 flex items-center gap-1.5 pr-2 min-w-0">
+                              <button
+                                type="button"
+                                onClick={() => onToggleProjectCollapse?.(group.project.id)}
+                                className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 shrink-0"
+                                title={
+                                  isCollapsed ? 'Expandir proyecto' : 'Colapsar proyecto'
+                                }
+                              >
+                                {isCollapsed ? (
+                                  <ChevronRight className="w-4 h-4" />
+                                ) : (
+                                  <ChevronDown className="w-4 h-4" />
+                                )}
+                              </button>
+
+                              <span
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold text-white shrink-0 ${projTheme.badge}`}
+                              >
+                                P{group.projectIndex}
+                              </span>
+
+                              <input
+                                type="text"
+                                value={group.project.name}
+                                onChange={(e) =>
+                                  onUpdateProject?.({
+                                    ...group.project,
+                                    name: e.target.value,
+                                  })
+                                }
+                                className="w-full bg-transparent font-bold text-slate-900 dark:text-white truncate focus:bg-white dark:focus:bg-slate-800 focus:px-1.5 focus:py-0.5 rounded outline-none focus:ring-1 focus:ring-indigo-500"
+                                title="Haz clic para renombrar este proyecto"
+                              />
+
+                              <span
+                                className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono border shrink-0 ${projTheme.groupBadgeBg}`}
+                                title={`${group.tasksCount} tarea(s) y ${group.milestonesCount} hito(s)`}
+                              >
+                                {group.items.length} ítems
+                              </span>
+                            </div>
+
+                            {/* Rolled-up Start Date */}
+                            <div className="col-span-2 text-center font-mono text-[11px] text-slate-600 dark:text-slate-300">
+                              {group.items.length > 0
+                                ? formatDateDisplay(group.startDate, 'dd MMM yyyy')
+                                : '-'}
+                            </div>
+
+                            {/* Rolled-up End Date */}
+                            <div className="col-span-2 text-center font-mono text-[11px] text-slate-600 dark:text-slate-300">
+                              {group.items.length > 0
+                                ? formatDateDisplay(group.endDate, 'dd MMM yyyy')
+                                : '-'}
+                            </div>
+
+                            {/* Rolled-up Duration */}
+                            <div className="col-span-1 flex justify-center">
+                              <span className="px-1.5 py-0.5 rounded bg-white/80 dark:bg-slate-800 font-mono text-[11px] font-bold text-slate-800 dark:text-slate-200 border border-slate-200/70 dark:border-slate-700">
+                                {group.duration}d
+                              </span>
+                            </div>
+
+                            {/* Rolled-up Slack */}
+                            <div className="col-span-1 flex justify-center">
+                              <span className="font-mono text-[11px] text-amber-600 dark:text-amber-400">
+                                +{group.totalSlack}d
+                              </span>
+                            </div>
+
+                            {/* Rolled-up Progress */}
+                            <div className="col-span-1 flex justify-center">
+                              <span className="font-mono text-[11px] font-bold text-indigo-600 dark:text-indigo-400">
+                                {group.progress}%
+                              </span>
+                            </div>
+
+                            {/* Project Quick Actions (+Task, +Milestone, Delete) */}
+                            <div className="col-span-1 flex items-center justify-end gap-0.5">
+                              <button
+                                type="button"
+                                onClick={() => onQuickAdd('task', group.project.id)}
+                                className="p-1 rounded hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400"
+                                title={`Añadir tarea a ${group.project.name}`}
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onQuickAdd('milestone', group.project.id)}
+                                className="p-1 rounded hover:bg-amber-500/20 text-amber-600 dark:text-amber-400"
+                                title={`Añadir hito a ${group.project.name}`}
+                              >
+                                <Diamond className="w-3 h-3" />
+                              </button>
+                              {projects.length > 1 && onDeleteProject && (
+                                <button
+                                  type="button"
+                                  onClick={() => onDeleteProject(group.project.id)}
+                                  className="p-1 rounded hover:bg-rose-500/20 text-slate-400 hover:text-rose-600"
+                                  title={`Eliminar proyecto ${group.project.name}`}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      // Standard Task / Milestone Row
+                      const { item, group } = row;
                       const isHovered = hoveredId === item.id;
                       const isCrit = showCriticalPath && item.isCritical;
                       return (
                         <div
-                          key={item.id}
+                          key={row.rowId}
                           style={{ height: ROW_HEIGHT }}
                           onMouseEnter={() => setHoveredId(item.id)}
                           onMouseLeave={() => setHoveredId(null)}
@@ -451,10 +744,17 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               : 'hover:bg-slate-50 dark:hover:bg-slate-800/40'
                           }`}
                         >
-                          {/* WBS + Name */}
-                          <div className="col-span-4 flex items-center gap-2 pr-2 min-w-0">
-                            <span className="font-mono text-[11px] w-5 text-slate-400 shrink-0">
-                              {item.wbs}.
+                          {/* WBS + Name + Project Reassign Selector */}
+                          <div
+                            className={`col-span-4 flex items-center gap-1.5 pr-2 min-w-0 ${
+                              groupByProject ? 'pl-4' : ''
+                            }`}
+                          >
+                            <span
+                              className="font-mono text-[10px] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 shrink-0"
+                              title={`Código WBS ${item.wbsCode || item.wbs} (Global #${item.wbs})`}
+                            >
+                              {groupByProject ? item.wbsCode || `${item.wbs}.` : `${item.wbs}.`}
                             </span>
                             {item.type === 'milestone' ? (
                               <Diamond className="w-3.5 h-3.5 text-amber-500 fill-current shrink-0" />
@@ -472,8 +772,29 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 onUpdateItem({ ...item, name: e.target.value }, false)
                               }
                               className="w-full bg-transparent font-medium text-slate-800 dark:text-slate-100 truncate focus:bg-white dark:focus:bg-slate-800 focus:px-1.5 focus:py-0.5 rounded outline-none focus:ring-1 focus:ring-indigo-500"
-                              title={item.name}
+                              title={`${item.name} (${group.project.name})`}
                             />
+                            {projects.length > 1 && (
+                              <select
+                                value={group.project.id}
+                                onChange={(e) =>
+                                  onUpdateItem(
+                                    { ...item, projectId: e.target.value },
+                                    false
+                                  )
+                                }
+                                className={`px-1 py-0.5 rounded text-[9px] font-mono font-bold max-w-[68px] truncate shrink-0 border cursor-pointer outline-none ${
+                                  COLOR_STYLES[group.project.color]?.groupBadgeBg || ''
+                                }`}
+                                title={`Proyecto: ${group.project.name} (cambiar de proyecto)`}
+                              >
+                                {projects.map((p, idx) => (
+                                  <option key={p.id} value={p.id}>
+                                    P{idx + 1}: {p.name}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
                             {isCrit && (
                               <span
                                 title="En Ruta Crítica (Slack = 0)"
@@ -650,7 +971,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               type="button"
                               onClick={() => onEditModal(item)}
                               className="p-1 rounded hover:bg-slate-200/70 dark:hover:bg-slate-700 text-slate-500 hover:text-indigo-600"
-                              title="Editar detalles"
+                              title="Editar detalles y proyecto"
                             >
                               <Edit3 className="w-3.5 h-3.5" />
                             </button>
@@ -682,7 +1003,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     >
                       <button
                         type="button"
-                        onClick={() => onQuickAdd('task')}
+                        onClick={() =>
+                          onQuickAdd(
+                            'task',
+                            selectedProjectId !== 'all' ? selectedProjectId : undefined
+                          )
+                        }
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition"
                       >
                         <Plus className="w-3.5 h-3.5" />
@@ -690,12 +1016,27 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       </button>
                       <button
                         type="button"
-                        onClick={() => onQuickAdd('milestone')}
+                        onClick={() =>
+                          onQuickAdd(
+                            'milestone',
+                            selectedProjectId !== 'all' ? selectedProjectId : undefined
+                          )
+                        }
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 hover:bg-amber-100 transition"
                       >
                         <Diamond className="w-3.5 h-3.5" />
                         Añadir Hito
                       </button>
+                      {onCreateProject && (
+                        <button
+                          type="button"
+                          onClick={onCreateProject}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-50 dark:bg-violet-950/50 text-violet-700 dark:text-violet-400 hover:bg-violet-100 transition"
+                        >
+                          <Layers className="w-3.5 h-3.5" />
+                          Añadir Proyecto
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -773,8 +1114,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               </div>
             </div>
 
-            {/* Canvas Body: Background Columns + Horizontal Rows + SVG Dependencies + Task/Slack/Milestone Bars */}
-            <div className="relative" style={{ height: items.length * ROW_HEIGHT + 52 }}>
+            {/* Canvas Body: Background Columns + Horizontal Rows + SVG Dependencies + Project Summary & Task/Slack/Milestone Bars */}
+            <div className="relative" style={{ height: displayRows.length * ROW_HEIGHT + 52 }}>
               {/* Vertical Day Columns & Weekend Shading */}
               <div className="absolute inset-0 flex pointer-events-none">
                 {timelineDays.map((day, idx) => {
@@ -806,11 +1147,20 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               )}
 
               {/* Horizontal Row Guides */}
-              {items.map((item) => {
-                const isHovered = hoveredId === item.id;
+              {displayRows.map((row) => {
+                if (row.kind === 'project') {
+                  return (
+                    <div
+                      key={`row-bg-${row.rowId}`}
+                      style={{ height: ROW_HEIGHT }}
+                      className="border-b border-slate-200/80 dark:border-slate-800 bg-slate-100/60 dark:bg-slate-900/60"
+                    />
+                  );
+                }
+                const isHovered = hoveredId === row.item.id;
                 return (
                   <div
-                    key={`row-bg-${item.id}`}
+                    key={`row-bg-${row.rowId}`}
                     style={{ height: ROW_HEIGHT }}
                     className={`border-b border-slate-100 dark:border-slate-800/70 transition-colors ${
                       isHovered ? 'bg-indigo-50/40 dark:bg-indigo-950/20' : ''
@@ -822,7 +1172,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               {/* Orthogonal SVG Dependency Lines Overlay */}
               <svg
                 width={totalCanvasWidth}
-                height={items.length * ROW_HEIGHT + 52}
+                height={displayRows.length * ROW_HEIGHT + 52}
                 className="absolute inset-0 pointer-events-none z-10"
               >
                 <defs>
@@ -868,6 +1218,13 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   return succ.dependencies.map((predId) => {
                     const predCoords = itemRowMap.get(predId);
                     if (!predCoords) return null;
+                    if (
+                      predCoords.isCollapsedRow &&
+                      succCoords.isCollapsedRow &&
+                      predCoords.index === succCoords.index
+                    ) {
+                      return null;
+                    }
 
                     const depType = succ.dependencyTypes?.[predId] || 'FS';
                     const fromStart = depType === 'SS' || depType === 'SF';
@@ -892,15 +1249,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       const midX = x1 + (x2 - x1) / 2;
                       dPath = `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`;
                     } else if (fromStart && !toEnd) {
-                      // SS link: step left from both starts
                       const leftX = Math.min(x1, x2) - stepOut;
                       dPath = `M ${x1} ${y1} L ${leftX} ${y1} L ${leftX} ${y2} L ${x2} ${y2}`;
                     } else if (!fromStart && toEnd) {
-                      // FF link: step right from both ends
                       const rightX = Math.max(x1, x2) + stepOut;
                       dPath = `M ${x1} ${y1} L ${rightX} ${y1} L ${rightX} ${y2} L ${x2} ${y2}`;
                     } else if (fromStart && toEnd) {
-                      // SF link: step left from predecessor start, route to right of successor end
                       const detourY = y1 < y2 ? y1 + ROW_HEIGHT / 2 : y1 - ROW_HEIGHT / 2;
                       dPath = `M ${x1} ${y1} L ${x1 - stepOut} ${y1} L ${
                         x1 - stepOut
@@ -908,7 +1262,6 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         x2 + stepOut
                       } ${y2} L ${x2} ${y2}`;
                     } else {
-                      // FS S-bend routing when successor starts near or before predecessor ends
                       const detourY = y1 < y2 ? y1 + ROW_HEIGHT / 2 : y1 - ROW_HEIGHT / 2;
                       dPath = `M ${x1} ${y1} L ${x1 + stepOut} ${y1} L ${
                         x1 + stepOut
@@ -949,8 +1302,72 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                 })}
               </svg>
 
-              {/* Foreground Task Bars, Slack Ghost Bars & Milestones */}
-              {items.map((item) => {
+              {/* Foreground Project Rollup Summary Bars, Task Bars, Slack Ghost Bars & Milestones */}
+              {displayRows.map((row, rowIndex) => {
+                if (row.kind === 'project') {
+                  const { group } = row;
+                  if (group.items.length === 0) return null;
+
+                  const groupStart = parseDateSafe(group.startDate);
+                  const startOffsetDays = differenceInCalendarDays(
+                    groupStart,
+                    timelineStart
+                  );
+                  const groupStartX = startOffsetDays * dayWidth;
+                  const groupWidth = Math.max(dayWidth, group.duration * dayWidth);
+                  const projTheme =
+                    COLOR_STYLES[group.project.color] || COLOR_STYLES.indigo;
+
+                  return (
+                    <div
+                      key={`summary-bar-${group.project.id}`}
+                      data-project-summary-bar={group.project.id}
+                      style={{
+                        top: rowIndex * ROW_HEIGHT,
+                        height: ROW_HEIGHT,
+                      }}
+                      className="absolute left-0 right-0 flex items-center pointer-events-none"
+                    >
+                      <div
+                        style={{ left: groupStartX, width: groupWidth }}
+                        onClick={() => onToggleProjectCollapse?.(group.project.id)}
+                        title={`${group.project.name}: ${formatDateDisplay(
+                          group.startDate,
+                          'dd MMM'
+                        )} → ${formatDateDisplay(group.endDate, 'dd MMM yyyy')} (${
+                          group.duration
+                        } días · ${group.progress}% completado)`}
+                        className="relative flex flex-col justify-center cursor-pointer pointer-events-auto group"
+                      >
+                        {/* Top Label above Summary Bracket */}
+                        <div className="flex items-center justify-between text-[10px] font-bold text-slate-700 dark:text-slate-200 mb-1 px-1">
+                          <span className="truncate">
+                            P{group.projectIndex}: {group.project.name} ({group.duration}d)
+                          </span>
+                          <span className="font-mono text-indigo-600 dark:text-indigo-400 ml-2 shrink-0">
+                            {group.progress}%
+                          </span>
+                        </div>
+
+                        {/* Classic Gantt Project Summary Bracket Bar */}
+                        <div className="relative h-3.5 rounded-t-sm bg-slate-800/85 dark:bg-slate-200/85 overflow-visible shadow-sm">
+                          {/* Progress Fill Inside Project Summary Bar */}
+                          <div
+                            style={{ width: `${group.progress}%` }}
+                            className={`h-full rounded-tl-sm transition-all ${projTheme.fillBg}`}
+                          />
+                          {/* Left Bracket Downward Cap */}
+                          <div className="absolute -bottom-1.5 left-0 w-2 h-2 bg-slate-800 dark:bg-slate-200 clip-path-bracket-left rounded-bl-xs" />
+                          {/* Right Bracket Downward Cap */}
+                          <div className="absolute -bottom-1.5 right-0 w-2 h-2 bg-slate-800 dark:bg-slate-200 clip-path-bracket-right rounded-br-xs" />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
+                // Task or Milestone Bar
+                const { item, group } = row;
                 const coords = itemRowMap.get(item.id);
                 if (!coords) return null;
 
@@ -1029,7 +1446,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           >
                             <div className="flex items-center gap-2 font-bold">
                               <span>
-                                #{item.wbs} ◆ {item.name}
+                                #{item.wbsCode || item.wbs} ◆ {item.name}
+                              </span>
+                              <span className="px-1.5 py-0.2 rounded bg-indigo-500/30 text-indigo-200 text-[10px] font-normal">
+                                📁 {group.project.name}
                               </span>
                               {item.assignee && (
                                 <span className="px-1.5 py-0.2 rounded bg-slate-700 text-slate-200 text-[10px] font-normal">
@@ -1156,7 +1576,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           >
                             <div className="flex items-center gap-2 font-bold">
                               <span>
-                                #{item.wbs} {item.name}
+                                #{item.wbsCode || item.wbs} {item.name}
+                              </span>
+                              <span className="px-1.5 py-0.2 rounded bg-indigo-500/30 text-indigo-200 text-[10px] font-normal">
+                                📁 {group.project.name}
                               </span>
                               {item.assignee && (
                                 <span className="px-1.5 py-0.2 rounded bg-slate-700 text-slate-200 text-[10px] font-normal">

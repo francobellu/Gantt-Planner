@@ -5,8 +5,10 @@ import {
   Check,
   Clock,
   Diamond,
+  FolderKanban,
   GitBranch,
   Layers,
+  Plus,
   ShieldAlert,
   Sparkles,
   User,
@@ -16,6 +18,7 @@ import {
   ComputedGanttItem,
   DependencyType,
   GanttItem,
+  GanttProject,
   TaskColor,
   TaskType,
 } from '../types/gantt';
@@ -36,6 +39,9 @@ interface TaskFormModalProps {
   onSave: (item: GanttItem, autoCascadeAfterSave: boolean) => void;
   initialItem?: ComputedGanttItem | null;
   defaultType?: TaskType;
+  defaultProjectId?: string;
+  projects?: GanttProject[];
+  onCreateProject?: (project: GanttProject) => void;
   allItems: ComputedGanttItem[];
 }
 
@@ -55,12 +61,19 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
   onSave,
   initialItem,
   defaultType = 'task',
+  defaultProjectId,
+  projects = [],
+  onCreateProject,
   allItems,
 }) => {
   const todayStr = formatDateISO(new Date());
 
   const [type, setType] = useState<TaskType>(defaultType);
   const [name, setName] = useState('');
+  const [projectId, setProjectId] = useState<string>('');
+  const [isCreatingNewProject, setIsCreatingNewProject] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
+  const [newProjectColor, setNewProjectColor] = useState<TaskColor>('indigo');
   const [startDate, setStartDate] = useState(todayStr);
   const [endDate, setEndDate] = useState(calculateEndDateFromDuration(todayStr, 4, 'task'));
   const [duration, setDuration] = useState(4);
@@ -77,9 +90,13 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
   useEffect(() => {
     if (!isOpen) return;
     setDateInputMode('duration');
+    setIsCreatingNewProject(false);
+    setNewProjectName('');
+    const fallbackPid = defaultProjectId || projects[0]?.id || '';
     if (initialItem) {
       setType(initialItem.type);
       setName(initialItem.name);
+      setProjectId(initialItem.projectId || fallbackPid);
       setStartDate(initialItem.startDate);
       setEndDate(initialItem.endDate);
       setDuration(initialItem.type === 'milestone' ? 0 : Math.max(1, initialItem.duration));
@@ -91,13 +108,19 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
       setAssignee(initialItem.assignee || '');
       setNotes(initialItem.notes || '');
     } else {
-      const lastItem = allItems[allItems.length - 1];
+      const targetPid = fallbackPid;
+      const projectItems = targetPid
+        ? allItems.filter((it) => it.projectId === targetPid)
+        : allItems;
+      const lastItem =
+        projectItems[projectItems.length - 1] || allItems[allItems.length - 1];
       const suggestedStart = lastItem
         ? formatDateISO(addDays(parseDateSafe(lastItem.endDate), 1))
         : todayStr;
       const isMilestone = defaultType === 'milestone';
       setType(defaultType);
       setName('');
+      setProjectId(targetPid);
       setStartDate(suggestedStart);
       setDuration(isMilestone ? 0 : 4);
       setEndDate(
@@ -114,7 +137,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
       setNotes('');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, initialItem, defaultType, todayStr]);
+  }, [isOpen, initialItem, defaultType, defaultProjectId, todayStr]);
 
   if (!isOpen) return null;
 
@@ -246,14 +269,42 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
     }
   };
 
+  const handleCreateInlineProject = () => {
+    const trimmed = newProjectName.trim();
+    if (!trimmed) return;
+    const created: GanttProject = {
+      id: `proj-${Date.now()}`,
+      name: trimmed,
+      color: newProjectColor,
+      collapsed: false,
+    };
+    onCreateProject?.(created);
+    setProjectId(created.id);
+    setNewProjectName('');
+    setIsCreatingNewProject(false);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    let finalProjectId = projectId || projects[0]?.id || undefined;
+    if (isCreatingNewProject && newProjectName.trim()) {
+      const created: GanttProject = {
+        id: `proj-${Date.now()}`,
+        name: newProjectName.trim(),
+        color: newProjectColor,
+        collapsed: false,
+      };
+      onCreateProject?.(created);
+      finalProjectId = created.id;
+    }
+
     const trimmedName =
       name.trim() || (type === 'milestone' ? 'Nuevo Hito' : 'Nueva Tarea');
     const newItem: GanttItem = {
       id: initialItem?.id || `${type === 'milestone' ? 'm' : 't'}-${Date.now()}`,
       name: trimmedName,
       type,
+      projectId: finalProjectId,
       startDate,
       endDate: type === 'milestone' ? startDate : endDate,
       duration: type === 'milestone' ? 0 : Math.max(1, duration),
@@ -319,7 +370,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                   : `Crear ${type === 'milestone' ? 'Nuevo Hito' : 'Nueva Tarea'}`}
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Configura fechas, duración, holgura (slack) y dependencias del cronograma
+                Configura el proyecto, fechas, duración, holgura (slack) y dependencias
               </p>
             </div>
           </div>
@@ -360,6 +411,73 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
               Hito (Milestone ◆)
             </button>
           </div>
+
+          {/* Project Group Assignment */}
+          {projects.length > 0 && (
+            <div className="p-3.5 rounded-xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200/60 dark:border-indigo-900/50 space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <FolderKanban className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                  Proyecto / Agrupación *
+                </label>
+                {onCreateProject && (
+                  <button
+                    type="button"
+                    onClick={() => setIsCreatingNewProject((prev) => !prev)}
+                    className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    {isCreatingNewProject ? 'Seleccionar existente' : 'Nuevo Proyecto'}
+                  </button>
+                )}
+              </div>
+
+              {!isCreatingNewProject ? (
+                <select
+                  value={projectId}
+                  onChange={(e) => setProjectId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
+                >
+                  {projects.map((p, idx) => (
+                    <option key={p.id} value={p.id}>
+                      {idx + 1}. {p.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="text"
+                    value={newProjectName}
+                    onChange={(e) => setNewProjectName(e.target.value)}
+                    placeholder="Nombre del nuevo proyecto (ej. Proyecto 4: Mobile App)"
+                    className="flex-1 min-w-[200px] px-3 py-2 rounded-xl border border-indigo-300 dark:border-indigo-700 bg-white dark:bg-slate-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <div className="flex items-center gap-1">
+                    {COLOR_OPTIONS.slice(0, 5).map((c) => (
+                      <button
+                        key={c.value}
+                        type="button"
+                        onClick={() => setNewProjectColor(c.value)}
+                        className={`w-6 h-6 rounded-full ${c.bg} flex items-center justify-center ${
+                          newProjectColor === c.value ? 'ring-2 ring-offset-1 ring-indigo-500' : 'opacity-60'
+                        }`}
+                      >
+                        {newProjectColor === c.value && <Check className="w-3 h-3 text-white" />}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCreateInlineProject}
+                    className="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold"
+                  >
+                    Crear y Asignar
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Name & Assignee */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

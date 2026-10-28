@@ -22,11 +22,13 @@ const codeUrl = `data:text/javascript;base64,${Buffer.from(
 const {
   calculateEndDateFromDuration,
   calculateDurationFromDates,
+  sanitizeProject,
   sanitizeGanttItem,
   wouldCreateCycle,
   getEarliestStartFromPredecessors,
   cascadeDependencies,
   computeGanttMetrics,
+  groupItemsByProject,
   getProjectTemplates,
   formatDateISO,
 } = await import(codeUrl);
@@ -289,9 +291,110 @@ test('getProjectTemplates returns valid conflict-free templates with tasks, slac
   const saasMetrics = computeGanttMetrics(templates[0].items);
   const criticalIds = saasMetrics.filter((m) => m.isCritical).map((m) => m.id);
   assert.deepEqual(criticalIds, ['t-1', 't-3', 'm-1', 't-4', 't-7', 'm-2']);
+
+  // Verify every template defines projects and groups its items cleanly
+  for (const tpl of templates) {
+    assert.ok(Array.isArray(tpl.projects) && tpl.projects.length >= 2);
+    const computed = computeGanttMetrics(tpl.items);
+    const groups = groupItemsByProject(computed, tpl.projects);
+    assert.equal(groups.length, tpl.projects.length);
+    const totalGroupedItems = groups.reduce((acc, g) => acc + g.items.length, 0);
+    assert.equal(totalGroupedItems, tpl.items.length);
+  }
 });
 
-test('App and GanttWorkspace render complete WBS table, milestones, slack bars, and SVG dependency paths', async () => {
+test('groupItemsByProject computes rollup dates, durations, progress, hierarchical WBS, and handles empty/orphan edge cases', () => {
+  const projects = [
+    sanitizeProject({ id: 'p-1', name: 'Proyecto Alpha', color: 'indigo' }, 0),
+    sanitizeProject({ id: 'p-2', name: 'Proyecto Beta (Vacío)', color: 'emerald' }, 1),
+  ];
+
+  const rawItems = [
+    sanitizeGanttItem({
+      id: 't-a1',
+      name: 'Tarea Alpha 1',
+      type: 'task',
+      projectId: 'p-1',
+      startDate: '2026-10-01',
+      endDate: '2026-10-04',
+      duration: 4,
+      slack: 1,
+      progress: 100,
+    }),
+    sanitizeGanttItem({
+      id: 't-a2',
+      name: 'Tarea Alpha 2',
+      type: 'task',
+      projectId: 'p-1',
+      startDate: '2026-10-05',
+      endDate: '2026-10-10',
+      duration: 6,
+      slack: 2,
+      progress: 50,
+    }),
+    sanitizeGanttItem({
+      id: 'm-a1',
+      name: 'Hito Alpha',
+      type: 'milestone',
+      projectId: 'p-1',
+      startDate: '2026-10-10',
+      endDate: '2026-10-10',
+      progress: 100,
+    }),
+    // Orphan item with unknown projectId creates an automatic group so no task is lost
+    sanitizeGanttItem({
+      id: 't-orphan',
+      name: 'Tarea Huérfana',
+      type: 'task',
+      projectId: 'p-unknown',
+      startDate: '2026-10-12',
+      endDate: '2026-10-14',
+      duration: 3,
+      progress: 20,
+    }),
+  ];
+
+  const computed = computeGanttMetrics(rawItems);
+  const groups = groupItemsByProject(computed, projects);
+
+  // 2 explicit projects + 1 auto-recovered orphan project
+  assert.equal(groups.length, 3);
+
+  // Group 1 (p-1): 2 tasks + 1 milestone, Oct 1 -> Oct 10 = 10 days, progress = (100+50)/2 = 75%, totalSlack = 3
+  const g1 = groups[0];
+  assert.equal(g1.project.id, 'p-1');
+  assert.equal(g1.startDate, '2026-10-01');
+  assert.equal(g1.endDate, '2026-10-10');
+  assert.equal(g1.duration, 10);
+  assert.equal(g1.tasksCount, 2);
+  assert.equal(g1.milestonesCount, 1);
+  assert.equal(g1.totalSlack, 3);
+  assert.equal(g1.progress, 75);
+  assert.deepEqual(
+    g1.items.map((it) => it.wbsCode),
+    ['1.1', '1.2', '1.3']
+  );
+
+  // Group 2 (p-2): Empty project edge case
+  const g2 = groups[1];
+  assert.equal(g2.project.id, 'p-2');
+  assert.equal(g2.items.length, 0);
+  assert.equal(g2.duration, 0);
+  assert.equal(g2.progress, 0);
+
+  // Group 3 (p-unknown): Auto-created group for orphan projectId
+  const g3 = groups[2];
+  assert.equal(g3.project.id, 'p-unknown');
+  assert.equal(g3.items.length, 1);
+  assert.equal(g3.items[0].wbsCode, '3.1');
+
+  // Edge case: empty projects list falls back to default 'Proyecto General'
+  const fallbackGroups = groupItemsByProject(computed.slice(0, 1), []);
+  assert.equal(fallbackGroups.length, 1);
+  assert.equal(fallbackGroups[0].items.length, 1);
+});
+
+test('App and GanttWorkspace render complete WBS table, project groups, summary bars, milestones, slack bars, and SVG dependency paths', async () => {
   const { renderToString } = await import('react-dom/server');
 
   const appBundle = await build({
@@ -322,8 +425,13 @@ test('App and GanttWorkspace render complete WBS table, milestones, slack bars, 
     const createAppElement = mod.createAppElement || mod.default?.createAppElement;
     const html = renderToString(createAppElement());
 
-    // Verify default template title, tasks, milestones, slack badges, and today marker render
+    // Verify default template title, project groups, project summary bars, tasks, milestones, slack badges, and today marker render
     assert.ok(html.includes('Lanzamiento Plataforma SaaS v2.0'));
+    assert.ok(html.includes('Proyecto 1: Discovery &amp; Diseño de Producto'));
+    assert.ok(html.includes('Proyecto 2: Ingeniería Core &amp; Pagos'));
+    assert.ok(html.includes('Proyecto 3: QA, Cloud CI/CD &amp; Go-Live'));
+    assert.ok(html.includes('data-project-group="proj-discovery"'));
+    assert.ok(html.includes('data-project-summary-bar="proj-discovery"'));
     assert.ok(html.includes('Hito: Congelación de Diseño'));
     assert.ok(html.includes('id="gantt-today-marker"'));
     assert.ok(html.includes('Holgura (Slack): +1 día(s)'));

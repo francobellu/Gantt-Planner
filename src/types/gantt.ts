@@ -13,10 +13,19 @@ export type TaskColor =
 
 export type ZoomLevel = 'day' | 'week' | 'month';
 
+export interface GanttProject {
+  id: string;
+  name: string;
+  color: TaskColor;
+  description?: string;
+  collapsed?: boolean;
+}
+
 export interface GanttItem {
   id: string;
   name: string;
   type: TaskType;
+  projectId?: string; // ID of the GanttProject this task/milestone belongs to
   startDate: string; // YYYY-MM-DD
   endDate: string;   // YYYY-MM-DD
   duration: number;  // Days (>= 1 for task, 0 for milestone)
@@ -31,6 +40,7 @@ export interface GanttItem {
 
 export interface ComputedGanttItem extends GanttItem {
   wbs: number;
+  wbsCode?: string;
   slackEndDate: string;
   cpmTotalFloat: number;
   isCritical: boolean;
@@ -39,9 +49,26 @@ export interface ComputedGanttItem extends GanttItem {
   earliestAllowedStart?: string;
 }
 
+export interface ComputedProjectGroup {
+  project: GanttProject;
+  projectIndex: number;
+  items: ComputedGanttItem[];
+  startDate: string;
+  endDate: string;
+  slackEndDate: string;
+  duration: number;
+  progress: number;
+  tasksCount: number;
+  milestonesCount: number;
+  criticalCount: number;
+  totalSlack: number;
+  hasConflict: boolean;
+}
+
 export interface ProjectTemplate {
   id: string;
   name: string;
   description: string;
+  projects: GanttProject[];
   items: GanttItem[];
 }
