@@ -38,6 +38,18 @@ export function formatDateDisplay(dateStr: string, fmt = 'dd MMM yyyy'): string 
 }
 
 /**
+ * Formats a date for the interactive timeline cursor scrubber.
+ * Example: '28 Oct 2026', '15 Ene 2027'.
+ */
+export function formatScrubberDate(date: Date): string {
+  const day = format(date, 'd');
+  const month = format(date, 'MMM', { locale: es }).replace('.', '');
+  const monthCap = month.charAt(0).toUpperCase() + month.slice(1);
+  const year = format(date, 'yyyy');
+  return `${day} ${monthCap} ${year}`;
+}
+
+/**
  * Given startDate and duration (inclusive calendar days for tasks, 0 for milestones),
  * calculates endDate.
  * Convention:
@@ -437,9 +449,9 @@ export function computeGanttMetrics(items: GanttItem[]): ComputedGanttItem[] {
  */
 export function groupItemsByProject(
   items: ComputedGanttItem[],
-  projects: GanttProject[]
+  projects: GanttProject[] = []
 ): ComputedProjectGroup[] {
-  const effectiveProjects: GanttProject[] = projects.map((p, i) =>
+  const effectiveProjects: GanttProject[] = (projects || []).map((p, i) =>
     sanitizeProject(p, i)
   );
 

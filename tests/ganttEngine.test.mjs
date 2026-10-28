@@ -38,6 +38,7 @@ const {
   getXcode27Scenario,
   getDefaultSavedScenarios,
   formatDateISO,
+  formatScrubberDate,
   MIN_DAY_WIDTH,
   MAX_DAY_WIDTH,
   DEFAULT_DAY_WIDTH,
@@ -492,6 +493,52 @@ test('App and GanttWorkspace render complete WBS table, project groups, summary 
             />
           );
         }
+        export function createInspectedWorkspaceElement(itemId) {
+          const tpl = getProjectTemplates()[0];
+          const items = computeGanttMetrics(tpl.items);
+          return (
+            <GanttWorkspace
+              items={items}
+              projects={tpl.projects}
+              groupByProject={true}
+              selectedProjectId="all"
+              zoom="day"
+              showCriticalPath={true}
+              showCpmFloat={false}
+              autoCascade={true}
+              initialSelectedItemId={itemId}
+              onUpdateItem={() => {}}
+              onEditModal={() => {}}
+              onDeleteItem={() => {}}
+              onDuplicateItem={() => {}}
+              onQuickAdd={() => {}}
+              scrollContainerRef={{ current: null }}
+            />
+          );
+        }
+        export function createScrubberWorkspaceElement(x, date) {
+          const tpl = getProjectTemplates()[0];
+          const items = computeGanttMetrics(tpl.items);
+          return (
+            <GanttWorkspace
+              items={items}
+              projects={tpl.projects}
+              groupByProject={true}
+              selectedProjectId="all"
+              zoom="day"
+              showCriticalPath={true}
+              showCpmFloat={false}
+              autoCascade={true}
+              initialCursorScrubber={{ x, date }}
+              onUpdateItem={() => {}}
+              onEditModal={() => {}}
+              onDeleteItem={() => {}}
+              onDuplicateItem={() => {}}
+              onQuickAdd={() => {}}
+              scrollContainerRef={{ current: null }}
+            />
+          );
+        }
       `,
       resolveDir: path.resolve(__dirname, '..'),
       sourcefile: 'ssr-test.tsx',
@@ -514,6 +561,10 @@ test('App and GanttWorkspace render complete WBS table, project groups, summary 
       mod.createCollapsedWorkspaceElement || mod.default?.createCollapsedWorkspaceElement;
     const createHiddenArrowsWorkspaceElement =
       mod.createHiddenArrowsWorkspaceElement || mod.default?.createHiddenArrowsWorkspaceElement;
+    const createInspectedWorkspaceElement =
+      mod.createInspectedWorkspaceElement || mod.default?.createInspectedWorkspaceElement;
+    const createScrubberWorkspaceElement =
+      mod.createScrubberWorkspaceElement || mod.default?.createScrubberWorkspaceElement;
     const html = renderToString(createAppElement());
 
     // Verify default template title, project groups, project summary bars, tasks, milestones, slack badges, and today marker render
@@ -528,6 +579,19 @@ test('App and GanttWorkspace render complete WBS table, project groups, summary 
     assert.ok(html.includes('Holgura (Slack): +1 día(s)'));
     assert.ok(html.includes('Holgura (Slack): +3 día(s)'));
     assert.ok(html.includes('url(#arrow-critical)'));
+
+    // Requirement 1: Month Separator Lines across Canvas Body & Header
+    assert.ok(html.includes('data-month-divider="0"'), 'Canvas body must render month dividers');
+    assert.ok(
+      html.includes('border-r-2 border-slate-300 dark:border-slate-700'),
+      'Month separators must use distinct 2px border across canvas body and calendar header'
+    );
+
+    // Requirement 2: Milestone Vertical Guide Lines from Top to Bottom
+    assert.ok(html.includes('data-milestone-guide="m-1"'), 'Must render vertical guide for milestone m-1');
+    assert.ok(html.includes('data-milestone-x="638"'), 'Milestone guide x coordinate must align with milestone diamond center');
+    assert.ok(html.includes('border-l-2 border-dashed border-amber-500/60'), 'Milestone vertical guide must be dashed 2px amber line');
+
     // Verify hierarchical WBS codes appear in the Dependencies column (#1.2,#2.1 for m-1, #1.3 for t-4)
     assert.ok(html.includes('#1.2,#2.1'));
     assert.ok(html.includes('#1.3'));
@@ -539,17 +603,41 @@ test('App and GanttWorkspace render complete WBS table, project groups, summary 
     assert.ok(html.includes('M 572.0 125.0 L 578.0 125.0 Q 584.0 125.0'));
     assert.equal(html.includes('M 572.0 125.0 L 53.0'), false);
 
-    // Verify collapsed project group hides child task rows while preserving project summary bar and cross-project SVG dependency arrows
+    // Verify collapsed project group hides child task rows while preserving project summary bar and milestone guide lines
     const collapsedHtml = renderToString(createCollapsedWorkspaceElement());
     assert.ok(collapsedHtml.includes('data-project-group="proj-discovery"'));
     assert.ok(collapsedHtml.includes('data-project-summary-bar="proj-discovery"'));
     assert.equal(collapsedHtml.includes('Investigación de Usuarios &amp; Alcance Técnico'), false);
     assert.ok(collapsedHtml.includes('Desarrollo Motor Gantt Interactivo (Frontend)'));
     assert.ok(collapsedHtml.includes('url(#arrow-critical)'));
+    assert.ok(collapsedHtml.includes('data-milestone-guide="m-1"'), 'Milestone guide lines remain visible even when project is collapsed');
 
     // Verify arrowVisibility="none" hides the SVG overlay completely
     const hiddenHtml = renderToString(createHiddenArrowsWorkspaceElement());
     assert.equal(hiddenHtml.includes('data-arrow-visibility='), false);
+
+    // Requirement 3: Interactive Mouse Cursor Date Scrubber with floating pill badge
+    const scrubberHtml = renderToString(
+      createScrubberWorkspaceElement(350, new Date('2026-10-28T12:00:00Z'))
+    );
+    assert.ok(scrubberHtml.includes('id="timeline-cursor-scrubber"'));
+    assert.ok(scrubberHtml.includes('data-cursor-x="350"'));
+    assert.ok(scrubberHtml.includes('data-cursor-date="28 Oct 2026"'));
+    assert.ok(scrubberHtml.includes('28 Oct 2026'));
+
+    // Requirement 4: Non-intrusive Top-Right Docked Inspection Panel on Click
+    const inspectedHtml = renderToString(createInspectedWorkspaceElement('t-2'));
+    assert.ok(inspectedHtml.includes('id="gantt-inspection-panel"'));
+    assert.ok(inspectedHtml.includes('data-selected-item-id="t-2"'));
+    assert.ok(inspectedHtml.includes('1.2'));
+    assert.ok(inspectedHtml.includes('Diseño de Sistema UI/UX &amp; Prototipo Figma'));
+    assert.ok(inspectedHtml.includes('Discovery &amp; Diseño de Producto'));
+    assert.ok(inspectedHtml.includes('Predecesoras:'));
+    assert.ok(inspectedHtml.includes('Investigación de Usuarios &amp; Alcance Técnico'));
+    assert.ok(inspectedHtml.includes('Sucesoras:'));
+    assert.ok(inspectedHtml.includes('Hito: Congelación de Diseño &amp; Esquema API'));
+    assert.ok(inspectedHtml.includes('data-close-inspection-panel="true"'));
+    assert.ok(inspectedHtml.includes('Editar Ítem'));
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -1127,6 +1215,92 @@ test('createRoundedOrthogonalPath produces smooth fillet curves with quadratic b
   ]);
   assert.equal(diagonal.includes('Q '), false, 'Diagonal segments should fall back to clean straight L commands');
 });
+
+test('formatScrubberDate correctly formats Spanish calendar dates with capitalized month abbreviations and handles edge cases', () => {
+  // Oct 28, 2026 -> 28 Oct 2026 (exact task prompt example)
+  const d1 = new Date(2026, 9, 28, 12, 0, 0); // Month is 0-indexed: 9 = Oct
+  assert.equal(formatScrubberDate(d1), '28 Oct 2026');
+
+  // Jan 15, 2027 -> 15 Ene 2027 (exact task prompt example)
+  const d2 = new Date(2027, 0, 15, 12, 0, 0); // 0 = Jan
+  assert.equal(formatScrubberDate(d2), '15 Ene 2027');
+
+  // May 1, 2026 -> 1 May 2026 (single-digit day)
+  const d3 = new Date(2026, 4, 1, 12, 0, 0); // 4 = May
+  assert.equal(formatScrubberDate(d3), '1 May 2026');
+
+  // Dec 31, 2026 -> 31 Dic 2026 (year end)
+  const d4 = new Date(2026, 11, 31, 12, 0, 0); // 11 = Dec
+  assert.equal(formatScrubberDate(d4), '31 Dic 2026');
+
+  // Feb 29, 2028 -> 29 Feb 2028 (leap year)
+  const d5 = new Date(2028, 1, 29, 12, 0, 0); // 1 = Feb
+  assert.equal(formatScrubberDate(d5), '29 Feb 2028');
+});
+
+test('month dividers, milestone guide lines, and date scrubber handle extreme edge cases gracefully', () => {
+  // 1. Project with zero milestones produces 0 milestone guides without error
+  const noMilestones = [
+    {
+      id: 'task-1',
+      name: 'Single Task',
+      type: 'task',
+      startDate: '2026-10-01',
+      endDate: '2026-10-05',
+      duration: 5,
+      slack: 0,
+      dependencies: [],
+      progress: 0,
+      color: 'indigo',
+    },
+  ];
+  const computed = computeGanttMetrics(noMilestones);
+  const groups = groupItemsByProject(computed);
+  const bounds = computeTimelineBounds(computed, new Date('2026-10-01'));
+  assert.ok(bounds.timelineStart < bounds.timelineEnd);
+
+  // 2. Multi-year span month groups coverage
+  const multiYear = [
+    {
+      id: 'm-start',
+      name: 'Hito Inicio 2025',
+      type: 'milestone',
+      startDate: '2025-01-01',
+      endDate: '2025-01-01',
+      duration: 0,
+      slack: 0,
+      dependencies: [],
+      progress: 0,
+      color: 'amber',
+    },
+    {
+      id: 'm-end',
+      name: 'Hito Fin 2027',
+      type: 'milestone',
+      startDate: '2027-12-31',
+      endDate: '2027-12-31',
+      duration: 0,
+      slack: 0,
+      dependencies: ['m-start'],
+      progress: 0,
+      color: 'amber',
+    },
+  ];
+  const myComputed = computeGanttMetrics(multiYear);
+  const myBounds = computeTimelineBounds(myComputed, new Date('2026-01-01'));
+  const myDaysCount = Math.round(
+    (myBounds.timelineEnd.getTime() - myBounds.timelineStart.getTime()) / (1000 * 60 * 60 * 24)
+  ) + 1;
+  assert.ok(myDaysCount > 730, 'Multi-year bounds should span over 2 years of days');
+
+  // 3. formatScrubberDate robustness on epoch start and leap centuries
+  const epochDate = new Date(1970, 0, 1, 12, 0, 0);
+  assert.equal(formatScrubberDate(epochDate), '1 Ene 1970');
+  const leapCentury = new Date(2000, 1, 29, 12, 0, 0);
+  assert.equal(formatScrubberDate(leapCentury), '29 Feb 2000');
+});
+
+
 
 
 

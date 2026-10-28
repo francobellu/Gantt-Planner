@@ -11,8 +11,10 @@ import {
 import { es } from 'date-fns/locale';
 import {
   AlertTriangle,
+  Calendar,
   ChevronDown,
   ChevronRight,
+  Clock,
   Copy,
   Diamond,
   Edit3,
@@ -26,6 +28,8 @@ import {
   MousePointer,
   Plus,
   Trash2,
+  User,
+  X,
 } from 'lucide-react';
 import {
   ArrowVisibility,
@@ -47,6 +51,7 @@ import {
   createRoundedOrthogonalPath,
   formatDateDisplay,
   formatDateISO,
+  formatScrubberDate,
   getDayWidthForPreset,
   groupItemsByProject,
   MAX_DAY_WIDTH,
@@ -80,6 +85,8 @@ interface GanttWorkspaceProps {
   onDeleteProject?: (projectId: string) => void;
   onCreateProject?: () => void;
   scrollContainerRef: React.RefObject<HTMLDivElement>;
+  initialSelectedItemId?: string;
+  initialCursorScrubber?: { x: number; date: Date };
 }
 
 type DisplayRow =
@@ -202,8 +209,18 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   onDeleteProject,
   onCreateProject,
   scrollContainerRef,
+  initialSelectedItemId,
+  initialCursorScrubber,
 }) => {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(
+    initialSelectedItemId || null
+  );
+  const [cursorScrubber, setCursorScrubber] = useState<{
+    x: number;
+    date: Date;
+  } | null>(initialCursorScrubber || null);
+  const hasDraggedRef = useRef<boolean>(false);
   const [splitWidth, setSplitWidth] = useState<number>(660);
   const [showTable, setShowTable] = useState<boolean>(true);
   const [wheelZoomEnabled, setWheelZoomEnabled] = useState<boolean>(true);
@@ -450,6 +467,19 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     return allProjectGroups.filter((g) => g.project.id === selectedProjectId);
   }, [allProjectGroups, selectedProjectId]);
 
+  // All milestones in visible projects for full-canvas vertical alignment guides
+  const visibleMilestones = useMemo(() => {
+    const list: ComputedGanttItem[] = [];
+    for (const group of visibleProjectGroups) {
+      for (const it of group.items) {
+        if (it.type === 'milestone') {
+          list.push(it);
+        }
+      }
+    }
+    return list;
+  }, [visibleProjectGroups]);
+
   // Unified row list (Project group headers + Task/Milestone rows) so Left WBS Table and Right Timeline stay 100% aligned
   const displayRows = useMemo<DisplayRow[]>(() => {
     const rows: DisplayRow[] = [];
@@ -524,6 +554,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     mode: 'move' | 'resize'
   ) => {
     e.stopPropagation();
+    hasDraggedRef.current = false;
     const startX = e.clientX;
     const origStart = parseDateSafe(item.startDate);
     const origDuration = item.type === 'milestone' ? 0 : Math.max(1, item.duration);
@@ -539,6 +570,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
     const onMouseMove = (moveEvent: MouseEvent) => {
       const dx = moveEvent.clientX - startX;
+      if (Math.abs(dx) > 3) {
+        hasDraggedRef.current = true;
+      }
       const deltaDays = Math.round(dx / dayWidth);
       setDragState((prev) => (prev ? { ...prev, dayDelta: deltaDays } : null));
     };
@@ -548,6 +582,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       window.removeEventListener('mouseup', onMouseUp);
 
       const dx = upEvent.clientX - startX;
+      if (Math.abs(dx) > 3) {
+        hasDraggedRef.current = true;
+      }
       const deltaDays = Math.round(dx / dayWidth);
       setDragState(null);
 
@@ -583,6 +620,15 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
+  };
+
+  const handleBarClick = (e: React.MouseEvent, itemId: string) => {
+    e.stopPropagation();
+    if (hasDraggedRef.current) {
+      hasDraggedRef.current = false;
+      return;
+    }
+    setSelectedItemId((prev) => (prev === itemId ? null : itemId));
   };
 
   // Handle split pane divider resize
@@ -684,21 +730,54 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     return map;
   }, [displayRows, dragState, timelineStart, dayWidth]);
 
-  // Check if two tasks are directly connected to highlight on hover
+  // Selected item and project metadata for the docked top-right inspection panel
+  const selectedItem = useMemo(
+    () => (selectedItemId ? enrichedItemById.get(selectedItemId) || null : null),
+    [enrichedItemById, selectedItemId]
+  );
+
+  const selectedGroup = useMemo(() => {
+    if (!selectedItem) return null;
+    return (
+      allProjectGroups.find((g) => g.project.id === selectedItem.projectId) ||
+      allProjectGroups[0]
+    );
+  }, [selectedItem, allProjectGroups]);
+
+  const selectedPredecessors = useMemo(() => {
+    if (!selectedItem || !selectedItem.dependencies) return [];
+    return selectedItem.dependencies
+      .map((id) => enrichedItemById.get(id))
+      .filter((it): it is ComputedGanttItem => Boolean(it));
+  }, [selectedItem, enrichedItemById]);
+
+  const selectedSuccessors = useMemo(() => {
+    if (!selectedItem) return [];
+    const list: ComputedGanttItem[] = [];
+    for (const it of enrichedItemById.values()) {
+      if (it.dependencies?.includes(selectedItem.id)) {
+        list.push(it);
+      }
+    }
+    return list;
+  }, [selectedItem, enrichedItemById]);
+
+  // Check if tasks are directly connected to highlight on hover or selection
   const relatedIds = useMemo(() => {
     const set = new Set<string>();
-    if (!hoveredId) return set;
-    set.add(hoveredId);
+    const activeId = hoveredId || selectedItemId;
+    if (!activeId) return set;
+    set.add(activeId);
     for (const it of items) {
-      if (it.id === hoveredId) {
+      if (it.id === activeId) {
         it.dependencies.forEach((d) => set.add(d));
       }
-      if (it.dependencies.includes(hoveredId)) {
+      if (it.dependencies.includes(activeId)) {
         set.add(it.id);
       }
     }
     return set;
-  }, [hoveredId, items]);
+  }, [hoveredId, selectedItemId, items]);
 
   // Memoized dependency links with channel separation (multi-lane routing),
   // unified left-anchor entrance, smooth rounded corners (fillet curves), and density/visibility filtering
@@ -777,7 +856,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         const depType: DependencyType = succ.dependencyTypes?.[predId] || 'FS';
         const fromStart = depType === 'SS' || depType === 'SF';
 
-        const isHighlighted = hoveredId === succ.id || hoveredId === predId;
+        const isHighlighted =
+          hoveredId === succ.id ||
+          hoveredId === predId ||
+          selectedItemId === succ.id ||
+          selectedItemId === predId;
         const isCriticalLink =
           showCriticalPath && succ.isCritical && predCoords.item.isCritical;
 
@@ -897,12 +980,41 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     items,
     itemRowMap,
     hoveredId,
+    selectedItemId,
     showCriticalPath,
     arrowVisibility,
   ]);
 
   const totalCanvasWidth = timelineDays.length * dayWidth;
   const totalCanvasHeight = Math.max(displayRows.length * ROW_HEIGHT + 56, 360);
+
+  // Track cursor position and exact calendar date over timeline canvas for the date scrubber
+  const handleTimelineMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (dragState) {
+      if (cursorScrubber) setCursorScrubber(null);
+      return;
+    }
+    const canvasEl = canvasRef.current;
+    if (!canvasEl) return;
+    const rect = canvasEl.getBoundingClientRect();
+    const rawX = e.clientX - rect.left;
+    if (rawX < 0 || rawX > totalCanvasWidth) {
+      if (cursorScrubber) setCursorScrubber(null);
+      return;
+    }
+    const dayIndex = Math.max(
+      0,
+      Math.min(timelineDays.length - 1, Math.floor(rawX / dayWidth))
+    );
+    const date = timelineDays[dayIndex];
+    if (date) {
+      setCursorScrubber({ x: rawX, date });
+    }
+  };
+
+  const handleTimelineMouseLeave = () => {
+    setCursorScrubber(null);
+  };
 
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
@@ -1595,6 +1707,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         {/* RIGHT PANE: Interactive Gantt Timeline Canvas */}
         <div
           ref={scrollContainerRef}
+          onClick={() => setSelectedItemId(null)}
+          onMouseMove={handleTimelineMouseMove}
+          onMouseLeave={handleTimelineMouseLeave}
           className="flex-1 overflow-x-auto overflow-y-hidden relative bg-white dark:bg-slate-950 select-none"
         >
           <div
@@ -1602,6 +1717,25 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             style={{ width: totalCanvasWidth, minHeight: totalCanvasHeight }}
             className="relative"
           >
+            {/* Interactive Mouse Cursor Date Scrubber */}
+            {cursorScrubber && (
+              <div
+                id="timeline-cursor-scrubber"
+                data-cursor-x={cursorScrubber.x}
+                data-cursor-date={formatScrubberDate(cursorScrubber.date)}
+                style={{ left: cursorScrubber.x }}
+                className="absolute top-0 bottom-0 pointer-events-none z-30 flex flex-col items-center"
+              >
+                {/* Floating pill badge at the top displaying exact calendar date */}
+                <div className="sticky top-1.5 -translate-x-1/2 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-900/95 dark:bg-slate-100/95 text-white dark:text-slate-900 shadow-lg border border-slate-700/60 dark:border-slate-300/60 text-[10px] font-mono font-bold whitespace-nowrap z-40 transition-transform">
+                  <Calendar className="w-3 h-3 text-indigo-400 dark:text-indigo-600 shrink-0" />
+                  <span>{formatScrubberDate(cursorScrubber.date)}</span>
+                </div>
+                {/* Sleek vertical tracking line */}
+                <div className="w-px h-full bg-indigo-500/80 dark:bg-indigo-400/80 shadow-xs" />
+              </div>
+            )}
+
             {/* Two-Tier Timeline Header (60px total height) */}
             <div
               style={{ height: HEADER_HEIGHT }}
@@ -1615,7 +1749,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     <div
                       key={idx}
                       style={{ width: groupPx }}
-                      className="px-2 flex items-center text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 border-r border-slate-200/80 dark:border-slate-800 truncate"
+                      className="px-2 flex items-center text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 border-r-2 border-slate-300 dark:border-slate-700 truncate"
                       title={group.label}
                     >
                       {groupPx >= 85
@@ -1638,9 +1772,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   const isMonday = day.getDay() === 1;
                   const isMonthStart = day.getDate() === 1;
                   const isMidMonth = day.getDate() === 15;
+                  const isLastDayOfMonth =
+                    idx < timelineDays.length - 1 && timelineDays[idx + 1].getDate() === 1;
 
                   const showTickBorder =
-                    dayWidth >= 14 || isMonday || isMonthStart || isToday;
+                    dayWidth >= 14 || isMonday || isMonthStart || isToday || isLastDayOfMonth;
 
                   return (
                     <div
@@ -1648,7 +1784,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       style={{ width: dayWidth }}
                       className={`relative h-full flex flex-col items-center justify-center ${
                         showTickBorder
-                          ? 'border-r border-slate-200/60 dark:border-slate-800/70'
+                          ? isLastDayOfMonth
+                            ? 'border-r-2 border-slate-300 dark:border-slate-700'
+                            : 'border-r border-slate-200/60 dark:border-slate-800/70'
                           : ''
                       } text-[10px] font-mono ${
                         isToday
@@ -1689,7 +1827,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             {/* Canvas Body: Background Columns + Horizontal Rows + SVG Dependencies + Project Summary & Task/Slack/Milestone Bars */}
             <div className="relative" style={{ height: displayRows.length * ROW_HEIGHT + 52 }}>
               {/* Vertical Day Columns & Weekend Shading */}
-              <div className="absolute inset-0 flex pointer-events-none">
+              <div className="absolute inset-0 flex pointer-events-none z-0">
                 {timelineDays.map((day, idx) => {
                   const wknd = isWeekend(day);
                   const isMonday = day.getDay() === 1;
@@ -1713,6 +1851,55 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   );
                 })}
               </div>
+
+              {/* Vertical Month Separators across Canvas Body */}
+              <div className="absolute inset-0 flex pointer-events-none z-0">
+                {monthGroups.map((group, mIdx) => (
+                  <div
+                    key={`month-divider-${mIdx}`}
+                    data-month-divider={mIdx}
+                    style={{ width: group.count * dayWidth }}
+                    className={`h-full shrink-0 border-r-2 border-slate-300 dark:border-slate-700 ${
+                      mIdx === monthGroups.length - 1 ? 'border-r-transparent' : ''
+                    }`}
+                  />
+                ))}
+              </div>
+
+              {/* Milestone Vertical Guide Lines */}
+              {visibleMilestones.map((m) => {
+                const mCoords = itemRowMap.get(m.id);
+                const milestoneX = mCoords
+                  ? mCoords.startX
+                  : differenceInCalendarDays(parseDateSafe(m.startDate), timelineStart) * dayWidth + dayWidth / 2;
+                const isCrit = showCriticalPath && m.isCritical;
+
+                return (
+                  <div
+                    key={`milestone-guide-${m.id}`}
+                    data-milestone-guide={m.id}
+                    data-milestone-x={milestoneX}
+                    style={{ left: milestoneX }}
+                    className="absolute top-0 bottom-0 pointer-events-none z-10 flex flex-col items-center"
+                  >
+                    {/* Top Diamond Pill Marker */}
+                    <div
+                      className={`absolute top-0.5 -translate-x-1/2 flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold shadow-sm whitespace-nowrap z-20 ${
+                        isCrit
+                          ? 'bg-rose-500 text-white ring-1 ring-rose-400'
+                          : 'bg-amber-500 text-white ring-1 ring-amber-400'
+                      }`}
+                      title={`Hito: ${m.name} (${formatDateDisplay(m.startDate, 'dd MMM yyyy')})`}
+                    >
+                      <span className="text-[8px] leading-none">◆</span>
+                      <span className="max-w-[80px] sm:max-w-[120px] truncate">{m.name}</span>
+                    </div>
+
+                    {/* Vertical Dashed Guide Line from Top to Bottom */}
+                    <div className="w-0 h-full border-l-2 border-dashed border-amber-500/60 dark:border-amber-400/60" />
+                  </div>
+                );
+              })}
 
               {/* Today ("HOY") Vertical Line Marker */}
               {todayIndex >= 0 && (
@@ -1883,7 +2070,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                 if (!coords) return null;
 
                 const isHovered = hoveredId === item.id;
-                const isDimmed = hoveredId !== null && !relatedIds.has(item.id);
+                const isSelected = selectedItemId === item.id;
+                const isDimmed =
+                  (hoveredId !== null || selectedItemId !== null) &&
+                  !relatedIds.has(item.id);
                 const isCrit = showCriticalPath && item.isCritical;
                 const styleTheme = COLOR_STYLES[item.color] || COLOR_STYLES.indigo;
 
@@ -1933,11 +2123,17 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       <div
                         style={{ left: barLeft }}
                         onMouseDown={(e) => handleBarMouseDown(e, item, 'move')}
+                        onClick={(e) => handleBarClick(e, item.id)}
                         onDoubleClick={() => onEditModal(item)}
+                        data-timeline-milestone={item.id}
                         className="absolute z-20 flex items-center group cursor-grab active:cursor-grabbing"
                       >
                         <div
                           className={`w-5 h-5 rotate-45 rounded-[4px] border-2 shadow-md transition-transform group-hover:scale-125 ${
+                            isSelected
+                              ? 'scale-125 ring-2 ring-indigo-500'
+                              : ''
+                          } ${
                             isCrit
                               ? 'bg-rose-500 border-white dark:border-slate-900 ring-2 ring-rose-500'
                               : 'bg-amber-500 border-white dark:border-slate-900 ring-2 ring-amber-500/40'
@@ -1999,11 +2195,15 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         <div
                           style={{ width: barWidth }}
                           onMouseDown={(e) => handleBarMouseDown(e, item, 'move')}
+                          onClick={(e) => handleBarClick(e, item.id)}
                           onDoubleClick={() => onEditModal(item)}
+                          data-timeline-task={item.id}
                           className={`relative h-8 rounded-lg border overflow-hidden cursor-grab active:cursor-grabbing shadow-sm transition-shadow ${
                             styleTheme.barBg
                           } ${
-                            isCrit
+                            isSelected
+                              ? 'ring-2 ring-indigo-500 ring-offset-1 dark:ring-offset-slate-950 shadow-md'
+                              : isCrit
                               ? 'border-rose-500 ring-2 ring-rose-500/40'
                               : item.hasConflict
                               ? 'border-rose-500 ring-2 ring-rose-500/30'
@@ -2133,6 +2333,174 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Non-intrusive Top-Right Docked Inspection Panel on Click */}
+        {selectedItem && (
+          <aside
+            id="gantt-inspection-panel"
+            data-selected-item-id={selectedItem.id}
+            onClick={(e) => e.stopPropagation()}
+            className="absolute top-3 right-3 z-40 w-80 max-w-[calc(100%-24px)] bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-xl border border-slate-200/90 dark:border-slate-700/90 shadow-xl p-3.5 text-xs flex flex-col gap-2.5 transition-all"
+          >
+            {/* Panel Header: WBS Code + Title + Type Badge + Close button */}
+            <div className="flex items-start justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-1.5 min-w-0">
+                {selectedItem.type === 'milestone' ? (
+                  <Diamond className="w-4 h-4 text-amber-500 fill-current shrink-0" />
+                ) : (
+                  <span
+                    className={`w-3 h-3 rounded-full shrink-0 ${
+                      COLOR_STYLES[selectedItem.color]?.badge || 'bg-indigo-500'
+                    }`}
+                  />
+                )}
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                      #{selectedItem.wbsCode || selectedItem.wbs}
+                    </span>
+                    <span
+                      className={`text-[10px] font-semibold px-1.5 py-0.2 rounded ${
+                        selectedItem.type === 'milestone'
+                          ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                          : 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300'
+                      }`}
+                    >
+                      {selectedItem.type === 'milestone' ? 'Hito' : 'Tarea'}
+                    </span>
+                    {selectedItem.isCritical && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center gap-0.5">
+                        <Flame className="w-3 h-3 fill-current" />
+                        Crítica
+                      </span>
+                    )}
+                  </div>
+                  <h4
+                    className="font-bold text-slate-900 dark:text-slate-100 truncate mt-0.5 text-sm"
+                    title={selectedItem.name}
+                  >
+                    {selectedItem.name}
+                  </h4>
+                </div>
+              </div>
+              <button
+                type="button"
+                data-close-inspection-panel="true"
+                onClick={() => setSelectedItemId(null)}
+                className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition shrink-0 cursor-pointer"
+                title="Cerrar panel de inspección"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Project & Assignee metadata */}
+            <div className="grid grid-cols-2 gap-2 text-[11px]">
+              <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300 truncate">
+                <FolderKanban className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span className="truncate" title={selectedGroup?.project.name}>
+                  {selectedGroup?.project.name || 'Sin Proyecto'}
+                </span>
+              </div>
+              {selectedItem.assignee ? (
+                <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300 truncate">
+                  <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <span className="truncate" title={selectedItem.assignee}>
+                    {selectedItem.assignee}
+                  </span>
+                </div>
+              ) : (
+                <div className="text-slate-400 italic">Sin asignar</div>
+              )}
+            </div>
+
+            {/* Schedule & Progress grid */}
+            <div className="grid grid-cols-2 gap-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 font-mono text-[11px]">
+              <div>
+                <span className="text-slate-400 text-[10px] uppercase block">Inicio</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-200">
+                  {formatDateDisplay(selectedItem.startDate, 'dd MMM yyyy')}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 text-[10px] uppercase block">Fin</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-200">
+                  {selectedItem.type === 'milestone'
+                    ? '-'
+                    : formatDateDisplay(selectedItem.endDate, 'dd MMM yyyy')}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 text-[10px] uppercase block">Duración / Slack</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-200">
+                  {selectedItem.duration}d{' '}
+                  {selectedItem.slack > 0 ? `(+${selectedItem.slack}d)` : ''}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 text-[10px] uppercase block">Progreso</span>
+                <span className="font-semibold text-indigo-600 dark:text-indigo-400">
+                  {selectedItem.progress}%
+                </span>
+              </div>
+            </div>
+
+            {/* Dependencies relations (Predecessors & Successors) */}
+            {(selectedPredecessors.length > 0 || selectedSuccessors.length > 0) && (
+              <div className="flex flex-col gap-1 text-[11px]">
+                {selectedPredecessors.length > 0 && (
+                  <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300 flex-wrap">
+                    <span className="text-slate-400 font-medium">Predecesoras:</span>
+                    {selectedPredecessors.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => setSelectedItemId(p.id)}
+                        className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:text-indigo-600 text-[10px] font-mono border border-slate-200/80 dark:border-slate-700 transition cursor-pointer"
+                      >
+                        #{p.wbsCode || p.wbs} {p.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {selectedSuccessors.length > 0 && (
+                  <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300 flex-wrap">
+                    <span className="text-slate-400 font-medium">Sucesoras:</span>
+                    {selectedSuccessors.map((s) => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => setSelectedItemId(s.id)}
+                        className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:text-indigo-600 text-[10px] font-mono border border-slate-200/80 dark:border-slate-700 transition cursor-pointer"
+                      >
+                        #{s.wbsCode || s.wbs} {s.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Notes if present */}
+            {selectedItem.notes && (
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-800/40 p-2 rounded border border-slate-100 dark:border-slate-800">
+                <p className="line-clamp-2 italic">“{selectedItem.notes}”</p>
+              </div>
+            )}
+
+            {/* Actions: Edit button */}
+            <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => onEditModal(selectedItem)}
+                className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center gap-1 transition cursor-pointer shadow-2xs"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                Editar Ítem
+              </button>
+            </div>
+          </aside>
+        )}
       </div>
     </div>
   );
