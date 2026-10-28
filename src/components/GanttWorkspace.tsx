@@ -782,6 +782,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               {/* Today ("HOY") Vertical Line Marker */}
               {todayIndex >= 0 && (
                 <div
+                  id="gantt-today-marker"
+                  data-today-x={todayIndex * dayWidth + dayWidth / 2}
                   style={{ left: todayIndex * dayWidth + dayWidth / 2 }}
                   className="absolute top-0 bottom-0 w-0.5 bg-indigo-500/80 dark:bg-indigo-400/80 z-10 pointer-events-none"
                 >
@@ -855,9 +857,13 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     const predCoords = itemRowMap.get(predId);
                     if (!predCoords) return null;
 
-                    const x1 = predCoords.endX;
+                    const depType = succ.dependencyTypes?.[predId] || 'FS';
+                    const fromStart = depType === 'SS' || depType === 'SF';
+                    const toEnd = depType === 'FF' || depType === 'SF';
+
+                    const x1 = fromStart ? predCoords.startX : predCoords.endX;
                     const y1 = predCoords.centerY;
-                    const x2 = succCoords.startX;
+                    const x2 = toEnd ? succCoords.endX : succCoords.startX;
                     const y2 = succCoords.centerY;
 
                     const isHighlighted =
@@ -870,9 +876,17 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     // Smart orthogonal routing path
                     let dPath = '';
                     const stepOut = 12;
-                    if (x2 >= x1 + stepOut) {
+                    if (!fromStart && !toEnd && x2 >= x1 + stepOut) {
                       const midX = x1 + (x2 - x1) / 2;
                       dPath = `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`;
+                    } else if (fromStart && !toEnd) {
+                      // SS link: step left from both starts
+                      const leftX = Math.min(x1, x2) - stepOut;
+                      dPath = `M ${x1} ${y1} L ${leftX} ${y1} L ${leftX} ${y2} L ${x2} ${y2}`;
+                    } else if (!fromStart && toEnd) {
+                      // FF link: step right from both ends
+                      const rightX = Math.max(x1, x2) + stepOut;
+                      dPath = `M ${x1} ${y1} L ${rightX} ${y1} L ${rightX} ${y2} L ${x2} ${y2}`;
                     } else {
                       // S-bend routing when successor starts near or before predecessor ends
                       const detourY = y1 < y2 ? y1 + ROW_HEIGHT / 2 : y1 - ROW_HEIGHT / 2;
@@ -1071,11 +1085,16 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
                         {/* Hover Floating Inspection Card */}
                         {isHovered && !dragState && (
-                          <div className="absolute left-0 -top-20 z-30 pointer-events-none bg-slate-900/95 text-white px-3 py-2 rounded-xl shadow-xl border border-slate-700 text-[11px] whitespace-nowrap flex flex-col gap-0.5">
+                          <div className="absolute left-0 -top-24 z-30 pointer-events-none bg-slate-900/95 text-white px-3 py-2 rounded-xl shadow-xl border border-slate-700 text-[11px] whitespace-nowrap flex flex-col gap-0.5">
                             <div className="flex items-center gap-2 font-bold">
                               <span>
                                 #{item.wbs} {item.name}
                               </span>
+                              {item.assignee && (
+                                <span className="px-1.5 py-0.2 rounded bg-slate-700 text-slate-200 text-[10px] font-normal">
+                                  👤 {item.assignee}
+                                </span>
+                              )}
                               {item.isCritical && (
                                 <span className="px-1.5 py-0.2 rounded bg-rose-500/30 text-rose-300 text-[10px]">
                                   Ruta Crítica
@@ -1094,6 +1113,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 ✓ {item.progress}%
                               </span>
                             </div>
+                            {item.notes && (
+                              <div className="text-[10px] text-slate-400 max-w-xs truncate">
+                                📝 {item.notes}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>

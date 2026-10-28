@@ -243,8 +243,11 @@ export function App() {
   const scrollToToday = () => {
     if (!scrollContainerRef.current) return;
     const container = scrollContainerRef.current;
+    const marker = container.querySelector('#gantt-today-marker') as HTMLElement | null;
+    const todayX = marker ? Number(marker.getAttribute('data-today-x') || marker.offsetLeft) : 180;
+    const targetLeft = Math.max(0, todayX - container.clientWidth / 3);
     container.scrollTo({
-      left: Math.max(0, 180),
+      left: targetLeft,
       behavior: 'smooth',
     });
   };
@@ -313,8 +316,10 @@ export function App() {
               const duration =
                 type === 'milestone' ? 0 : Math.max(1, Number(raw.duration) || 1);
               const endDate =
-                raw.endDate ||
-                calculateEndDateFromDuration(startDate, duration, type);
+                type === 'milestone'
+                  ? startDate
+                  : raw.endDate ||
+                    calculateEndDateFromDuration(startDate, duration, type);
               return {
                 id: raw.id || `imp-${i}-${Date.now()}`,
                 name: raw.name || `Elemento ${i + 1}`,
@@ -324,9 +329,14 @@ export function App() {
                 duration,
                 slack: Math.max(0, Number(raw.slack) || 0),
                 dependencies: Array.isArray(raw.dependencies) ? raw.dependencies : [],
-                progress: Number(raw.progress) || 0,
+                dependencyTypes:
+                  raw.dependencyTypes && typeof raw.dependencyTypes === 'object'
+                    ? raw.dependencyTypes
+                    : undefined,
+                progress: Math.min(100, Math.max(0, Number(raw.progress) || 0)),
                 color: raw.color || 'indigo',
                 assignee: raw.assignee,
+                notes: raw.notes,
               };
             })
           );

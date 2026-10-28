@@ -25,6 +25,7 @@ import {
   formatDateDisplay,
   formatDateISO,
   getEarliestStartFromPredecessors,
+  parseDateSafe,
   wouldCreateCycle,
 } from '../utils/ganttEngine';
 import { addDays } from 'date-fns';
@@ -91,7 +92,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
     } else {
       const lastItem = allItems[allItems.length - 1];
       const suggestedStart = lastItem
-        ? formatDateISO(addDays(new Date(lastItem.endDate + 'T00:00:00'), 1))
+        ? formatDateISO(addDays(parseDateSafe(lastItem.endDate), 1))
         : todayStr;
       const isMilestone = defaultType === 'milestone';
       setType(defaultType);
@@ -649,6 +650,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                               <option value="FS">FS (Fin → Inicio)</option>
                               <option value="SS">SS (Inicio → Inicio)</option>
                               <option value="FF">FF (Fin → Fin)</option>
+                              <option value="SF">SF (Inicio → Fin)</option>
                             </select>
                           )}
                         </div>
@@ -708,6 +710,20 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                 ))}
               </div>
             </div>
+          </div>
+
+          {/* Notes / Description */}
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1.5">
+              Notas / Entregables / Criterios de Aceptación
+            </label>
+            <textarea
+              rows={2}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Detalles opcionales, criterios de entrega o riesgos asociados..."
+              className="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+            />
           </div>
 
           {/* Auto-cascade toggle */}

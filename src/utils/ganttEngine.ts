@@ -113,9 +113,8 @@ export function getEarliestStartFromPredecessors(
     let requiredStart: Date;
     switch (depType) {
       case 'FS':
-        // Finish-to-Start: If predecessor is a task ending on day X, successor starts on day X + 1.
-        // If predecessor is a milestone on day X, successor starts on day X + 1 (or X).
-        requiredStart = pred.type === 'milestone' ? predEnd : addDays(predEnd, 1);
+        // Finish-to-Start: successor starts the day after predecessor finishes
+        requiredStart = addDays(predEnd, 1);
         break;
       case 'SS':
         requiredStart = predStart;
@@ -221,11 +220,12 @@ export function computeGanttMetrics(items: GanttItem[]): ComputedGanttItem[] {
   for (let pass = 0; pass < items.length; pass++) {
     for (let i = items.length - 1; i >= 0; i--) {
       const it = items[i];
+      const itDur = it.type === 'milestone' ? 0 : Math.max(1, it.duration);
       const succIds = successorsMap.get(it.id) || [];
       if (succIds.length === 0) {
         lateFinishMap.set(it.id, maxEnd);
       } else {
-        let minSuccLateStart: Date | null = null;
+        let minAllowedPredFinish: Date | null = null;
         for (const sId of succIds) {
           const succ = itemMap.get(sId);
           if (!succ) continue;
@@ -235,15 +235,38 @@ export function computeGanttMetrics(items: GanttItem[]): ComputedGanttItem[] {
             succ.type === 'milestone'
               ? succLateFinish
               : addDays(succLateFinish, -(succDur - 1));
-          const allowedPredFinish =
-            it.type === 'milestone' ? succLateStart : addDays(succLateStart, -1);
+          const depType: DependencyType = succ.dependencyTypes?.[it.id] || 'FS';
 
-          if (!minSuccLateStart || allowedPredFinish < minSuccLateStart) {
-            minSuccLateStart = allowedPredFinish;
+          let allowedPredFinish: Date;
+          switch (depType) {
+            case 'FS':
+              allowedPredFinish = addDays(succLateStart, -1);
+              break;
+            case 'SS':
+              allowedPredFinish =
+                it.type === 'milestone'
+                  ? succLateStart
+                  : addDays(succLateStart, itDur - 1);
+              break;
+            case 'FF':
+              allowedPredFinish = succLateFinish;
+              break;
+            case 'SF':
+              allowedPredFinish =
+                it.type === 'milestone'
+                  ? succLateFinish
+                  : addDays(succLateFinish, itDur - 1);
+              break;
+            default:
+              allowedPredFinish = addDays(succLateStart, -1);
+          }
+
+          if (!minAllowedPredFinish || allowedPredFinish < minAllowedPredFinish) {
+            minAllowedPredFinish = allowedPredFinish;
           }
         }
-        if (minSuccLateStart) {
-          lateFinishMap.set(it.id, minSuccLateStart);
+        if (minAllowedPredFinish) {
+          lateFinishMap.set(it.id, minAllowedPredFinish);
         }
       }
     }
@@ -308,8 +331,8 @@ export function getProjectTemplates(): ProjectTemplate[] {
           id: 't-1',
           name: 'Investigación de Usuarios & Alcance Técnico',
           type: 'task',
-          startDate: d(-6),
-          endDate: d(-3),
+          startDate: d(-7),
+          endDate: d(-4),
           duration: 4,
           slack: 0,
           dependencies: [],
@@ -322,8 +345,8 @@ export function getProjectTemplates(): ProjectTemplate[] {
           id: 't-2',
           name: 'Diseño de Sistema UI/UX & Prototipo Figma',
           type: 'task',
-          startDate: d(-2),
-          endDate: d(2),
+          startDate: d(-3),
+          endDate: d(1),
           duration: 5,
           slack: 1,
           dependencies: ['t-1'],
@@ -336,8 +359,8 @@ export function getProjectTemplates(): ProjectTemplate[] {
           id: 't-3',
           name: 'Arquitectura de Base de Datos & API GraphQL',
           type: 'task',
-          startDate: d(-2),
-          endDate: d(3),
+          startDate: d(-3),
+          endDate: d(2),
           duration: 6,
           slack: 0,
           dependencies: ['t-1'],
