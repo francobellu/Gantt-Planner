@@ -1,0 +1,102 @@
+name: CI & Deploy to Vercel
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+jobs:
+  build-and-verify:
+    name: Build & Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck & Build production bundle
+        run: npm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-bundle
+          path: dist/
+          retention-days: 7
+
+  deploy-vercel:
+    name: Deploy to Vercel
+    needs: build-and-verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Check Vercel Secrets Configuration
+        id: check_secrets
+        run: |
+          if [ -n "${{ secrets.VERCEL_TOKEN }}" ] && [ -n "${{ secrets.VERCEL_ORG_ID }}" ] && [ -n "${{ secrets.VERCEL_PROJECT_ID }}" ]; then
+            echo "configured=true" >> $GITHUB_OUTPUT
+          else
+            echo "configured=false" >> $GITHUB_OUTPUT
+            echo "### ⚡ Configuración de Secrets de Vercel pendiente" >> $GITHUB_STEP_SUMMARY
+            echo "El build de verificación pasó correctamente. Para activar el despliegue directo desde GitHub Actions CLI, añade estos 3 secrets en **Settings > Secrets and variables > Actions**:" >> $GITHUB_STEP_SUMMARY
+            echo "- \`VERCEL_TOKEN\`" >> $GITHUB_STEP_SUMMARY
+            echo "- \`VERCEL_ORG_ID\`" >> $GITHUB_STEP_SUMMARY
+            echo "- \`VERCEL_PROJECT_ID\`" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Install Vercel CLI
+        if: steps.check_secrets.outputs.configured == 'true'
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel Environment Information (Production)
+        if: steps.check_secrets.outputs.configured == 'true' && github.ref == 'refs/heads/main'
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Pull Vercel Environment Information (Preview)
+        if: steps.check_secrets.outputs.configured == 'true' && github.ref != 'refs/heads/main'
+        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build Project Artifacts for Vercel
+        if: steps.check_secrets.outputs.configured == 'true'
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+          else
+            vercel build --token=${{ secrets.VERCEL_TOKEN }}
+          fi
+
+      - name: Deploy Prebuilt Artifacts to Vercel
+        if: steps.check_secrets.outputs.configured == 'true'
+        id: deploy
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            URL=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
+          else
+            URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
+          fi
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "### 🚀 Desplegado en Vercel: $URL" >> $GITHUB_STEP_SUMMARY

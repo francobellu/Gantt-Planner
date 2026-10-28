@@ -1,0 +1,568 @@
+import {
+  addDays,
+  differenceInCalendarDays,
+  format,
+  isValid,
+  parseISO,
+  startOfDay,
+} from 'date-fns';
+import { es } from 'date-fns/locale';
+import { ComputedGanttItem, DependencyType, GanttItem, ProjectTemplate } from '../types/gantt';
+
+export function parseDateSafe(dateStr: string): Date {
+  const parsed = parseISO(dateStr);
+  if (isValid(parsed)) {
+    return startOfDay(parsed);
+  }
+  return startOfDay(new Date());
+}
+
+export function formatDateISO(date: Date): string {
+  return format(startOfDay(date), 'yyyy-MM-dd');
+}
+
+export function formatDateDisplay(dateStr: string, fmt = 'dd MMM yyyy'): string {
+  const d = parseDateSafe(dateStr);
+  return format(d, fmt, { locale: es });
+}
+
+/**
+ * Given startDate and duration (inclusive calendar days for tasks, 0 for milestones),
+ * calculates endDate.
+ * Convention:
+ * - Milestone: duration = 0, startDate === endDate
+ * - Task: duration >= 1. A 1-day task starting on 2026-10-28 ends on 2026-10-28 (occupies 1 full day cell).
+ *   A 5-day task starting on 2026-10-28 ends on 2026-11-01 (28, 29, 30, 31, 1 = 5 days).
+ */
+export function calculateEndDateFromDuration(
+  startDate: string,
+  duration: number,
+  type: 'task' | 'milestone' = 'task'
+): string {
+  const start = parseDateSafe(startDate);
+  if (type === 'milestone' || duration <= 0) {
+    return formatDateISO(start);
+  }
+  const safeDuration = Math.max(1, Math.round(duration));
+  return formatDateISO(addDays(start, safeDuration - 1));
+}
+
+/**
+ * Given startDate and endDate, calculates inclusive duration in days.
+ */
+export function calculateDurationFromDates(
+  startDate: string,
+  endDate: string,
+  type: 'task' | 'milestone' = 'task'
+): number {
+  if (type === 'milestone') return 0;
+  const start = parseDateSafe(startDate);
+  const end = parseDateSafe(endDate);
+  const diff = differenceInCalendarDays(end, start) + 1;
+  return Math.max(1, diff);
+}
+
+/**
+ * Detects if adding `candidatePredecessorId` as a dependency of `taskId`
+ * would create a cycle in the dependency graph.
+ */
+export function wouldCreateCycle(
+  items: GanttItem[],
+  taskId: string,
+  candidatePredecessorId: string
+): boolean {
+  if (taskId === candidatePredecessorId) return true;
+  const itemMap = new Map(items.map((it) => [it.id, it]));
+  const visited = new Set<string>();
+
+  function dfs(currentId: string): boolean {
+    if (currentId === taskId) return true;
+    if (visited.has(currentId)) return false;
+    visited.add(currentId);
+    const item = itemMap.get(currentId);
+    if (!item) return false;
+    for (const predId of item.dependencies) {
+      if (dfs(predId)) return true;
+    }
+    return false;
+  }
+
+  return dfs(candidatePredecessorId);
+}
+
+/**
+ * Calculates the earliest allowed start date for a task based on its predecessors
+ * and dependency types (FS, SS, FF, SF).
+ */
+export function getEarliestStartFromPredecessors(
+  item: GanttItem,
+  itemMap: Map<string, GanttItem>
+): Date | null {
+  if (!item.dependencies || item.dependencies.length === 0) return null;
+
+  let maxRequiredStart: Date | null = null;
+
+  for (const predId of item.dependencies) {
+    const pred = itemMap.get(predId);
+    if (!pred) continue;
+
+    const depType: DependencyType = item.dependencyTypes?.[predId] || 'FS';
+    const predStart = parseDateSafe(pred.startDate);
+    const predEnd = parseDateSafe(pred.endDate);
+
+    let requiredStart: Date;
+    switch (depType) {
+      case 'FS':
+        // Finish-to-Start: If predecessor is a task ending on day X, successor starts on day X + 1.
+        // If predecessor is a milestone on day X, successor starts on day X + 1 (or X).
+        requiredStart = pred.type === 'milestone' ? predEnd : addDays(predEnd, 1);
+        break;
+      case 'SS':
+        requiredStart = predStart;
+        break;
+      case 'FF': {
+        const offset = item.type === 'milestone' ? 0 : Math.max(0, item.duration - 1);
+        requiredStart = addDays(predEnd, -offset);
+        break;
+      }
+      case 'SF': {
+        const offset = item.type === 'milestone' ? 0 : Math.max(0, item.duration - 1);
+        requiredStart = addDays(predStart, -offset);
+        break;
+      }
+      default:
+        requiredStart = addDays(predEnd, 1);
+    }
+
+    if (!maxRequiredStart || requiredStart > maxRequiredStart) {
+      maxRequiredStart = requiredStart;
+    }
+  }
+
+  return maxRequiredStart;
+}
+
+/**
+ * Propagates schedule changes forward through dependents when auto-cascade is enabled
+ * or when the user clicks "Auto-Ajustar Dependencias".
+ */
+export function cascadeDependencies(items: GanttItem[]): GanttItem[] {
+  const cloned: GanttItem[] = items.map((it) => ({
+    ...it,
+    dependencies: [...it.dependencies],
+    dependencyTypes: it.dependencyTypes ? { ...it.dependencyTypes } : undefined,
+  }));
+  const itemMap = new Map(cloned.map((it) => [it.id, it]));
+
+  // Topological relaxation passes (up to N passes to propagate through chain)
+  for (let pass = 0; pass < cloned.length; pass++) {
+    let changed = false;
+    for (const item of cloned) {
+      const requiredStart = getEarliestStartFromPredecessors(item, itemMap);
+      if (requiredStart) {
+        const currentStart = parseDateSafe(item.startDate);
+        if (currentStart < requiredStart) {
+          const newStartStr = formatDateISO(requiredStart);
+          item.startDate = newStartStr;
+          item.endDate = calculateEndDateFromDuration(newStartStr, item.duration, item.type);
+          changed = true;
+        }
+      }
+    }
+    if (!changed) break;
+  }
+
+  return cloned;
+}
+
+/**
+ * Computes Critical Path Method (CPM), Slack End Date, WBS numbers, and dependency conflicts.
+ */
+export function computeGanttMetrics(items: GanttItem[]): ComputedGanttItem[] {
+  if (items.length === 0) return [];
+
+  const itemMap = new Map(items.map((it) => [it.id, it]));
+
+  // Project bounds
+  let minStart = parseDateSafe(items[0].startDate);
+  let maxEnd = parseDateSafe(items[0].endDate);
+
+  for (const it of items) {
+    const s = parseDateSafe(it.startDate);
+    const e = parseDateSafe(it.endDate);
+    if (s < minStart) minStart = s;
+    if (e > maxEnd) maxEnd = e;
+  }
+
+  const projectTotalSpan = differenceInCalendarDays(maxEnd, minStart) + 1;
+
+  // Build adjacency list for successors
+  const successorsMap = new Map<string, string[]>();
+  for (const it of items) {
+    successorsMap.set(it.id, []);
+  }
+  for (const it of items) {
+    for (const predId of it.dependencies) {
+      if (successorsMap.has(predId)) {
+        successorsMap.get(predId)!.push(it.id);
+      }
+    }
+  }
+
+  // Calculate CPM Total Float using backward pass from project end date
+  const lateFinishMap = new Map<string, Date>();
+
+  // Initialize all items with maxEnd
+  for (const it of items) {
+    lateFinishMap.set(it.id, maxEnd);
+  }
+
+  // Backward relaxation passes
+  for (let pass = 0; pass < items.length; pass++) {
+    for (let i = items.length - 1; i >= 0; i--) {
+      const it = items[i];
+      const succIds = successorsMap.get(it.id) || [];
+      if (succIds.length === 0) {
+        lateFinishMap.set(it.id, maxEnd);
+      } else {
+        let minSuccLateStart: Date | null = null;
+        for (const sId of succIds) {
+          const succ = itemMap.get(sId);
+          if (!succ) continue;
+          const succLateFinish = lateFinishMap.get(sId) || maxEnd;
+          const succDur = succ.type === 'milestone' ? 0 : Math.max(1, succ.duration);
+          const succLateStart =
+            succ.type === 'milestone'
+              ? succLateFinish
+              : addDays(succLateFinish, -(succDur - 1));
+          const allowedPredFinish =
+            it.type === 'milestone' ? succLateStart : addDays(succLateStart, -1);
+
+          if (!minSuccLateStart || allowedPredFinish < minSuccLateStart) {
+            minSuccLateStart = allowedPredFinish;
+          }
+        }
+        if (minSuccLateStart) {
+          lateFinishMap.set(it.id, minSuccLateStart);
+        }
+      }
+    }
+  }
+
+  return items.map((item, idx) => {
+    const start = parseDateSafe(item.startDate);
+    const end = parseDateSafe(item.endDate);
+    const safeSlack = Math.max(0, Number(item.slack) || 0);
+    const slackEnd = addDays(end, safeSlack);
+
+    const lateFinish = lateFinishMap.get(item.id) || maxEnd;
+    const cpmTotalFloat = Math.max(0, differenceInCalendarDays(lateFinish, end));
+
+    // Check dependency conflict
+    const earliestAllowed = getEarliestStartFromPredecessors(item, itemMap);
+    const hasConflict = earliestAllowed !== null && start < earliestAllowed;
+    const conflictMessage =
+      hasConflict && earliestAllowed
+        ? `Inicia antes que finalice su predecesora (debería iniciar el ${formatDateDisplay(
+            formatDateISO(earliestAllowed),
+            'dd MMM'
+          )} o después)`
+        : undefined;
+
+    // A task is on the critical path if its user-configured slack is 0 AND its CPM float is 0
+    // (either it reaches the end of the project or drives a chain that reaches the end of the project)
+    const isCritical =
+      safeSlack === 0 && cpmTotalFloat <= 0 && projectTotalSpan > 0;
+
+    return {
+      ...item,
+      wbs: idx + 1,
+      slack: safeSlack,
+      slackEndDate: formatDateISO(slackEnd),
+      cpmTotalFloat,
+      isCritical,
+      hasConflict,
+      conflictMessage,
+      earliestAllowedStart: earliestAllowed ? formatDateISO(earliestAllowed) : undefined,
+    };
+  });
+}
+
+/**
+ * Generates default realistic project templates shifted around the current date
+ * so the user immediately sees an impressive, rich Gantt chart with tasks, slack,
+ * dependencies, and milestones.
+ */
+export function getProjectTemplates(): ProjectTemplate[] {
+  const base = startOfDay(new Date());
+  const d = (offset: number) => formatDateISO(addDays(base, offset));
+
+  return [
+    {
+      id: 'saas-launch',
+      name: 'Lanzamiento Plataforma SaaS v2.0',
+      description:
+        'Proyecto completo de ingeniería y producto con ruta crítica, holguras (slack) y entregas por hitos.',
+      items: [
+        {
+          id: 't-1',
+          name: 'Investigación de Usuarios & Alcance Técnico',
+          type: 'task',
+          startDate: d(-6),
+          endDate: d(-3),
+          duration: 4,
+          slack: 0,
+          dependencies: [],
+          progress: 100,
+          color: 'indigo',
+          assignee: 'Ana M. (PM)',
+          notes: 'Definición de requerimientos funcionales y métricas de éxito.',
+        },
+        {
+          id: 't-2',
+          name: 'Diseño de Sistema UI/UX & Prototipo Figma',
+          type: 'task',
+          startDate: d(-2),
+          endDate: d(2),
+          duration: 5,
+          slack: 1,
+          dependencies: ['t-1'],
+          progress: 85,
+          color: 'violet',
+          assignee: 'Carlos R. (UX)',
+          notes: 'Incluye 1 día de holgura (slack) para iteración con stakeholders.',
+        },
+        {
+          id: 't-3',
+          name: 'Arquitectura de Base de Datos & API GraphQL',
+          type: 'task',
+          startDate: d(-2),
+          endDate: d(3),
+          duration: 6,
+          slack: 0,
+          dependencies: ['t-1'],
+          progress: 70,
+          color: 'blue',
+          assignee: 'Diego L. (Backend)',
+          notes: 'Tarea en ruta crítica sin margen de retraso.',
+        },
+        {
+          id: 'm-1',
+          name: 'Hito: Congelación de Diseño & Esquema API',
+          type: 'milestone',
+          startDate: d(3),
+          endDate: d(3),
+          duration: 0,
+          slack: 0,
+          dependencies: ['t-2', 't-3'],
+          progress: 100,
+          color: 'amber',
+          assignee: 'Equipo Core',
+          notes: 'Gate de aprobación técnica antes del desarrollo intensivo.',
+        },
+        {
+          id: 't-4',
+          name: 'Desarrollo Motor Gantt Interactivo (Frontend)',
+          type: 'task',
+          startDate: d(4),
+          endDate: d(10),
+          duration: 7,
+          slack: 0,
+          dependencies: ['m-1'],
+          progress: 35,
+          color: 'indigo',
+          assignee: 'Elena V. (Frontend)',
+          notes: 'Renderizado de barras, líneas de dependencias ortogonales y zoom.',
+        },
+        {
+          id: 't-5',
+          name: 'Integración Pasarela de Pagos Stripe & Webhooks',
+          type: 'task',
+          startDate: d(4),
+          endDate: d(7),
+          duration: 4,
+          slack: 3,
+          dependencies: ['m-1'],
+          progress: 50,
+          color: 'emerald',
+          assignee: 'Diego L. (Backend)',
+          notes: 'Cuenta con 3 días de slack (holgura) antes de las pruebas E2E.',
+        },
+        {
+          id: 't-6',
+          name: 'Pruebas QA Automatizadas, Seguridad & Load Testing',
+          type: 'task',
+          startDate: d(11),
+          endDate: d(14),
+          duration: 4,
+          slack: 1,
+          dependencies: ['t-4', 't-5'],
+          progress: 0,
+          color: 'cyan',
+          assignee: 'Sofía P. (QA)',
+          notes: 'Pruebas de regresión y rendimiento en entorno staging.',
+        },
+        {
+          id: 't-7',
+          name: 'Configuración CI/CD GitHub Actions & Deploy Vercel',
+          type: 'task',
+          startDate: d(11),
+          endDate: d(15),
+          duration: 5,
+          slack: 0,
+          dependencies: ['t-4'],
+          progress: 20,
+          color: 'rose',
+          assignee: 'Marco T. (DevOps)',
+          notes: 'Pipeline automatizada con preview y producción.',
+        },
+        {
+          id: 'm-2',
+          name: 'Hito: Go-Live Producción & Lanzamiento Oficial',
+          type: 'milestone',
+          startDate: d(16),
+          endDate: d(16),
+          duration: 0,
+          slack: 0,
+          dependencies: ['t-6', 't-7'],
+          progress: 0,
+          color: 'emerald',
+          assignee: 'Dirección',
+          notes: 'Lanzamiento público en producción.',
+        },
+      ],
+    },
+    {
+      id: 'cloud-migration',
+      name: 'Migración de Infraestructura Cloud & IA',
+      description:
+        'Planificación de modernización de servidores, contenedores Kubernetes y despliegue zero-downtime.',
+      items: [
+        {
+          id: 'cm-1',
+          name: 'Auditoría de Servicios Legacy & Dependencias',
+          type: 'task',
+          startDate: d(-4),
+          endDate: d(-1),
+          duration: 4,
+          slack: 0,
+          dependencies: [],
+          progress: 100,
+          color: 'blue',
+          assignee: 'Infra Team',
+        },
+        {
+          id: 'cm-2',
+          name: 'Provisionamiento Terraform & Cluster EKS',
+          type: 'task',
+          startDate: d(0),
+          endDate: d(4),
+          duration: 5,
+          slack: 0,
+          dependencies: ['cm-1'],
+          progress: 60,
+          color: 'indigo',
+          assignee: 'DevOps',
+        },
+        {
+          id: 'cm-3',
+          name: 'Replicación de Base de Datos en Tiempo Real',
+          type: 'task',
+          startDate: d(0),
+          endDate: d(2),
+          duration: 3,
+          slack: 2,
+          dependencies: ['cm-1'],
+          progress: 40,
+          color: 'cyan',
+          assignee: 'DBA',
+        },
+        {
+          id: 'cm-m1',
+          name: 'Hito: Entorno Staging Validado',
+          type: 'milestone',
+          startDate: d(5),
+          endDate: d(5),
+          duration: 0,
+          slack: 0,
+          dependencies: ['cm-2', 'cm-3'],
+          progress: 0,
+          color: 'amber',
+          assignee: 'SRE Lead',
+        },
+        {
+          id: 'cm-4',
+          name: 'Switch de DNS & Monitoreo Post-Migración',
+          type: 'task',
+          startDate: d(6),
+          endDate: d(8),
+          duration: 3,
+          slack: 0,
+          dependencies: ['cm-m1'],
+          progress: 0,
+          color: 'emerald',
+          assignee: 'Todo el Equipo',
+        },
+        {
+          id: 'cm-m2',
+          name: 'Hito: Cierre Data Center Legacy',
+          type: 'milestone',
+          startDate: d(9),
+          endDate: d(9),
+          duration: 0,
+          slack: 0,
+          dependencies: ['cm-4'],
+          progress: 0,
+          color: 'rose',
+          assignee: 'CTO',
+        },
+      ],
+    },
+    {
+      id: 'blank-project',
+      name: 'Proyecto Nuevo (Plantilla Mínima)',
+      description: 'Comienza desde una estructura limpia con 2 tareas y 1 hito de ejemplo.',
+      items: [
+        {
+          id: 'b-1',
+          name: 'Fase 1: Planificación Inicial',
+          type: 'task',
+          startDate: d(0),
+          endDate: d(3),
+          duration: 4,
+          slack: 0,
+          dependencies: [],
+          progress: 50,
+          color: 'indigo',
+          assignee: 'Responsable',
+        },
+        {
+          id: 'b-2',
+          name: 'Fase 2: Ejecución & Desarrollo',
+          type: 'task',
+          startDate: d(4),
+          endDate: d(8),
+          duration: 5,
+          slack: 2,
+          dependencies: ['b-1'],
+          progress: 0,
+          color: 'emerald',
+          assignee: 'Equipo',
+        },
+        {
+          id: 'b-m1',
+          name: 'Hito: Entrega Final del Proyecto',
+          type: 'milestone',
+          startDate: d(9),
+          endDate: d(9),
+          duration: 0,
+          slack: 0,
+          dependencies: ['b-2'],
+          progress: 0,
+          color: 'amber',
+          assignee: 'Cliente',
+        },
+      ],
+    },
+  ];
+}
