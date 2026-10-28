@@ -26,13 +26,13 @@ import {
   ZoomLevel,
 } from './types/gantt';
 import {
-  calculateEndDateFromDuration,
   cascadeDependencies,
   computeGanttMetrics,
   formatDateDisplay,
   formatDateISO,
   getProjectTemplates,
   parseDateSafe,
+  sanitizeGanttItem,
 } from './utils/ganttEngine';
 import { GanttWorkspace } from './components/GanttWorkspace';
 import { TaskFormModal } from './components/TaskFormModal';
@@ -61,7 +61,9 @@ export function App() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed.items) && parsed.items.length > 0) {
-          return parsed.items;
+          return parsed.items.map((raw: Partial<GanttItem>, i: number) =>
+            sanitizeGanttItem(raw, i)
+          );
         }
       }
     } catch {
@@ -176,18 +178,20 @@ export function App() {
   }, [computedItems]);
 
   const handleSaveFromModal = (savedItem: GanttItem, cascade: boolean) => {
+    const cleanItem = sanitizeGanttItem(savedItem);
     setItems((prev) => {
-      const exists = prev.some((it) => it.id === savedItem.id);
+      const exists = prev.some((it) => it.id === cleanItem.id);
       const next = exists
-        ? prev.map((it) => (it.id === savedItem.id ? savedItem : it))
-        : [...prev, savedItem];
+        ? prev.map((it) => (it.id === cleanItem.id ? cleanItem : it))
+        : [...prev, cleanItem];
       return cascade ? cascadeDependencies(next) : next;
     });
   };
 
   const handleUpdateInline = (updatedItem: GanttItem, cascade: boolean) => {
+    const cleanItem = sanitizeGanttItem(updatedItem);
     setItems((prev) => {
-      const next = prev.map((it) => (it.id === updatedItem.id ? updatedItem : it));
+      const next = prev.map((it) => (it.id === cleanItem.id ? cleanItem : it));
       return cascade ? cascadeDependencies(next) : next;
     });
   };
@@ -204,11 +208,11 @@ export function App() {
   };
 
   const handleDuplicateItem = (item: ComputedGanttItem) => {
-    const copy: GanttItem = {
+    const copy = sanitizeGanttItem({
       ...item,
       id: `${item.type === 'milestone' ? 'm' : 't'}-${Date.now()}`,
       name: `${item.name} (Copia)`,
-    };
+    });
     setItems((prev) => {
       const idx = prev.findIndex((x) => x.id === item.id);
       const next = [...prev];
@@ -233,7 +237,7 @@ export function App() {
     const found = templates.find((t) => t.id === templateId);
     if (!found) return;
     setProjectName(found.name);
-    setItems(found.items);
+    setItems(found.items.map((it, idx) => sanitizeGanttItem(it, idx)));
   };
 
   const handleResolveAllConflicts = () => {
@@ -310,35 +314,9 @@ export function App() {
         if (Array.isArray(parsed.items)) {
           if (parsed.projectName) setProjectName(parsed.projectName);
           setItems(
-            parsed.items.map((raw: Partial<GanttItem>, i: number) => {
-              const type: TaskType = raw.type === 'milestone' ? 'milestone' : 'task';
-              const startDate = raw.startDate || formatDateISO(new Date());
-              const duration =
-                type === 'milestone' ? 0 : Math.max(1, Number(raw.duration) || 1);
-              const endDate =
-                type === 'milestone'
-                  ? startDate
-                  : raw.endDate ||
-                    calculateEndDateFromDuration(startDate, duration, type);
-              return {
-                id: raw.id || `imp-${i}-${Date.now()}`,
-                name: raw.name || `Elemento ${i + 1}`,
-                type,
-                startDate,
-                endDate,
-                duration,
-                slack: Math.max(0, Number(raw.slack) || 0),
-                dependencies: Array.isArray(raw.dependencies) ? raw.dependencies : [],
-                dependencyTypes:
-                  raw.dependencyTypes && typeof raw.dependencyTypes === 'object'
-                    ? raw.dependencyTypes
-                    : undefined,
-                progress: Math.min(100, Math.max(0, Number(raw.progress) || 0)),
-                color: raw.color || 'indigo',
-                assignee: raw.assignee,
-                notes: raw.notes,
-              };
-            })
+            parsed.items.map((raw: Partial<GanttItem>, i: number) =>
+              sanitizeGanttItem(raw, i)
+            )
           );
         }
       } catch {
@@ -381,17 +359,21 @@ export function App() {
 
             {/* Project Template Picker */}
             <select
-              onChange={(e) => handleTemplateSelect(e.target.value)}
-              defaultValue="saas-launch"
+              value=""
+              onChange={(e) => {
+                if (e.target.value) {
+                  handleTemplateSelect(e.target.value);
+                }
+              }}
               className="text-xs font-medium bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500"
-              title="Cargar plantilla de proyecto"
+              title="Cargar o restablecer plantilla de proyecto"
             >
               <option value="" disabled>
-                Plantillas de ejemplo...
+                📂 Cargar plantilla...
               </option>
               {templates.map((t) => (
                 <option key={t.id} value={t.id}>
-                  📂 {t.name}
+                  {t.name}
                 </option>
               ))}
             </select>

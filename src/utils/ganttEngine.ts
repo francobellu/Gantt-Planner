@@ -62,6 +62,90 @@ export function calculateDurationFromDates(
   return Math.max(1, diff);
 }
 
+const VALID_COLORS = new Set([
+  'indigo',
+  'blue',
+  'emerald',
+  'amber',
+  'rose',
+  'violet',
+  'cyan',
+]);
+
+/**
+ * Normalizes a partial or computed Gantt item into a clean GanttItem with
+ * consistent startDate, endDate, duration, slack, and deep-cloned dependencies.
+ */
+export function sanitizeGanttItem(
+  raw: Partial<GanttItem>,
+  fallbackIndex = 0
+): GanttItem {
+  const type = raw.type === 'milestone' ? 'milestone' : 'task';
+  const startDate = formatDateISO(
+    parseDateSafe(raw.startDate || formatDateISO(new Date()))
+  );
+
+  let duration = 0;
+  let endDate = startDate;
+
+  if (type === 'task') {
+    const hasExplicitDuration =
+      raw.duration !== undefined &&
+      raw.duration !== null &&
+      Number.isFinite(Number(raw.duration)) &&
+      Number(raw.duration) >= 1;
+
+    if (hasExplicitDuration && !raw.endDate) {
+      duration = Math.max(1, Math.round(Number(raw.duration)));
+      endDate = calculateEndDateFromDuration(startDate, duration, 'task');
+    } else if (raw.endDate) {
+      const expectedFromDur = hasExplicitDuration
+        ? calculateEndDateFromDuration(
+            startDate,
+            Math.max(1, Math.round(Number(raw.duration))),
+            'task'
+          )
+        : null;
+      if (hasExplicitDuration && expectedFromDur === raw.endDate) {
+        duration = Math.max(1, Math.round(Number(raw.duration)));
+        endDate = expectedFromDur;
+      } else if (hasExplicitDuration) {
+        duration = Math.max(1, Math.round(Number(raw.duration)));
+        endDate = calculateEndDateFromDuration(startDate, duration, 'task');
+      } else {
+        duration = calculateDurationFromDates(startDate, raw.endDate, 'task');
+        endDate = calculateEndDateFromDuration(startDate, duration, 'task');
+      }
+    } else {
+      duration = 1;
+      endDate = startDate;
+    }
+  }
+
+  const color =
+    raw.color && VALID_COLORS.has(raw.color) ? raw.color : type === 'milestone' ? 'amber' : 'indigo';
+
+  return {
+    id: raw.id || `${type === 'milestone' ? 'm' : 't'}-${fallbackIndex}-${Date.now()}`,
+    name: (raw.name || '').trim() || `Elemento ${fallbackIndex + 1}`,
+    type,
+    startDate,
+    endDate,
+    duration,
+    slack: Math.max(0, Math.round(Number(raw.slack) || 0)),
+    dependencies: Array.isArray(raw.dependencies) ? [...raw.dependencies] : [],
+    dependencyTypes:
+      raw.dependencyTypes && typeof raw.dependencyTypes === 'object'
+        ? { ...raw.dependencyTypes }
+        : undefined,
+    progress: Math.min(100, Math.max(0, Math.round(Number(raw.progress) || 0))),
+    color,
+    assignee: raw.assignee?.trim() || undefined,
+    notes: raw.notes?.trim() || undefined,
+  };
+}
+
+
 /**
  * Detects if adding `candidatePredecessorId` as a dependency of `taskId`
  * would create a cycle in the dependency graph.

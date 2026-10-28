@@ -22,6 +22,7 @@ const codeUrl = `data:text/javascript;base64,${Buffer.from(
 const {
   calculateEndDateFromDuration,
   calculateDurationFromDates,
+  sanitizeGanttItem,
   wouldCreateCycle,
   getEarliestStartFromPredecessors,
   cascadeDependencies,
@@ -131,6 +132,16 @@ test('getEarliestStartFromPredecessors supports FS, SS, FF, SF and milestones', 
     dependencyTypes: { t1: 'FF' },
   };
   assert.equal(formatDateISO(getEarliestStartFromPredecessors(ffItem, map)), '2026-10-12');
+
+  // SF with task starting Oct 10, duration 3 -> starts Oct 08 so it finishes on or after Oct 10
+  const sfItem = {
+    ...predTask,
+    id: 't6',
+    duration: 3,
+    dependencies: ['t1'],
+    dependencyTypes: { t1: 'SF' },
+  };
+  assert.equal(formatDateISO(getEarliestStartFromPredecessors(sfItem, map)), '2026-10-08');
 });
 
 test('cascadeDependencies propagates dates forward along dependency chain', () => {
@@ -235,6 +246,28 @@ test('computeGanttMetrics computes slackEndDate, critical path, and conflicts', 
   assert.equal(computed[2].hasConflict, false);
 });
 
+test('sanitizeGanttItem synchronizes startDate/endDate/duration and strips computed fields', () => {
+  // Imported task with startDate + endDate but no duration calculates duration = 5
+  const fromDatesOnly = sanitizeGanttItem({
+    id: 'imp-1',
+    name: 'Imported Task',
+    type: 'task',
+    startDate: '2026-10-01',
+    endDate: '2026-10-05',
+  });
+  assert.equal(fromDatesOnly.duration, 5);
+  assert.equal(fromDatesOnly.endDate, '2026-10-05');
+  assert.equal(fromDatesOnly.slack, 0);
+
+  // Computed item passed to sanitizeGanttItem strips wbs/isCritical/hasConflict and clones dependencies
+  const computedList = computeGanttMetrics([fromDatesOnly]);
+  const cleaned = sanitizeGanttItem(computedList[0]);
+  assert.equal('wbs' in cleaned, false);
+  assert.equal('isCritical' in cleaned, false);
+  assert.equal('hasConflict' in cleaned, false);
+  assert.equal('slackEndDate' in cleaned, false);
+});
+
 test('getProjectTemplates returns valid conflict-free templates with tasks, slack, and milestones', () => {
   const templates = getProjectTemplates();
   assert.ok(templates.length >= 3);
@@ -257,3 +290,48 @@ test('getProjectTemplates returns valid conflict-free templates with tasks, slac
   const criticalIds = saasMetrics.filter((m) => m.isCritical).map((m) => m.id);
   assert.deepEqual(criticalIds, ['t-1', 't-3', 'm-1', 't-4', 't-7', 'm-2']);
 });
+
+test('App and GanttWorkspace render complete WBS table, milestones, slack bars, and SVG dependency paths', async () => {
+  const { renderToString } = await import('react-dom/server');
+
+  const appBundle = await build({
+    stdin: {
+      contents: `
+        import React from 'react';
+        import { App } from './src/App.tsx';
+        export function createAppElement() {
+          return <App />;
+        }
+      `,
+      resolveDir: path.resolve(__dirname, '..'),
+      sourcefile: 'ssr-test.tsx',
+      loader: 'tsx',
+    },
+    bundle: true,
+    format: 'cjs',
+    platform: 'node',
+    external: ['react', 'react-dom'],
+    write: false,
+  });
+
+  const fs = await import('node:fs/promises');
+  const tmpFile = path.resolve(__dirname, './.tmp-ssr-bundle.cjs');
+  await fs.writeFile(tmpFile, appBundle.outputFiles[0].text, 'utf8');
+  try {
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+    const createAppElement = mod.createAppElement || mod.default?.createAppElement;
+    const html = renderToString(createAppElement());
+
+    // Verify default template title, tasks, milestones, slack badges, and today marker render
+    assert.ok(html.includes('Lanzamiento Plataforma SaaS v2.0'));
+    assert.ok(html.includes('Hito: Congelación de Diseño'));
+    assert.ok(html.includes('id="gantt-today-marker"'));
+    assert.ok(html.includes('Holgura (Slack): +1 día(s)'));
+    assert.ok(html.includes('Holgura (Slack): +3 día(s)'));
+    assert.ok(html.includes('url(#arrow-critical)'));
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
+

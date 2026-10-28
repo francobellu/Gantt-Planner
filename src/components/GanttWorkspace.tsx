@@ -290,6 +290,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         startX: number;
         endX: number;
         centerY: number;
+        effectiveStartStr: string;
+        effectiveEndStr: string;
+        effectiveDuration: number;
       }
     >();
 
@@ -307,6 +310,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
           ? 0
           : Math.max(1, it.duration);
 
+      const effectiveStartStr = formatDateISO(effectiveStart);
+      const effectiveEndStr =
+        it.type === 'milestone'
+          ? effectiveStartStr
+          : calculateEndDateFromDuration(effectiveStartStr, effectiveDuration, 'task');
+
       const startOffsetDays = differenceInCalendarDays(effectiveStart, timelineStart);
       const startX = startOffsetDays * dayWidth;
       const endX =
@@ -321,6 +330,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         startX: it.type === 'milestone' ? startX + dayWidth / 2 : startX,
         endX,
         centerY,
+        effectiveStartStr,
+        effectiveEndStr,
+        effectiveDuration,
       });
     });
 
@@ -887,8 +899,16 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       // FF link: step right from both ends
                       const rightX = Math.max(x1, x2) + stepOut;
                       dPath = `M ${x1} ${y1} L ${rightX} ${y1} L ${rightX} ${y2} L ${x2} ${y2}`;
+                    } else if (fromStart && toEnd) {
+                      // SF link: step left from predecessor start, route to right of successor end
+                      const detourY = y1 < y2 ? y1 + ROW_HEIGHT / 2 : y1 - ROW_HEIGHT / 2;
+                      dPath = `M ${x1} ${y1} L ${x1 - stepOut} ${y1} L ${
+                        x1 - stepOut
+                      } ${detourY} L ${x2 + stepOut} ${detourY} L ${
+                        x2 + stepOut
+                      } ${y2} L ${x2} ${y2}`;
                     } else {
-                      // S-bend routing when successor starts near or before predecessor ends
+                      // FS S-bend routing when successor starts near or before predecessor ends
                       const detourY = y1 < y2 ? y1 + ROW_HEIGHT / 2 : y1 - ROW_HEIGHT / 2;
                       dPath = `M ${x1} ${y1} L ${x1 + stepOut} ${y1} L ${
                         x1 + stepOut
@@ -956,6 +976,16 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   item.type === 'task' && totalSlackDays > 0
                     ? totalSlackDays * dayWidth
                     : 0;
+                const effectiveSlackEndDateStr =
+                  totalSlackDays > 0
+                    ? calculateEndDateFromDuration(
+                        coords.effectiveEndStr,
+                        totalSlackDays + 1,
+                        'task'
+                      )
+                    : coords.effectiveEndStr;
+                const tooltipPositionClass =
+                  coords.index < 2 ? 'top-11' : '-top-24';
 
                 return (
                   <div
@@ -988,9 +1018,45 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         <div className="ml-3 px-2 py-0.5 rounded-md bg-amber-500/15 dark:bg-amber-500/20 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-[11px] font-semibold whitespace-nowrap shadow-sm">
                           ◆ {item.name}{' '}
                           <span className="font-mono text-[10px] opacity-75">
-                            ({formatDateDisplay(item.startDate, 'dd MMM')})
+                            ({formatDateDisplay(coords.effectiveStartStr, 'dd MMM')})
                           </span>
                         </div>
+
+                        {/* Hover Floating Inspection Card for Milestone */}
+                        {isHovered && !dragState && (
+                          <div
+                            className={`absolute left-0 ${tooltipPositionClass} z-30 pointer-events-none bg-slate-900/95 text-white px-3 py-2 rounded-xl shadow-xl border border-slate-700 text-[11px] whitespace-nowrap flex flex-col gap-0.5`}
+                          >
+                            <div className="flex items-center gap-2 font-bold">
+                              <span>
+                                #{item.wbs} ◆ {item.name}
+                              </span>
+                              {item.assignee && (
+                                <span className="px-1.5 py-0.2 rounded bg-slate-700 text-slate-200 text-[10px] font-normal">
+                                  👤 {item.assignee}
+                                </span>
+                              )}
+                              {item.isCritical && (
+                                <span className="px-1.5 py-0.2 rounded bg-rose-500/30 text-rose-300 text-[10px]">
+                                  Ruta Crítica
+                                </span>
+                              )}
+                            </div>
+                            <div className="font-mono text-[10px] text-slate-300 flex items-center gap-3">
+                              <span>
+                                📅 Hito: {formatDateDisplay(coords.effectiveStartStr, 'dd MMM yyyy')} (0d)
+                              </span>
+                              <span className="text-indigo-300">
+                                ✓ {item.progress}%
+                              </span>
+                            </div>
+                            {item.notes && (
+                              <div className="text-[10px] text-slate-400 max-w-xs truncate">
+                                📝 {item.notes}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ) : (
                       /* STANDARD TASK BAR + SLACK EXTENSION BAR */
@@ -1040,7 +1106,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                     : 'text-slate-600 dark:text-slate-300'
                                 }`}
                               >
-                                {item.duration}d
+                                {coords.effectiveDuration}d
                               </span>
                             )}
                           </div>
@@ -1065,7 +1131,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             }}
                             onClick={() => onEditModal(item)}
                             title={`Holgura (Slack): +${totalSlackDays} día(s) hasta el ${formatDateDisplay(
-                              item.slackEndDate,
+                              effectiveSlackEndDateStr,
                               'dd MMM yyyy'
                             )}`}
                             className="h-6 -ml-0.5 rounded-r-lg border-y border-r border-dashed border-amber-500/80 dark:border-amber-400/80 flex items-center justify-center px-1.5 cursor-pointer hover:bg-amber-500/10 transition"
@@ -1079,13 +1145,15 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         {/* Outside Label when bar is narrow */}
                         {barWidth < 110 && (
                           <span className="ml-2 text-[11px] font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap pointer-events-none">
-                            {item.name} ({item.duration}d)
+                            {item.name} ({coords.effectiveDuration}d)
                           </span>
                         )}
 
                         {/* Hover Floating Inspection Card */}
                         {isHovered && !dragState && (
-                          <div className="absolute left-0 -top-24 z-30 pointer-events-none bg-slate-900/95 text-white px-3 py-2 rounded-xl shadow-xl border border-slate-700 text-[11px] whitespace-nowrap flex flex-col gap-0.5">
+                          <div
+                            className={`absolute left-0 ${tooltipPositionClass} z-30 pointer-events-none bg-slate-900/95 text-white px-3 py-2 rounded-xl shadow-xl border border-slate-700 text-[11px] whitespace-nowrap flex flex-col gap-0.5`}
+                          >
                             <div className="flex items-center gap-2 font-bold">
                               <span>
                                 #{item.wbs} {item.name}
@@ -1103,8 +1171,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             </div>
                             <div className="font-mono text-[10px] text-slate-300 flex items-center gap-3">
                               <span>
-                                📅 {formatDateDisplay(item.startDate, 'dd MMM')} →{' '}
-                                {formatDateDisplay(item.endDate, 'dd MMM')} ({item.duration}d)
+                                📅 {formatDateDisplay(coords.effectiveStartStr, 'dd MMM')} →{' '}
+                                {formatDateDisplay(coords.effectiveEndStr, 'dd MMM')} (
+                                {coords.effectiveDuration}d)
                               </span>
                               <span className="text-amber-400">
                                 ⏳ Slack: {item.slack}d

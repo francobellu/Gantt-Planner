@@ -76,6 +76,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
 
   useEffect(() => {
     if (!isOpen) return;
+    setDateInputMode('duration');
     if (initialItem) {
       setType(initialItem.type);
       setName(initialItem.name);
@@ -112,7 +113,8 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
       setAssignee('');
       setNotes('');
     }
-  }, [isOpen, initialItem, defaultType, allItems, todayStr]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, initialItem, defaultType, todayStr]);
 
   if (!isOpen) return null;
 
@@ -195,10 +197,32 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
   };
 
   const handleDepTypeChange = (predId: string, depType: DependencyType) => {
-    setDependencyTypes((prev) => ({
-      ...prev,
+    const nextTypes = {
+      ...dependencyTypes,
       [predId]: depType,
-    }));
+    };
+    setDependencyTypes(nextTypes);
+    const itemMap = new Map(allItems.map((it) => [it.id, it as GanttItem]));
+    const tempItem: GanttItem = {
+      id: initialItem?.id || 'new-temp',
+      name,
+      type,
+      startDate,
+      endDate,
+      duration,
+      slack,
+      dependencies,
+      dependencyTypes: nextTypes,
+      progress,
+      color,
+    };
+    const earliest = getEarliestStartFromPredecessors(tempItem, itemMap);
+    if (earliest) {
+      const earliestISO = formatDateISO(earliest);
+      if (startDate < earliestISO) {
+        handleStartDateChange(earliestISO);
+      }
+    }
   };
 
   const snapToPredecessors = () => {
