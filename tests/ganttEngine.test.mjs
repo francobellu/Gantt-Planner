@@ -648,8 +648,8 @@ test('App and GanttWorkspace render complete WBS table, project groups, summary 
     // Requirement 1: Month Separator Lines across Canvas Body & Header
     assert.ok(html.includes('data-month-divider="0"'), 'Canvas body must render month dividers');
     assert.ok(
-      html.includes('border-r-2 border-slate-300 dark:border-slate-700'),
-      'Month separators must use distinct 2px border across canvas body and calendar header'
+      html.includes('border-dashed') && html.includes('data-month-divider'),
+      'Month separators must use dashed border across canvas body and calendar header'
     );
     assert.ok(html.includes('z-[5]'), 'Month dividers must have z-[5] to render above row backgrounds');
 

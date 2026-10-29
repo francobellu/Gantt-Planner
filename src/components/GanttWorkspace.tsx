@@ -557,7 +557,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     const groups: { label: string; shortLabel: string; count: number }[] = [];
     for (const day of days) {
       const label = format(day, 'MMMM yyyy', { locale: es });
-      const shortLabel = format(day, 'MMM yy', { locale: es });
+      const shortLabel = format(day, 'MMM', { locale: es }).replace('.', '').toUpperCase();
       const last = groups[groups.length - 1];
       if (last && last.label === label) {
         last.count += 1;
@@ -1563,49 +1563,45 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   style={{ left: cursorScrubber.x }}
                   className="absolute top-0 bottom-0 pointer-events-none z-30 w-0"
                 >
-                  {/* Floating pill badge at the top displaying exact calendar date */}
+                  {/* Floating date badge in the calendar header tier matching reference style */}
                   <div
                     style={{
                       transform: `translateX(calc(-50% + ${badgeClampOffset}px))`,
                     }}
-                    className="sticky top-1.5 flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-950 dark:bg-zinc-900 text-white dark:text-zinc-100 shadow-2xl border border-slate-700/80 dark:border-zinc-700 text-xs font-mono font-bold whitespace-nowrap w-max shrink-0 z-50 transition-transform ring-1 ring-black/40 dark:ring-white/10"
+                    className="sticky top-2 flex items-center justify-center px-2.5 py-0.5 rounded-md bg-[#09090b] text-white border border-zinc-700/90 shadow-2xl text-[11px] font-mono font-bold tracking-widest uppercase w-max shrink-0 z-50 transition-transform"
                   >
-                    <Calendar className="w-3.5 h-3.5 text-indigo-400 dark:text-indigo-400 shrink-0" />
-                    <span className="tracking-wide drop-shadow-sm">{formatScrubberDate(cursorScrubber.date)}</span>
+                    <span>{formatScrubberDate(cursorScrubber.date)}</span>
                   </div>
-                  {/* Sleek vertical tracking line centered right on the cursor position */}
-                  <div className="absolute top-0 bottom-0 left-0 w-px -translate-x-1/2 bg-indigo-500/80 dark:bg-indigo-400/80 shadow-xs" />
+                  {/* Glowing vertical white tracking line with top notch */}
+                  <div className="absolute top-0 bottom-0 left-0 w-px -translate-x-1/2 bg-white/70 dark:bg-white/80 shadow-[0_0_6px_rgba(255,255,255,0.4)]" />
+                  <div className="absolute top-0 left-0 w-1.5 h-1 bg-white rounded-xs -translate-x-1/2" />
                 </div>
               );
             })()}
 
-            {/* Two-Tier Timeline Header (60px total height) */}
+            {/* Minimalist Linear-Style Timeline Header (60px total height) */}
             <div
               style={{ height: HEADER_HEIGHT }}
-              className="sticky top-0 z-20 bg-slate-100/95 dark:bg-slate-900/95 backdrop-blur border-b border-slate-200 dark:border-slate-800 flex flex-col"
+              className="sticky top-0 z-20 bg-slate-50/95 dark:bg-[#09090b]/95 backdrop-blur-md border-b border-slate-200 dark:border-zinc-800/80 flex flex-col select-none"
             >
-              {/* Top Tier: Month + Year */}
-              <div className="flex h-7 border-b border-slate-200/80 dark:border-slate-800">
+              {/* Top Tier: Month names (MAR, ABR, MAY, JUN...) with dashed vertical division */}
+              <div className="flex h-7 border-b border-slate-200/60 dark:border-zinc-800/60">
                 {monthGroups.map((group, idx) => {
                   const groupPx = group.count * dayWidth;
                   return (
                     <div
                       key={idx}
                       style={{ width: groupPx }}
-                      className="px-2 flex items-center text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 border-r-2 border-slate-300 dark:border-slate-700 truncate"
+                      className="pl-2.5 flex items-center text-[11px] font-semibold uppercase tracking-widest text-slate-500 dark:text-zinc-400 border-l border-dashed border-slate-300 dark:border-zinc-800/90 first:border-l-0 truncate"
                       title={group.label}
                     >
-                      {groupPx >= 85
-                        ? group.label
-                        : groupPx >= 36
-                        ? group.shortLabel
-                        : ''}
+                      {groupPx >= 28 ? group.shortLabel : ''}
                     </div>
                   );
                 })}
               </div>
 
-              {/* Bottom Tier: Adaptive Days / Weeks / Ticks */}
+              {/* Bottom Tier: Minimalist Cadence Day Numbers with Subtle Top Tick Marks */}
               <div className="flex flex-1 items-center">
                 {timelineDays.map((day, idx) => {
                   const isToday = idx === todayIndex;
@@ -1614,49 +1610,56 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   const dayLetter = format(day, 'EEEEE', { locale: es }).toUpperCase();
                   const isMonday = day.getDay() === 1;
                   const isMonthStart = day.getDate() === 1;
-                  const isMidMonth = day.getDate() === 15;
-                  const isLastDayOfMonth =
-                    idx < timelineDays.length - 1 && timelineDays[idx + 1].getDate() === 1;
+                  const isBiWeekly =
+                    day.getDate() === 1 ||
+                    day.getDate() === 8 ||
+                    day.getDate() === 15 ||
+                    day.getDate() === 22;
 
-                  const showTickBorder =
-                    dayWidth >= 14 || isMonday || isMonthStart || isToday || isLastDayOfMonth;
+                  const showNumber =
+                    dayWidth >= 28
+                      ? true
+                      : dayWidth >= 16
+                      ? isMonday || isMonthStart
+                      : dayWidth >= 7
+                      ? isBiWeekly
+                      : isMonthStart || day.getDate() === 15;
+
+                  const showTick =
+                    dayWidth >= 20 || isMonday || isMonthStart || (dayWidth >= 6 && isBiWeekly);
 
                   return (
                     <div
                       key={idx}
                       style={{ width: dayWidth }}
-                      className={`relative h-full flex flex-col items-center justify-center ${
-                        showTickBorder
-                          ? isLastDayOfMonth
-                            ? 'border-r-2 border-slate-300 dark:border-slate-700'
-                            : 'border-r border-slate-200/60 dark:border-slate-800/70'
-                          : ''
-                      } text-[10px] font-mono ${
+                      className={`relative h-full flex flex-col items-center justify-center text-[10px] font-mono select-none ${
                         isToday
-                          ? 'bg-indigo-600 text-white font-bold z-10'
-                          : wknd && dayWidth >= 8
-                          ? 'bg-slate-200/50 dark:bg-slate-800/50 text-slate-400'
-                          : 'text-slate-600 dark:text-slate-400'
+                          ? 'text-indigo-600 dark:text-indigo-400 font-bold'
+                          : wknd && dayWidth >= 14
+                          ? 'text-slate-400 dark:text-zinc-600'
+                          : 'text-slate-500 dark:text-zinc-400'
                       }`}
                     >
-                      {dayWidth >= 34 ? (
-                        <div className="flex items-center gap-0.5">
-                          <span className="opacity-70">{dayLetter}</span>
-                          <span>{dayNum}</span>
-                        </div>
-                      ) : dayWidth >= 18 ? (
-                        <span>{dayNum}</span>
-                      ) : dayWidth >= 11 ? (
-                        idx % 2 === 0 && <span className="text-[9px]">{dayNum}</span>
-                      ) : dayWidth >= 5.5 ? (
-                        isMonday && (
-                          <span className="absolute left-1 text-[9px] font-semibold whitespace-nowrap pointer-events-none">
-                            {dayNum}
-                          </span>
-                        )
-                      ) : (
-                        (isMonthStart || isMidMonth) && (
-                          <span className="absolute left-1 text-[9px] font-semibold whitespace-nowrap pointer-events-none">
+                      {/* Subtle tick notch at the top */}
+                      {showTick && (
+                        <div
+                          className={`absolute top-0 w-px ${
+                            isMonthStart
+                              ? 'h-2 bg-slate-400 dark:bg-zinc-700'
+                              : 'h-1 bg-slate-300/80 dark:bg-zinc-800'
+                          }`}
+                        />
+                      )}
+
+                      {/* Day number / weekday label */}
+                      {showNumber && (
+                        dayWidth >= 34 ? (
+                          <div className="flex items-center gap-0.5 mt-0.5">
+                            <span className="opacity-60 text-[9px]">{dayLetter}</span>
+                            <span className="font-semibold">{dayNum}</span>
+                          </div>
+                        ) : (
+                          <span className={`mt-0.5 ${isMonthStart ? 'font-bold' : ''}`}>
                             {dayNum}
                           </span>
                         )
@@ -1695,14 +1698,14 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                 })}
               </div>
 
-              {/* Vertical Month Separators across Canvas Body */}
+              {/* Vertical Month Separators across Canvas Body - Dashed matching reference */}
               <div className="absolute inset-0 flex pointer-events-none z-[5]">
                 {monthGroups.map((group, mIdx) => (
                   <div
                     key={`month-divider-${mIdx}`}
                     data-month-divider={mIdx}
                     style={{ width: group.count * dayWidth }}
-                    className={`h-full shrink-0 border-r-2 border-slate-300 dark:border-slate-700 ${
+                    className={`h-full shrink-0 border-r border-dashed border-slate-300/80 dark:border-zinc-800/90 ${
                       mIdx === monthGroups.length - 1 ? 'border-r-transparent' : ''
                     }`}
                   />
