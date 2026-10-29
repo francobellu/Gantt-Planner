@@ -1568,10 +1568,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     style={{
                       transform: `translateX(calc(-50% + ${badgeClampOffset}px))`,
                     }}
-                    className="sticky top-1.5 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-900/95 dark:bg-slate-100/95 text-white dark:text-slate-900 shadow-lg border border-slate-700/60 dark:border-slate-300/60 text-[10px] font-mono font-bold whitespace-nowrap z-40 transition-transform"
+                    className="sticky top-1.5 flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-950 dark:bg-zinc-900 text-white dark:text-zinc-100 shadow-2xl border border-slate-700/80 dark:border-zinc-700 text-xs font-mono font-bold whitespace-nowrap w-max shrink-0 z-50 transition-transform ring-1 ring-black/40 dark:ring-white/10"
                   >
-                    <Calendar className="w-3 h-3 text-indigo-400 dark:text-indigo-600 shrink-0" />
-                    <span>{formatScrubberDate(cursorScrubber.date)}</span>
+                    <Calendar className="w-3.5 h-3.5 text-indigo-400 dark:text-indigo-400 shrink-0" />
+                    <span className="tracking-wide drop-shadow-sm">{formatScrubberDate(cursorScrubber.date)}</span>
                   </div>
                   {/* Sleek vertical tracking line centered right on the cursor position */}
                   <div className="absolute top-0 bottom-0 left-0 w-px -translate-x-1/2 bg-indigo-500/80 dark:bg-indigo-400/80 shadow-xs" />
