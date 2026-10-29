@@ -226,7 +226,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     date: Date;
   } | null>(initialCursorScrubber || null);
   const hasDraggedRef = useRef<boolean>(false);
-  const [splitWidth, setSplitWidth] = useState<number>(440);
+  const [splitWidth, setSplitWidth] = useState<number>(480);
   const [showTable, setShowTable] = useState<boolean>(true);
   const [wheelZoomEnabled, setWheelZoomEnabled] = useState<boolean>(true);
   const [visibleColumns, setVisibleColumns] = useState<{
@@ -253,6 +253,17 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       return next;
     });
   };
+
+  // Calculates exact minimum content width to guarantee columns NEVER overlap
+  const tableMinWidth = useMemo(() => {
+    let w = 260; // # + Name + Actions
+    if (visibleColumns.team) w += 112;
+    if (visibleColumns.dates) w += 176;
+    if (visibleColumns.dur) w += 64;
+    if (visibleColumns.slack) w += 56;
+    if (visibleColumns.deps) w += 80;
+    return w;
+  }, [visibleColumns]);
 
   const [fallbackArrowVisibility, setFallbackArrowVisibility] =
     useState<ArrowVisibility>('all');
@@ -1092,109 +1103,110 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               <div className="overflow-x-auto flex-1 flex flex-col">
                 <div className="min-w-full flex-1 flex flex-col">
                   {/* Minimalist Table Header (matches timeline HEADER_HEIGHT = 60px) */}
+                  {/* Minimalist Table Header (matches timeline HEADER_HEIGHT = 60px) */}
                   <div
-                    style={{ height: HEADER_HEIGHT }}
+                    style={{ height: HEADER_HEIGHT, minWidth: tableMinWidth }}
                     className="flex items-center justify-between px-3 bg-slate-100/90 dark:bg-zinc-900/80 border-b border-slate-200 dark:border-zinc-800/80 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 shrink-0 select-none"
                   >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="w-8 font-mono">#</span>
+                    <div className="flex items-center gap-2 flex-1 min-w-[160px]">
+                      <span className="w-10 font-mono">#</span>
                       <span>Nombre</span>
                     </div>
 
                     {/* Column Titles & Icon-Only Configurator */}
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-2.5 text-right">
-                        {visibleColumns.team && (
-                          <span className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-semibold">
-                            Equipo
-                          </span>
-                        )}
-                        {visibleColumns.dates && (
-                          <span className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-semibold">
-                            Fechas
-                          </span>
-                        )}
-                        {visibleColumns.dur && (
-                          <span className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-semibold">
-                            Dur.
-                          </span>
-                        )}
-                        {visibleColumns.slack && (
-                          <span className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-semibold">
-                            Slack
-                          </span>
-                        )}
-                        {visibleColumns.deps && (
-                          <span className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-semibold">
-                            Deps
-                          </span>
-                        )}
-                      </div>
+                    <div className="flex items-center shrink-0">
+                      {visibleColumns.team && (
+                        <span className="w-28 text-left pl-2 text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-semibold">
+                          Equipo
+                        </span>
+                      )}
+                      {visibleColumns.dates && (
+                        <span className="w-44 text-center text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-semibold">
+                          Fechas
+                        </span>
+                      )}
+                      {visibleColumns.dur && (
+                        <span className="w-16 text-center text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-semibold">
+                          Dur.
+                        </span>
+                      )}
+                      {visibleColumns.slack && (
+                        <span className="w-14 text-center text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-semibold">
+                          Slack
+                        </span>
+                      )}
+                      {visibleColumns.deps && (
+                        <span className="w-20 text-center text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-semibold">
+                          Deps
+                        </span>
+                      )}
 
                       {/* Botón de Columnas: SOLO ICONO VECTORIAL (sin texto) */}
-                      <div className="relative" data-dropdown-container="true">
-                        <button
-                          type="button"
-                          onClick={() => setShowColumnsMenu((prev) => !prev)}
-                          className="p-1 rounded-md hover:bg-slate-200 dark:hover:bg-zinc-800 text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white transition cursor-pointer"
-                          aria-label="Configurar columnas"
-                          title="Columnas visibles"
-                        >
-                          <SlidersHorizontal className="w-3.5 h-3.5" />
-                        </button>
+                      <div className="w-20 flex items-center justify-end pr-1">
+                        <div className="relative" data-dropdown-container="true">
+                          <button
+                            type="button"
+                            onClick={() => setShowColumnsMenu((prev) => !prev)}
+                            className="p-1 rounded-md hover:bg-slate-200 dark:hover:bg-zinc-800 text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white transition cursor-pointer"
+                            aria-label="Configurar columnas"
+                            title="Columnas visibles"
+                          >
+                            <SlidersHorizontal className="w-3.5 h-3.5" />
+                          </button>
 
-                        {showColumnsMenu && (
-                          <div className="absolute right-0 top-8 w-44 p-1.5 bg-white dark:bg-zinc-900/98 border border-slate-200 dark:border-zinc-800 rounded-xl shadow-2xl backdrop-blur-xl z-50 text-xs flex flex-col gap-1">
-                            <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500 border-b border-slate-200 dark:border-zinc-800/80">
-                              Mostrar Columnas
+                          {showColumnsMenu && (
+                            <div className="absolute right-0 top-8 w-44 p-1.5 bg-white dark:bg-zinc-900/98 border border-slate-200 dark:border-zinc-800 rounded-xl shadow-2xl backdrop-blur-xl z-50 text-xs flex flex-col gap-1">
+                              <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500 border-b border-slate-200 dark:border-zinc-800/80">
+                                Mostrar Columnas
+                              </div>
+                              <label className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/60 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={visibleColumns.team}
+                                  onChange={() => toggleVisibleColumn('team')}
+                                  className="rounded border-slate-300 dark:border-zinc-700 text-indigo-600"
+                                />
+                                <span className="text-slate-700 dark:text-zinc-300">Equipo</span>
+                              </label>
+                              <label className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/60 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={visibleColumns.dates}
+                                  onChange={() => toggleVisibleColumn('dates')}
+                                  className="rounded border-slate-300 dark:border-zinc-700 text-indigo-600"
+                                />
+                                <span className="text-slate-700 dark:text-zinc-300">Fechas</span>
+                              </label>
+                              <label className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/60 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={visibleColumns.dur}
+                                  onChange={() => toggleVisibleColumn('dur')}
+                                  className="rounded border-slate-300 dark:border-zinc-700 text-indigo-600"
+                                />
+                                <span className="text-slate-700 dark:text-zinc-300">Duración</span>
+                              </label>
+                              <label className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/60 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={visibleColumns.slack}
+                                  onChange={() => toggleVisibleColumn('slack')}
+                                  className="rounded border-slate-300 dark:border-zinc-700 text-indigo-600"
+                                />
+                                <span className="text-slate-700 dark:text-zinc-300">Slack</span>
+                              </label>
+                              <label className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/60 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={visibleColumns.deps}
+                                  onChange={() => toggleVisibleColumn('deps')}
+                                  className="rounded border-slate-300 dark:border-zinc-700 text-indigo-600"
+                                />
+                                <span className="text-slate-700 dark:text-zinc-300">Dependencias</span>
+                              </label>
                             </div>
-                            <label className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/60 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={visibleColumns.team}
-                                onChange={() => toggleVisibleColumn('team')}
-                                className="rounded border-slate-300 dark:border-zinc-700 text-indigo-600"
-                              />
-                              <span className="text-slate-700 dark:text-zinc-300">Equipo</span>
-                            </label>
-                            <label className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/60 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={visibleColumns.dates}
-                                onChange={() => toggleVisibleColumn('dates')}
-                                className="rounded border-slate-300 dark:border-zinc-700 text-indigo-600"
-                              />
-                              <span className="text-slate-700 dark:text-zinc-300">Fechas</span>
-                            </label>
-                            <label className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/60 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={visibleColumns.dur}
-                                onChange={() => toggleVisibleColumn('dur')}
-                                className="rounded border-slate-300 dark:border-zinc-700 text-indigo-600"
-                              />
-                              <span className="text-slate-700 dark:text-zinc-300">Duración</span>
-                            </label>
-                            <label className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/60 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={visibleColumns.slack}
-                                onChange={() => toggleVisibleColumn('slack')}
-                                className="rounded border-slate-300 dark:border-zinc-700 text-indigo-600"
-                              />
-                              <span className="text-slate-700 dark:text-zinc-300">Slack</span>
-                            </label>
-                            <label className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/60 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={visibleColumns.deps}
-                                onChange={() => toggleVisibleColumn('deps')}
-                                className="rounded border-slate-300 dark:border-zinc-700 text-indigo-600"
-                              />
-                              <span className="text-slate-700 dark:text-zinc-300">Dependencias</span>
-                            </label>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1212,11 +1224,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           <div
                             key={row.rowId}
                             data-project-group={group.project.id}
-                            style={{ height: ROW_HEIGHT }}
+                            style={{ height: ROW_HEIGHT, minWidth: tableMinWidth }}
                             className={`flex items-center justify-between px-3 text-xs font-semibold border-y border-slate-200/80 dark:border-zinc-800/80 transition-colors ${projTheme.groupRowBg}`}
                           >
                             {/* Project Header Title + Collapse Toggle */}
-                            <div className="flex items-center gap-1.5 pr-2 flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 pr-2 flex-1 min-w-[160px]">
                               <button
                                 type="button"
                                 onClick={() => onToggleProjectCollapse?.(group.project.id)}
@@ -1247,7 +1259,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                     name: e.target.value,
                                   })
                                 }
-                                className="flex-1 min-w-[140px] bg-transparent font-bold text-slate-900 dark:text-white focus:bg-white dark:focus:bg-zinc-800 focus:px-1.5 focus:py-0.5 rounded outline-none focus:ring-1 focus:ring-indigo-500"
+                                className="flex-1 min-w-[90px] bg-transparent font-bold text-slate-900 dark:text-white focus:bg-white dark:focus:bg-zinc-800 focus:px-1.5 focus:py-0.5 rounded outline-none focus:ring-1 focus:ring-indigo-500"
                                 title="Haz clic para renombrar este proyecto"
                               />
 
@@ -1259,28 +1271,40 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               </span>
                             </div>
 
-                            {/* Extra Project Stats based on visibleColumns */}
-                            <div className="flex items-center gap-2.5 shrink-0 text-right">
-                              {visibleColumns.dates && (
-                                <span className="font-mono text-[10px] text-slate-500 dark:text-zinc-400">
-                                  {group.items.length > 0
-                                    ? `${formatDateDisplay(group.startDate, 'dd MMM')} → ${formatDateDisplay(group.endDate, 'dd MMM')}`
-                                    : '-'}
-                                </span>
-                              )}
-                              {visibleColumns.dur && (
-                                <span className="px-1.5 py-0.5 rounded bg-white/80 dark:bg-zinc-800 font-mono text-[10px] font-bold text-slate-800 dark:text-zinc-200 border border-slate-200/70 dark:border-zinc-700">
-                                  {group.duration}d
-                                </span>
-                              )}
-                              {visibleColumns.slack && (
-                                <span className="font-mono text-[10px] text-amber-600 dark:text-amber-400">
-                                  +{group.totalSlack}d
-                                </span>
+                            {/* Aligned Columns matching header */}
+                            <div className="flex items-center shrink-0">
+                              {visibleColumns.team && (
+                                <div className="w-28 shrink-0 text-slate-400 text-center text-[10px]">—</div>
                               )}
 
-                              {/* Project Quick Actions (Fit to Screen, +Task, +Milestone, Delete) */}
-                              <div className="flex items-center gap-0.5">
+                              {visibleColumns.dates && (
+                                <div className="w-44 shrink-0 text-center font-mono text-[10px] text-slate-600 dark:text-zinc-400">
+                                  {group.items.length > 0
+                                    ? `${formatDateDisplay(group.startDate, 'dd/MM')} → ${formatDateDisplay(group.endDate, 'dd/MM')}`
+                                    : '—'}
+                                </div>
+                              )}
+
+                              {visibleColumns.dur && (
+                                <div className="w-16 shrink-0 text-center">
+                                  <span className="px-1.5 py-0.5 rounded bg-white/80 dark:bg-zinc-800 font-mono text-[10px] font-bold text-slate-800 dark:text-zinc-200 border border-slate-200/70 dark:border-zinc-700">
+                                    {group.duration}d
+                                  </span>
+                                </div>
+                              )}
+
+                              {visibleColumns.slack && (
+                                <div className="w-14 shrink-0 text-center font-mono text-[10px] text-amber-600 dark:text-amber-400">
+                                  +{group.totalSlack}d
+                                </div>
+                              )}
+
+                              {visibleColumns.deps && (
+                                <div className="w-20 shrink-0 text-slate-400 text-center text-[10px]">—</div>
+                              )}
+
+                              {/* Project Quick Actions */}
+                              <div className="w-20 shrink-0 flex items-center justify-end gap-0.5 pr-1">
                                 <button
                                   type="button"
                                   data-fit-project-row={group.project.id}
@@ -1329,7 +1353,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       return (
                         <div
                           key={row.rowId}
-                          style={{ height: ROW_HEIGHT }}
+                          style={{ height: ROW_HEIGHT, minWidth: tableMinWidth }}
                           onMouseEnter={() => setHoveredId(item.id)}
                           onMouseLeave={() => setHoveredId(null)}
                           className={`flex items-center justify-between px-3 text-xs transition-colors border-b border-slate-100 dark:border-zinc-800/50 ${
@@ -1340,14 +1364,14 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               : 'hover:bg-slate-50 dark:hover:bg-zinc-900/40'
                           }`}
                         >
-                          {/* WBS + Name + Full Readability without Truncation */}
+                          {/* WBS + Name */}
                           <div
-                            className={`flex items-center gap-1.5 pr-2 flex-1 min-w-0 ${
+                            className={`flex items-center gap-1.5 pr-2 flex-1 min-w-[160px] ${
                               groupByProject ? 'pl-4' : ''
                             }`}
                           >
                             <span
-                              className="font-mono text-[10px] px-1 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 shrink-0"
+                              className="font-mono text-[10px] w-8 text-center py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 shrink-0"
                               title={`Código WBS ${item.wbsCode || item.wbs} (Global #${item.wbs})`}
                             >
                               {groupByProject ? item.wbsCode || `${item.wbs}.` : `${item.wbs}.`}
@@ -1367,7 +1391,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               onChange={(e) =>
                                 onUpdateItem({ ...item, name: e.target.value }, false)
                               }
-                              className="flex-1 min-w-[140px] bg-transparent font-medium text-slate-800 dark:text-zinc-100 focus:bg-white dark:focus:bg-zinc-800 focus:px-1.5 focus:py-0.5 rounded outline-none focus:ring-1 focus:ring-indigo-500"
+                              className="flex-1 min-w-[90px] bg-transparent font-medium text-slate-800 dark:text-zinc-100 focus:bg-white dark:focus:bg-zinc-800 focus:px-1.5 focus:py-0.5 rounded outline-none focus:ring-1 focus:ring-indigo-500"
                               title={`${item.name} (${group.project.name})`}
                             />
                             {isCrit && (
@@ -1388,62 +1412,158 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             )}
                           </div>
 
-                          {/* Extra Columns based on visibleColumns */}
-                          <div className="flex items-center gap-2.5 shrink-0 text-right">
+                          {/* Aligned Columns */}
+                          <div className="flex items-center shrink-0">
+                            {/* 1. Equipo Column */}
                             {visibleColumns.team && (
-                              <span
-                                data-assignee-badge={item.assignee || 'Sin asignar'}
-                                className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 text-[10px] font-medium shrink-0 border border-slate-200/80 dark:border-zinc-700"
-                                title={`Equipo / Responsable: ${item.assignee || 'Sin asignar'}`}
-                              >
-                                {item.assignee || '—'}
-                              </span>
+                              <div className="w-28 shrink-0 flex items-center justify-start pl-2">
+                                <span
+                                  data-assignee-badge={item.assignee || 'Sin asignar'}
+                                  className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 text-[10px] font-medium truncate max-w-[102px] border border-slate-200/80 dark:border-zinc-700"
+                                  title={`Equipo / Responsable: ${item.assignee || 'Sin asignar'}`}
+                                >
+                                  {item.assignee || '—'}
+                                </span>
+                              </div>
                             )}
 
+                            {/* 2. Fechas Column: EDITABLES DIRECTAMENTE */}
                             {visibleColumns.dates && (
-                              <span className="font-mono text-[10px] text-slate-600 dark:text-zinc-400">
-                                {formatDateDisplay(item.startDate, 'dd/MM')} → {formatDateDisplay(item.endDate, 'dd/MM')}
-                              </span>
+                              <div className="w-44 shrink-0 flex items-center justify-center gap-1 font-mono text-[10px]">
+                                <input
+                                  type="date"
+                                  value={item.startDate}
+                                  onChange={(e) => {
+                                    const newStart = e.target.value;
+                                    if (!newStart) return;
+                                    const newEnd =
+                                      item.type === 'milestone'
+                                        ? newStart
+                                        : calculateEndDateFromDuration(
+                                            newStart,
+                                            item.duration,
+                                            'task'
+                                          );
+                                    onUpdateItem(
+                                      { ...item, startDate: newStart, endDate: newEnd },
+                                      autoCascade
+                                    );
+                                  }}
+                                  className="w-[82px] px-1 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-800 dark:text-zinc-200 border border-slate-200/80 dark:border-zinc-700 text-[10px] outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                                  title="Fecha de inicio (haz clic para editar)"
+                                />
+                                <span className="text-slate-400 text-[9px]">→</span>
+                                <input
+                                  type="date"
+                                  disabled={item.type === 'milestone'}
+                                  value={item.endDate}
+                                  onChange={(e) => {
+                                    const newEnd = e.target.value;
+                                    if (!newEnd) return;
+                                    const newDur = Math.max(
+                                      1,
+                                      calculateDurationFromDates(item.startDate, newEnd, 'task')
+                                    );
+                                    onUpdateItem(
+                                      { ...item, endDate: newEnd, duration: newDur },
+                                      autoCascade
+                                    );
+                                  }}
+                                  className={`w-[82px] px-1 py-0.5 rounded text-[10px] outline-none focus:ring-1 focus:ring-indigo-500 ${
+                                    item.type === 'milestone'
+                                      ? 'opacity-40 cursor-not-allowed bg-transparent'
+                                      : 'bg-slate-100 dark:bg-zinc-800 text-slate-800 dark:text-zinc-200 border border-slate-200/80 dark:border-zinc-700 cursor-pointer'
+                                  }`}
+                                  title={
+                                    item.type === 'milestone'
+                                      ? 'Hito (fecha única)'
+                                      : 'Fecha de fin (haz clic para editar)'
+                                  }
+                                />
+                              </div>
                             )}
 
+                            {/* 3. Duración Column: EDITABLE */}
                             {visibleColumns.dur && (
-                              <span className="font-mono text-[10px] text-slate-600 dark:text-zinc-400">
-                                {item.duration}d
-                              </span>
+                              <div className="w-16 shrink-0 flex items-center justify-center">
+                                {item.type === 'milestone' ? (
+                                  <span className="font-mono text-[10px] text-slate-400">0d</span>
+                                ) : (
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    max={365}
+                                    value={item.duration}
+                                    onChange={(e) => {
+                                      const dur = Math.max(1, parseInt(e.target.value, 10) || 1);
+                                      const newEnd = calculateEndDateFromDuration(
+                                        item.startDate,
+                                        dur,
+                                        'task'
+                                      );
+                                      onUpdateItem(
+                                        { ...item, duration: dur, endDate: newEnd },
+                                        autoCascade
+                                      );
+                                    }}
+                                    className="w-11 px-1 py-0.5 text-center font-mono text-[10px] rounded bg-slate-100 dark:bg-zinc-800 text-slate-800 dark:text-zinc-200 border border-slate-200/80 dark:border-zinc-700 outline-none focus:ring-1 focus:ring-indigo-500"
+                                    title="Duración en días (haz clic para editar)"
+                                  />
+                                )}
+                              </div>
                             )}
 
+                            {/* 4. Slack Column: EDITABLE */}
                             {visibleColumns.slack && (
-                              <span className="font-mono text-[10px] text-slate-600 dark:text-zinc-400">
-                                +{item.slack}d
-                              </span>
+                              <div className="w-14 shrink-0 flex items-center justify-center font-mono text-[10px]">
+                                {item.type === 'milestone' ? (
+                                  <span className="text-slate-400">—</span>
+                                ) : (
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    max={99}
+                                    value={item.slack}
+                                    onChange={(e) => {
+                                      const slack = Math.max(0, parseInt(e.target.value, 10) || 0);
+                                      onUpdateItem({ ...item, slack }, autoCascade);
+                                    }}
+                                    className="w-11 px-1 py-0.5 text-center font-mono text-[10px] rounded bg-slate-100 dark:bg-zinc-800 text-amber-600 dark:text-amber-400 border border-slate-200/80 dark:border-zinc-700 outline-none focus:ring-1 focus:ring-indigo-500"
+                                    title="Holgura / Slack en días (haz clic para editar)"
+                                  />
+                                )}
+                              </div>
                             )}
 
+                            {/* 5. Dependencias Column */}
                             {visibleColumns.deps && (
-                              <span
-                                className="font-mono text-[10px] text-indigo-600 dark:text-indigo-400 max-w-[80px] truncate"
-                                title={`Dependencias: ${
-                                  item.dependencies.length > 0
-                                    ? item.dependencies.map((d) => `#${d}`).join(', ')
-                                    : 'Ninguna'
-                                }`}
-                              >
-                                {item.dependencies.length > 0
-                                  ? item.dependencies
-                                      .map((depId) => {
-                                        const found = enrichedItemById.get(depId);
-                                        if (!found) return '';
-                                        return groupByProject
-                                          ? `#${found.wbsCode || found.wbs}`
-                                          : `#${found.wbs}`;
-                                      })
-                                      .filter(Boolean)
-                                      .join(',')
-                                  : '—'}
-                              </span>
+                              <div className="w-20 shrink-0 text-center font-mono text-[10px]">
+                                <span
+                                  className="text-indigo-600 dark:text-indigo-400 truncate block px-1"
+                                  title={`Dependencias: ${
+                                    item.dependencies.length > 0
+                                      ? item.dependencies.map((d) => `#${d}`).join(', ')
+                                      : 'Ninguna'
+                                  }`}
+                                >
+                                  {item.dependencies.length > 0
+                                    ? item.dependencies
+                                        .map((depId) => {
+                                          const found = enrichedItemById.get(depId);
+                                          if (!found) return '';
+                                          return groupByProject
+                                            ? `#${found.wbsCode || found.wbs}`
+                                            : `#${found.wbs}`;
+                                        })
+                                        .filter(Boolean)
+                                        .join(',')
+                                    : '—'}
+                                </span>
+                              </div>
                             )}
 
-                            {/* Quick row actions: Edit modal, Duplicate, Delete */}
-                            <div className="flex items-center gap-0.5">
+                            {/* 6. Acciones Column */}
+                            <div className="w-20 shrink-0 flex items-center justify-end gap-0.5 pr-1">
                               <button
                                 type="button"
                                 onClick={() => onEditModal(item)}
