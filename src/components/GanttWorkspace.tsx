@@ -27,6 +27,7 @@ import {
   Minus,
   MousePointer,
   Plus,
+  SlidersHorizontal,
   Trash2,
   User,
   X,
@@ -225,9 +226,34 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     date: Date;
   } | null>(initialCursorScrubber || null);
   const hasDraggedRef = useRef<boolean>(false);
-  const [splitWidth, setSplitWidth] = useState<number>(660);
+  const [splitWidth, setSplitWidth] = useState<number>(440);
   const [showTable, setShowTable] = useState<boolean>(true);
   const [wheelZoomEnabled, setWheelZoomEnabled] = useState<boolean>(true);
+  const [visibleColumns, setVisibleColumns] = useState<{
+    team: boolean;
+    dates: boolean;
+    dur: boolean;
+    slack: boolean;
+    deps: boolean;
+  }>(() => {
+    try {
+      const saved = localStorage.getItem('ganttflow_visible_cols');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return { team: true, deps: true, dates: false, dur: false, slack: false };
+  });
+  const [showColumnsMenu, setShowColumnsMenu] = useState<boolean>(false);
+
+  const toggleVisibleColumn = (key: keyof typeof visibleColumns) => {
+    setVisibleColumns((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      try {
+        localStorage.setItem('ganttflow_visible_cols', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
   const [fallbackArrowVisibility, setFallbackArrowVisibility] =
     useState<ArrowVisibility>('all');
   const [fallbackDayWidth, setFallbackDayWidth] = useState<number>(() =>
@@ -1063,185 +1089,6 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-      {/* Top Sub-bar for Table Toggle, Project Grouping Toggle, Continuous Zoom & Auto-Fit Controls & Legend */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 bg-slate-50/80 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 text-xs">
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={() => setShowTable((prev) => !prev)}
-            className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
-          >
-            {showTable ? 'Ocultar Tabla WBS' : 'Mostrar Tabla WBS'}
-          </button>
-
-          {onToggleGroupByProject && (
-            <button
-              type="button"
-              onClick={onToggleGroupByProject}
-              className={`px-2.5 py-1 rounded-lg border font-semibold flex items-center gap-1.5 transition ${
-                groupByProject
-                  ? 'bg-indigo-600/10 border-indigo-500/40 text-indigo-700 dark:text-indigo-300'
-                  : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
-              }`}
-              title="Agrupar o desagrupar tareas por proyecto en la tabla y el cronograma"
-            >
-              <FolderKanban className="w-3.5 h-3.5" />
-              {groupByProject ? 'Agrupado por Proyectos' : 'Vista Plana (Sin Agrupar)'}
-            </button>
-          )}
-
-          {onCreateProject && (
-            <button
-              type="button"
-              onClick={onCreateProject}
-              className="px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50/80 dark:bg-indigo-950/50 font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition flex items-center gap-1"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Nuevo Proyecto
-            </button>
-          )}
-
-          {/* Continuous Zoom Slider + Fit to Project + Wheel Zoom Toggle */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xs">
-            <button
-              type="button"
-              onClick={() => handleZoomChange(computeWheelZoomDayWidth(dayWidth, 65))}
-              className="p-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"
-              title="Alejar escala visual (-)"
-            >
-              <Minus className="w-3.5 h-3.5" />
-            </button>
-
-            <input
-              type="range"
-              min={MIN_DAY_WIDTH}
-              max={MAX_DAY_WIDTH}
-              step={0.5}
-              value={dayWidth}
-              onChange={(e) => handleZoomChange(parseFloat(e.target.value))}
-              data-zoom-slider="true"
-              className="w-24 sm:w-28 accent-indigo-600 cursor-pointer h-1.5"
-              title={`Escala continua del cronograma: ${dayWidth} px/día (arrastra o usa la rueda del mouse sobre el diagrama)`}
-            />
-
-            <button
-              type="button"
-              onClick={() => handleZoomChange(computeWheelZoomDayWidth(dayWidth, -65))}
-              className="p-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"
-              title="Acercar escala visual (+)"
-            >
-              <Plus className="w-3.5 h-3.5" />
-            </button>
-
-            <span
-              data-day-width-badge={dayWidth}
-              className="font-mono text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 min-w-[54px] text-center bg-indigo-500/10 px-1.5 py-0.5 rounded"
-              title="Píxeles por día en la línea de tiempo"
-            >
-              {dayWidth}px/d
-            </span>
-
-            <button
-              type="button"
-              data-fit-timeline-btn="true"
-              onClick={() => handleFitProjectAction()}
-              className="px-2 py-0.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[11px] flex items-center gap-1 shadow-2xs transition cursor-pointer"
-              title="Ajustar automáticamente la escala para abarcar todas las tareas del proyecto activo en pantalla"
-            >
-              <Maximize2 className="w-3 h-3" />
-              Encajar Proyecto
-            </button>
-
-            <button
-              type="button"
-              data-wheel-zoom-toggle="true"
-              onClick={() => setWheelZoomEnabled((prev) => !prev)}
-              className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border flex items-center gap-1 transition ${
-                wheelZoomEnabled
-                  ? 'bg-indigo-500/10 border-indigo-500/40 text-indigo-700 dark:text-indigo-300'
-                  : 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-500'
-              }`}
-              title="Activar/desactivar zoom directo con la rueda del mouse sobre la línea de tiempo (también funciona con Ctrl/Alt + rueda)"
-            >
-              <MousePointer className="w-3 h-3" />
-              Rueda: {wheelZoomEnabled ? 'Zoom ON' : 'Solo Ctrl'}
-            </button>
-          </div>
-
-          {/* Arrow Density / Visibility Selector */}
-          <div
-            data-arrow-visibility-selector="true"
-            data-current-visibility={arrowVisibility}
-            className="flex items-center gap-1 px-2 py-1 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xs"
-            title="Selector de visibilidad y densidad de flechas de dependencia"
-          >
-            <span className="flex items-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400 pl-0.5 pr-1">
-              <GitBranch className="w-3.5 h-3.5 text-indigo-500" />
-              <span className="hidden sm:inline">Flechas:</span>
-            </span>
-            {(
-              [
-                { id: 'all', label: 'Todas', title: 'Mostrar todas las flechas de dependencias' },
-                { id: 'hover', label: 'Al pasar cursor', title: 'Mostrar únicamente flechas al pasar el cursor sobre una tarea o sus dependencias' },
-                { id: 'critical', label: 'Críticas', title: 'Mostrar únicamente flechas de la ruta crítica' },
-                { id: 'none', label: 'Ocultar', title: 'Ocultar todas las flechas de dependencia' },
-              ] as const
-            ).map((opt) => {
-              const isActive = arrowVisibility === opt.id;
-              return (
-                <button
-                  key={opt.id}
-                  type="button"
-                  data-arrow-visibility-option={opt.id}
-                  data-active={isActive ? 'true' : 'false'}
-                  onClick={() => handleArrowVisibilityChange(opt.id)}
-                  className={`px-2 py-0.5 rounded-md text-[10px] font-semibold transition cursor-pointer ${
-                    isActive
-                      ? 'bg-indigo-600 text-white shadow-2xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
-                  }`}
-                  title={opt.title}
-                >
-                  {opt.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Visual Legend */}
-        <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-600 dark:text-slate-400">
-          <span className="flex items-center gap-1.5">
-            <span className="w-4 h-2 rounded-sm bg-slate-700 dark:bg-slate-300 inline-block border-x-2 border-indigo-500" />
-            Resumen Proyecto
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-sm bg-indigo-600 inline-block" />
-            Progreso / Tarea
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span
-              className="w-4 h-3 rounded-sm border border-dashed border-amber-500 inline-block"
-              style={{
-                backgroundImage:
-                  'repeating-linear-gradient(45deg, rgba(245,158,11,0.28) 0, rgba(245,158,11,0.28) 3px, transparent 3px, transparent 6px)',
-              }}
-            />
-            Slack / Holgura (+días)
-          </span>
-          <span className="flex items-center gap-1.5">
-            <Diamond className="w-3.5 h-3.5 text-amber-500 fill-current" />
-            Hito (Milestone)
-          </span>
-          {showCriticalPath && (
-            <span className="flex items-center gap-1.5 font-semibold text-rose-600 dark:text-rose-400">
-              <Flame className="w-3.5 h-3.5 fill-current" />
-              Ruta Crítica (Slack = 0)
-            </span>
-          )}
-        </div>
-      </div>
-
       {/* Main Synchronized Split View */}
       <div className="flex flex-1 min-h-0 overflow-hidden relative">
         {/* LEFT PANE: WBS Editable Data Grid */}
@@ -1249,31 +1096,120 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
           <>
             <div
               style={{ width: splitWidth }}
-              className="shrink-0 flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden select-none"
+              className="shrink-0 flex flex-col border-r border-slate-200 dark:border-zinc-800/80 bg-white dark:bg-[#09090b] overflow-hidden select-none"
             >
               <div className="overflow-x-auto flex-1 flex flex-col">
-                <div className="min-w-[640px] flex-1 flex flex-col">
-                  {/* Table Header (matches timeline HEADER_HEIGHT = 60px) */}
+                <div className="min-w-full flex-1 flex flex-col">
+                  {/* Minimalist Table Header (matches timeline HEADER_HEIGHT = 60px) */}
                   <div
                     style={{ height: HEADER_HEIGHT }}
-                    className="grid grid-cols-12 items-center px-3 bg-slate-100/80 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 shrink-0"
+                    className="flex items-center justify-between px-3 bg-slate-100/90 dark:bg-zinc-900/80 border-b border-slate-200 dark:border-zinc-800/80 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 shrink-0 select-none"
                   >
-                    <div className="col-span-4 pl-1">WBS / Proyecto · Tarea · Hito</div>
-                    <div className="col-span-2 text-center">Initial Date</div>
-                    <div className="col-span-2 text-center">Final Date</div>
-                    <div className="col-span-1 text-center">Dur.</div>
-                    <div
-                      className="col-span-1 text-center"
-                      title="Slack / Holgura en días (default 0)"
-                    >
-                      Slack
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="w-8 font-mono">#</span>
+                      <span>Nombre</span>
                     </div>
-                    <div className="col-span-1 text-center">Deps</div>
-                    <div className="col-span-1 text-right pr-1">Acción</div>
+
+                    {/* Column Titles & Icon-Only Configurator */}
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2.5 text-right">
+                        {visibleColumns.team && (
+                          <span className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-semibold">
+                            Equipo
+                          </span>
+                        )}
+                        {visibleColumns.dates && (
+                          <span className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-semibold">
+                            Fechas
+                          </span>
+                        )}
+                        {visibleColumns.dur && (
+                          <span className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-semibold">
+                            Dur.
+                          </span>
+                        )}
+                        {visibleColumns.slack && (
+                          <span className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-semibold">
+                            Slack
+                          </span>
+                        )}
+                        {visibleColumns.deps && (
+                          <span className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-semibold">
+                            Deps
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Botón de Columnas: SOLO ICONO VECTORIAL (sin texto) */}
+                      <div className="relative" data-dropdown-container="true">
+                        <button
+                          type="button"
+                          onClick={() => setShowColumnsMenu((prev) => !prev)}
+                          className="p-1 rounded-md hover:bg-slate-200 dark:hover:bg-zinc-800 text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white transition cursor-pointer"
+                          aria-label="Configurar columnas"
+                          title="Columnas visibles"
+                        >
+                          <SlidersHorizontal className="w-3.5 h-3.5" />
+                        </button>
+
+                        {showColumnsMenu && (
+                          <div className="absolute right-0 top-8 w-44 p-1.5 bg-white dark:bg-zinc-900/98 border border-slate-200 dark:border-zinc-800 rounded-xl shadow-2xl backdrop-blur-xl z-50 text-xs flex flex-col gap-1">
+                            <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500 border-b border-slate-200 dark:border-zinc-800/80">
+                              Mostrar Columnas
+                            </div>
+                            <label className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/60 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={visibleColumns.team}
+                                onChange={() => toggleVisibleColumn('team')}
+                                className="rounded border-slate-300 dark:border-zinc-700 text-indigo-600"
+                              />
+                              <span className="text-slate-700 dark:text-zinc-300">Equipo</span>
+                            </label>
+                            <label className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/60 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={visibleColumns.dates}
+                                onChange={() => toggleVisibleColumn('dates')}
+                                className="rounded border-slate-300 dark:border-zinc-700 text-indigo-600"
+                              />
+                              <span className="text-slate-700 dark:text-zinc-300">Fechas</span>
+                            </label>
+                            <label className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/60 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={visibleColumns.dur}
+                                onChange={() => toggleVisibleColumn('dur')}
+                                className="rounded border-slate-300 dark:border-zinc-700 text-indigo-600"
+                              />
+                              <span className="text-slate-700 dark:text-zinc-300">Duración</span>
+                            </label>
+                            <label className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/60 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={visibleColumns.slack}
+                                onChange={() => toggleVisibleColumn('slack')}
+                                className="rounded border-slate-300 dark:border-zinc-700 text-indigo-600"
+                              />
+                              <span className="text-slate-700 dark:text-zinc-300">Slack</span>
+                            </label>
+                            <label className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/60 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={visibleColumns.deps}
+                                onChange={() => toggleVisibleColumn('deps')}
+                                className="rounded border-slate-300 dark:border-zinc-700 text-indigo-600"
+                              />
+                              <span className="text-slate-700 dark:text-zinc-300">Dependencias</span>
+                            </label>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
                   {/* Table Body Rows */}
-                  <div className="divide-y divide-slate-100 dark:divide-slate-800/70">
+                  <div className="divide-y divide-slate-100 dark:divide-zinc-800/60">
                     {displayRows.map((row) => {
                       if (row.kind === 'project') {
                         const { group } = row;
@@ -1286,10 +1222,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             key={row.rowId}
                             data-project-group={group.project.id}
                             style={{ height: ROW_HEIGHT }}
-                            className={`grid grid-cols-12 items-center px-3 text-xs font-semibold border-y border-slate-200/80 dark:border-slate-800 transition-colors ${projTheme.groupRowBg}`}
+                            className={`flex items-center justify-between px-3 text-xs font-semibold border-y border-slate-200/80 dark:border-zinc-800/80 transition-colors ${projTheme.groupRowBg}`}
                           >
                             {/* Project Header Title + Collapse Toggle */}
-                            <div className="col-span-4 flex items-center gap-1.5 pr-2 min-w-0">
+                            <div className="flex items-center gap-1.5 pr-2 flex-1 min-w-0">
                               <button
                                 type="button"
                                 onClick={() => onToggleProjectCollapse?.(group.project.id)}
@@ -1320,7 +1256,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                     name: e.target.value,
                                   })
                                 }
-                                className="w-full bg-transparent font-bold text-slate-900 dark:text-white truncate focus:bg-white dark:focus:bg-slate-800 focus:px-1.5 focus:py-0.5 rounded outline-none focus:ring-1 focus:ring-indigo-500"
+                                className="flex-1 min-w-[140px] bg-transparent font-bold text-slate-900 dark:text-white focus:bg-white dark:focus:bg-zinc-800 focus:px-1.5 focus:py-0.5 rounded outline-none focus:ring-1 focus:ring-indigo-500"
                                 title="Haz clic para renombrar este proyecto"
                               />
 
@@ -1332,78 +1268,64 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               </span>
                             </div>
 
-                            {/* Rolled-up Start Date */}
-                            <div className="col-span-2 text-center font-mono text-[11px] text-slate-600 dark:text-slate-300">
-                              {group.items.length > 0
-                                ? formatDateDisplay(group.startDate, 'dd MMM yyyy')
-                                : '-'}
-                            </div>
+                            {/* Extra Project Stats based on visibleColumns */}
+                            <div className="flex items-center gap-2.5 shrink-0 text-right">
+                              {visibleColumns.dates && (
+                                <span className="font-mono text-[10px] text-slate-500 dark:text-zinc-400">
+                                  {group.items.length > 0
+                                    ? `${formatDateDisplay(group.startDate, 'dd MMM')} → ${formatDateDisplay(group.endDate, 'dd MMM')}`
+                                    : '-'}
+                                </span>
+                              )}
+                              {visibleColumns.dur && (
+                                <span className="px-1.5 py-0.5 rounded bg-white/80 dark:bg-zinc-800 font-mono text-[10px] font-bold text-slate-800 dark:text-zinc-200 border border-slate-200/70 dark:border-zinc-700">
+                                  {group.duration}d
+                                </span>
+                              )}
+                              {visibleColumns.slack && (
+                                <span className="font-mono text-[10px] text-amber-600 dark:text-amber-400">
+                                  +{group.totalSlack}d
+                                </span>
+                              )}
 
-                            {/* Rolled-up End Date */}
-                            <div className="col-span-2 text-center font-mono text-[11px] text-slate-600 dark:text-slate-300">
-                              {group.items.length > 0
-                                ? formatDateDisplay(group.endDate, 'dd MMM yyyy')
-                                : '-'}
-                            </div>
-
-                            {/* Rolled-up Duration */}
-                            <div className="col-span-1 flex justify-center">
-                              <span className="px-1.5 py-0.5 rounded bg-white/80 dark:bg-slate-800 font-mono text-[11px] font-bold text-slate-800 dark:text-slate-200 border border-slate-200/70 dark:border-slate-700">
-                                {group.duration}d
-                              </span>
-                            </div>
-
-                            {/* Rolled-up Slack */}
-                            <div className="col-span-1 flex justify-center">
-                              <span className="font-mono text-[11px] text-amber-600 dark:text-amber-400">
-                                +{group.totalSlack}d
-                              </span>
-                            </div>
-
-                            {/* Rolled-up Progress */}
-                            <div className="col-span-1 flex justify-center">
-                              <span className="font-mono text-[11px] font-bold text-indigo-600 dark:text-indigo-400">
-                                {group.progress}%
-                              </span>
-                            </div>
-
-                            {/* Project Quick Actions (Fit to Screen, +Task, +Milestone, Delete) */}
-                            <div className="col-span-1 flex items-center justify-end gap-0.5">
-                              <button
-                                type="button"
-                                data-fit-project-row={group.project.id}
-                                onClick={() => handleFitProjectAction(group.project.id)}
-                                className="p-1 rounded hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
-                                title={`Encajar todas las tareas de ${group.project.name} en pantalla`}
-                              >
-                                <Maximize2 className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => onQuickAdd('task', group.project.id)}
-                                className="p-1 rounded hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400"
-                                title={`Añadir tarea a ${group.project.name}`}
-                              >
-                                <Plus className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => onQuickAdd('milestone', group.project.id)}
-                                className="p-1 rounded hover:bg-amber-500/20 text-amber-600 dark:text-amber-400"
-                                title={`Añadir hito a ${group.project.name}`}
-                              >
-                                <Diamond className="w-3 h-3" />
-                              </button>
-                              {allProjectGroups.length > 1 && onDeleteProject && (
+                              {/* Project Quick Actions (Fit to Screen, +Task, +Milestone, Delete) */}
+                              <div className="flex items-center gap-0.5">
                                 <button
                                   type="button"
-                                  onClick={() => onDeleteProject(group.project.id)}
-                                  className="p-1 rounded hover:bg-rose-500/20 text-slate-400 hover:text-rose-600"
-                                  title={`Eliminar proyecto ${group.project.name}`}
+                                  data-fit-project-row={group.project.id}
+                                  onClick={() => handleFitProjectAction(group.project.id)}
+                                  className="p-1 rounded hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                                  title={`Encajar todas las tareas de ${group.project.name} en pantalla`}
                                 >
-                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <Maximize2 className="w-3.5 h-3.5" />
                                 </button>
-                              )}
+                                <button
+                                  type="button"
+                                  onClick={() => onQuickAdd('task', group.project.id)}
+                                  className="p-1 rounded hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400"
+                                  title={`Añadir tarea a ${group.project.name}`}
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onQuickAdd('milestone', group.project.id)}
+                                  className="p-1 rounded hover:bg-amber-500/20 text-amber-600 dark:text-amber-400"
+                                  title={`Añadir hito a ${group.project.name}`}
+                                >
+                                  <Diamond className="w-3 h-3" />
+                                </button>
+                                {allProjectGroups.length > 1 && onDeleteProject && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onDeleteProject(group.project.id)}
+                                    className="p-1 rounded hover:bg-rose-500/20 text-slate-400 hover:text-rose-600"
+                                    title={`Eliminar proyecto ${group.project.name}`}
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           </div>
                         );
@@ -1419,22 +1341,22 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           style={{ height: ROW_HEIGHT }}
                           onMouseEnter={() => setHoveredId(item.id)}
                           onMouseLeave={() => setHoveredId(null)}
-                          className={`grid grid-cols-12 items-center px-3 text-xs transition-colors ${
+                          className={`flex items-center justify-between px-3 text-xs transition-colors border-b border-slate-100 dark:border-zinc-800/50 ${
                             isHovered
                               ? 'bg-indigo-50/70 dark:bg-indigo-950/30'
                               : isCrit
                               ? 'bg-rose-50/30 dark:bg-rose-950/10'
-                              : 'hover:bg-slate-50 dark:hover:bg-slate-800/40'
+                              : 'hover:bg-slate-50 dark:hover:bg-zinc-900/40'
                           }`}
                         >
-                          {/* WBS + Name + Project Reassign Selector */}
+                          {/* WBS + Name + Full Readability without Truncation */}
                           <div
-                            className={`col-span-4 flex items-center gap-1.5 pr-2 min-w-0 ${
+                            className={`flex items-center gap-1.5 pr-2 flex-1 min-w-0 ${
                               groupByProject ? 'pl-4' : ''
                             }`}
                           >
                             <span
-                              className="font-mono text-[10px] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 shrink-0"
+                              className="font-mono text-[10px] px-1 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 shrink-0"
                               title={`Código WBS ${item.wbsCode || item.wbs} (Global #${item.wbs})`}
                             >
                               {groupByProject ? item.wbsCode || `${item.wbs}.` : `${item.wbs}.`}
@@ -1454,39 +1376,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               onChange={(e) =>
                                 onUpdateItem({ ...item, name: e.target.value }, false)
                               }
-                              className="w-full bg-transparent font-medium text-slate-800 dark:text-slate-100 truncate focus:bg-white dark:focus:bg-slate-800 focus:px-1.5 focus:py-0.5 rounded outline-none focus:ring-1 focus:ring-indigo-500"
+                              className="flex-1 min-w-[140px] bg-transparent font-medium text-slate-800 dark:text-zinc-100 focus:bg-white dark:focus:bg-zinc-800 focus:px-1.5 focus:py-0.5 rounded outline-none focus:ring-1 focus:ring-indigo-500"
                               title={`${item.name} (${group.project.name})`}
                             />
-                            {item.assignee && (
-                              <span
-                                data-assignee-badge={item.assignee}
-                                className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] font-medium shrink-0 max-w-[92px] truncate border border-slate-200/80 dark:border-slate-700"
-                                title={`Equipo / Responsable: ${item.assignee}`}
-                              >
-                                {item.assignee}
-                              </span>
-                            )}
-                            {allProjectGroups.length > 1 && (
-                              <select
-                                value={group.project.id}
-                                onChange={(e) =>
-                                  onUpdateItem(
-                                    { ...item, projectId: e.target.value },
-                                    false
-                                  )
-                                }
-                                className={`px-1 py-0.5 rounded text-[9px] font-mono font-bold max-w-[68px] truncate shrink-0 border cursor-pointer outline-none ${
-                                  COLOR_STYLES[group.project.color]?.groupBadgeBg || ''
-                                }`}
-                                title={`Proyecto: ${group.project.name} (cambiar de proyecto)`}
-                              >
-                                {allProjectGroups.map((g) => (
-                                  <option key={g.project.id} value={g.project.id}>
-                                    P{g.projectIndex}: {g.project.name}
-                                  </option>
-                                ))}
-                              </select>
-                            )}
                             {isCrit && (
                               <span
                                 title="En Ruta Crítica (Slack = 0)"
@@ -1505,187 +1397,87 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             )}
                           </div>
 
-                          {/* Initial Date */}
-                          <div className="col-span-2 px-1">
-                            <input
-                              type="date"
-                              value={item.startDate}
-                              onChange={(e) => {
-                                const newStart = e.target.value;
-                                if (!newStart) return;
-                                const newEnd =
-                                  item.type === 'milestone'
-                                    ? newStart
-                                    : calculateEndDateFromDuration(
-                                        newStart,
-                                        item.duration,
-                                        'task'
-                                      );
-                                onUpdateItem(
-                                  {
-                                    ...item,
-                                    startDate: newStart,
-                                    endDate: newEnd,
-                                  },
-                                  autoCascade
-                                );
-                              }}
-                              className="w-full px-1 py-1 rounded bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 font-mono text-[11px] text-slate-700 dark:text-slate-300 text-center focus:ring-1 focus:ring-indigo-500 outline-none"
-                            />
-                          </div>
-
-                          {/* Final Date */}
-                          <div className="col-span-2 px-1">
-                            {item.type === 'milestone' ? (
-                              <div className="text-center font-mono text-[11px] text-amber-600 dark:text-amber-400">
-                                ◆ Hito
-                              </div>
-                            ) : (
-                              <input
-                                type="date"
-                                min={item.startDate}
-                                value={item.endDate}
-                                onChange={(e) => {
-                                  const newEnd = e.target.value;
-                                  if (!newEnd || newEnd < item.startDate) return;
-                                  const newDur = calculateDurationFromDates(
-                                    item.startDate,
-                                    newEnd,
-                                    'task'
-                                  );
-                                  onUpdateItem(
-                                    {
-                                      ...item,
-                                      endDate: newEnd,
-                                      duration: newDur,
-                                    },
-                                    autoCascade
-                                  );
-                                }}
-                                className="w-full px-1 py-1 rounded bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 font-mono text-[11px] text-slate-700 dark:text-slate-300 text-center focus:ring-1 focus:ring-indigo-500 outline-none"
-                              />
+                          {/* Extra Columns based on visibleColumns */}
+                          <div className="flex items-center gap-2.5 shrink-0 text-right">
+                            {visibleColumns.team && (
+                              <span
+                                data-assignee-badge={item.assignee || 'Sin asignar'}
+                                className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 text-[10px] font-medium shrink-0 border border-slate-200/80 dark:border-zinc-700"
+                                title={`Equipo / Responsable: ${item.assignee || 'Sin asignar'}`}
+                              >
+                                {item.assignee || '—'}
+                              </span>
                             )}
-                          </div>
 
-                          {/* Duration */}
-                          <div className="col-span-1 px-1 flex justify-center">
-                            {item.type === 'milestone' ? (
-                              <span className="font-mono text-[11px] text-slate-400">0d</span>
-                            ) : (
-                              <input
-                                type="number"
-                                min={1}
-                                max={365}
-                                value={item.duration}
-                                onChange={(e) => {
-                                  const newDur = Math.max(
-                                    1,
-                                    parseInt(e.target.value || '1', 10)
-                                  );
-                                  const newEnd = calculateEndDateFromDuration(
-                                    item.startDate,
-                                    newDur,
-                                    'task'
-                                  );
-                                  onUpdateItem(
-                                    {
-                                      ...item,
-                                      duration: newDur,
-                                      endDate: newEnd,
-                                    },
-                                    autoCascade
-                                  );
-                                }}
-                                className="w-12 py-1 rounded bg-slate-100/80 dark:bg-slate-800 font-mono text-[11px] font-semibold text-center text-slate-800 dark:text-slate-200 focus:ring-1 focus:ring-indigo-500 outline-none"
-                                title="Duración en días"
-                              />
+                            {visibleColumns.dates && (
+                              <span className="font-mono text-[10px] text-slate-600 dark:text-zinc-400">
+                                {formatDateDisplay(item.startDate, 'dd/MM')} → {formatDateDisplay(item.endDate, 'dd/MM')}
+                              </span>
                             )}
-                          </div>
 
-                          {/* Slack (default 0) */}
-                          <div className="col-span-1 px-1 flex justify-center">
-                            {item.type === 'milestone' ? (
-                              <span className="font-mono text-[11px] text-slate-400">-</span>
-                            ) : (
-                              <input
-                                type="number"
-                                min={0}
-                                max={180}
-                                value={item.slack}
-                                onChange={(e) => {
-                                  const newSlack = Math.max(
-                                    0,
-                                    parseInt(e.target.value || '0', 10)
-                                  );
-                                  onUpdateItem({ ...item, slack: newSlack }, false);
-                                }}
-                                className={`w-12 py-1 rounded font-mono text-[11px] font-semibold text-center focus:ring-1 focus:ring-amber-500 outline-none ${
-                                  item.slack > 0
-                                    ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30'
-                                    : 'bg-slate-100/70 dark:bg-slate-800/70 text-slate-500'
+                            {visibleColumns.dur && (
+                              <span className="font-mono text-[10px] text-slate-600 dark:text-zinc-400">
+                                {item.duration}d
+                              </span>
+                            )}
+
+                            {visibleColumns.slack && (
+                              <span className="font-mono text-[10px] text-slate-600 dark:text-zinc-400">
+                                +{item.slack}d
+                              </span>
+                            )}
+
+                            {visibleColumns.deps && (
+                              <span
+                                className="font-mono text-[10px] text-indigo-600 dark:text-indigo-400 max-w-[80px] truncate"
+                                title={`Dependencias: ${
+                                  item.dependencies.length > 0
+                                    ? item.dependencies.map((d) => `#${d}`).join(', ')
+                                    : 'Ninguna'
                                 }`}
-                                title="Slack / Holgura en días (default 0)"
-                              />
+                              >
+                                {item.dependencies.length > 0
+                                  ? item.dependencies
+                                      .map((depId) => {
+                                        const found = enrichedItemById.get(depId);
+                                        if (!found) return '';
+                                        return groupByProject
+                                          ? `#${found.wbsCode || found.wbs}`
+                                          : `#${found.wbs}`;
+                                      })
+                                      .filter(Boolean)
+                                      .join(',')
+                                  : '—'}
+                              </span>
                             )}
-                          </div>
 
-                          {/* Dependencies */}
-                          <div className="col-span-1 flex justify-center">
-                            <button
-                              type="button"
-                              onClick={() => onEditModal(item)}
-                              className={`px-1.5 py-0.5 rounded text-[11px] font-mono flex items-center gap-1 transition ${
-                                item.dependencies.length > 0
-                                  ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/20'
-                                  : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-                              }`}
-                              title="Configurar dependencias"
-                            >
-                              {item.dependencies.length > 0 ? (
-                                <span>
-                                  {item.dependencies
-                                    .map((depId) => {
-                                      const found = enrichedItemById.get(depId);
-                                      if (!found) return '';
-                                      return groupByProject
-                                        ? `#${found.wbsCode || found.wbs}`
-                                        : `#${found.wbs}`;
-                                    })
-                                    .filter(Boolean)
-                                    .join(',')}
-                                </span>
-                              ) : (
-                                <GitBranch className="w-3 h-3 opacity-60" />
-                              )}
-                            </button>
-                          </div>
-
-                          {/* Row Actions */}
-                          <div className="col-span-1 flex items-center justify-end gap-0.5">
-                            <button
-                              type="button"
-                              onClick={() => onEditModal(item)}
-                              className="p-1 rounded hover:bg-slate-200/70 dark:hover:bg-slate-700 text-slate-500 hover:text-indigo-600"
-                              title="Editar detalles y proyecto"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => onDuplicateItem(item)}
-                              className="p-1 rounded hover:bg-slate-200/70 dark:hover:bg-slate-700 text-slate-500 hover:text-indigo-600"
-                              title="Duplicar"
-                            >
-                              <Copy className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => onDeleteItem(item.id)}
-                              className="p-1 rounded hover:bg-rose-100 dark:hover:bg-rose-950/60 text-slate-400 hover:text-rose-600"
-                              title="Eliminar"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            {/* Quick row actions: Edit modal, Duplicate, Delete */}
+                            <div className="flex items-center gap-0.5">
+                              <button
+                                type="button"
+                                onClick={() => onEditModal(item)}
+                                className="p-1 rounded hover:bg-slate-200 dark:hover:bg-zinc-800 text-slate-400 hover:text-indigo-500"
+                                title="Editar detalles completos en modal"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onDuplicateItem(item)}
+                                className="p-1 rounded hover:bg-slate-200 dark:hover:bg-zinc-800 text-slate-400 hover:text-indigo-500"
+                                title="Duplicar ítem"
+                              >
+                                <Copy className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onDeleteItem(item.id)}
+                                className="p-1 rounded hover:bg-rose-500/20 text-slate-400 hover:text-rose-600"
+                                title="Eliminar ítem"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
                         </div>
                       );

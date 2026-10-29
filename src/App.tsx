@@ -2,11 +2,13 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { differenceInCalendarDays } from 'date-fns';
 import {
   AlertTriangle,
+  BarChart3,
   BookmarkCheck,
   BookmarkPlus,
   Calendar,
   Check,
   CheckCircle2,
+  ChevronDown,
   Compass,
   Copy,
   Diamond,
@@ -21,6 +23,7 @@ import {
   Moon,
   Plus,
   Save,
+  SlidersHorizontal,
   Sparkles,
   Sun,
   Trash2,
@@ -279,6 +282,26 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
   const [showNewProjectBar, setShowNewProjectBar] = useState<boolean>(false);
   const [newProjectName, setNewProjectName] = useState<string>('');
   const [newProjectColor, setNewProjectColor] = useState<TaskColor>('indigo');
+
+  // Minimalist UI toggles and menus
+  const [showMetricsDrawer, setShowMetricsDrawer] = useState<boolean>(false);
+  const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
+  const [scenarioMenuOpen, setScenarioMenuOpen] = useState<boolean>(false);
+  const [projectMenuOpen, setProjectMenuOpen] = useState<boolean>(false);
+  const [createMenuOpen, setCreateMenuOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    const handleGlobalClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-dropdown-container]')) {
+        setScenarioMenuOpen(false);
+        setProjectMenuOpen(false);
+        setCreateMenuOpen(false);
+      }
+    };
+    window.addEventListener('click', handleGlobalClick);
+    return () => window.removeEventListener('click', handleGlobalClick);
+  }, []);
 
   // Modal state
   const [modalOpen, setModalOpen] = useState<boolean>(false);
@@ -925,492 +948,454 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
   const isViewingTemplate = activeScenarioId.startsWith('template:');
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
-      {/* Top Navigation & Portfolio/Project Controls */}
-      <header className="sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur border-b border-slate-200 dark:border-slate-800 px-4 lg:px-6 py-3">
-        <div className="max-w-[1920px] mx-auto flex flex-wrap items-center justify-between gap-4">
-          {/* Brand + Editable Portfolio/Project Title + Scenario/Template Selector */}
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
-                <FolderKanban className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <input
-                    type="text"
-                    value={projectName}
-                    onChange={(e) => setProjectName(e.target.value)}
-                    className="font-bold text-base sm:text-lg bg-transparent border-b border-transparent hover:border-slate-300 dark:hover:border-slate-700 focus:border-indigo-500 outline-none text-slate-900 dark:text-white px-0.5"
-                    title="Haz clic para renombrar el escenario o portafolio activo"
-                  />
-                  {isViewingTemplate ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
-                      Vista Plantilla
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
-                      <BookmarkCheck className="w-3 h-3" />
-                      Escenario Guardado
-                    </span>
-                  )}
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 hidden sm:block">
-                  Diagrama de Gantt con escenarios guardados, proyectos, ruta crítica, holguras (slack) e hitos
-                </p>
-              </div>
-            </div>
+    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#09090b] text-slate-900 dark:text-zinc-100 selection:bg-indigo-500/30">
+      {/* Top Navigation Bar — Single Minimalist 48px Bar */}
+      <header className="sticky top-0 z-30 h-13 px-4 bg-white/95 dark:bg-[#09090b]/95 backdrop-blur-md border-b border-slate-200 dark:border-zinc-800/80 flex items-center justify-between gap-3 select-none">
+        
+        {/* LEFT: Logo + Escenario Dropdown + "Proyectos" Filter Dropdown */}
+        <div className="flex items-center gap-2.5 min-w-0">
+          {/* Logo Minimalista Vectorial */}
+          <div className="w-7 h-7 rounded-lg bg-indigo-600/10 dark:bg-zinc-900 border border-indigo-500/30 dark:border-zinc-800 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0 shadow-sm">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="4" y1="6" x2="16" y2="6" />
+              <line x1="8" y1="12" x2="20" y2="12" />
+              <line x1="4" y1="18" x2="12" y2="18" />
+            </svg>
+          </div>
 
-            {/* Unified Scenario & Template Switcher */}
-            <select
-              value={activeScenarioId}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (!val) return;
-                if (val.startsWith('template:')) {
-                  handleTemplateSelect(val.replace('template:', ''));
-                } else {
-                  handleScenarioSelect(val);
-                }
+          {/* Scenario Selector Dropdown */}
+          <div className="relative" data-dropdown-container="true">
+            <button
+              type="button"
+              onClick={() => {
+                setScenarioMenuOpen((prev) => !prev);
+                setProjectMenuOpen(false);
+                setCreateMenuOpen(false);
               }}
-              className="text-xs font-medium bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500"
-              title="Cambiar entre tus escenarios guardados o cargar una plantilla sin perder tu trabajo"
+              className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-zinc-900/90 hover:bg-slate-200/70 dark:hover:bg-zinc-800/80 border border-slate-200 dark:border-zinc-800 text-xs font-semibold text-slate-800 dark:text-zinc-100 transition shadow-2xs cursor-pointer"
+              title="Cambiar escenario o plantilla"
             >
-              <optgroup label="📌 Mis Escenarios Guardados">
-                {savedScenarios.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    💾 {s.name} ({s.projects.length} proy · {s.items.length} tareas)
-                  </option>
-                ))}
-              </optgroup>
-              <optgroup label="📂 Plantillas Predeterminadas">
-                {templates.map((t) => (
-                  <option key={`template:${t.id}`} value={`template:${t.id}`}>
-                    📋 Plantilla: {t.name}
-                  </option>
-                ))}
-              </optgroup>
-            </select>
-
-            {/* Save Current Scenario Button */}
-            <button
-              type="button"
-              onClick={handleSaveCurrentScenario}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 transition"
-              title={
-                isViewingTemplate
-                  ? 'Guardar esta plantilla como un nuevo escenario en Mis Escenarios'
-                  : 'Guardar escenario actual en Mis Escenarios'
-              }
-            >
-              <Save className="w-3.5 h-3.5" />
-              {isViewingTemplate ? 'Guardar en Mis Escenarios' : 'Guardar Escenario'}
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+              <span className="max-w-[190px] sm:max-w-[240px] truncate">{projectName}</span>
+              {isViewingTemplate && (
+                <span className="text-[10px] text-amber-500 font-bold uppercase">(Plantilla)</span>
+              )}
+              <ChevronDown className="w-3 h-3 text-slate-400" />
             </button>
 
-            {/* New Scenario Button */}
+            {/* Escenarios Popover */}
+            <div
+              data-scenarios-bar="true"
+              className={`${
+                scenarioMenuOpen ? 'flex' : 'hidden'
+              } absolute left-0 top-10 w-72 p-2 bg-white dark:bg-zinc-900/98 border border-slate-200 dark:border-zinc-800 rounded-xl shadow-2xl backdrop-blur-xl z-50 text-xs flex-col gap-1 max-h-[480px] overflow-y-auto`}
+            >
+                <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500">
+                  Mis Escenarios ({savedScenarios.length})
+                </div>
+
+                {savedScenarios.map((scen) => {
+                  const isActive = activeScenarioId === scen.id;
+                  return (
+                    <div
+                      key={scen.id}
+                      data-scenario-pill={scen.id}
+                      onClick={() => {
+                        handleScenarioSelect(scen.id);
+                        setScenarioMenuOpen(false);
+                      }}
+                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left transition cursor-pointer ${
+                        isActive
+                          ? 'bg-indigo-600 text-white font-medium shadow-sm'
+                          : 'hover:bg-slate-100 dark:hover:bg-zinc-800/70 text-slate-700 dark:text-zinc-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0 pr-1">
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                            isActive ? 'bg-white' : 'bg-emerald-400'
+                          }`}
+                        />
+                        <span className="truncate max-w-[170px]">{scen.name}</span>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <span
+                          className={`text-[10px] px-1 py-0.5 rounded font-mono ${
+                            isActive
+                              ? 'bg-white/20 text-white'
+                              : 'bg-slate-200/80 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400'
+                          }`}
+                        >
+                          {scen.projects.length}p · {scen.items.length}t
+                        </span>
+                        {savedScenarios.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              handleDeleteScenario(scen.id, e);
+                            }}
+                            className={`p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 ${
+                              isActive ? 'text-white' : 'text-slate-400 hover:text-rose-500'
+                            }`}
+                            title="Eliminar escenario"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                <div className="border-t border-slate-200 dark:border-zinc-800/80 my-1" />
+
+                <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500">
+                  Plantillas Base
+                </div>
+                {templates.map((tpl) => (
+                  <button
+                    key={tpl.id}
+                    type="button"
+                    onClick={() => {
+                      handleTemplateSelect(tpl.id);
+                      setScenarioMenuOpen(false);
+                    }}
+                    className="flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/60 text-slate-700 dark:text-zinc-300 text-left transition"
+                  >
+                    <span className="truncate">{tpl.name}</span>
+                    <span className="text-[10px] text-amber-500">Plantilla</span>
+                  </button>
+                ))}
+
+                <div className="border-t border-slate-200 dark:border-zinc-800/80 my-1" />
+
+                <div className="flex items-center justify-between gap-1 pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowNewScenarioBar(true);
+                      setScenarioMenuOpen(false);
+                    }}
+                    className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 font-medium transition"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Nuevo Escenario</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleSaveCurrentScenario();
+                      setScenarioMenuOpen(false);
+                    }}
+                    className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10 font-medium transition"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>Guardar Copia</span>
+                  </button>
+                </div>
+              </div>
+          </div>
+
+          {/* Selector Exacto "Proyectos" con icono vectorial */}
+          <div className="relative hidden sm:block" data-dropdown-container="true">
             <button
               type="button"
-              onClick={() => setShowNewScenarioBar((prev) => !prev)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 transition"
-              title="Crear un nuevo escenario independiente sin perder el escenario actual"
+              onClick={() => {
+                setProjectMenuOpen((prev) => !prev);
+                setScenarioMenuOpen(false);
+                setCreateMenuOpen(false);
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-zinc-900/90 hover:bg-slate-200/70 dark:hover:bg-zinc-800/80 border border-slate-200 dark:border-zinc-800 text-xs font-medium text-slate-700 dark:text-zinc-300 transition shadow-2xs cursor-pointer"
+              title="Filtrar por proyecto"
             >
-              <BookmarkPlus className="w-3.5 h-3.5" />
-              Nuevo Escenario
+              <FolderKanban className="w-3.5 h-3.5 text-slate-400" />
+              <span>Proyectos</span>
+              {selectedProjectId !== 'all' && (
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
+              )}
+              <ChevronDown className="w-3 h-3 text-slate-400" />
             </button>
 
-            {scenarioSavedToast && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-emerald-600 text-white shadow-sm animate-fade-in">
-                <Check className="w-3.5 h-3.5" />
-                {scenarioSavedToast}
-              </span>
+            {projectMenuOpen && (
+              <div className="absolute left-0 top-10 w-60 p-1.5 bg-white dark:bg-zinc-900/98 border border-slate-200 dark:border-zinc-800 rounded-xl shadow-2xl backdrop-blur-xl z-50 text-xs flex flex-col gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedProjectId('all');
+                    setProjectMenuOpen(false);
+                  }}
+                  className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left transition ${
+                    selectedProjectId === 'all'
+                      ? 'bg-indigo-600 text-white font-medium'
+                      : 'hover:bg-slate-100 dark:hover:bg-zinc-800/60 text-slate-700 dark:text-zinc-300'
+                  }`}
+                >
+                  <span>Todos los proyectos</span>
+                  <span className="text-[10px] font-mono opacity-80">{projectGroups.length}</span>
+                </button>
+
+                {projectGroups.map((group) => {
+                  const isSelected = selectedProjectId === group.project.id;
+                  const colorDot =
+                    PROJECT_COLORS.find((c) => c.value === group.project.color)?.bg ||
+                    'bg-indigo-500';
+                  return (
+                    <button
+                      key={group.project.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedProjectId(group.project.id);
+                        setProjectMenuOpen(false);
+                      }}
+                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left transition ${
+                        isSelected
+                          ? 'bg-indigo-600 text-white font-medium'
+                          : 'hover:bg-slate-100 dark:hover:bg-zinc-800/60 text-slate-700 dark:text-zinc-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0 pr-1">
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${colorDot}`} />
+                        <span className="truncate max-w-[150px]">
+                          P{group.projectIndex}: {group.project.name}
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-mono opacity-80">
+                        {group.items.length} · {group.progress}%
+                      </span>
+                    </button>
+                  );
+                })}
+
+                <div className="border-t border-slate-200 dark:border-zinc-800/80 my-1" />
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowNewProjectBar(true);
+                    setProjectMenuOpen(false);
+                  }}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10 font-medium transition"
+                >
+                  <FolderPlus className="w-3.5 h-3.5" />
+                  <span>Nuevo Proyecto</span>
+                </button>
+              </div>
             )}
           </div>
 
-          {/* Right Action Controls */}
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Create Project Button */}
+          {scenarioSavedToast && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-emerald-600 text-white shadow-sm animate-fade-in">
+              <Check className="w-3.5 h-3.5" />
+              {scenarioSavedToast}
+            </span>
+          )}
+        </div>
+
+        {/* RIGHT: Botón Único "+ Crear ▾" + Iconos Vectoriales Minimalistas con Hints */}
+        <div className="flex items-center gap-2 shrink-0">
+
+          {/* Botón "+ Crear ▾" */}
+          <div className="relative mr-1" data-dropdown-container="true">
             <button
               type="button"
-              onClick={() => setShowNewProjectBar((prev) => !prev)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-violet-600/10 hover:bg-violet-600/20 text-violet-700 dark:text-violet-300 border border-violet-500/30 transition"
-              title="Crear un nuevo proyecto para agrupar tareas"
+              onClick={() => {
+                setCreateMenuOpen((prev) => !prev);
+                setScenarioMenuOpen(false);
+                setProjectMenuOpen(false);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium shadow-sm transition cursor-pointer"
             >
-              <FolderPlus className="w-4 h-4" />
-              Nuevo Proyecto
+              <Plus className="w-3.5 h-3.5" />
+              <span>Crear</span>
+              <ChevronDown className="w-3 h-3 opacity-80" />
             </button>
 
-            {/* Create Task Button */}
-            <button
-              type="button"
-              onClick={() => handleOpenCreateModal('task')}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm shadow-indigo-500/20 transition"
-            >
-              <Plus className="w-4 h-4" />
-              Nueva Tarea
-            </button>
+            {createMenuOpen && (
+              <div className="absolute right-0 top-10 w-48 p-1.5 bg-white dark:bg-zinc-900/98 border border-slate-200 dark:border-zinc-800 rounded-xl shadow-2xl backdrop-blur-xl z-50 text-xs flex flex-col gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleOpenCreateModal('task');
+                    setCreateMenuOpen(false);
+                  }}
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/70 text-slate-800 dark:text-zinc-200 font-medium transition text-left"
+                >
+                  <Plus className="w-3.5 h-3.5 text-indigo-500" />
+                  <span>Nueva Tarea</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleOpenCreateModal('milestone');
+                    setCreateMenuOpen(false);
+                  }}
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/70 text-slate-800 dark:text-zinc-200 font-medium transition text-left"
+                >
+                  <Diamond className="w-3.5 h-3.5 text-amber-500 fill-current" />
+                  <span>Nuevo Hito</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowNewProjectBar(true);
+                    setCreateMenuOpen(false);
+                  }}
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/70 text-slate-800 dark:text-zinc-200 font-medium transition text-left"
+                >
+                  <FolderPlus className="w-3.5 h-3.5 text-violet-500" />
+                  <span>Nuevo Proyecto</span>
+                </button>
+              </div>
+            )}
+          </div>
 
-            {/* Create Milestone Button */}
-            <button
-              type="button"
-              onClick={() => handleOpenCreateModal('milestone')}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-sm shadow-amber-500/20 transition"
-            >
-              <Diamond className="w-3.5 h-3.5 fill-current" />
-              Nuevo Hito
-            </button>
+          <div className="h-4 w-px bg-slate-200 dark:bg-zinc-800 hidden sm:block" />
 
-            {/* Flexible Zoom Switcher + Auto-Fit Project Scale */}
-            <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 gap-0.5">
-              <ZoomIn className="w-3.5 h-3.5 text-slate-400 ml-1.5 mr-1 hidden sm:inline" />
-              {(['day', 'week', 'month', 'quarter'] as ZoomLevel[]).map((z) => {
-                const activePreset = resolveZoomPresetFromDayWidth(dayWidth);
-                const isActive = activePreset === z;
-                return (
-                  <button
-                    key={z}
-                    type="button"
-                    onClick={() => handleSelectZoomPreset(z)}
-                    className={`px-2 py-1 rounded-lg text-xs font-semibold transition ${
-                      isActive
-                        ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                    }`}
-                  >
-                    {z === 'day'
-                      ? 'Día'
-                      : z === 'week'
-                      ? 'Semana'
-                      : z === 'month'
-                      ? 'Mes'
-                      : 'Trimestre'}
-                  </button>
-                );
-              })}
-              <button
-                type="button"
-                data-fit-project-header-btn="true"
-                onClick={() => handleFitToProject()}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition flex items-center gap-1 ${
-                  resolveZoomPresetFromDayWidth(dayWidth) === 'custom'
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-700 dark:text-emerald-300'
-                }`}
-                title="Encontrar automáticamente la escala óptima que abarca todas las tareas del proyecto en pantalla"
-              >
-                <Maximize2 className="w-3 h-3" />
-                <span>Ajustar a Proyecto</span>
-              </button>
-            </div>
+          {/* Iconos Vectoriales SVG Minimalistas con Tooltip Hints */}
 
-            {/* Critical Path Toggle */}
+          {/* Ruta Crítica */}
+          <div className="relative group">
             <button
               type="button"
               onClick={() => setShowCriticalPath((prev) => !prev)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition ${
+              className={`p-1.5 rounded-lg border transition shadow-2xs ${
                 showCriticalPath
-                  ? 'bg-rose-500/10 border-rose-500/40 text-rose-600 dark:text-rose-400'
-                  : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                  ? 'bg-rose-500/10 border-rose-500/40 text-rose-500 hover:bg-rose-500/20'
+                  : 'bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-white'
               }`}
-              title="Resaltar las tareas con Slack = 0 que determinan la fecha fin del proyecto"
+              aria-label="Ruta Crítica"
             >
-              <Flame className="w-3.5 h-3.5 fill-current" />
-              Ruta Crítica
+              <Flame className="w-4 h-4" />
             </button>
+            <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute right-0 top-10 px-2 py-1 bg-slate-900 text-white dark:bg-zinc-900 dark:text-zinc-200 text-[11px] font-medium rounded-lg shadow-xl border border-slate-800 dark:border-zinc-800 whitespace-nowrap z-50 pointer-events-none">
+              Ruta Crítica (CPM)
+            </div>
+          </div>
 
-            {/* Scroll to Today */}
+          {/* Ajustar a pantalla */}
+          <div className="relative group">
+            <button
+              type="button"
+              data-fit-timeline-btn="true"
+              data-fit-project-header-btn="true"
+              onClick={() => handleFitToProject()}
+              className="p-1.5 rounded-lg border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 text-emerald-600 dark:text-emerald-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition shadow-2xs"
+              aria-label="Ajustar"
+              title="Ajustar a Proyecto"
+            >
+              <Maximize2 className="w-4 h-4" />
+            </button>
+            <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute right-0 top-10 px-2 py-1 bg-slate-900 text-white dark:bg-zinc-900 dark:text-zinc-200 text-[11px] font-medium rounded-lg shadow-xl border border-slate-800 dark:border-zinc-800 whitespace-nowrap z-50 pointer-events-none">
+              Ajustar a Proyecto
+            </div>
+          </div>
+
+          {/* Ir a Hoy */}
+          <div className="relative group">
             <button
               type="button"
               onClick={scrollToToday}
-              className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
-              title="Centrar en Hoy"
+              className="p-1.5 rounded-lg border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 text-indigo-600 dark:text-indigo-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition shadow-2xs"
+              aria-label="Hoy"
             >
               <Compass className="w-4 h-4" />
             </button>
-
-            {/* Export / Import Controls */}
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={handleExportCSV}
-                className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
-                title="Exportar tabla a CSV (Excel)"
-              >
-                <FileSpreadsheet className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={handleExportJSON}
-                className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
-                title="Exportar proyecto en JSON"
-              >
-                <Download className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
-                title="Importar proyecto JSON"
-              >
-                <Upload className="w-4 h-4" />
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".json"
-                onChange={handleImportJSON}
-                className="hidden"
-              />
+            <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute right-0 top-10 px-2 py-1 bg-slate-900 text-white dark:bg-zinc-900 dark:text-zinc-200 text-[11px] font-medium rounded-lg shadow-xl border border-slate-800 dark:border-zinc-800 whitespace-nowrap z-50 pointer-events-none">
+              Ir a Hoy
             </div>
+          </div>
 
-            {/* Dark Mode Toggle */}
+          {/* Métricas Drawer Toggle */}
+          <div className="relative group">
             <button
               type="button"
-              onClick={() => setDarkMode((prev) => !prev)}
-              className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
-              title="Cambiar tema claro/oscuro"
+              onClick={() => setShowMetricsDrawer((prev) => !prev)}
+              className={`p-1.5 rounded-lg border transition shadow-2xs ${
+                showMetricsDrawer
+                  ? 'bg-amber-500/10 border-amber-500/40 text-amber-500 hover:bg-amber-500/20'
+                  : 'bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-amber-600 dark:text-amber-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
+              }`}
+              aria-label="Métricas"
             >
-              {darkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
+              <BarChart3 className="w-4 h-4" />
             </button>
+            <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute right-0 top-10 px-2 py-1 bg-slate-900 text-white dark:bg-zinc-900 dark:text-zinc-200 text-[11px] font-medium rounded-lg shadow-xl border border-slate-800 dark:border-zinc-800 whitespace-nowrap z-50 pointer-events-none">
+              Métricas del proyecto
+            </div>
           </div>
+
+          {/* Configuración */}
+          <div className="relative group">
+            <button
+              type="button"
+              onClick={() => setShowSettingsModal(true)}
+              className="p-1.5 rounded-lg border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-zinc-800 transition shadow-2xs"
+              aria-label="Configuración"
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+            </button>
+            <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute right-0 top-10 px-2 py-1 bg-slate-900 text-white dark:bg-zinc-900 dark:text-zinc-200 text-[11px] font-medium rounded-lg shadow-xl border border-slate-800 dark:border-zinc-800 whitespace-nowrap z-50 pointer-events-none">
+              Configuración (Flechas, datos, tema)
+            </div>
+          </div>
+
         </div>
       </header>
 
-      {/* Main Content Area */}
-      <main className="flex-1 flex flex-col max-w-[1920px] w-full mx-auto px-4 lg:px-6 py-4 gap-3.5 min-h-0">
-        {/* Executive KPI Summary Strip */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          {/* Timeline Span & Projects Count */}
-          <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
-              <Calendar className="w-5 h-5" />
-            </div>
-            <div className="min-w-0">
-              <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                Proyectos & Duración Total
-              </div>
-              <div className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                {metrics.projectsCount} proyectos · {metrics.totalDays}d
-              </div>
-              <div className="text-[10px] font-mono text-slate-400 truncate">
-                {formatDateDisplay(metrics.startStr, 'dd MMM')} →{' '}
-                {formatDateDisplay(metrics.endStr, 'dd MMM yyyy')}
-              </div>
-            </div>
-          </div>
-
-          {/* Tasks & Completion */}
-          <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-              <CheckCircle2 className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                Tareas & Avance Global
-              </div>
-              <div className="text-sm font-bold text-slate-900 dark:text-white">
-                {metrics.tasksCount} tareas · {metrics.avgProgress}%
-              </div>
-              <div className="w-28 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden mt-1">
-                <div
-                  style={{ width: `${metrics.avgProgress}%` }}
-                  className="h-full bg-emerald-500 rounded-full"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Milestones */}
-          <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-              <Diamond className="w-5 h-5 fill-current" />
-            </div>
-            <div>
-              <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                Hitos Clave (Milestones)
-              </div>
-              <div className="text-sm font-bold text-slate-900 dark:text-white">
-                {metrics.milestonesCount} hitos configurados
-              </div>
-              <div className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
-                Puntos de control (Duración 0d)
-              </div>
-            </div>
-          </div>
-
-          {/* Slack & Buffer */}
-          <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400 flex items-center justify-center shrink-0">
-              <Layers className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                Holgura (Slack Acumulado)
-              </div>
-              <div className="text-sm font-bold text-slate-900 dark:text-white">
-                +{metrics.totalSlackDays} días de margen
-              </div>
-              <label className="flex items-center gap-1.5 text-[10px] text-slate-500 cursor-pointer mt-0.5">
-                <input
-                  type="checkbox"
-                  checked={showCpmFloat}
-                  onChange={(e) => setShowCpmFloat(e.target.checked)}
-                  className="rounded border-slate-300 text-indigo-600"
-                />
-                <span>Incluir Float libre CPM</span>
-              </label>
-            </div>
-          </div>
-
-          {/* Critical Path & Dependency Health */}
-          <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between gap-2 col-span-2 md:col-span-1">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
-                <GitBranch className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                  Ruta Crítica & Deps
-                </div>
-                <div className="text-sm font-bold text-slate-900 dark:text-white">
-                  {metrics.criticalCount} críticas
-                </div>
-                <label className="flex items-center gap-1.5 text-[10px] text-slate-500 cursor-pointer mt-0.5">
-                  <input
-                    type="checkbox"
-                    checked={autoCascade}
-                    onChange={(e) => setAutoCascade(e.target.checked)}
-                    className="rounded border-slate-300 text-indigo-600"
-                  />
-                  <span>Auto-cascada activa</span>
-                </label>
-              </div>
-            </div>
-
-            {metrics.conflictCount > 0 && (
+      {/* Collapsible Metrics Drawer (Hidden by default) */}
+      {showMetricsDrawer && (
+        <div className="px-4 py-3 bg-white/95 dark:bg-zinc-900/95 border-b border-slate-200 dark:border-zinc-800/80 text-xs backdrop-blur-md">
+          <div className="max-w-[1920px] mx-auto">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500">
+                Métricas Clave del Proyecto
+              </span>
               <button
                 type="button"
-                onClick={handleResolveAllConflicts}
-                className="px-2.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-semibold flex items-center gap-1 shadow-sm shrink-0"
-                title="Ajustar automáticamente las tareas que inician antes de que terminen sus predecesoras"
+                onClick={() => setShowMetricsDrawer(false)}
+                className="text-slate-400 hover:text-slate-700 dark:hover:text-white text-xs"
               >
-                <Sparkles className="w-3.5 h-3.5" />
-                Corregir ({metrics.conflictCount})
+                ✕
               </button>
-            )}
-          </div>
-        </div>
-
-        {/* Saved Scenarios & Templates Switcher Bar */}
-        <div
-          data-scenarios-bar="true"
-          className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm"
-        >
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5 mr-1">
-              <BookmarkCheck className="w-3.5 h-3.5 text-emerald-500" />
-              Mis Escenarios ({savedScenarios.length}):
-            </span>
-
-            {savedScenarios.map((scen) => {
-              const isActive = activeScenarioId === scen.id;
-              return (
-                <div
-                  key={scen.id}
-                  onClick={() => handleScenarioSelect(scen.id)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      handleScenarioSelect(scen.id);
-                    }
-                  }}
-                  data-scenario-pill={scen.id}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-2 border cursor-pointer ${
-                    isActive
-                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                      : 'bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
-                  }`}
-                  title={`Volver al escenario guardado "${scen.name}" (${scen.projects.length} proyecto(s), ${scen.items.length} tarea(s))`}
-                >
-                  <span
-                    className={`w-2 h-2 rounded-full shrink-0 ${
-                      isActive ? 'bg-white' : 'bg-emerald-500'
-                    }`}
-                  />
-                  <span className="truncate max-w-[220px]">{scen.name}</span>
-                  <span
-                    className={`font-mono text-[10px] px-1.5 py-0.5 rounded-full ${
-                      isActive
-                        ? 'bg-white/20 text-white'
-                        : 'bg-slate-200/80 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
-                    }`}
-                  >
-                    {scen.projects.length}p · {scen.items.length}t
-                  </span>
-                  {savedScenarios.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={(e) => handleDeleteScenario(scen.id, e)}
-                      className={`p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 ${
-                        isActive ? 'text-white/80 hover:text-white' : 'text-slate-400 hover:text-rose-500'
-                      }`}
-                      title={`Eliminar escenario "${scen.name}"`}
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  )}
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800/80">
+                <div className="text-slate-400 dark:text-zinc-500 text-[10px]">Duración Total</div>
+                <div className="font-semibold text-slate-800 dark:text-white mt-0.5">
+                  {metrics.projectsCount} proy · {metrics.totalDays}d
                 </div>
-              );
-            })}
-
-            <button
-              type="button"
-              onClick={() => setShowNewScenarioBar((prev) => !prev)}
-              className="px-2.5 py-1.5 rounded-xl text-xs font-semibold border border-dashed border-emerald-500 dark:border-emerald-600 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition flex items-center gap-1"
-              title="Crear un nuevo escenario en blanco o a partir del actual"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Nuevo Escenario
-            </button>
-
-            <button
-              type="button"
-              onClick={handleDuplicateCurrentScenario}
-              className="px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition flex items-center gap-1"
-              title="Guardar una copia independiente del escenario actual en Mis Escenarios"
-            >
-              <Copy className="w-3.5 h-3.5" />
-              Guardar Copia
-            </button>
-          </div>
-
-          {/* Quick Templates Selector on the Right */}
-          <div className="flex items-center gap-2 flex-wrap text-xs">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-              Plantillas Base:
-            </span>
-            {templates.map((tpl) => {
-              const isCurrentTpl = activeScenarioId === `template:${tpl.id}`;
-              return (
-                <button
-                  key={tpl.id}
-                  type="button"
-                  onClick={() => handleTemplateSelect(tpl.id)}
-                  className={`px-2.5 py-1 rounded-xl text-xs font-medium border transition ${
-                    isCurrentTpl
-                      ? 'bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300 font-semibold'
-                      : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-                  }`}
-                  title={`Explorar plantilla "${tpl.name}" (tus escenarios guardados no se borrarán)`}
-                >
-                  📋 {tpl.name}
-                </button>
-              );
-            })}
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800/80">
+                <div className="text-slate-400 dark:text-zinc-500 text-[10px]">Avance Global</div>
+                <div className="font-semibold text-slate-800 dark:text-white mt-0.5">
+                  {metrics.tasksCount} tareas · {metrics.avgProgress}%
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800/80">
+                <div className="text-slate-400 dark:text-zinc-500 text-[10px]">Hitos Clave</div>
+                <div className="font-semibold text-amber-500 mt-0.5">
+                  {metrics.milestonesCount} hitos
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800/80">
+                <div className="text-slate-400 dark:text-zinc-500 text-[10px]">Holgura (Slack)</div>
+                <div className="font-semibold text-violet-500 mt-0.5">
+                  +{metrics.totalSlackDays}d de margen
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800/80">
+                <div className="text-slate-400 dark:text-zinc-500 text-[10px]">Ruta Crítica</div>
+                <div className="font-semibold text-rose-500 mt-0.5">
+                  {metrics.criticalCount} críticas
+                </div>
+              </div>
+            </div>
           </div>
         </div>
+      )}
 
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col max-w-[1920px] w-full mx-auto px-2 sm:px-4 py-2 sm:py-3 gap-2 min-h-0">
         {/* Inline New Scenario Creation Bar */}
         {showNewScenarioBar && (
           <form
@@ -1473,100 +1458,6 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
             </div>
           </form>
         )}
-
-        {/* Project Groups Filter & Management Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5 mr-1">
-              <FolderKanban className="w-3.5 h-3.5 text-indigo-500" />
-              Proyectos:
-            </span>
-
-            {/* All Projects Pill */}
-            <button
-              type="button"
-              onClick={() => setSelectedProjectId('all')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 ${
-                selectedProjectId === 'all'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-              }`}
-            >
-              <span>Todos ({projectGroups.length})</span>
-            </button>
-
-            {/* Individual Project Pills */}
-            {projectGroups.map((group) => {
-              const isSelected = selectedProjectId === group.project.id;
-              const colorDot =
-                PROJECT_COLORS.find((c) => c.value === group.project.color)?.bg ||
-                'bg-indigo-500';
-              return (
-                <button
-                  key={group.project.id}
-                  type="button"
-                  onClick={() =>
-                    setSelectedProjectId(
-                      isSelected ? 'all' : group.project.id
-                    )
-                  }
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-2 border ${
-                    isSelected
-                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                      : 'bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
-                  }`}
-                  title={`Filtrar por ${group.project.name} (${group.tasksCount} tareas, ${group.milestonesCount} hitos, ${group.progress}% avance)`}
-                >
-                  <span
-                    className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                      isSelected ? 'bg-white' : colorDot
-                    }`}
-                  />
-                  <span className="truncate max-w-[200px]">
-                    P{group.projectIndex}: {group.project.name}
-                  </span>
-                  <span
-                    className={`font-mono text-[10px] px-1.5 py-0.5 rounded-full ${
-                      isSelected
-                        ? 'bg-white/20 text-white'
-                        : 'bg-slate-200/80 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
-                    }`}
-                  >
-                    {group.items.length} · {group.progress}%
-                  </span>
-                </button>
-              );
-            })}
-
-            <button
-              type="button"
-              onClick={() => setShowNewProjectBar((prev) => !prev)}
-              className="px-2.5 py-1.5 rounded-xl text-xs font-semibold border border-dashed border-indigo-400 dark:border-indigo-600 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition flex items-center gap-1"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Crear Proyecto
-            </button>
-          </div>
-
-          {/* Expand / Collapse All Controls */}
-          <div className="flex items-center gap-1.5 text-xs">
-            <button
-              type="button"
-              onClick={() => handleExpandCollapseAll(false)}
-              className="px-2.5 py-1 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium"
-            >
-              Expandir todos
-            </button>
-            <span className="text-slate-300 dark:text-slate-700">|</span>
-            <button
-              type="button"
-              onClick={() => handleExpandCollapseAll(true)}
-              className="px-2.5 py-1 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium"
-            >
-              Colapsar todos
-            </button>
-          </div>
-        </div>
 
         {/* Inline New Project Creation Bar */}
         {showNewProjectBar && (
@@ -1676,6 +1567,207 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
           scrollContainerRef={scrollContainerRef}
         />
       </main>
+
+      {/* Settings Modal (Flechas, auto-cascada, tema, zoom, exportar/importar) */}
+      <div className={`${showSettingsModal ? 'fixed' : 'hidden'} inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4`}>
+        <div className="w-full max-w-md bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-2xl overflow-hidden p-5 space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-200 dark:border-zinc-800 pb-3">
+            <div className="flex items-center gap-2">
+              <SlidersHorizontal className="w-4 h-4 text-slate-500 dark:text-zinc-400" />
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
+                Configuración del Cronograma
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowSettingsModal(false)}
+              className="text-slate-400 hover:text-slate-700 dark:hover:text-white text-xs"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Configuración de Flechas de Dependencia */}
+          <div className="space-y-2">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+              Flechas de Dependencia (Por defecto: Visibles)
+            </label>
+            <div
+              data-arrow-visibility-selector="true"
+              data-current-visibility={arrowVisibility}
+              className="grid grid-cols-2 gap-2 text-xs"
+            >
+              {(
+                [
+                  { id: 'all', label: 'Siempre Visibles' },
+                  { id: 'hover', label: 'Al pasar cursor' },
+                  { id: 'critical', label: 'Solo Ruta Crítica' },
+                  { id: 'none', label: 'Ocultar' },
+                ] as const
+              ).map((opt) => (
+                <label
+                  key={opt.id}
+                  data-arrow-visibility-option={opt.id}
+                  className={`p-2.5 rounded-xl border flex items-center gap-2 cursor-pointer transition ${
+                    arrowVisibility === opt.id
+                      ? 'border-indigo-500 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-semibold'
+                      : 'border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-600 dark:text-zinc-400'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="arrow-visibility"
+                    checked={arrowVisibility === opt.id}
+                    onChange={() => setArrowVisibility(opt.id)}
+                    className="text-indigo-600"
+                  />
+                  <span>{opt.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Opciones adicionales */}
+          <div className="space-y-2.5 border-t border-slate-200 dark:border-zinc-800/80 pt-3 text-xs">
+            <label className="flex items-center justify-between cursor-pointer">
+              <span className="text-slate-700 dark:text-zinc-300 font-medium">
+                Auto-cascada de fechas al mover tareas
+              </span>
+              <input
+                type="checkbox"
+                checked={autoCascade}
+                onChange={(e) => setAutoCascade(e.target.checked)}
+                className="rounded border-slate-300 dark:border-zinc-700 text-indigo-600"
+              />
+            </label>
+
+            <label className="flex items-center justify-between cursor-pointer">
+              <span className="text-slate-700 dark:text-zinc-300 font-medium">
+                Incluir Float libre CPM en holguras
+              </span>
+              <input
+                type="checkbox"
+                checked={showCpmFloat}
+                onChange={(e) => setShowCpmFloat(e.target.checked)}
+                className="rounded border-slate-300 dark:border-zinc-700 text-indigo-600"
+              />
+            </label>
+
+            <label className="flex items-center justify-between cursor-pointer">
+              <span className="text-slate-700 dark:text-zinc-300 font-medium">
+                Zoom táctil con rueda del ratón
+              </span>
+              <input
+                type="checkbox"
+                data-wheel-zoom-toggle="true"
+                defaultChecked={true}
+                className="rounded border-slate-300 dark:border-zinc-700 text-indigo-600"
+              />
+            </label>
+
+            {/* Slider de Escala de Zoom (disponible en configuración) */}
+            <div className="space-y-1.5 pt-1">
+              <div className="flex items-center justify-between text-slate-700 dark:text-zinc-300">
+                <span className="font-medium">Escala manual ({dayWidth.toFixed(1)} px/día)</span>
+                <span className="text-[10px] text-slate-400">O usa rueda del ratón</span>
+              </div>
+              <input
+                type="range"
+                min={3}
+                max={80}
+                step={0.5}
+                value={dayWidth}
+                onChange={(e) => handleChangeDayWidth(parseFloat(e.target.value))}
+                data-zoom-slider="true"
+                className="w-full accent-indigo-600 cursor-pointer h-1.5"
+              />
+              <div className="grid grid-cols-4 gap-1.5 pt-1">
+                {(
+                  [
+                    { id: 'day', label: 'Día', val: 44 },
+                    { id: 'week', label: 'Semana', val: 24 },
+                    { id: 'month', label: 'Mes', val: 12 },
+                    { id: 'quarter', label: 'Trimestre', val: 5 },
+                  ] as const
+                ).map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => handleChangeDayWidth(preset.val)}
+                    className="px-2 py-1 rounded-lg border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 text-center font-medium"
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+              <span className="text-slate-700 dark:text-zinc-300 font-medium">Tema visual</span>
+              <button
+                type="button"
+                onClick={() => setDarkMode((prev) => !prev)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-zinc-700 bg-slate-100 dark:bg-zinc-800 text-xs font-medium"
+              >
+                {darkMode ? (
+                  <>
+                    <Sun className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Modo Oscuro</span>
+                  </>
+                ) : (
+                  <>
+                    <Moon className="w-3.5 h-3.5 text-slate-600" />
+                    <span>Modo Claro</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Exportar e Importar */}
+          <div className="border-t border-slate-200 dark:border-zinc-800/80 pt-3 text-xs space-y-2">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500">
+              Exportar / Importar Datos
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleExportCSV}
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 font-medium transition"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500" />
+                <span>CSV</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleExportJSON}
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 font-medium transition"
+              >
+                <Download className="w-3.5 h-3.5 text-indigo-500" />
+                <span>JSON</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 font-medium transition"
+              >
+                <Upload className="w-3.5 h-3.5 text-violet-500" />
+                <span>Importar</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="pt-2 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setShowSettingsModal(false)}
+              className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs transition"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* Task / Milestone Modal Editor */}
       <TaskFormModal
