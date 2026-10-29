@@ -86,6 +86,7 @@ interface GanttWorkspaceProps {
   onCreateProject?: () => void;
   scrollContainerRef: React.RefObject<HTMLDivElement>;
   initialSelectedItemId?: string;
+  initialHoveredItemId?: string;
   initialCursorScrubber?: { x: number; date: Date };
 }
 
@@ -210,9 +211,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   onCreateProject,
   scrollContainerRef,
   initialSelectedItemId,
+  initialHoveredItemId,
   initialCursorScrubber,
 }) => {
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [hoveredId, setHoveredId] = useState<string | null>(
+    initialHoveredItemId || null
+  );
   const [selectedItemId, setSelectedItemId] = useState<string | null>(
     initialSelectedItemId || null
   );

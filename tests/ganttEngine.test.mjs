@@ -516,6 +516,29 @@ test('App and GanttWorkspace render complete WBS table, project groups, summary 
             />
           );
         }
+        export function createHoveredWorkspaceElement(itemId) {
+          const tpl = getProjectTemplates()[0];
+          const items = computeGanttMetrics(tpl.items);
+          return (
+            <GanttWorkspace
+              items={items}
+              projects={tpl.projects}
+              groupByProject={true}
+              selectedProjectId="all"
+              zoom="day"
+              showCriticalPath={true}
+              showCpmFloat={false}
+              autoCascade={true}
+              initialHoveredItemId={itemId}
+              onUpdateItem={() => {}}
+              onEditModal={() => {}}
+              onDeleteItem={() => {}}
+              onDuplicateItem={() => {}}
+              onQuickAdd={() => {}}
+              scrollContainerRef={{ current: null }}
+            />
+          );
+        }
         export function createScrubberWorkspaceElement(x, date) {
           const tpl = getProjectTemplates()[0];
           const items = computeGanttMetrics(tpl.items);
@@ -601,6 +624,8 @@ test('App and GanttWorkspace render complete WBS table, project groups, summary 
       mod.createHiddenArrowsWorkspaceElement || mod.default?.createHiddenArrowsWorkspaceElement;
     const createInspectedWorkspaceElement =
       mod.createInspectedWorkspaceElement || mod.default?.createInspectedWorkspaceElement;
+    const createHoveredWorkspaceElement =
+      mod.createHoveredWorkspaceElement || mod.default?.createHoveredWorkspaceElement;
     const createScrubberWorkspaceElement =
       mod.createScrubberWorkspaceElement || mod.default?.createScrubberWorkspaceElement;
     const createMultiMilestonesWorkspaceElement =
@@ -695,6 +720,19 @@ test('App and GanttWorkspace render complete WBS table, project groups, summary 
     assert.ok(inspectedHtml.includes('Editar Ítem'));
     // Floating dark hover tooltip has been eliminated
     assert.equal(inspectedHtml.includes('pointer-events-none bg-slate-900/95'), false);
+
+    // Active hover on task does not render any dark floating tooltip card
+    const hoveredTaskHtml = renderToString(createHoveredWorkspaceElement('t-2'));
+    assert.equal(hoveredTaskHtml.includes('pointer-events-none bg-slate-900/95'), false, 'Hovered task does not render dark overlay card');
+    assert.equal(hoveredTaskHtml.includes('bg-slate-900/95 text-white'), false, 'Hovered task does not render dark tooltip');
+    assert.ok(hoveredTaskHtml.includes('shadow-md'), 'Hovered task retains subtle shadow-md');
+    assert.equal(hoveredTaskHtml.includes('id="gantt-inspection-panel"'), false, 'Hovered task does not open docked inspection panel');
+
+    // Active hover on milestone does not render any dark floating tooltip card
+    const hoveredMilestoneHtml = renderToString(createHoveredWorkspaceElement('m-1'));
+    assert.equal(hoveredMilestoneHtml.includes('pointer-events-none bg-slate-900/95'), false, 'Hovered milestone does not render dark overlay card');
+    assert.equal(hoveredMilestoneHtml.includes('bg-slate-900/95 text-white'), false, 'Hovered milestone does not render dark tooltip');
+    assert.equal(hoveredMilestoneHtml.includes('id="gantt-inspection-panel"'), false, 'Hovered milestone does not open docked inspection panel');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
