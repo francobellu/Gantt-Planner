@@ -693,6 +693,8 @@ test('App and GanttWorkspace render complete WBS table, project groups, summary 
     assert.ok(inspectedHtml.includes('Hito: Congelación de Diseño &amp; Esquema API'));
     assert.ok(inspectedHtml.includes('data-close-inspection-panel="true"'));
     assert.ok(inspectedHtml.includes('Editar Ítem'));
+    // Floating dark hover tooltip has been eliminated
+    assert.equal(inspectedHtml.includes('pointer-events-none bg-slate-900/95'), false);
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }

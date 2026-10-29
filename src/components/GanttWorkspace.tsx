@@ -2161,8 +2161,6 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         'task'
                       )
                     : coords.effectiveEndStr;
-                const tooltipPositionClass =
-                  coords.index < 2 ? 'top-11' : '-top-24';
 
                 return (
                   <div
@@ -2204,45 +2202,6 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             ({formatDateDisplay(coords.effectiveStartStr, 'dd MMM')})
                           </span>
                         </div>
-
-                        {/* Hover Floating Inspection Card for Milestone */}
-                        {isHovered && !dragState && (
-                          <div
-                            className={`absolute left-0 ${tooltipPositionClass} z-30 pointer-events-none bg-slate-900/95 text-white px-3 py-2 rounded-xl shadow-xl border border-slate-700 text-[11px] whitespace-nowrap flex flex-col gap-0.5`}
-                          >
-                            <div className="flex items-center gap-2 font-bold">
-                              <span>
-                                #{item.wbsCode || item.wbs} ◆ {item.name}
-                              </span>
-                              <span className="px-1.5 py-0.5 rounded bg-indigo-500/30 text-indigo-200 text-[10px] font-normal">
-                                📁 {group.project.name}
-                              </span>
-                              {item.assignee && (
-                                <span className="px-1.5 py-0.5 rounded bg-slate-700 text-slate-200 text-[10px] font-normal">
-                                  👤 {item.assignee}
-                                </span>
-                              )}
-                              {item.isCritical && (
-                                <span className="px-1.5 py-0.5 rounded bg-rose-500/30 text-rose-300 text-[10px]">
-                                  Ruta Crítica
-                                </span>
-                              )}
-                            </div>
-                            <div className="font-mono text-[10px] text-slate-300 flex items-center gap-3">
-                              <span>
-                                📅 Hito: {formatDateDisplay(coords.effectiveStartStr, 'dd MMM yyyy')} (0d)
-                              </span>
-                              <span className="text-indigo-300">
-                                ✓ {item.progress}%
-                              </span>
-                            </div>
-                            {item.notes && (
-                              <div className="text-[10px] text-slate-400 max-w-xs truncate">
-                                📝 {item.notes}
-                              </div>
-                            )}
-                          </div>
-                        )}
                       </div>
                     ) : (
                       /* STANDARD TASK BAR + SLACK EXTENSION BAR */
@@ -2339,50 +2298,6 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           <span className="ml-2 text-[11px] font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap pointer-events-none">
                             {item.name} ({coords.effectiveDuration}d)
                           </span>
-                        )}
-
-                        {/* Hover Floating Inspection Card */}
-                        {isHovered && !dragState && (
-                          <div
-                            className={`absolute left-0 ${tooltipPositionClass} z-30 pointer-events-none bg-slate-900/95 text-white px-3 py-2 rounded-xl shadow-xl border border-slate-700 text-[11px] whitespace-nowrap flex flex-col gap-0.5`}
-                          >
-                            <div className="flex items-center gap-2 font-bold">
-                              <span>
-                                #{item.wbsCode || item.wbs} {item.name}
-                              </span>
-                              <span className="px-1.5 py-0.5 rounded bg-indigo-500/30 text-indigo-200 text-[10px] font-normal">
-                                📁 {group.project.name}
-                              </span>
-                              {item.assignee && (
-                                <span className="px-1.5 py-0.5 rounded bg-slate-700 text-slate-200 text-[10px] font-normal">
-                                  👤 {item.assignee}
-                                </span>
-                              )}
-                              {item.isCritical && (
-                                <span className="px-1.5 py-0.5 rounded bg-rose-500/30 text-rose-300 text-[10px]">
-                                  Ruta Crítica
-                                </span>
-                              )}
-                            </div>
-                            <div className="font-mono text-[10px] text-slate-300 flex items-center gap-3">
-                              <span>
-                                📅 {formatDateDisplay(coords.effectiveStartStr, 'dd MMM')} →{' '}
-                                {formatDateDisplay(coords.effectiveEndStr, 'dd MMM')} (
-                                {coords.effectiveDuration}d)
-                              </span>
-                              <span className="text-amber-400">
-                                ⏳ Slack: {item.slack}d
-                              </span>
-                              <span className="text-indigo-300">
-                                ✓ {item.progress}%
-                              </span>
-                            </div>
-                            {item.notes && (
-                              <div className="text-[10px] text-slate-400 max-w-xs truncate">
-                                📝 {item.notes}
-                              </div>
-                            )}
-                          </div>
                         )}
                       </div>
                     )}
