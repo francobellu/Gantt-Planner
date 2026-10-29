@@ -706,18 +706,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       rowIndex: number,
       isCollapsedRow = false
     ) => {
-      const isDraggingThis = dragState && dragState.itemId === it.id;
-      const baseStart = parseDateSafe(it.startDate);
-      const effectiveStart =
-        isDraggingThis && dragState.mode === 'move'
-          ? addDays(baseStart, dragState.dayDelta)
-          : baseStart;
+      const effectiveStart = parseDateSafe(it.startDate);
       const effectiveDuration =
-        isDraggingThis && dragState.mode === 'resize'
-          ? Math.max(1, it.duration + dragState.dayDelta)
-          : it.type === 'milestone'
-          ? 0
-          : Math.max(1, it.duration);
+        it.type === 'milestone' ? 0 : Math.max(1, it.duration);
 
       const effectiveStartStr = formatDateISO(effectiveStart);
       const effectiveEndStr =
@@ -1570,7 +1561,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   data-cursor-x={cursorScrubber.x}
                   data-cursor-date={formatScrubberDate(cursorScrubber.date)}
                   style={{ left: cursorScrubber.x }}
-                  className="absolute top-0 bottom-0 pointer-events-none z-30 flex flex-col items-center"
+                  className="absolute top-0 bottom-0 pointer-events-none z-30 w-0"
                 >
                   {/* Floating pill badge at the top displaying exact calendar date */}
                   <div
@@ -1582,8 +1573,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     <Calendar className="w-3 h-3 text-indigo-400 dark:text-indigo-600 shrink-0" />
                     <span>{formatScrubberDate(cursorScrubber.date)}</span>
                   </div>
-                  {/* Sleek vertical tracking line */}
-                  <div className="w-px h-full bg-indigo-500/80 dark:bg-indigo-400/80 shadow-xs" />
+                  {/* Sleek vertical tracking line centered right on the cursor position */}
+                  <div className="absolute top-0 bottom-0 left-0 w-px -translate-x-1/2 bg-indigo-500/80 dark:bg-indigo-400/80 shadow-xs" />
                 </div>
               );
             })()}
@@ -1930,6 +1921,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   (hoveredId !== null || selectedItemId !== null) &&
                   !relatedIds.has(item.id);
                 const isCrit = showCriticalPath && item.isCritical;
+                const isDraggingThis = dragState && dragState.itemId === item.id;
                 const styleTheme = COLOR_STYLES[item.color] || COLOR_STYLES.indigo;
 
                 const barLeft =
@@ -1979,11 +1971,20 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         onClick={(e) => handleBarClick(e, item.id)}
                         onDoubleClick={() => onEditModal(item)}
                         data-timeline-milestone={item.id}
-                        className="absolute z-20 flex items-center group cursor-grab active:cursor-grabbing"
+                        className={`absolute z-20 flex items-center group cursor-grab active:cursor-grabbing ${
+                          isDraggingThis ? 'z-40' : ''
+                        }`}
                       >
+                        {isDraggingThis && (
+                          <div className="absolute -top-7 left-2.5 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-slate-900/95 dark:bg-zinc-100/95 text-white dark:text-zinc-900 text-[10px] font-mono font-bold shadow-xl border border-slate-700/60 dark:border-zinc-300/60 pointer-events-none whitespace-nowrap z-50">
+                            ◆ {formatDateDisplay(coords.effectiveStartStr, 'd MMM yyyy')}
+                          </div>
+                        )}
                         <div
                           className={`w-5 h-5 rotate-45 rounded-[4px] border-2 shadow-md transition-transform group-hover:scale-125 ${
-                            isSelected
+                            isDraggingThis
+                              ? 'scale-125 ring-2 ring-indigo-500 shadow-xl'
+                              : isSelected
                               ? 'scale-125 ring-2 ring-indigo-500'
                               : ''
                           } ${
@@ -2003,8 +2004,15 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       /* STANDARD TASK BAR + SLACK EXTENSION BAR */
                       <div
                         style={{ left: barLeft }}
-                        className="absolute z-20 flex items-center"
+                        className={`absolute z-20 flex items-center ${
+                          isDraggingThis ? 'z-40' : ''
+                        }`}
                       >
+                        {isDraggingThis && (
+                          <div className="absolute -top-7 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-slate-900/95 dark:bg-zinc-100/95 text-white dark:text-zinc-900 text-[10px] font-mono font-bold shadow-xl border border-slate-700/60 dark:border-zinc-300/60 pointer-events-none whitespace-nowrap z-50">
+                            {formatDateDisplay(coords.effectiveStartStr, 'd MMM')} → {formatDateDisplay(coords.effectiveEndStr, 'd MMM')} ({coords.effectiveDuration}d)
+                          </div>
+                        )}
                         {/* Main Task Bar */}
                         <div
                           style={{ width: barWidth }}
@@ -2015,7 +2023,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           className={`relative h-8 rounded-lg border overflow-hidden cursor-grab active:cursor-grabbing shadow-sm transition-shadow ${
                             styleTheme.barBg
                           } ${
-                            isSelected
+                            isDraggingThis
+                              ? 'ring-2 ring-indigo-500 ring-offset-1 dark:ring-offset-slate-950 shadow-xl opacity-95'
+                              : isSelected
                               ? 'ring-2 ring-indigo-500 ring-offset-1 dark:ring-offset-slate-950 shadow-md'
                               : isCrit
                               ? 'border-rose-500 ring-2 ring-rose-500/40'

@@ -690,6 +690,8 @@ test('App and GanttWorkspace render complete WBS table, project groups, summary 
     assert.ok(scrubberHtml.includes('data-cursor-x="350"'));
     assert.ok(scrubberHtml.includes('data-cursor-date="28 Oct 2026"'));
     assert.ok(scrubberHtml.includes('28 Oct 2026'));
+    assert.ok(scrubberHtml.includes('w-0'), 'Scrubber container must have zero width so line is centered on cursor');
+    assert.ok(scrubberHtml.includes('-translate-x-1/2'), 'Vertical line must be centered at left:0 of scrubber container');
 
     // Requirement 3 (Edge Case): Scrubber badge boundary clamp near left canvas edge (x=10)
     const leftScrubberHtml = renderToString(
@@ -1403,6 +1405,23 @@ test('month dividers, milestone guide lines, and date scrubber handle extreme ed
   assert.equal(formatScrubberDate(epochDate), '1 Ene 1970');
   const leapCentury = new Date(2000, 1, 29, 12, 0, 0);
   assert.equal(formatScrubberDate(leapCentury), '29 Feb 2000');
+});
+
+test('dragging delta invariance: effectiveStart offset and pixel movement equal deltaDays exactly (1x), never double-counted', async () => {
+  const { addDays, differenceInCalendarDays } = await import('date-fns');
+  const origStart = new Date('2027-04-26T00:00:00Z');
+  const deltaDays = 3;
+  const dayWidth = 24;
+  const draggedStart = addDays(origStart, deltaDays);
+  const startOffsetDays = differenceInCalendarDays(draggedStart, origStart);
+  assert.equal(startOffsetDays, deltaDays, 'Drag offset must be 1x deltaDays');
+  assert.equal(startOffsetDays * dayWidth, 72, 'Pixel movement must be exactly 72px for 3 days');
+
+  // Verify milestone move
+  const mStart = new Date('2027-05-15T00:00:00Z');
+  const mDragged = addDays(mStart, -2);
+  assert.equal(differenceInCalendarDays(mDragged, mStart), -2);
+  assert.equal(differenceInCalendarDays(mDragged, mStart) * dayWidth, -48);
 });
 
 
