@@ -16,7 +16,6 @@ import {
   FileSpreadsheet,
   Flame,
   FolderKanban,
-  FolderPlus,
   GitBranch,
   Layers,
   Maximize2,
@@ -36,6 +35,7 @@ import {
   ComputedGanttItem,
   GanttItem,
   GanttProject,
+  PROJECT_COLORS,
   ProjectTemplate,
   SavedScenario,
   TaskColor,
@@ -55,7 +55,6 @@ import {
   getDayWidthForPreset,
   getDefaultSavedScenarios,
   getProjectTemplates,
-  getXcode27Scenario,
   groupItemsByProject,
   parseDateSafe,
   preserveActiveWorkspaceInScenarios,
@@ -74,16 +73,6 @@ const STORAGE_KEY = 'ganttflow_pro_state_v2';
 const LEGACY_STORAGE_KEY_V1 = 'ganttflow_pro_state_v1';
 const SCENARIOS_STORAGE_KEY = 'ganttflow_pro_scenarios_v2';
 
-const PROJECT_COLORS: { value: TaskColor; bg: string }[] = [
-  { value: 'indigo', bg: 'bg-indigo-500' },
-  { value: 'violet', bg: 'bg-violet-500' },
-  { value: 'emerald', bg: 'bg-emerald-500' },
-  { value: 'blue', bg: 'bg-blue-500' },
-  { value: 'amber', bg: 'bg-amber-500' },
-  { value: 'rose', bg: 'bg-rose-500' },
-  { value: 'cyan', bg: 'bg-cyan-500' },
-];
-
 interface InitialWorkspaceState {
   activeScenarioId: string;
   projectName: string;
@@ -92,21 +81,48 @@ interface InitialWorkspaceState {
   savedScenarios: SavedScenario[];
 }
 
+function isXcode27Project(p: Partial<GanttProject>): boolean {
+  if (p.id === 'proj-xcode27') return true;
+  if (typeof p.name === 'string' && /xcode\s*27/i.test(p.name)) return true;
+  return false;
+}
+
+function isXcode27Task(it: Partial<GanttItem>): boolean {
+  if (it.projectId === 'proj-xcode27') return true;
+  if (typeof it.id === 'string' && it.id.startsWith('xc-')) return true;
+  const name = (it.name || '').toLowerCase();
+  if (name.includes('xcode') || name.includes('biocatch')) return true;
+  return false;
+}
+
+function purgeXcodeScenario(s: SavedScenario): SavedScenario | null {
+  if (s.id === 'scen-xcode27') return null;
+  const name = (s.name || '').toLowerCase();
+  if (name.includes('xcode 27') || name.includes('xcode27')) return null;
+
+  const projects = (s.projects || []).filter((p) => !isXcode27Project(p));
+  const items = (s.items || []).filter((it) => !isXcode27Task(it));
+
+  return {
+    ...s,
+    projects,
+    items,
+  };
+}
+
 function loadInitialWorkspaceState(
   templates: ProjectTemplate[],
   defaultScenarios: SavedScenario[],
   initialScenarioId?: string
 ): InitialWorkspaceState {
-  const xcodeScenario = getXcode27Scenario();
-
-  if (initialScenarioId) {
+  if (initialScenarioId && initialScenarioId !== 'scen-xcode27') {
     const target =
       defaultScenarios.find((s) => s.id === initialScenarioId) || defaultScenarios[0];
     return {
       activeScenarioId: target.id,
       projectName: target.name,
-      projects: target.projects,
-      items: target.items,
+      projects: target.projects.filter((p) => !isXcode27Project(p)),
+      items: target.items.filter((it) => !isXcode27Task(it)),
       savedScenarios: defaultScenarios,
     };
   }
@@ -117,44 +133,48 @@ function loadInitialWorkspaceState(
       if (savedScenariosRaw) {
         const parsed = JSON.parse(savedScenariosRaw);
         let list: SavedScenario[] = Array.isArray(parsed.savedScenarios)
-          ? parsed.savedScenarios.map((s: Partial<SavedScenario>, i: number) =>
-              sanitizeScenario(s, i)
-            )
+          ? parsed.savedScenarios
+              .map((s: Partial<SavedScenario>, i: number) => sanitizeScenario(s, i))
+              .map((s: SavedScenario) => purgeXcodeScenario(s))
+              .filter(
+                (s: SavedScenario | null): s is SavedScenario =>
+                  s !== null && (s.projects.length > 0 || s.items.length > 0)
+              )
           : [...defaultScenarios];
 
-        const hadXcodeScenario = list.some((s) => s.id === xcodeScenario.id);
-        if (!hadXcodeScenario) {
-          list = [xcodeScenario, ...list];
-        }
         if (list.length === 0) {
           list = [...defaultScenarios];
         }
 
-        const activeId: string = !hadXcodeScenario
-          ? xcodeScenario.id
-          : typeof parsed.activeScenarioId === 'string' && parsed.activeScenarioId
-          ? parsed.activeScenarioId
-          : list[0].id;
+        let activeId: string =
+          typeof parsed.activeScenarioId === 'string' &&
+          parsed.activeScenarioId &&
+          parsed.activeScenarioId !== 'scen-xcode27'
+            ? parsed.activeScenarioId
+            : list[0].id;
+
+        if (!activeId.startsWith('template:') && !list.some((s) => s.id === activeId)) {
+          activeId = list[0].id;
+        }
 
         if (activeId.startsWith('template:')) {
           const tplId = activeId.replace('template:', '');
           const tpl = templates.find((t) => t.id === tplId);
           if (tpl) {
+            const rawProjects = Array.isArray(parsed.projects) ? parsed.projects : [];
+            const rawItems = Array.isArray(parsed.items) ? parsed.items : [];
+            const cleanProjects = rawProjects
+              .filter((p: Partial<GanttProject>) => !isXcode27Project(p))
+              .map((p: Partial<GanttProject>, i: number) => sanitizeProject(p, i));
+            const cleanItems = rawItems
+              .filter((it: Partial<GanttItem>) => !isXcode27Task(it))
+              .map((it: Partial<GanttItem>, i: number) => sanitizeGanttItem(it, i));
+
             return {
               activeScenarioId: activeId,
               projectName: parsed.projectName || tpl.name,
-              projects:
-                Array.isArray(parsed.projects) && parsed.projects.length > 0
-                  ? parsed.projects.map((p: Partial<GanttProject>, i: number) =>
-                      sanitizeProject(p, i)
-                    )
-                  : tpl.projects,
-              items:
-                Array.isArray(parsed.items) && parsed.items.length > 0
-                  ? parsed.items.map((it: Partial<GanttItem>, i: number) =>
-                      sanitizeGanttItem(it, i)
-                    )
-                  : tpl.items,
+              projects: cleanProjects.length > 0 ? cleanProjects : tpl.projects,
+              items: cleanItems.length > 0 ? cleanItems : tpl.items,
               savedScenarios: list,
             };
           }
@@ -170,7 +190,7 @@ function loadInitialWorkspaceState(
         };
       }
 
-      // Migrate legacy single-workspace state (v2 or v1) if present, while activating the Xcode 27 scenario
+      // Migrate legacy single-workspace state (v2 or v1) if present
       const legacyRaw =
         window.localStorage.getItem(STORAGE_KEY) ||
         window.localStorage.getItem(LEGACY_STORAGE_KEY_V1);
@@ -178,24 +198,35 @@ function loadInitialWorkspaceState(
       if (legacyRaw) {
         const legacy = JSON.parse(legacyRaw);
         if (Array.isArray(legacy.items) && legacy.items.length > 0) {
-          const legacyName = legacy.projectName || templates[0].name;
-          const isIdenticalDefault = legacyName === templates[0].name;
-          const legacyScenario = sanitizeScenario({
-            id: isIdenticalDefault ? 'scen-saas-v2' : 'scen-migrated-user',
-            name: legacyName,
-            projects: legacy.projects,
-            items: legacy.items,
-            updatedAt: new Date().toISOString(),
-          });
-          migratedList = upsertScenarioInList(migratedList, legacyScenario);
+          const rawProjects = Array.isArray(legacy.projects) ? legacy.projects : [];
+          const cleanProjects = rawProjects.filter(
+            (p: Partial<GanttProject>) => !isXcode27Project(p)
+          );
+          const cleanItems = legacy.items.filter(
+            (it: Partial<GanttItem>) => !isXcode27Task(it)
+          );
+
+          if (cleanItems.length > 0) {
+            const legacyName = legacy.projectName || templates[0].name;
+            const isIdenticalDefault = legacyName === templates[0].name;
+            const legacyScenario = sanitizeScenario({
+              id: isIdenticalDefault ? 'scen-saas-v2' : 'scen-migrated-user',
+              name: legacyName,
+              projects: cleanProjects,
+              items: cleanItems,
+              updatedAt: new Date().toISOString(),
+            });
+            migratedList = upsertScenarioInList(migratedList, legacyScenario);
+          }
         }
       }
 
+      const active = migratedList[0] || defaultScenarios[0];
       return {
-        activeScenarioId: xcodeScenario.id,
-        projectName: xcodeScenario.name,
-        projects: xcodeScenario.projects,
-        items: xcodeScenario.items,
+        activeScenarioId: active.id,
+        projectName: active.name,
+        projects: active.projects,
+        items: active.items,
         savedScenarios: migratedList,
       };
     }
@@ -203,7 +234,7 @@ function loadInitialWorkspaceState(
     // ignore storage errors
   }
 
-  // Default SSR fallback (preserves both Xcode 27 and SaaS v2.0 in savedScenarios)
+  // Default SSR / fresh fallback
   const fallback =
     defaultScenarios.find((s) => s.id === 'scen-saas-v2') || defaultScenarios[0];
   return {
@@ -278,11 +309,6 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
   const [newScenarioMode, setNewScenarioMode] = useState<'blank' | 'duplicate'>('blank');
   const [scenarioSavedToast, setScenarioSavedToast] = useState<string | null>(null);
 
-  // New Project inline creator state
-  const [showNewProjectBar, setShowNewProjectBar] = useState<boolean>(false);
-  const [newProjectName, setNewProjectName] = useState<string>('');
-  const [newProjectColor, setNewProjectColor] = useState<TaskColor>('indigo');
-
   // Minimalist UI toggles and menus
   const [showMetricsDrawer, setShowMetricsDrawer] = useState<boolean>(false);
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
@@ -299,8 +325,8 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
         setCreateMenuOpen(false);
       }
     };
-    window.addEventListener('click', handleGlobalClick);
-    return () => window.removeEventListener('click', handleGlobalClick);
+    document.addEventListener('mousedown', handleGlobalClick);
+    return () => document.removeEventListener('mousedown', handleGlobalClick);
   }, []);
 
   // Modal state
@@ -513,24 +539,6 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
   const handleCreateProject = (newProj: GanttProject) => {
     const clean = sanitizeProject(newProj, projects.length);
     setProjects((prev) => [...prev, clean]);
-  };
-
-  const handleCreateProjectFromBar = (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmed = newProjectName.trim();
-    if (!trimmed) return;
-    const created = sanitizeProject(
-      {
-        id: `proj-${Date.now()}`,
-        name: trimmed,
-        color: newProjectColor,
-        collapsed: false,
-      },
-      projects.length
-    );
-    setProjects((prev) => [...prev, created]);
-    setNewProjectName('');
-    setShowNewProjectBar(false);
     setGroupByProject(true);
   };
 
@@ -1165,20 +1173,6 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
                     </button>
                   );
                 })}
-
-                <div className="border-t border-slate-200 dark:border-zinc-800/80 my-1" />
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowNewProjectBar(true);
-                    setProjectMenuOpen(false);
-                  }}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10 font-medium transition"
-                >
-                  <FolderPlus className="w-3.5 h-3.5" />
-                  <span>Nuevo Proyecto</span>
-                </button>
               </div>
             )}
           </div>
@@ -1233,17 +1227,6 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
                 >
                   <Diamond className="w-3.5 h-3.5 text-amber-500 fill-current" />
                   <span>Nuevo Hito</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowNewProjectBar(true);
-                    setCreateMenuOpen(false);
-                  }}
-                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/70 text-slate-800 dark:text-zinc-200 font-medium transition text-left"
-                >
-                  <FolderPlus className="w-3.5 h-3.5 text-violet-500" />
-                  <span>Nuevo Proyecto</span>
                 </button>
               </div>
             )}
@@ -1459,65 +1442,6 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
           </form>
         )}
 
-        {/* Inline New Project Creation Bar */}
-        {showNewProjectBar && (
-          <form
-            onSubmit={handleCreateProjectFromBar}
-            className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-indigo-50/90 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/80 shadow-sm text-xs"
-          >
-            <div className="flex items-center gap-2.5 flex-1 min-w-[240px]">
-              <FolderPlus className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
-              <span className="font-bold text-indigo-950 dark:text-indigo-200 shrink-0">
-                Nuevo Proyecto:
-              </span>
-              <input
-                type="text"
-                required
-                value={newProjectName}
-                onChange={(e) => setNewProjectName(e.target.value)}
-                placeholder="Ej. Proyecto 4: App Móvil iOS & Android"
-                className="flex-1 px-3 py-1.5 rounded-xl border border-indigo-300 dark:border-indigo-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1.5">
-                <span className="text-slate-600 dark:text-slate-400 font-medium">Color:</span>
-                {PROJECT_COLORS.map((c) => (
-                  <button
-                    key={c.value}
-                    type="button"
-                    onClick={() => setNewProjectColor(c.value)}
-                    className={`w-5 h-5 rounded-full ${c.bg} flex items-center justify-center ${
-                      newProjectColor === c.value
-                        ? 'ring-2 ring-offset-1 ring-indigo-600'
-                        : 'opacity-65 hover:opacity-100'
-                    }`}
-                  >
-                    {newProjectColor === c.value && (
-                      <Check className="w-3 h-3 text-white" />
-                    )}
-                  </button>
-                ))}
-              </div>
-
-              <button
-                type="submit"
-                className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold shadow-sm"
-              >
-                Añadir Proyecto
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowNewProjectBar(false)}
-                className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-200/60 dark:hover:bg-slate-800"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          </form>
-        )}
-
         {/* Conflict Banner if any task violates predecessor dependencies */}
         {metrics.conflictCount > 0 && (
           <div className="flex items-center justify-between gap-4 px-4 py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-800 dark:text-rose-200 text-xs">
@@ -1563,7 +1487,7 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
           onToggleProjectCollapse={handleToggleProjectCollapse}
           onUpdateProject={handleUpdateProject}
           onDeleteProject={handleDeleteProject}
-          onCreateProject={() => setShowNewProjectBar(true)}
+          onCreateProject={handleCreateProject}
           scrollContainerRef={scrollContainerRef}
         />
       </main>

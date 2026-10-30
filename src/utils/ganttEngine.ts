@@ -1224,143 +1224,7 @@ export function switchWorkspaceToScenario(
 }
 
 /**
- * Returns the custom user scenario for "Plan Xcode 27 & QG5 27.2" with 1 project and the 7 tasks
- * (actions), assignees (equipos), and exact deadlines from the user's specification.
- */
-export function getXcode27Scenario(): SavedScenario {
-  const projectId = 'proj-xcode27';
-  return sanitizeScenario({
-    id: 'scen-xcode27',
-    name: 'Plan Xcode 27 & QG5 27.2',
-    updatedAt: new Date().toISOString(),
-    projects: [
-      {
-        id: projectId,
-        name: 'Proyecto 1: Release Xcode 27 & QG5 27.2',
-        color: 'indigo',
-        description:
-          'Plan de entregas y tareas (acciones) por equipo rumbo a QG5 27.2 y Deadline Xcode27.',
-        collapsed: false,
-      },
-    ],
-    items: [
-      {
-        id: 'xc-1',
-        name: 'SDK ARQ, + biocatch, onetrust, RSA actualizados',
-        type: 'task',
-        projectId,
-        startDate: '2026-10-29',
-        endDate: '2026-11-27',
-        duration: 30,
-        slack: 0,
-        dependencies: [],
-        progress: 0,
-        color: 'violet',
-        assignee: 'Arquitectura',
-        notes: 'Deadline: 27/11/2026 — Equipo: Arquitectura',
-      },
-      {
-        id: 'xc-2',
-        name: 'Nuevas Maquinas Mac operativas (apple silicon)',
-        type: 'task',
-        projectId,
-        startDate: '2026-10-29',
-        endDate: '2026-11-27',
-        duration: 30,
-        slack: 0,
-        dependencies: [],
-        progress: 0,
-        color: 'cyan',
-        assignee: 'AWS/Devops',
-        notes: 'Deadline: 27/11/2026 — Equipo: AWS/Devops',
-      },
-      {
-        id: 'xc-3',
-        name: 'Generación build',
-        type: 'task',
-        projectId,
-        startDate: '2026-11-28',
-        endDate: '2026-12-02',
-        duration: 5,
-        slack: 0,
-        dependencies: ['xc-1', 'xc-2'],
-        dependencyTypes: { 'xc-1': 'FS', 'xc-2': 'FS' },
-        progress: 0,
-        color: 'indigo',
-        assignee: 'RM Canales',
-        notes: 'Deadline: 02/12/2026 — Equipo: RM Canales',
-      },
-      {
-        id: 'xc-4',
-        name: 'QA termina las pruebas',
-        type: 'task',
-        projectId,
-        startDate: '2026-12-03',
-        endDate: '2027-01-07',
-        duration: 36,
-        slack: 0,
-        dependencies: ['xc-3'],
-        dependencyTypes: { 'xc-3': 'FS' },
-        progress: 0,
-        color: 'emerald',
-        assignee: 'QA',
-        notes: 'Deadline: 07/01/2027 — Equipo: QA',
-      },
-      {
-        id: 'xc-5',
-        name: 'Fixing',
-        type: 'task',
-        projectId,
-        startDate: '2027-01-08',
-        endDate: '2027-01-14',
-        duration: 7,
-        slack: 0,
-        dependencies: ['xc-4'],
-        dependencyTypes: { 'xc-4': 'FS' },
-        progress: 0,
-        color: 'blue',
-        assignee: 'Desarrollo',
-        notes: 'Deadline: 14/01/2027 — Equipo: Desarrollo',
-      },
-      {
-        id: 'xc-6',
-        name: 'QG5 27.2',
-        type: 'task',
-        projectId,
-        startDate: '2027-01-15',
-        endDate: '2027-01-15',
-        duration: 1,
-        slack: 0,
-        dependencies: ['xc-5'],
-        dependencyTypes: { 'xc-5': 'FS' },
-        progress: 0,
-        color: 'amber',
-        assignee: 'RM',
-        notes: 'Deadline: 15/01/2027 — Equipo: RM',
-      },
-      {
-        id: 'xc-7',
-        name: 'Deadline Xcode27',
-        type: 'task',
-        projectId,
-        startDate: '2027-01-16',
-        endDate: '2027-04-15',
-        duration: 90,
-        slack: 0,
-        dependencies: ['xc-6'],
-        dependencyTypes: { 'xc-6': 'FS' },
-        progress: 0,
-        color: 'rose',
-        assignee: 'Apple',
-        notes: 'Deadline: 15/04/2027 — Equipo: Apple',
-      },
-    ],
-  });
-}
-
-/**
- * Returns the initial list of saved scenarios so the user has both the Xcode 27 scenario
- * and the SaaS v2.0 portfolio saved out of the box.
+ * Returns the initial list of saved scenarios loading the clean SaaS v2.0 portfolio template.
  */
 export function getDefaultSavedScenarios(): SavedScenario[] {
   const templates = getProjectTemplates();
@@ -1374,7 +1238,7 @@ export function getDefaultSavedScenarios(): SavedScenario[] {
     sourceTemplateId: saasTpl.id,
   });
 
-  return [getXcode27Scenario(), saasScenario];
+  return [saasScenario];
 }
 
 export const MIN_DAY_WIDTH = 3;

@@ -12,6 +12,7 @@ import { es } from 'date-fns/locale';
 import {
   AlertTriangle,
   Calendar,
+  Check,
   ChevronDown,
   ChevronRight,
   Clock,
@@ -22,7 +23,6 @@ import {
   FolderKanban,
   GitBranch,
   GripHorizontal,
-  Layers,
   Maximize2,
   Minus,
   MousePointer,
@@ -39,6 +39,7 @@ import {
   DependencyType,
   GanttItem,
   GanttProject,
+  PROJECT_COLORS,
   TaskColor,
   ZoomLevel,
 } from '../types/gantt';
@@ -84,7 +85,7 @@ interface GanttWorkspaceProps {
   onToggleProjectCollapse?: (projectId: string) => void;
   onUpdateProject?: (project: GanttProject) => void;
   onDeleteProject?: (projectId: string) => void;
-  onCreateProject?: () => void;
+  onCreateProject?: (project: GanttProject) => void;
   scrollContainerRef: React.RefObject<HTMLDivElement>;
   initialSelectedItemId?: string;
   initialHoveredItemId?: string;
@@ -243,6 +244,26 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     return { team: true, deps: true, dates: false, dur: false, slack: false };
   });
   const [showColumnsMenu, setShowColumnsMenu] = useState<boolean>(false);
+  const columnsMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showColumnsMenu) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (
+        columnsMenuRef.current &&
+        !columnsMenuRef.current.contains(e.target as Node)
+      ) {
+        setShowColumnsMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [showColumnsMenu]);
+
+  // Inline Project Creation state
+  const [isCreatingProject, setIsCreatingProject] = useState<boolean>(false);
+  const [newProjectName, setNewProjectName] = useState<string>('');
+  const [newProjectColor, setNewProjectColor] = useState<TaskColor>('indigo');
 
   const toggleVisibleColumn = (key: keyof typeof visibleColumns) => {
     setVisibleColumns((prev) => {
@@ -1143,7 +1164,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
                       {/* Botón de Columnas: SOLO ICONO VECTORIAL (sin texto) */}
                       <div className="w-20 flex items-center justify-end pr-1">
-                        <div className="relative" data-dropdown-container="true">
+                        <div ref={columnsMenuRef} className="relative" data-dropdown-container="true">
                           <button
                             type="button"
                             onClick={() => setShowColumnsMenu((prev) => !prev)}
@@ -1594,46 +1615,94 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       );
                     })}
 
-                    {/* Quick Add Footer Row */}
+                    {/* Inline Project Creator Row directly below last project */}
                     <div
-                      style={{ height: 52 }}
-                      className="flex items-center gap-2 px-4 bg-slate-50/40 dark:bg-slate-900/40"
+                      style={{ minHeight: 48, minWidth: tableMinWidth }}
+                      className="flex items-center px-3 py-2 bg-slate-50/50 dark:bg-zinc-900/50 border-t border-slate-200/70 dark:border-zinc-800/70"
                     >
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onQuickAdd(
-                            'task',
-                            selectedProjectId !== 'all' ? selectedProjectId : undefined
-                          )
-                        }
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        Añadir Tarea
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onQuickAdd(
-                            'milestone',
-                            selectedProjectId !== 'all' ? selectedProjectId : undefined
-                          )
-                        }
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 hover:bg-amber-100 transition"
-                      >
-                        <Diamond className="w-3.5 h-3.5" />
-                        Añadir Hito
-                      </button>
-                      {onCreateProject && (
+                      {!isCreatingProject ? (
                         <button
                           type="button"
-                          onClick={onCreateProject}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-50 dark:bg-violet-950/50 text-violet-700 dark:text-violet-400 hover:bg-violet-100 transition"
+                          onClick={() => {
+                            setIsCreatingProject(true);
+                            setNewProjectName('');
+                            setNewProjectColor('indigo');
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 transition cursor-pointer"
                         >
-                          <Layers className="w-3.5 h-3.5" />
-                          Añadir Proyecto
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>+ Nuevo Proyecto</span>
                         </button>
+                      ) : (
+                        <form
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            const trimmed = newProjectName.trim();
+                            if (!trimmed) return;
+                            onCreateProject?.({
+                              id: `proj-${Date.now()}`,
+                              name: trimmed,
+                              color: newProjectColor,
+                              collapsed: false,
+                            });
+                            setIsCreatingProject(false);
+                            setNewProjectName('');
+                          }}
+                          className="flex flex-wrap items-center gap-2.5 w-full text-xs"
+                        >
+                          <input
+                            type="text"
+                            autoFocus
+                            value={newProjectName}
+                            onChange={(e) => setNewProjectName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Escape') {
+                                setIsCreatingProject(false);
+                                setNewProjectName('');
+                              }
+                            }}
+                            placeholder="Nombre del nuevo proyecto..."
+                            className="flex-1 min-w-[140px] px-2.5 py-1 text-xs rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 outline-none focus:ring-1 focus:ring-indigo-500"
+                          />
+                          <div className="flex items-center gap-1.5">
+                            {PROJECT_COLORS.map((c) => (
+                              <button
+                                key={c.value}
+                                type="button"
+                                onClick={() => setNewProjectColor(c.value)}
+                                className={`w-4 h-4 rounded-full ${c.bg} flex items-center justify-center transition-transform ${
+                                  newProjectColor === c.value
+                                    ? 'ring-2 ring-offset-1 ring-indigo-600 scale-110'
+                                    : 'opacity-65 hover:opacity-100'
+                                }`}
+                                title={c.value}
+                              >
+                                {newProjectColor === c.value && (
+                                  <Check className="w-2.5 h-2.5 text-white" />
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="submit"
+                              disabled={!newProjectName.trim()}
+                              className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white shadow-xs transition"
+                            >
+                              Crear
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsCreatingProject(false);
+                                setNewProjectName('');
+                              }}
+                              className="px-2 py-1 text-xs rounded-lg text-slate-600 dark:text-zinc-400 hover:bg-slate-200/60 dark:hover:bg-zinc-800 transition"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </form>
                       )}
                     </div>
                   </div>

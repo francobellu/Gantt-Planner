@@ -35,7 +35,6 @@ const {
   createNewScenario,
   switchWorkspaceToTemplate,
   switchWorkspaceToScenario,
-  getXcode27Scenario,
   getDefaultSavedScenarios,
   formatDateISO,
   formatScrubberDate,
@@ -740,90 +739,41 @@ test('App and GanttWorkspace render complete WBS table, project groups, summary 
   }
 });
 
-test('getXcode27Scenario defines 1 project with all 7 tasks (actions), teams, and exact deadlines conflict-free', () => {
-  const xcode = getXcode27Scenario();
-  assert.equal(xcode.id, 'scen-xcode27');
-  assert.equal(xcode.projects.length, 1);
-  assert.equal(xcode.projects[0].id, 'proj-xcode27');
-  assert.equal(xcode.items.length, 7);
+test('getDefaultSavedScenarios loads clean SaaS template and contains no hardcoded Xcode 27 data', () => {
+  const defaultScenarios = getDefaultSavedScenarios();
+  assert.equal(defaultScenarios.length, 1);
+  assert.equal(defaultScenarios[0].id, 'scen-saas-v2');
+  assert.equal(defaultScenarios[0].name, 'Lanzamiento Plataforma SaaS v2.0');
 
-  // Every action is configured as a task ('task') in the single project
-  for (const item of xcode.items) {
-    assert.equal(item.type, 'task');
-    assert.equal(item.projectId, 'proj-xcode27');
+  // Verify none of the default scenarios contain any Xcode 27 references
+  for (const s of defaultScenarios) {
+    assert.notEqual(s.id, 'scen-xcode27');
+    assert.ok(!s.name.toLowerCase().includes('xcode 27'));
+    for (const p of s.projects) {
+      assert.notEqual(p.id, 'proj-xcode27');
+      assert.ok(!p.name.toLowerCase().includes('xcode 27'));
+    }
+    for (const it of s.items) {
+      assert.notEqual(it.projectId, 'proj-xcode27');
+      assert.ok(!it.id.startsWith('xc-'));
+      assert.ok(!it.name.toLowerCase().includes('xcode'));
+      assert.ok(!it.name.toLowerCase().includes('biocatch'));
+    }
   }
 
-  // Verify exact task names, assignees (Equipo), and endDates (Deadline)
-  const expected = [
-    {
-      name: 'SDK ARQ, + biocatch, onetrust, RSA actualizados',
-      assignee: 'Arquitectura',
-      endDate: '2026-11-27',
-    },
-    {
-      name: 'Nuevas Maquinas Mac operativas (apple silicon)',
-      assignee: 'AWS/Devops',
-      endDate: '2026-11-27',
-    },
-    {
-      name: 'Generación build',
-      assignee: 'RM Canales',
-      endDate: '2026-12-02',
-    },
-    {
-      name: 'QA termina las pruebas',
-      assignee: 'QA',
-      endDate: '2027-01-07',
-    },
-    {
-      name: 'Fixing',
-      assignee: 'Desarrollo',
-      endDate: '2027-01-14',
-    },
-    {
-      name: 'QG5 27.2',
-      assignee: 'RM',
-      endDate: '2027-01-15',
-    },
-    {
-      name: 'Deadline Xcode27',
-      assignee: 'Apple',
-      endDate: '2027-04-15',
-    },
-  ];
-
-  assert.deepEqual(
-    xcode.items.map((it) => ({
-      name: it.name,
-      assignee: it.assignee,
-      endDate: it.endDate,
-    })),
-    expected
-  );
-
-  // Verify natural Finish-to-Start dependencies without reverse arrows
-  const xc3 = xcode.items.find((it) => it.id === 'xc-3');
-  assert.deepEqual(xc3.dependencies, ['xc-1', 'xc-2']);
-  assert.deepEqual(xc3.dependencyTypes, { 'xc-1': 'FS', 'xc-2': 'FS' });
-
-  const xc6 = xcode.items.find((it) => it.id === 'xc-6');
-  assert.deepEqual(xc6.dependencies, ['xc-5']);
-  assert.deepEqual(xc6.dependencyTypes, { 'xc-5': 'FS' });
-
-  // Verify zero dependency conflicts and valid rollup group
-  const computed = computeGanttMetrics(xcode.items);
+  // Verify default SaaS scenario is conflict-free and valid
+  const saas = defaultScenarios[0];
+  const computed = computeGanttMetrics(saas.items);
   for (const c of computed) {
     assert.equal(c.hasConflict, false, `Task ${c.name} should have no conflict`);
   }
-  const groups = groupItemsByProject(computed, xcode.projects);
-  assert.equal(groups.length, 1);
-  assert.equal(groups[0].items.length, 7);
-  assert.equal(groups[0].endDate, '2027-04-15');
+  const groups = groupItemsByProject(computed, saas.projects);
+  assert.equal(groups.length, 3);
 });
 
 test('Scenario manager saves custom scenario, switches to a template, and returns to the saved scenario without data loss', () => {
   const initialScenarios = getDefaultSavedScenarios();
-  assert.ok(initialScenarios.length >= 2);
+  assert.ok(initialScenarios.length >= 1);
 
   // 1. Create a custom scenario with custom projects and tasks
   const customScenario = createNewScenario('Mi Escenario Personalizado', 'blank');
@@ -896,22 +846,22 @@ test('Scenario manager saves custom scenario, switches to a template, and return
   assert.equal(restored.items[0].name, 'Tarea Crítica Custom (Editada)');
   assert.equal(restored.items[0].progress, 80);
 
-  // 4. Switch to Xcode 27 scenario and verify all 7 tasks are intact
-  const switchedToXcode = switchWorkspaceToScenario(
+  // 4. Switch to SaaS scenario and verify all items are intact
+  const switchedToSaas = switchWorkspaceToScenario(
     restored,
     restored.savedScenarios,
-    'scen-xcode27'
+    'scen-saas-v2'
   );
-  assert.equal(switchedToXcode.activeScenarioId, 'scen-xcode27');
-  assert.equal(switchedToXcode.projects.length, 1);
-  assert.equal(switchedToXcode.items.length, 7);
+  assert.equal(switchedToSaas.activeScenarioId, 'scen-saas-v2');
+  assert.equal(switchedToSaas.projects.length, 3);
+  assert.equal(switchedToSaas.items.length, 9);
 
   // 5. Edge case: Switch to a template, edit a task in Vista Plantilla mode without clicking "Guardar",
-  // and switch back to 'scen-xcode27' — the modified template must be auto-promoted into savedScenarios
-  const countBeforeTemplateEdit = switchedToXcode.savedScenarios.length;
+  // and switch back to 'scen-saas-v2' — the modified template must be auto-promoted into savedScenarios
+  const countBeforeTemplateEdit = switchedToSaas.savedScenarios.length;
   const tplView = switchWorkspaceToTemplate(
-    switchedToXcode,
-    switchedToXcode.savedScenarios,
+    switchedToSaas,
+    switchedToSaas.savedScenarios,
     'blank-project'
   );
   assert.equal(tplView.savedScenarios.length, countBeforeTemplateEdit);
@@ -925,7 +875,7 @@ test('Scenario manager saves custom scenario, switches to a template, and return
   const afterEditedTemplateSwitch = switchWorkspaceToScenario(
     editedTemplateWorkspace,
     editedTemplateWorkspace.savedScenarios,
-    'scen-xcode27'
+    'scen-saas-v2'
   );
   assert.equal(afterEditedTemplateSwitch.savedScenarios.length, countBeforeTemplateEdit + 1);
   const autoPromoted = afterEditedTemplateSwitch.savedScenarios.find(
@@ -935,19 +885,19 @@ test('Scenario manager saves custom scenario, switches to a template, and return
   assert.equal(autoPromoted.items[0].name, 'Tarea Editada en Vista Plantilla');
 });
 
-test('App renders Xcode 27 scenario, all 7 Equipo badges, and Saved Scenarios bar in SSR', async () => {
+test('App renders default clean SaaS scenario, + Nuevo Proyecto button, and Saved Scenarios bar in SSR', async () => {
   const { renderToString } = await import('react-dom/server');
   const appBundle = await build({
     stdin: {
       contents: `
         import React from 'react';
         import { App } from './src/App.tsx';
-        export function createXcodeApp() {
-          return <App initialScenarioId="scen-xcode27" />;
+        export function createDefaultApp() {
+          return <App />;
         }
       `,
       resolveDir: path.resolve(__dirname, '..'),
-      sourcefile: 'ssr-xcode-test.tsx',
+      sourcefile: 'ssr-default-test.tsx',
       loader: 'tsx',
     },
     bundle: true,
@@ -958,40 +908,39 @@ test('App renders Xcode 27 scenario, all 7 Equipo badges, and Saved Scenarios ba
   });
 
   const fs = await import('node:fs/promises');
-  const tmpFile = path.resolve(__dirname, './.tmp-ssr-xcode.cjs');
+  const tmpFile = path.resolve(__dirname, './.tmp-ssr-default.cjs');
   await fs.writeFile(tmpFile, appBundle.outputFiles[0].text, 'utf8');
   try {
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
-    const createXcodeApp = mod.createXcodeApp || mod.default?.createXcodeApp;
-    const html = renderToString(createXcodeApp());
+    const createDefaultApp = mod.createDefaultApp || mod.default?.createDefaultApp;
+    const html = renderToString(createDefaultApp());
 
-    assert.ok(html.includes('Plan Xcode 27 &amp; QG5 27.2'));
+    // Verify SaaS v2.0 scenario renders as active scenario
+    assert.ok(html.includes('Lanzamiento Plataforma SaaS v2.0'));
     assert.ok(html.includes('data-scenarios-bar="true"'));
-    assert.ok(html.includes('data-scenario-pill="scen-xcode27"'));
     assert.ok(html.includes('data-scenario-pill="scen-saas-v2"'));
-    assert.ok(html.includes('SDK ARQ, + biocatch, onetrust, RSA actualizados'));
-    assert.ok(html.includes('Nuevas Maquinas Mac operativas (apple silicon)'));
-    assert.ok(html.includes('Generación build'));
-    assert.ok(html.includes('QA termina las pruebas'));
-    assert.ok(html.includes('Fixing'));
-    assert.ok(html.includes('QG5 27.2'));
-    assert.ok(html.includes('Deadline Xcode27'));
-    // Verify all 7 Equipo (assignee) badges are visibly rendered in the WBS rows
-    assert.ok(html.includes('data-assignee-badge="Arquitectura"'));
-    assert.ok(html.includes('data-assignee-badge="AWS/Devops"'));
-    assert.ok(html.includes('data-assignee-badge="RM Canales"'));
-    assert.ok(html.includes('data-assignee-badge="QA"'));
-    assert.ok(html.includes('data-assignee-badge="Desarrollo"'));
-    assert.ok(html.includes('data-assignee-badge="RM"'));
-    assert.ok(html.includes('data-assignee-badge="Apple"'));
+
+    // Verify NO hardcoded Xcode 27 data exists in rendered HTML
+    assert.ok(!html.includes('Xcode 27'));
+    assert.ok(!html.includes('scen-xcode27'));
+    assert.ok(!html.includes('proj-xcode27'));
+    assert.ok(!html.includes('biocatch'));
+
+    // Verify unified single-point project creation: "+ Nuevo Proyecto" in WBS table
+    assert.ok(html.includes('+ Nuevo Proyecto'));
+
+    // Verify SaaS projects and tasks are rendered
+    assert.ok(html.includes('Proyecto 1: Discovery &amp; Diseño de Producto'));
+    assert.ok(html.includes('Proyecto 2: Ingeniería Core &amp; Pagos'));
+    assert.ok(html.includes('Proyecto 3: QA, Cloud CI/CD &amp; Go-Live'));
+
     // Verify flexible zoom & fit-to-project UI controls render
     assert.ok(html.includes('data-zoom-slider="true"'));
     assert.ok(html.includes('data-fit-timeline-btn="true"'));
-    assert.ok(html.includes('data-fit-project-header-btn="true"'));
-    assert.ok(html.includes('data-fit-project-row="proj-xcode27"'));
     assert.ok(html.includes('data-wheel-zoom-toggle="true"'));
     assert.ok(html.includes('Trimestre'));
     assert.ok(html.includes('Ajustar a Proyecto'));
+
     // Verify dependency arrow visibility selector renders in toolbar
     assert.ok(html.includes('data-arrow-visibility-selector="true"'));
     assert.ok(html.includes('data-arrow-visibility-option="all"'));
@@ -1042,18 +991,31 @@ test('clampDayWidth, getDayWidthForPreset, resolveZoomPresetFromDayWidth, and co
 });
 
 test('computeFitToProjectScale automatically finds optimal scale to fit all tasks of a project or portfolio', () => {
-  // 1. Fit the 169-day Xcode 27 scenario into a 980px viewport
-  const xcode = getXcode27Scenario();
-  const xcodeFit = computeFitToProjectScale(xcode.items, 980, {
+  // 1. Fit a 169-day project into a 980px viewport
+  const longProjectItems = [
+    {
+      id: 'lp-1',
+      name: 'Tarea Inicial Larga',
+      type: 'task',
+      startDate: '2026-10-29',
+      endDate: '2027-04-15',
+      duration: 169,
+      slack: 0,
+      dependencies: [],
+      progress: 0,
+      color: 'indigo',
+    },
+  ];
+  const longFit = computeFitToProjectScale(longProjectItems, 980, {
     referenceToday: new Date('2026-10-28T00:00:00Z'),
   });
-  assert.equal(xcodeFit.spanDays, 169);
-  assert.equal(xcodeFit.startDate, '2026-10-29');
-  assert.equal(xcodeFit.endDate, '2027-04-15');
-  assert.ok(xcodeFit.dayWidth >= MIN_DAY_WIDTH && xcodeFit.dayWidth <= 8);
+  assert.equal(longFit.spanDays, 169);
+  assert.equal(longFit.startDate, '2026-10-29');
+  assert.equal(longFit.endDate, '2027-04-15');
+  assert.ok(longFit.dayWidth >= MIN_DAY_WIDTH && longFit.dayWidth <= 8);
   // All 169 days fit comfortably within the 980px viewport width
-  assert.ok(xcodeFit.spanDays * xcodeFit.dayWidth <= 980);
-  assert.ok(xcodeFit.scrollLeft >= 0);
+  assert.ok(longFit.spanDays * longFit.dayWidth <= 980);
+  assert.ok(longFit.scrollLeft >= 0);
 
   // 2. Fit a specific single project vs entire portfolio in SaaS template
   const saas = getProjectTemplates()[0];
@@ -1079,14 +1041,14 @@ test('computeFitToProjectScale automatically finds optimal scale to fit all task
   assert.equal(fallbackProjectFit.targetProjectId, 'all');
   assert.equal(fallbackProjectFit.spanDays, fullPortfolioFit.spanDays);
 
-  const tinyViewportFit = computeFitToProjectScale(xcode.items, 100);
+  const tinyViewportFit = computeFitToProjectScale(longProjectItems, 100);
   assert.ok(tinyViewportFit.dayWidth >= MIN_DAY_WIDTH);
 
   const hugeViewportFit = computeFitToProjectScale(saas.items.slice(0, 1), 5000);
   assert.equal(hugeViewportFit.dayWidth, MAX_DAY_WIDTH);
 
-  const bounds = computeTimelineBounds(xcode.items, new Date('2026-10-28T00:00:00Z'));
-  assert.ok(bounds.totalDays > xcodeFit.spanDays);
+  const bounds = computeTimelineBounds(longProjectItems, new Date('2026-10-28T00:00:00Z'));
+  assert.ok(bounds.totalDays > longFit.spanDays);
 });
 
 test('computeFitToProjectScale and computeWheelZoomDayWidth handle single-day projects, single milestones, multi-year spans, and extreme inputs', () => {
@@ -1229,13 +1191,26 @@ test('rapid wheel sequences and center-anchored scaling maintain invariant coord
   assert.equal(earlyScroll, 0);
 
   // 3. Scenario scale switching: Long project (>45 days) fits to viewport, short project (<=45 days) defaults to 44px
-  const xcode = getXcode27Scenario();
+  const longProjectItems = [
+    {
+      id: 'lp-scale-test',
+      name: 'Long Task',
+      type: 'task',
+      startDate: '2026-10-01',
+      endDate: '2027-02-15',
+      duration: 137,
+      slack: 0,
+      dependencies: [],
+      progress: 0,
+      color: 'indigo',
+    },
+  ];
   const saas = getProjectTemplates()[0];
-  const xcodeFit = computeFitToProjectScale(xcode.items, 980);
+  const longFit = computeFitToProjectScale(longProjectItems, 980);
   const saasFit = computeFitToProjectScale(saas.items, 980);
 
-  assert.ok(xcodeFit.spanDays > 45, 'Xcode 27 should span > 45 days');
-  assert.ok(xcodeFit.dayWidth < 10, 'Xcode 27 should fit with a compact dayWidth');
+  assert.ok(longFit.spanDays > 45, 'Long project should span > 45 days');
+  assert.ok(longFit.dayWidth < 10, 'Long project should fit with a compact dayWidth');
 
   assert.ok(saasFit.spanDays <= 45, 'SaaS template should span <= 45 days');
   // When switching to SaaS, workspace uses DEFAULT_DAY_WIDTH (44px) so text and bars are comfortably legible
@@ -1422,6 +1397,88 @@ test('dragging delta invariance: effectiveStart offset and pixel movement equal 
   const mDragged = addDays(mStart, -2);
   assert.equal(differenceInCalendarDays(mDragged, mStart), -2);
   assert.equal(differenceInCalendarDays(mDragged, mStart) * dayWidth, -48);
+});
+
+test('Purging of Xcode 27 data and single-point project creation in GanttWorkspace and App', async () => {
+  const { renderToString } = await import('react-dom/server');
+  const appBundle = await build({
+    stdin: {
+      contents: `
+        import React from 'react';
+        import { App } from './src/App.tsx';
+        import { GanttWorkspace } from './src/components/GanttWorkspace.tsx';
+        import { getProjectTemplates } from './src/utils/ganttEngine.ts';
+
+        export function renderFullApp() {
+          return <App />;
+        }
+
+        export function renderWorkspace(onCreateProject) {
+          const tpl = getProjectTemplates()[0];
+          return (
+            <GanttWorkspace
+              items={tpl.items}
+              projects={tpl.projects}
+              groupByProject={true}
+              selectedProjectId="all"
+              zoom="day"
+              dayWidth={44}
+              showCriticalPath={false}
+              showCpmFloat={false}
+              autoCascade={true}
+              onUpdateItem={() => {}}
+              onEditModal={() => {}}
+              onDeleteItem={() => {}}
+              onDuplicateItem={() => {}}
+              onQuickAdd={() => {}}
+              onCreateProject={onCreateProject}
+              scrollContainerRef={{ current: null }}
+            />
+          );
+        }
+      `,
+      resolveDir: path.resolve(__dirname, '..'),
+      sourcefile: 'ssr-purge-and-create-test.tsx',
+      loader: 'tsx',
+    },
+    bundle: true,
+    format: 'cjs',
+    platform: 'node',
+    external: ['react', 'react-dom'],
+    write: false,
+  });
+
+  const fs = await import('node:fs/promises');
+  const tmpFile = path.resolve(__dirname, './.tmp-ssr-purge.cjs');
+  await fs.writeFile(tmpFile, appBundle.outputFiles[0].text, 'utf8');
+  try {
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+    const html = renderToString(mod.renderFullApp());
+
+    // 1. Proyectos dropdown and Crear dropdown should NOT have duplicate project creation
+    assert.ok(html.includes('+ Nuevo Proyecto'));
+
+    // 2. Neither old footer "Añadir Tarea", "Añadir Hito", nor "Añadir Proyecto" buttons exist
+    assert.ok(!html.includes('Añadir Tarea'));
+    assert.ok(!html.includes('Añadir Hito'));
+    assert.ok(!html.includes('Añadir Proyecto'));
+
+    // 3. Top showNewProjectBar is NOT in the DOM
+    assert.ok(!html.includes('Nuevo Proyecto:'));
+
+    // 4. Column configuration button exists with data-dropdown-container
+    assert.ok(html.includes('aria-label="Configurar columnas"'));
+    assert.ok(html.includes('data-dropdown-container="true"'));
+
+    // 5. Standalone GanttWorkspace render with onCreateProject
+    const wsHtml = renderToString(mod.renderWorkspace(() => {}));
+    assert.ok(wsHtml.includes('+ Nuevo Proyecto'));
+    assert.ok(!wsHtml.includes('Añadir Tarea'));
+    assert.ok(!wsHtml.includes('Añadir Hito'));
+    assert.ok(!wsHtml.includes('Añadir Proyecto'));
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
 });
 
 

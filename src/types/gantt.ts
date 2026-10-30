@@ -11,6 +11,16 @@ export type TaskColor =
   | 'violet'
   | 'cyan';
 
+export const PROJECT_COLORS: { value: TaskColor; bg: string }[] = [
+  { value: 'indigo', bg: 'bg-indigo-500' },
+  { value: 'violet', bg: 'bg-violet-500' },
+  { value: 'emerald', bg: 'bg-emerald-500' },
+  { value: 'blue', bg: 'bg-blue-500' },
+  { value: 'amber', bg: 'bg-amber-500' },
+  { value: 'rose', bg: 'bg-rose-500' },
+  { value: 'cyan', bg: 'bg-cyan-500' },
+];
+
 export type ZoomLevel = 'day' | 'week' | 'month' | 'quarter';
 
 export interface FitToProjectResult {
