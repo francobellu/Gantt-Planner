@@ -256,14 +256,50 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         setShowColumnsMenu(false);
       }
     };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowColumnsMenu(false);
+      }
+    };
     document.addEventListener('mousedown', handleOutsideClick);
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, [showColumnsMenu]);
 
   // Inline Project Creation state
   const [isCreatingProject, setIsCreatingProject] = useState<boolean>(false);
   const [newProjectName, setNewProjectName] = useState<string>('');
   const [newProjectColor, setNewProjectColor] = useState<TaskColor>('indigo');
+  const newProjectFormRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isCreatingProject) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (
+        newProjectFormRef.current &&
+        !newProjectFormRef.current.contains(e.target as Node)
+      ) {
+        if (!newProjectName.trim()) {
+          setIsCreatingProject(false);
+        }
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsCreatingProject(false);
+        setNewProjectName('');
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isCreatingProject, newProjectName]);
 
   const toggleVisibleColumn = (key: keyof typeof visibleColumns) => {
     setVisibleColumns((prev) => {
@@ -1617,6 +1653,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
                     {/* Inline Project Creator Row directly below last project */}
                     <div
+                      ref={newProjectFormRef}
                       style={{ minHeight: 48, minWidth: tableMinWidth }}
                       className="flex items-center px-3 py-2 bg-slate-50/50 dark:bg-zinc-900/50 border-t border-slate-200/70 dark:border-zinc-800/70"
                     >

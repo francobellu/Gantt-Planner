@@ -316,17 +316,36 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
   const [projectMenuOpen, setProjectMenuOpen] = useState<boolean>(false);
   const [createMenuOpen, setCreateMenuOpen] = useState<boolean>(false);
 
+  const scenarioMenuRef = useRef<HTMLDivElement>(null);
+  const projectMenuRef = useRef<HTMLDivElement>(null);
+  const createMenuRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const handleGlobalClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target.closest('[data-dropdown-container]')) {
+      const target = e.target as Node;
+      if (scenarioMenuRef.current && !scenarioMenuRef.current.contains(target)) {
+        setScenarioMenuOpen(false);
+      }
+      if (projectMenuRef.current && !projectMenuRef.current.contains(target)) {
+        setProjectMenuOpen(false);
+      }
+      if (createMenuRef.current && !createMenuRef.current.contains(target)) {
+        setCreateMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
         setScenarioMenuOpen(false);
         setProjectMenuOpen(false);
         setCreateMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleGlobalClick);
-    return () => document.removeEventListener('mousedown', handleGlobalClick);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleGlobalClick);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, []);
 
   // Modal state
@@ -540,6 +559,7 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
     const clean = sanitizeProject(newProj, projects.length);
     setProjects((prev) => [...prev, clean]);
     setGroupByProject(true);
+    setSelectedProjectId('all');
   };
 
   const handleUpdateProject = (updatedProj: GanttProject) => {
@@ -972,7 +992,7 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
           </div>
 
           {/* Scenario Selector Dropdown */}
-          <div className="relative" data-dropdown-container="true">
+          <div ref={scenarioMenuRef} className="relative" data-dropdown-container="true">
             <button
               type="button"
               onClick={() => {
@@ -1105,7 +1125,7 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
           </div>
 
           {/* Selector Exacto "Proyectos" con icono vectorial */}
-          <div className="relative hidden sm:block" data-dropdown-container="true">
+          <div ref={projectMenuRef} className="relative hidden sm:block" data-dropdown-container="true">
             <button
               type="button"
               onClick={() => {
@@ -1189,7 +1209,7 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
         <div className="flex items-center gap-2 shrink-0">
 
           {/* Botón "+ Crear ▾" */}
-          <div className="relative mr-1" data-dropdown-container="true">
+          <div ref={createMenuRef} className="relative mr-1" data-dropdown-container="true">
             <button
               type="button"
               onClick={() => {

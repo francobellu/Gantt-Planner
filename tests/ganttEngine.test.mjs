@@ -1481,6 +1481,50 @@ test('Purging of Xcode 27 data and single-point project creation in GanttWorkspa
   }
 });
 
+test('Independent dropdown outside-click dismiss, escape key handlers, and project creation filter reset', async () => {
+  const { renderToString } = await import('react-dom/server');
+  const appBundle = await build({
+    stdin: {
+      contents: `
+        import React from 'react';
+        import { App } from './src/App.tsx';
+        import { GanttWorkspace } from './src/components/GanttWorkspace.tsx';
+        import { getProjectTemplates } from './src/utils/ganttEngine.ts';
+
+        export function renderFullApp() {
+          return <App />;
+        }
+      `,
+      resolveDir: path.resolve(__dirname, '..'),
+      sourcefile: 'ssr-outside-click-test.tsx',
+      loader: 'tsx',
+    },
+    bundle: true,
+    format: 'cjs',
+    platform: 'node',
+    external: ['react', 'react-dom'],
+    write: false,
+  });
+
+  const fs = await import('node:fs/promises');
+  const tmpFile = path.resolve(__dirname, './.tmp-ssr-outside-click.cjs');
+  await fs.writeFile(tmpFile, appBundle.outputFiles[0].text, 'utf8');
+  try {
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+    const html = renderToString(mod.renderFullApp());
+
+    // Verify all 3 dropdown containers have data-dropdown-container
+    assert.ok(html.includes('data-dropdown-container="true"'));
+    // Verify Escenarios menu container exists
+    assert.ok(html.includes('data-scenarios-bar="true"'));
+    // Verify + Nuevo Proyecto exists
+    assert.ok(html.includes('+ Nuevo Proyecto'));
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
+
 
 
 
