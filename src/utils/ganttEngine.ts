@@ -12,6 +12,7 @@ import {
   ComputedProjectGroup,
   DependencyType,
   FitToProjectResult,
+  GanttImportResult,
   GanttItem,
   GanttProject,
   ProjectTemplate,
@@ -20,10 +21,32 @@ import {
   ZoomLevel,
 } from '../types/gantt';
 
-export function parseDateSafe(dateStr: string): Date {
-  const parsed = parseISO(dateStr);
-  if (isValid(parsed)) {
-    return startOfDay(parsed);
+export function parseDateSafe(dateInput: unknown): Date {
+  if (dateInput == null) {
+    return startOfDay(new Date());
+  }
+  if (dateInput instanceof Date && isValid(dateInput)) {
+    return startOfDay(dateInput);
+  }
+  if (typeof dateInput === 'number' && Number.isFinite(dateInput)) {
+    const d = new Date(dateInput);
+    if (isValid(d)) return startOfDay(d);
+  }
+  if (typeof dateInput === 'string') {
+    const trimmed = dateInput.trim();
+    if (!trimmed) return startOfDay(new Date());
+    try {
+      const parsed = parseISO(trimmed);
+      if (isValid(parsed) && !isNaN(parsed.getTime())) {
+        return startOfDay(parsed);
+      }
+    } catch {}
+    try {
+      const fallback = new Date(trimmed);
+      if (isValid(fallback) && !isNaN(fallback.getTime())) {
+        return startOfDay(fallback);
+      }
+    } catch {}
   }
   return startOfDay(new Date());
 }
@@ -108,11 +131,14 @@ export function sanitizeProject(
       ? raw.color
       : palette[fallbackIndex % palette.length];
 
+  const rawId = raw.id != null ? String(raw.id).trim() : '';
+  const rawName = raw.name != null ? String(raw.name).trim() : '';
+
   return {
-    id: raw.id?.trim() || `proj-${fallbackIndex + 1}-${Date.now()}`,
-    name: (raw.name || '').trim() || `Proyecto ${fallbackIndex + 1}`,
+    id: rawId || `proj-${fallbackIndex + 1}-${Date.now()}`,
+    name: rawName || `Proyecto ${fallbackIndex + 1}`,
     color,
-    description: raw.description?.trim() || undefined,
+    description: raw.description != null ? String(raw.description).trim() : undefined,
     collapsed: Boolean(raw.collapsed),
   };
 }
@@ -134,28 +160,31 @@ export function sanitizeGanttItem(
   let endDate = startDate;
 
   if (type === 'task') {
-    const hasExplicitDuration =
-      raw.duration !== undefined &&
-      raw.duration !== null &&
-      Number.isFinite(Number(raw.duration)) &&
-      Number(raw.duration) >= 1;
+    const rawDur: unknown = raw.duration;
+    let parsedDuration: number | null = null;
+    if (rawDur !== undefined && rawDur !== null) {
+      const num =
+        typeof rawDur === 'string'
+          ? Number(rawDur.replace(/[^\d.]/g, ''))
+          : Number(rawDur);
+      if (Number.isFinite(num) && num >= 1) {
+        parsedDuration = Math.max(1, Math.round(num));
+      }
+    }
 
-    if (hasExplicitDuration && !raw.endDate) {
-      duration = Math.max(1, Math.round(Number(raw.duration)));
+    if (parsedDuration !== null && !raw.endDate) {
+      duration = parsedDuration;
       endDate = calculateEndDateFromDuration(startDate, duration, 'task');
     } else if (raw.endDate) {
-      const expectedFromDur = hasExplicitDuration
-        ? calculateEndDateFromDuration(
-            startDate,
-            Math.max(1, Math.round(Number(raw.duration))),
-            'task'
-          )
-        : null;
-      if (hasExplicitDuration && expectedFromDur === raw.endDate) {
-        duration = Math.max(1, Math.round(Number(raw.duration)));
+      const expectedFromDur =
+        parsedDuration !== null
+          ? calculateEndDateFromDuration(startDate, parsedDuration, 'task')
+          : null;
+      if (parsedDuration !== null && expectedFromDur === raw.endDate) {
+        duration = parsedDuration;
         endDate = expectedFromDur;
-      } else if (hasExplicitDuration) {
-        duration = Math.max(1, Math.round(Number(raw.duration)));
+      } else if (parsedDuration !== null) {
+        duration = parsedDuration;
         endDate = calculateEndDateFromDuration(startDate, duration, 'task');
       } else {
         duration = calculateDurationFromDates(startDate, raw.endDate, 'task');
@@ -168,29 +197,56 @@ export function sanitizeGanttItem(
   }
 
   const color =
-    raw.color && VALID_COLORS.has(raw.color) ? raw.color : type === 'milestone' ? 'amber' : 'indigo';
+    raw.color && VALID_COLORS.has(raw.color)
+      ? raw.color
+      : type === 'milestone'
+      ? 'amber'
+      : 'indigo';
+
+  const rawId = raw.id != null ? String(raw.id).trim() : '';
+  const id =
+    rawId || `${type === 'milestone' ? 'm' : 't'}-${fallbackIndex + 1}-${Date.now()}`;
+
+  let rawProgress = raw.progress;
+  if (typeof rawProgress === 'string') {
+    rawProgress = Number(String(rawProgress).replace('%', ''));
+  }
+  if (typeof rawProgress === 'number' && !isNaN(rawProgress)) {
+    if (rawProgress > 0 && rawProgress <= 1 && !Number.isInteger(rawProgress)) {
+      rawProgress = Math.round(rawProgress * 100);
+    }
+  } else {
+    rawProgress = 0;
+  }
+  const progress = Math.min(100, Math.max(0, Math.round(rawProgress)));
+
+  const dependencies = Array.isArray(raw.dependencies)
+    ? raw.dependencies
+        .map((d) => (d != null ? String(d).trim() : ''))
+        .filter((d) => d.length > 0 && d !== id)
+    : [];
 
   const result: GanttItem = {
-    id: raw.id || `${type === 'milestone' ? 'm' : 't'}-${fallbackIndex}-${Date.now()}`,
-    name: (raw.name || '').trim() || `Elemento ${fallbackIndex + 1}`,
+    id,
+    name: (raw.name != null ? String(raw.name) : '').trim() || `Elemento ${fallbackIndex + 1}`,
     type,
     startDate,
     endDate,
     duration,
     slack: Math.max(0, Math.round(Number(raw.slack) || 0)),
-    dependencies: Array.isArray(raw.dependencies) ? [...raw.dependencies] : [],
+    dependencies,
     dependencyTypes:
       raw.dependencyTypes && typeof raw.dependencyTypes === 'object'
         ? { ...raw.dependencyTypes }
         : undefined,
-    progress: Math.min(100, Math.max(0, Math.round(Number(raw.progress) || 0))),
+    progress,
     color,
-    assignee: raw.assignee?.trim() || undefined,
-    notes: raw.notes?.trim() || undefined,
+    assignee: raw.assignee != null ? String(raw.assignee).trim() : undefined,
+    notes: raw.notes != null ? String(raw.notes).trim() : undefined,
   };
 
-  if (raw.projectId && raw.projectId.trim()) {
-    result.projectId = raw.projectId.trim();
+  if (raw.projectId != null && String(raw.projectId).trim()) {
+    result.projectId = String(raw.projectId).trim();
   }
 
   return result;
@@ -992,11 +1048,17 @@ export function sanitizeScenario(
     baseProjects
   );
 
+  const fallbackProjId = syncedGroups[0]?.project.id || 'proj-default';
+  const resolvedItems = cleanItems.map((it) => ({
+    ...it,
+    projectId: it.projectId || fallbackProjId,
+  }));
+
   return {
     id,
     name,
     projects: syncedGroups.map((g) => g.project),
-    items: cleanItems,
+    items: resolvedItems,
     updatedAt: raw.updatedAt || new Date().toISOString(),
     sourceTemplateId: raw.sourceTemplateId,
   };
@@ -1528,6 +1590,329 @@ export function createRoundedOrthogonalPath(
   d += ` L ${last.x.toFixed(1)} ${last.y.toFixed(1)}`;
 
   return d;
+}
+
+/**
+ * Imports and normalizes JSON payloads of various formats:
+ * 1. GanttFlow Scenario export ({ id, name, projectName, projects, items })
+ * 2. GanttFlow Workspace backup ({ activeScenarioId, savedScenarios: [...] })
+ * 3. Array of scenarios ([ { name, items }, ... ])
+ * 4. Array of items/tasks ([ { name, startDate, duration }, ... ])
+ * 5. Scenario with `tasks` instead of `items` ({ name, tasks: [...] })
+ * 6. Wrapped payload ({ data: ... } or { project: { tasks: [...] } })
+ */
+export function importGanttData(rawJson: unknown): GanttImportResult {
+  if (!rawJson || (typeof rawJson !== 'object' && !Array.isArray(rawJson))) {
+    throw new Error('El archivo no contiene un objeto o arreglo JSON válido.');
+  }
+
+  let payload = rawJson as Record<string, unknown>;
+
+  // Unwrap { data: ... } if applicable
+  if (
+    !Array.isArray(payload) &&
+    payload.data &&
+    (typeof payload.data === 'object' || Array.isArray(payload.data)) &&
+    !payload.items &&
+    !payload.tasks &&
+    !payload.savedScenarios &&
+    !payload.scenarios
+  ) {
+    payload = payload.data as Record<string, unknown>;
+  }
+
+  // Case 1: Workspace backup with savedScenarios / scenarios
+  const potentialScenarios =
+    !Array.isArray(payload) &&
+    (Array.isArray(payload.savedScenarios)
+      ? payload.savedScenarios
+      : Array.isArray(payload.scenarios)
+      ? payload.scenarios
+      : null);
+
+  if (potentialScenarios && potentialScenarios.length > 0) {
+    const sanitizedScenarios = potentialScenarios
+      .filter((s): s is Record<string, unknown> => typeof s === 'object' && s !== null)
+      .map((s, idx) => {
+        const sItems = (s.items || s.tasks || []) as Partial<GanttItem>[];
+        const sProjects = (s.projects || []) as Partial<GanttProject>[];
+        const cleanProjects = sProjects.map((p, pIdx) => sanitizeProject(p, pIdx));
+        const cleanItems = sItems.map((it, itIdx) => sanitizeGanttItem(it, itIdx));
+        return sanitizeScenario(
+          {
+            ...s,
+            name:
+              typeof s.name === 'string' && s.name.trim()
+                ? s.name.trim()
+                : typeof s.projectName === 'string' && s.projectName.trim()
+                ? s.projectName.trim()
+                : `Escenario ${idx + 1}`,
+            projects: cleanProjects,
+            items: cleanItems,
+          },
+          idx
+        );
+      });
+
+    if (sanitizedScenarios.length === 0) {
+      throw new Error('El archivo no contiene ningún escenario con tareas válidas.');
+    }
+
+    const activeId =
+      typeof payload.activeScenarioId === 'string' && payload.activeScenarioId
+        ? payload.activeScenarioId
+        : sanitizedScenarios[0].id;
+    const primary =
+      sanitizedScenarios.find((s) => s.id === activeId) || sanitizedScenarios[0];
+
+    return {
+      primaryScenario: primary,
+      allScenarios: sanitizedScenarios,
+    };
+  }
+
+  // Case 2: Array of scenarios
+  if (
+    Array.isArray(payload) &&
+    payload.length > 0 &&
+    payload.every(
+      (s) =>
+        typeof s === 'object' &&
+        s !== null &&
+        (Array.isArray(s.items) || Array.isArray(s.tasks))
+    )
+  ) {
+    const sanitizedScenarios = payload.map((s, idx) => {
+      const sItems = (s.items || s.tasks || []) as Partial<GanttItem>[];
+      const sProjects = (s.projects || []) as Partial<GanttProject>[];
+      const cleanProjects = sProjects.map((p, pIdx) => sanitizeProject(p, pIdx));
+      const cleanItems = sItems.map((it, itIdx) => sanitizeGanttItem(it, itIdx));
+      return sanitizeScenario(
+        {
+          ...s,
+          name:
+            typeof s.name === 'string' && s.name.trim()
+              ? s.name.trim()
+              : typeof s.projectName === 'string' && s.projectName.trim()
+              ? s.projectName.trim()
+              : `Escenario ${idx + 1}`,
+          projects: cleanProjects,
+          items: cleanItems,
+        },
+        idx
+      );
+    });
+
+    return {
+      primaryScenario: sanitizedScenarios[0],
+      allScenarios: sanitizedScenarios,
+    };
+  }
+
+  // Case 3: Direct array of tasks/items
+  if (Array.isArray(payload)) {
+    if (payload.length === 0) {
+      throw new Error('El archivo contiene una lista vacía de tareas.');
+    }
+
+    const cleanItems = payload.map((it, idx) =>
+      sanitizeGanttItem(it as Partial<GanttItem>, idx)
+    );
+
+    const importedScenario = sanitizeScenario({
+      id: `scen-${Date.now()}-imp`,
+      name: 'Tareas Importadas',
+      items: cleanItems,
+      updatedAt: new Date().toISOString(),
+    });
+
+    return { primaryScenario: importedScenario };
+  }
+
+  // Case 4: Single scenario object
+  // Unwrap project sub-object if present: { project: { name: "...", tasks: [...] } }
+  if (
+    payload.project &&
+    typeof payload.project === 'object' &&
+    !payload.items &&
+    !payload.tasks
+  ) {
+    payload = {
+      ...(payload.project as Record<string, unknown>),
+      ...payload,
+    };
+  }
+
+  const rawItems = payload.items || payload.tasks;
+  if (Array.isArray(rawItems)) {
+    const importedName =
+      String(payload.projectName || payload.name || 'Escenario Importado').trim() ||
+      'Escenario Importado';
+    const cleanItems = (rawItems as Partial<GanttItem>[]).map((raw, idx) =>
+      sanitizeGanttItem(raw, idx)
+    );
+    const baseProjects =
+      Array.isArray(payload.projects) && payload.projects.length > 0
+        ? (payload.projects as Partial<GanttProject>[]).map((p, idx) =>
+            sanitizeProject(p, idx)
+          )
+        : undefined;
+
+    const importedScenario = sanitizeScenario({
+      id: `scen-${Date.now()}-imp`,
+      name: importedName,
+      projects: baseProjects,
+      items: cleanItems,
+      updatedAt: new Date().toISOString(),
+    });
+
+    return { primaryScenario: importedScenario };
+  }
+
+  throw new Error(
+    'Formato JSON no compatible. El archivo debe contener una lista de tareas, proyectos o un escenario de GanttFlow.'
+  );
+}
+
+/**
+ * Parses and normalizes CSV text into a Gantt scenario.
+ * Supports standard GanttFlow CSV export format as well as generic task CSVs.
+ */
+export function parseCSVToGanttData(csvText: string, fileName?: string): GanttImportResult {
+  const lines = csvText.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  if (lines.length <= 1) {
+    throw new Error('El archivo CSV está vacío o solo contiene encabezados.');
+  }
+
+  function parseCSVLine(line: string): string[] {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (char === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    result.push(current.trim());
+    return result;
+  }
+
+  const rawHeaders = parseCSVLine(lines[0]).map((h) => h.toLowerCase());
+  const nameIdx = rawHeaders.findIndex(
+    (h) => h.includes('nom') || h.includes('name') || h.includes('tarea') || h.includes('task')
+  );
+  const projIdx = rawHeaders.findIndex(
+    (h) => h.includes('proy') || h.includes('proj') || h.includes('fase')
+  );
+  const typeIdx = rawHeaders.findIndex(
+    (h) => h.includes('tip') || h.includes('type')
+  );
+  const startIdx = rawHeaders.findIndex(
+    (h) => h.includes('ini') || h.includes('start')
+  );
+  const endIdx = rawHeaders.findIndex(
+    (h) => h.includes('fin') || h.includes('end')
+  );
+  const durIdx = rawHeaders.findIndex(
+    (h) => h.includes('dur') || h.includes('dias') || h.includes('days')
+  );
+  const slackIdx = rawHeaders.findIndex(
+    (h) => h.includes('slack') || h.includes('holgura') || h.includes('buffer')
+  );
+  const depIdx = rawHeaders.findIndex(
+    (h) => h.includes('dep') || h.includes('pred')
+  );
+  const progIdx = rawHeaders.findIndex(
+    (h) => h.includes('prog')
+  );
+  const assigneeIdx = rawHeaders.findIndex(
+    (h) => h.includes('resp') || h.includes('assign') || h.includes('owner')
+  );
+
+  const projectMap = new Map<string, GanttProject>();
+  const items: GanttItem[] = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const cols = parseCSVLine(lines[i]);
+    if (cols.length === 0 || cols.every((c) => !c)) continue;
+
+    const projName = (projIdx >= 0 ? cols[projIdx] : '') || 'General';
+    let projId = 'proj-default';
+    if (projName) {
+      projId = `proj-${projName.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+      if (!projectMap.has(projId)) {
+        projectMap.set(
+          projId,
+          sanitizeProject({ id: projId, name: projName }, projectMap.size)
+        );
+      }
+    }
+
+    const rawType = (typeIdx >= 0 ? cols[typeIdx] : '').toLowerCase();
+    const isMilestone = rawType.includes('hito') || rawType.includes('milestone');
+    const name = (nameIdx >= 0 ? cols[nameIdx] : '') || `Tarea ${i}`;
+    const startDate = (startIdx >= 0 ? cols[startIdx] : '') || formatDateISO(new Date());
+    const endDate = endIdx >= 0 && cols[endIdx] ? cols[endIdx] : undefined;
+    const duration = durIdx >= 0 && cols[durIdx] ? Number(cols[durIdx]) : undefined;
+    const slack = slackIdx >= 0 && cols[slackIdx] ? Number(cols[slackIdx]) : 0;
+    const rawProg = progIdx >= 0 ? cols[progIdx] : '0';
+    const progress = Number(rawProg.replace('%', '')) || 0;
+    const assignee = assigneeIdx >= 0 && cols[assigneeIdx] ? cols[assigneeIdx] : undefined;
+    const rawDeps =
+      depIdx >= 0 && cols[depIdx]
+        ? cols[depIdx]
+            .split(/[,;]/)
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : [];
+
+    const item = sanitizeGanttItem(
+      {
+        id: `t-${i}-${Date.now()}`,
+        name,
+        type: isMilestone ? 'milestone' : 'task',
+        startDate,
+        endDate,
+        duration: isMilestone ? 0 : duration,
+        slack,
+        dependencies: rawDeps,
+        progress,
+        assignee,
+        projectId: projId,
+      },
+      i - 1
+    );
+    items.push(item);
+  }
+
+  if (items.length === 0) {
+    throw new Error('No se encontraron filas de tareas válidas en el CSV.');
+  }
+
+  const scenarioName = fileName
+    ? fileName.replace(/\.[^/.]+$/, '').replace(/-gantt$/i, '')
+    : 'CSV Importado';
+
+  const importedScenario = sanitizeScenario({
+    id: `scen-${Date.now()}-imp`,
+    name: scenarioName,
+    projects: Array.from(projectMap.values()),
+    items,
+    updatedAt: new Date().toISOString(),
+  });
+
+  return { primaryScenario: importedScenario };
 }
 
 

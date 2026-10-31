@@ -33,6 +33,7 @@ import {
 import {
   ArrowVisibility,
   ComputedGanttItem,
+  GanttImportResult,
   GanttItem,
   GanttProject,
   PROJECT_COLORS,
@@ -56,6 +57,8 @@ import {
   getDefaultSavedScenarios,
   getProjectTemplates,
   groupItemsByProject,
+  importGanttData,
+  parseCSVToGanttData,
   parseDateSafe,
   preserveActiveWorkspaceInScenarios,
   resolveZoomPresetFromDayWidth,
@@ -358,6 +361,28 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDraggingFile, setIsDraggingFile] = useState<boolean>(false);
+  const dragCounterRef = useRef<number>(0);
+
+  // Prevent browser from navigating away if a file is dropped outside dropzone
+  useEffect(() => {
+    const handleWindowDragOver = (e: DragEvent) => {
+      if (e.dataTransfer?.types?.includes('Files')) {
+        e.preventDefault();
+      }
+    };
+    const handleWindowDrop = (e: DragEvent) => {
+      if (e.dataTransfer?.types?.includes('Files')) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('dragover', handleWindowDragOver);
+    window.addEventListener('drop', handleWindowDrop);
+    return () => {
+      window.removeEventListener('dragover', handleWindowDragOver);
+      window.removeEventListener('drop', handleWindowDrop);
+    };
+  }, []);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -907,76 +932,133 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
     URL.revokeObjectURL(url);
   };
 
-  const handleImportJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleImportFile = (file: File) => {
     if (!file) return;
+
+    const fileName = file.name || 'archivo';
+    const isJson = fileName.toLowerCase().endsWith('.json') || file.type === 'application/json';
+    const isCsv = fileName.toLowerCase().endsWith('.csv') || file.type === 'text/csv';
+
+    if (!isJson && !isCsv) {
+      showToast('Error: Formato no compatible. Sube un archivo .json o .csv.');
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
-        const parsed = JSON.parse(String(ev.target?.result));
-        if (Array.isArray(parsed.items)) {
-          const importedName =
-            parsed.projectName || parsed.name || `Escenario Importado`;
-          const cleanItems = parsed.items.map((raw: Partial<GanttItem>, i: number) =>
-            sanitizeGanttItem(raw, i)
-          );
-          const baseProjects =
-            Array.isArray(parsed.projects) && parsed.projects.length > 0
-              ? parsed.projects.map((raw: Partial<GanttProject>, i: number) =>
-                  sanitizeProject(raw, i)
-                )
-              : [
-                  sanitizeProject(
-                    {
-                      id: 'proj-default',
-                      name: importedName || 'Proyecto General',
-                      color: 'indigo',
-                      collapsed: false,
-                    },
-                    0
-                  ),
-                ];
-          const syncedGroups = groupItemsByProject(
-            computeGanttMetrics(cleanItems),
-            baseProjects
-          );
-          const importedScenario = sanitizeScenario({
-            id: `scen-${Date.now()}-imp`,
-            name: importedName,
-            projects: syncedGroups.map((g) => g.project),
-            items: cleanItems,
-            updatedAt: new Date().toISOString(),
-          });
-          const preservedList = preserveActiveWorkspaceInScenarios(
-            {
-              activeScenarioId,
-              projectName,
-              projects: effectiveProjects,
-              items,
-            },
-            savedScenarios,
-            templates
-          );
-          setSavedScenarios(upsertScenarioInList(preservedList, importedScenario));
-          setActiveScenarioId(importedScenario.id);
-          setProjectName(importedScenario.name);
-          setProjects(importedScenario.projects);
-          setItems(importedScenario.items);
-          setSelectedProjectId('all');
-          showToast(`Escenario importado: "${importedScenario.name}"`);
+        const text = String(ev.target?.result || '');
+        if (!text.trim()) {
+          showToast('Error: El archivo está vacío.');
+          return;
         }
-      } catch {
-        alert('Archivo JSON inválido.');
+
+        let result: GanttImportResult;
+        if (isCsv) {
+          result = parseCSVToGanttData(text, fileName);
+        } else {
+          const parsed = JSON.parse(text);
+          result = importGanttData(parsed);
+        }
+
+        const preservedList = preserveActiveWorkspaceInScenarios(
+          {
+            activeScenarioId,
+            projectName,
+            projects: effectiveProjects,
+            items,
+          },
+          savedScenarios,
+          templates
+        );
+
+        let mergedList = preservedList;
+        if (result.allScenarios && result.allScenarios.length > 0) {
+          for (const sc of result.allScenarios) {
+            mergedList = upsertScenarioInList(mergedList, sc);
+          }
+        } else {
+          mergedList = upsertScenarioInList(mergedList, result.primaryScenario);
+        }
+
+        setSavedScenarios(mergedList);
+        setActiveScenarioId(result.primaryScenario.id);
+        setProjectName(result.primaryScenario.name);
+        setProjects(result.primaryScenario.projects);
+        setItems(result.primaryScenario.items);
+        setSelectedProjectId('all');
+        setShowSettingsModal(false);
+        setScenarioMenuOpen(false);
+        setCreateMenuOpen(false);
+
+        showToast(`Escenario importado: "${result.primaryScenario.name}"`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Error al procesar los datos.';
+        showToast(`Error al importar: ${msg}`);
       }
     };
+    reader.onerror = () => {
+      showToast('Error: No se pudo leer el archivo.');
+    };
     reader.readAsText(file);
+  };
+
+  const handleImportJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleImportFile(file);
+    }
     e.target.value = '';
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer?.types?.includes('Files')) {
+      dragCounterRef.current += 1;
+      setIsDraggingFile(true);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'copy';
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current -= 1;
+    if (dragCounterRef.current <= 0) {
+      dragCounterRef.current = 0;
+      setIsDraggingFile(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current = 0;
+    setIsDraggingFile(false);
+    const file = e.dataTransfer?.files?.[0];
+    if (file) {
+      handleImportFile(file);
+    }
   };
 
   const isViewingTemplate = activeScenarioId.startsWith('template:');
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#09090b] text-slate-900 dark:text-zinc-100 selection:bg-indigo-500/30">
+    <div
+      className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#09090b] text-slate-900 dark:text-zinc-100 selection:bg-indigo-500/30 relative"
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       {/* Top Navigation Bar — Single Minimalist 48px Bar */}
       <header className="sticky top-0 z-30 h-13 px-4 bg-white/95 dark:bg-[#09090b]/95 backdrop-blur-md border-b border-slate-200 dark:border-zinc-800/80 flex items-center justify-between gap-3 select-none">
         
@@ -1107,7 +1189,7 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
                     className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 font-medium transition"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>Nuevo Escenario</span>
+                    <span>Nuevo</span>
                   </button>
                   <button
                     type="button"
@@ -1119,6 +1201,18 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
                   >
                     <Save className="w-3.5 h-3.5" />
                     <span>Guardar Copia</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      fileInputRef.current?.click();
+                      setScenarioMenuOpen(false);
+                    }}
+                    className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-violet-600 dark:text-violet-400 hover:bg-violet-500/10 font-medium transition"
+                    title="Importar escenario desde JSON o CSV"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Importar</span>
                   </button>
                 </div>
               </div>
@@ -1198,8 +1292,18 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
           </div>
 
           {scenarioSavedToast && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-emerald-600 text-white shadow-sm animate-fade-in">
-              <Check className="w-3.5 h-3.5" />
+            <span
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-semibold text-white shadow-sm animate-fade-in ${
+                scenarioSavedToast.startsWith('Error')
+                  ? 'bg-rose-600'
+                  : 'bg-emerald-600'
+              }`}
+            >
+              {scenarioSavedToast.startsWith('Error') ? (
+                <AlertTriangle className="w-3.5 h-3.5" />
+              ) : (
+                <Check className="w-3.5 h-3.5" />
+              )}
               {scenarioSavedToast}
             </span>
           )}
@@ -1247,6 +1351,19 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
                 >
                   <Diamond className="w-3.5 h-3.5 text-amber-500 fill-current" />
                   <span>Nuevo Hito</span>
+                </button>
+                <div className="border-t border-slate-100 dark:border-zinc-800 my-0.5" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    fileInputRef.current?.click();
+                    setCreateMenuOpen(false);
+                  }}
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/70 text-slate-800 dark:text-zinc-200 font-medium transition text-left"
+                  title="Importar datos desde JSON o CSV"
+                >
+                  <Upload className="w-3.5 h-3.5 text-violet-500" />
+                  <span>Importar Datos</span>
                 </button>
               </div>
             )}
@@ -1725,6 +1842,35 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
         onCreateProject={handleCreateProject}
         allItems={computedItems}
       />
+
+      {/* Hidden File Input for JSON / CSV Import */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json,application/json,.csv,text/csv"
+        className="hidden"
+        style={{ display: 'none' }}
+        data-testid="file-import-input"
+        onChange={handleImportJSON}
+        aria-label="Importar archivo JSON o CSV"
+      />
+
+      {/* Drag & Drop Visual Overlay */}
+      {isDraggingFile && (
+        <div className="fixed inset-0 z-60 bg-indigo-950/60 backdrop-blur-xs border-4 border-dashed border-indigo-400 flex flex-col items-center justify-center p-6 transition-all pointer-events-none select-none">
+          <div className="bg-white dark:bg-zinc-900 p-8 rounded-2xl shadow-2xl flex flex-col items-center gap-3 border border-indigo-200 dark:border-indigo-800 text-center pointer-events-auto max-w-sm">
+            <div className="w-16 h-16 rounded-full bg-indigo-100 dark:bg-indigo-950/80 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shadow-inner">
+              <Upload className="w-8 h-8 animate-bounce" />
+            </div>
+            <h3 className="text-base font-bold text-slate-800 dark:text-zinc-100">
+              Suelta tu archivo aquí
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-zinc-400">
+              Importa tus tareas, proyectos o escenarios directamente en tu diagrama de Gantt (.json o .csv)
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

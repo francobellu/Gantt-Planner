@@ -103,3 +103,8 @@ export interface SavedScenario {
 
 export type ArrowVisibility = 'all' | 'hover' | 'critical' | 'none';
 
+export interface GanttImportResult {
+  primaryScenario: SavedScenario;
+  allScenarios?: SavedScenario[];
+}
+

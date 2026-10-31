@@ -48,6 +48,8 @@ const {
   computeTimelineBounds,
   computeFitToProjectScale,
   createRoundedOrthogonalPath,
+  importGanttData,
+  parseCSVToGanttData,
 } = await import(codeUrl);
 
 test('calculateEndDateFromDuration & calculateDurationFromDates handle tasks and milestones', () => {
@@ -1519,6 +1521,205 @@ test('Independent dropdown outside-click dismiss, escape key handlers, and proje
     assert.ok(html.includes('data-scenarios-bar="true"'));
     // Verify + Nuevo Proyecto exists
     assert.ok(html.includes('+ Nuevo Proyecto'));
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
+test('importGanttData parses and validates standard scenario, raw items array, tasks property, and workspace backups', () => {
+  // 1. Standard Scenario JSON (as exported by handleExportJSON)
+  const standardScenarioPayload = {
+    id: 'scen-test-export',
+    name: 'Plan de Expansión 2027',
+    projectName: 'Plan de Expansión 2027',
+    projects: [
+      { id: 'proj-1', name: 'Fase 1: Infraestructura', color: 'indigo', collapsed: false },
+    ],
+    items: [
+      {
+        id: 't-1',
+        name: 'Configuración Servidores',
+        type: 'task',
+        projectId: 'proj-1',
+        startDate: '2027-01-10',
+        endDate: '2027-01-15',
+        duration: 6,
+        slack: 1,
+        progress: 80,
+        color: 'indigo',
+        dependencies: [],
+      },
+      {
+        id: 'm-1',
+        name: 'Hito Infraestructura Lista',
+        type: 'milestone',
+        projectId: 'proj-1',
+        startDate: '2027-01-16',
+        endDate: '2027-01-16',
+        duration: 0,
+        slack: 0,
+        progress: 0,
+        color: 'amber',
+        dependencies: ['t-1'],
+      },
+    ],
+  };
+
+  const res1 = importGanttData(standardScenarioPayload);
+  assert.ok(res1.primaryScenario);
+  assert.equal(res1.primaryScenario.name, 'Plan de Expansión 2027');
+  assert.equal(res1.primaryScenario.items.length, 2);
+  assert.equal(res1.primaryScenario.projects.length, 1);
+  assert.equal(res1.primaryScenario.items[0].duration, 6);
+  assert.equal(res1.primaryScenario.items[1].type, 'milestone');
+
+  // 2. Direct array of tasks with edge cases (numeric IDs, string progress with %, decimal progress)
+  const rawArrayPayload = [
+    {
+      id: 101,
+      name: 'Análisis Inicial',
+      startDate: '2026-11-01',
+      duration: '4d',
+      progress: '50%',
+      dependencies: [101, 999], // 101 is self-dependency (should be stripped)
+    },
+    {
+      id: 102,
+      name: 'Diseño UX',
+      startDate: '2026-11-05',
+      duration: 3,
+      progress: 0.75, // Decimal progress should become 75%
+      dependencies: [101],
+    },
+  ];
+
+  const res2 = importGanttData(rawArrayPayload);
+  assert.ok(res2.primaryScenario);
+  assert.equal(res2.primaryScenario.items.length, 2);
+  assert.equal(res2.primaryScenario.items[0].id, '101');
+  assert.equal(res2.primaryScenario.items[0].progress, 50);
+  assert.equal(res2.primaryScenario.items[0].duration, 4);
+  // Self dependency 101 should be stripped, only 999 kept
+  assert.deepEqual(res2.primaryScenario.items[0].dependencies, ['999']);
+  // Decimal progress 0.75 should be 75
+  assert.equal(res2.primaryScenario.items[1].progress, 75);
+  assert.deepEqual(res2.primaryScenario.items[1].dependencies, ['101']);
+
+  // 3. Object with `tasks` property instead of `items`
+  const tasksPropPayload = {
+    name: 'Sprint de Emergencia',
+    tasks: [
+      { name: 'Fix Bug 1', startDate: '2026-12-01', duration: 2 },
+      { name: 'Fix Bug 2', startDate: '2026-12-03', duration: 1 },
+    ],
+  };
+
+  const res3 = importGanttData(tasksPropPayload);
+  assert.equal(res3.primaryScenario.name, 'Sprint de Emergencia');
+  assert.equal(res3.primaryScenario.items.length, 2);
+
+  // 4. Workspace backup with savedScenarios
+  const backupPayload = {
+    activeScenarioId: 'scen-beta',
+    savedScenarios: [
+      {
+        id: 'scen-alpha',
+        name: 'Escenario Alpha',
+        items: [{ name: 'Task Alpha 1', startDate: '2026-10-01', duration: 3 }],
+      },
+      {
+        id: 'scen-beta',
+        name: 'Escenario Beta',
+        items: [{ name: 'Task Beta 1', startDate: '2026-10-05', duration: 5 }],
+      },
+    ],
+  };
+
+  const res4 = importGanttData(backupPayload);
+  assert.ok(res4.allScenarios && res4.allScenarios.length === 2);
+  assert.equal(res4.primaryScenario.id, 'scen-beta');
+  assert.equal(res4.primaryScenario.name, 'Escenario Beta');
+
+  // 5. Error handling: empty array, non-object, and empty object
+  assert.throws(() => importGanttData([]), /lista vacía/i);
+  assert.throws(() => importGanttData(null), /JSON válido/i);
+  assert.throws(() => importGanttData({}), /Formato JSON no compatible/i);
+  assert.throws(() => importGanttData({ invalidKey: 123 }), /Formato JSON no compatible/i);
+});
+
+test('parseCSVToGanttData parses CSV export format and custom task CSVs cleanly', () => {
+  const sampleCSV = [
+    'WBS,Proyecto,Tipo,Nombre,Initial Date,Final Date,Duration (Dias),Slack (Dias),Dependencias,Progreso (%),Ruta Critica,Responsable',
+    '1.1,"Fase de Diseño",Tarea,"Wireframes UI",2026-11-01,2026-11-05,5,0,"",100%,SI,"Franco"',
+    '1.2,"Fase de Diseño",Hito,"Aprobación Cliente",2026-11-06,2026-11-06,0,0,"1.1",50%,SI,"Cliente"',
+    '2.1,"Fase de Desarrollo",Tarea,"Frontend React",2026-11-07,2026-11-15,9,2,"1.2",0%,NO,"Dev Team"',
+  ].join('\n');
+
+  const res = parseCSVToGanttData(sampleCSV, 'mi-proyecto-gantt.csv');
+  assert.ok(res.primaryScenario);
+  assert.equal(res.primaryScenario.name, 'mi-proyecto');
+  assert.equal(res.primaryScenario.items.length, 3);
+  assert.equal(res.primaryScenario.items[0].name, 'Wireframes UI');
+  assert.equal(res.primaryScenario.items[0].type, 'task');
+  assert.equal(res.primaryScenario.items[0].duration, 5);
+  assert.equal(res.primaryScenario.items[0].progress, 100);
+  assert.equal(res.primaryScenario.items[0].assignee, 'Franco');
+
+  assert.equal(res.primaryScenario.items[1].name, 'Aprobación Cliente');
+  assert.equal(res.primaryScenario.items[1].type, 'milestone');
+  assert.equal(res.primaryScenario.items[1].duration, 0);
+
+  assert.equal(res.primaryScenario.items[2].name, 'Frontend React');
+  assert.equal(res.primaryScenario.items[2].slack, 2);
+
+  // Two distinct projects should be generated
+  assert.equal(res.primaryScenario.projects.length, 2);
+
+  // Error handling on empty CSV
+  assert.throws(() => parseCSVToGanttData(''), /vacío/i);
+  assert.throws(() => parseCSVToGanttData('WBS,Nombre'), /vacío o solo contiene/i);
+});
+
+test('App SSR renders hidden file-import-input, Scenario dropdown Import button, and Settings Import button', async () => {
+  const { renderToString } = await import('react-dom/server');
+  const appBundle = await build({
+    stdin: {
+      contents: `
+        import React from 'react';
+        import { App } from './src/App.tsx';
+
+        export function renderApp() {
+          return <App />;
+        }
+      `,
+      resolveDir: path.resolve(__dirname, '..'),
+      sourcefile: 'ssr-import-test.tsx',
+      loader: 'tsx',
+    },
+    bundle: true,
+    format: 'cjs',
+    platform: 'node',
+    external: ['react', 'react-dom'],
+    write: false,
+  });
+
+  const fs = await import('node:fs/promises');
+  const tmpFile = path.resolve(__dirname, './.tmp-ssr-import.cjs');
+  await fs.writeFile(tmpFile, appBundle.outputFiles[0].text, 'utf8');
+  try {
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+    const html = renderToString(mod.renderApp());
+
+    // 1. Hidden file input is present in the DOM with correct accept and testid
+    assert.ok(html.includes('data-testid="file-import-input"'));
+    assert.ok(html.includes('type="file"'));
+    assert.ok(html.includes('.json,application/json,.csv,text/csv'));
+
+    // 2. Import button in Escenario dropdown exists
+    assert.ok(html.includes('Importar escenario desde JSON o CSV'));
+
+    // 3. Import label is present in the Escenario popover
+    assert.ok(html.includes('Importar'));
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
