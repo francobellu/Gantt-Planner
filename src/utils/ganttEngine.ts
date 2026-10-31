@@ -35,6 +35,31 @@ export function parseDateSafe(dateInput: unknown): Date {
   if (typeof dateInput === 'string') {
     const trimmed = dateInput.trim();
     if (!trimmed) return startOfDay(new Date());
+
+    // Spanish & European date formats: DD/MM/YYYY or DD-MM-YYYY
+    const dmyMatch = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+    if (dmyMatch) {
+      const day = Number(dmyMatch[1]);
+      const month = Number(dmyMatch[2]);
+      const year = Number(dmyMatch[3]);
+      const candidate = new Date(year, month - 1, day);
+      if (isValid(candidate) && !isNaN(candidate.getTime())) {
+        return startOfDay(candidate);
+      }
+    }
+
+    // YYYY/MM/DD format
+    const ymdMatch = trimmed.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/);
+    if (ymdMatch) {
+      const year = Number(ymdMatch[1]);
+      const month = Number(ymdMatch[2]);
+      const day = Number(ymdMatch[3]);
+      const candidate = new Date(year, month - 1, day);
+      if (isValid(candidate) && !isNaN(candidate.getTime())) {
+        return startOfDay(candidate);
+      }
+    }
+
     try {
       const parsed = parseISO(trimmed);
       if (isValid(parsed) && !isNaN(parsed.getTime())) {
@@ -1024,8 +1049,17 @@ export function sanitizeScenario(
     raw.id?.trim() ||
     `scen-${fallbackIndex + 1}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   const name = (raw.name || '').trim() || `Escenario ${fallbackIndex + 1}`;
+  const seenIds = new Set<string>();
   const cleanItems = Array.isArray(raw.items)
-    ? raw.items.map((it, idx) => sanitizeGanttItem(it, idx))
+    ? raw.items.map((it, idx) => {
+        const sanitized = sanitizeGanttItem(it, idx);
+        let finalId = sanitized.id;
+        if (seenIds.has(finalId)) {
+          finalId = `${finalId}-dup-${idx + 1}`;
+        }
+        seenIds.add(finalId);
+        return { ...sanitized, id: finalId };
+      })
     : [];
 
   const baseProjects =
@@ -1602,11 +1636,20 @@ export function createRoundedOrthogonalPath(
  * 6. Wrapped payload ({ data: ... } or { project: { tasks: [...] } })
  */
 export function importGanttData(rawJson: unknown): GanttImportResult {
-  if (!rawJson || (typeof rawJson !== 'object' && !Array.isArray(rawJson))) {
+  let parsedJson = rawJson;
+  if (typeof parsedJson === 'string') {
+    const cleanStr = parsedJson.replace(/^\uFEFF/, '').trim();
+    if (!cleanStr) {
+      throw new Error('El archivo está vacío.');
+    }
+    parsedJson = JSON.parse(cleanStr);
+  }
+
+  if (!parsedJson || (typeof parsedJson !== 'object' && !Array.isArray(parsedJson))) {
     throw new Error('El archivo no contiene un objeto o arreglo JSON válido.');
   }
 
-  let payload = rawJson as Record<string, unknown>;
+  let payload = parsedJson as Record<string, unknown>;
 
   // Unwrap { data: ... } if applicable
   if (
@@ -1630,7 +1673,11 @@ export function importGanttData(rawJson: unknown): GanttImportResult {
       ? payload.scenarios
       : null);
 
-  if (potentialScenarios && potentialScenarios.length > 0) {
+  if (potentialScenarios) {
+    if (potentialScenarios.length === 0) {
+      throw new Error('El archivo de respaldo no contiene escenarios guardados.');
+    }
+
     const sanitizedScenarios = potentialScenarios
       .filter((s): s is Record<string, unknown> => typeof s === 'object' && s !== null)
       .map((s, idx) => {
@@ -1758,8 +1805,15 @@ export function importGanttData(rawJson: unknown): GanttImportResult {
           )
         : undefined;
 
+    const customId =
+      typeof payload.id === 'string' &&
+      payload.id.trim() &&
+      !payload.id.startsWith('template:')
+        ? payload.id.trim()
+        : `scen-${Date.now()}-imp`;
+
     const importedScenario = sanitizeScenario({
-      id: `scen-${Date.now()}-imp`,
+      id: customId,
       name: importedName,
       projects: baseProjects,
       items: cleanItems,
@@ -1775,14 +1829,39 @@ export function importGanttData(rawJson: unknown): GanttImportResult {
 }
 
 /**
- * Parses and normalizes CSV text into a Gantt scenario.
- * Supports standard GanttFlow CSV export format as well as generic task CSVs.
+ * Parses and normalizes CSV/TSV text into a Gantt scenario.
+ * Supports standard GanttFlow CSV export format, European semicolon CSVs,
+ * tab-delimited files, MS Project exports, and generic task spreadsheets.
  */
 export function parseCSVToGanttData(csvText: string, fileName?: string): GanttImportResult {
-  const lines = csvText.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  const cleanText = csvText.replace(/^\uFEFF/, '').trim();
+  const lines = cleanText.split(/\r?\n/).filter((l) => l.trim().length > 0);
   if (lines.length <= 1) {
     throw new Error('El archivo CSV está vacío o solo contiene encabezados.');
   }
+
+  // Detect delimiter (, or ; or \t)
+  function detectDelimiter(headerLine: string): string {
+    let inQuotes = false;
+    let commas = 0;
+    let semicolons = 0;
+    let tabs = 0;
+    for (let i = 0; i < headerLine.length; i++) {
+      const ch = headerLine[i];
+      if (ch === '"') {
+        inQuotes = !inQuotes;
+      } else if (!inQuotes) {
+        if (ch === ',') commas++;
+        else if (ch === ';') semicolons++;
+        else if (ch === '\t') tabs++;
+      }
+    }
+    if (tabs > commas && tabs > semicolons) return '\t';
+    if (semicolons > commas) return ';';
+    return ',';
+  }
+
+  const delimiter = detectDelimiter(lines[0]);
 
   function parseCSVLine(line: string): string[] {
     const result: string[] = [];
@@ -1797,7 +1876,7 @@ export function parseCSVToGanttData(csvText: string, fileName?: string): GanttIm
         } else {
           inQuotes = !inQuotes;
         }
-      } else if (char === ',' && !inQuotes) {
+      } else if (char === delimiter && !inQuotes) {
         result.push(current.trim());
         current = '';
       } else {
@@ -1809,20 +1888,52 @@ export function parseCSVToGanttData(csvText: string, fileName?: string): GanttIm
   }
 
   const rawHeaders = parseCSVLine(lines[0]).map((h) => h.toLowerCase());
+
+  const wbsIdx = rawHeaders.findIndex(
+    (h) => h.includes('wbs') || h.includes('edt') || h.includes('código') || h.includes('codigo')
+  );
+  const idIdx = rawHeaders.findIndex(
+    (h) =>
+      h === 'id' ||
+      h.startsWith('id ') ||
+      h.endsWith(' id') ||
+      h.includes('task_id') ||
+      h.includes('task id') ||
+      h.includes('identificador')
+  );
   const nameIdx = rawHeaders.findIndex(
-    (h) => h.includes('nom') || h.includes('name') || h.includes('tarea') || h.includes('task')
+    (h) =>
+      h.includes('nom') ||
+      h.includes('name') ||
+      h.includes('tarea') ||
+      h.includes('task') ||
+      h.includes('actividad') ||
+      h.includes('concepto')
   );
   const projIdx = rawHeaders.findIndex(
-    (h) => h.includes('proy') || h.includes('proj') || h.includes('fase')
+    (h) =>
+      h.includes('proy') ||
+      h.includes('proj') ||
+      h.includes('fase') ||
+      h.includes('etapa') ||
+      h.includes('grupo')
   );
-  const typeIdx = rawHeaders.findIndex(
-    (h) => h.includes('tip') || h.includes('type')
-  );
+  const typeIdx = rawHeaders.findIndex((h) => h.includes('tip') || h.includes('type'));
   const startIdx = rawHeaders.findIndex(
-    (h) => h.includes('ini') || h.includes('start')
+    (h) =>
+      h.includes('ini') ||
+      h.includes('start') ||
+      h.includes('comienz') ||
+      h.includes('begin') ||
+      h.includes('desde')
   );
   const endIdx = rawHeaders.findIndex(
-    (h) => h.includes('fin') || h.includes('end')
+    (h) =>
+      h.includes('fin') ||
+      h.includes('end') ||
+      h.includes('termin') ||
+      h.includes('venc') ||
+      h.includes('hasta')
   );
   const durIdx = rawHeaders.findIndex(
     (h) => h.includes('dur') || h.includes('dias') || h.includes('days')
@@ -1831,26 +1942,60 @@ export function parseCSVToGanttData(csvText: string, fileName?: string): GanttIm
     (h) => h.includes('slack') || h.includes('holgura') || h.includes('buffer')
   );
   const depIdx = rawHeaders.findIndex(
-    (h) => h.includes('dep') || h.includes('pred')
+    (h) => h.includes('dep') || h.includes('pred') || h.includes('ant')
   );
   const progIdx = rawHeaders.findIndex(
-    (h) => h.includes('prog')
+    (h) => h.includes('prog') || h.includes('%') || h.includes('complet')
   );
   const assigneeIdx = rawHeaders.findIndex(
-    (h) => h.includes('resp') || h.includes('assign') || h.includes('owner')
+    (h) =>
+      h.includes('resp') ||
+      h.includes('assign') ||
+      h.includes('owner') ||
+      h.includes('recurso')
+  );
+  const notesIdx = rawHeaders.findIndex(
+    (h) =>
+      h.includes('not') ||
+      h.includes('desc') ||
+      h.includes('coment') ||
+      h.includes('observ')
   );
 
+  interface RawCsvRow {
+    assignedId: string;
+    originalId?: string;
+    wbsCode?: string;
+    name: string;
+    type: 'task' | 'milestone';
+    startDate: string;
+    endDate?: string;
+    duration: number;
+    slack: number;
+    rawDeps: string[];
+    progress: number;
+    assignee?: string;
+    notes?: string;
+    projectId: string;
+    rowIndex: number;
+  }
+
   const projectMap = new Map<string, GanttProject>();
-  const items: GanttItem[] = [];
+  const rawRows: RawCsvRow[] = [];
+  const aliasToId = new Map<string, string>();
+  const nowStamp = Date.now();
 
   for (let i = 1; i < lines.length; i++) {
     const cols = parseCSVLine(lines[i]);
     if (cols.length === 0 || cols.every((c) => !c)) continue;
 
-    const projName = (projIdx >= 0 ? cols[projIdx] : '') || 'General';
+    const projName = (projIdx >= 0 ? cols[projIdx].trim() : '') || 'General';
     let projId = 'proj-default';
     if (projName) {
       projId = `proj-${projName.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+      if (!projId || projId === 'proj-') {
+        projId = `proj-${projectMap.size + 1}`;
+      }
       if (!projectMap.has(projId)) {
         projectMap.set(
           projId,
@@ -1860,15 +2005,23 @@ export function parseCSVToGanttData(csvText: string, fileName?: string): GanttIm
     }
 
     const rawType = (typeIdx >= 0 ? cols[typeIdx] : '').toLowerCase();
-    const isMilestone = rawType.includes('hito') || rawType.includes('milestone');
-    const name = (nameIdx >= 0 ? cols[nameIdx] : '') || `Tarea ${i}`;
-    const startDate = (startIdx >= 0 ? cols[startIdx] : '') || formatDateISO(new Date());
-    const endDate = endIdx >= 0 && cols[endIdx] ? cols[endIdx] : undefined;
-    const duration = durIdx >= 0 && cols[durIdx] ? Number(cols[durIdx]) : undefined;
-    const slack = slackIdx >= 0 && cols[slackIdx] ? Number(cols[slackIdx]) : 0;
+    const rawDurStr = durIdx >= 0 && cols[durIdx] ? cols[durIdx].replace(/[^\d.]/g, '') : '';
+    const parsedDur = rawDurStr ? Number(rawDurStr) : undefined;
+    const isExplicitMilestone = rawType.includes('hito') || rawType.includes('milestone');
+    const isMilestone = isExplicitMilestone || parsedDur === 0;
+
+    const originalId = idIdx >= 0 && cols[idIdx] ? cols[idIdx].trim() : undefined;
+    const wbsCode = wbsIdx >= 0 && cols[wbsIdx] ? cols[wbsIdx].trim() : undefined;
+    const name = (nameIdx >= 0 ? cols[nameIdx].trim() : '') || `Tarea ${i}`;
+    const startDate = (startIdx >= 0 ? cols[startIdx].trim() : '') || formatDateISO(new Date());
+    const endDate = endIdx >= 0 && cols[endIdx] ? cols[endIdx].trim() : undefined;
+    const duration = isMilestone ? 0 : parsedDur !== undefined ? parsedDur : 1;
+    const slack = slackIdx >= 0 && cols[slackIdx] ? Number(cols[slackIdx]) || 0 : 0;
     const rawProg = progIdx >= 0 ? cols[progIdx] : '0';
     const progress = Number(rawProg.replace('%', '')) || 0;
-    const assignee = assigneeIdx >= 0 && cols[assigneeIdx] ? cols[assigneeIdx] : undefined;
+    const assignee = assigneeIdx >= 0 && cols[assigneeIdx] ? cols[assigneeIdx].trim() : undefined;
+    const notes = notesIdx >= 0 && cols[notesIdx] ? cols[notesIdx].trim() : undefined;
+
     const rawDeps =
       depIdx >= 0 && cols[depIdx]
         ? cols[depIdx]
@@ -1877,27 +2030,100 @@ export function parseCSVToGanttData(csvText: string, fileName?: string): GanttIm
             .filter(Boolean)
         : [];
 
-    const item = sanitizeGanttItem(
-      {
-        id: `t-${i}-${Date.now()}`,
-        name,
-        type: isMilestone ? 'milestone' : 'task',
-        startDate,
-        endDate,
-        duration: isMilestone ? 0 : duration,
-        slack,
-        dependencies: rawDeps,
-        progress,
-        assignee,
-        projectId: projId,
-      },
-      i - 1
-    );
-    items.push(item);
+    const assignedId =
+      originalId || `${isMilestone ? 'm' : 't'}-${i}-${nowStamp}`;
+
+    const itemRowIdx = rawRows.length + 1;
+
+    // Register lookup aliases for dependency resolution
+    aliasToId.set(assignedId.toLowerCase(), assignedId);
+    if (originalId) {
+      aliasToId.set(originalId.toLowerCase(), assignedId);
+    }
+    if (wbsCode) {
+      aliasToId.set(wbsCode.toLowerCase(), assignedId);
+      aliasToId.set(wbsCode.toLowerCase().replace(/\.$/, ''), assignedId);
+    }
+    aliasToId.set(String(itemRowIdx), assignedId);
+    if (name) {
+      aliasToId.set(name.toLowerCase(), assignedId);
+    }
+
+    rawRows.push({
+      assignedId,
+      originalId,
+      wbsCode,
+      name,
+      type: isMilestone ? 'milestone' : 'task',
+      startDate,
+      endDate,
+      duration,
+      slack,
+      rawDeps,
+      progress,
+      assignee,
+      notes,
+      projectId: projId,
+      rowIndex: rawRows.length,
+    });
   }
 
-  if (items.length === 0) {
+  if (rawRows.length === 0) {
     throw new Error('No se encontraron filas de tareas válidas en el CSV.');
+  }
+
+  // Second pass: resolve dependencies and dependency types
+  const items: GanttItem[] = [];
+
+  for (const row of rawRows) {
+    const resolvedDeps: string[] = [];
+    const depTypes: Record<string, DependencyType> = {};
+
+    for (const rawDep of row.rawDeps) {
+      const depToken = rawDep.trim();
+      if (!depToken) continue;
+
+      let depType: DependencyType = 'FS';
+      const typeMatch = depToken.match(/\b(FS|SS|FF|SF)\b/i);
+      if (typeMatch) {
+        depType = typeMatch[1].toUpperCase() as DependencyType;
+      }
+
+      const cleanToken = depToken
+        .replace(/\s*\((FS|SS|FF|SF)\)/i, '')
+        .replace(/\s*(FS|SS|FF|SF)$/i, '')
+        .replace(/\+[0-9]+[a-z]?$/i, '')
+        .trim()
+        .toLowerCase();
+
+      const targetId = aliasToId.get(cleanToken);
+      if (targetId && targetId !== row.assignedId && !resolvedDeps.includes(targetId)) {
+        resolvedDeps.push(targetId);
+        if (depType !== 'FS') {
+          depTypes[targetId] = depType;
+        }
+      }
+    }
+
+    const item = sanitizeGanttItem(
+      {
+        id: row.assignedId,
+        name: row.name,
+        type: row.type,
+        startDate: row.startDate,
+        endDate: row.endDate,
+        duration: row.duration,
+        slack: row.slack,
+        dependencies: resolvedDeps,
+        dependencyTypes: Object.keys(depTypes).length > 0 ? depTypes : undefined,
+        progress: row.progress,
+        assignee: row.assignee,
+        notes: row.notes,
+        projectId: row.projectId,
+      },
+      row.rowIndex
+    );
+    items.push(item);
   }
 
   const scenarioName = fileName
@@ -1905,7 +2131,7 @@ export function parseCSVToGanttData(csvText: string, fileName?: string): GanttIm
     : 'CSV Importado';
 
   const importedScenario = sanitizeScenario({
-    id: `scen-${Date.now()}-imp`,
+    id: `scen-${nowStamp}-imp`,
     name: scenarioName,
     projects: Array.from(projectMap.values()),
     items,

@@ -374,6 +374,12 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
     const handleWindowDrop = (e: DragEvent) => {
       if (e.dataTransfer?.types?.includes('Files')) {
         e.preventDefault();
+        dragCounterRef.current = 0;
+        setIsDraggingFile(false);
+        const file = e.dataTransfer.files?.[0];
+        if (file) {
+          handleImportFile(file);
+        }
       }
     };
     window.addEventListener('dragover', handleWindowDragOver);
@@ -894,6 +900,11 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
     const orderedItems = groupByProject
       ? projectGroups.flatMap((g) => g.items)
       : computedItems;
+
+    const idToWbs = new Map(
+      orderedItems.map((it) => [it.id, it.wbsCode || String(it.wbs)])
+    );
+
     const headers = [
       'WBS',
       'Proyecto',
@@ -917,7 +928,7 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
       it.endDate,
       it.duration,
       it.slack,
-      `"${it.dependencies.join(', ')}"`,
+      `"${it.dependencies.map((d) => idToWbs.get(d) || d).join(', ')}"`,
       it.progress,
       it.isCritical ? 'SI' : 'NO',
       `"${(it.assignee || '').replace(/"/g, '""')}"`,
@@ -936,29 +947,39 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
     if (!file) return;
 
     const fileName = file.name || 'archivo';
-    const isJson = fileName.toLowerCase().endsWith('.json') || file.type === 'application/json';
-    const isCsv = fileName.toLowerCase().endsWith('.csv') || file.type === 'text/csv';
-
-    if (!isJson && !isCsv) {
-      showToast('Error: Formato no compatible. Sube un archivo .json o .csv.');
-      return;
-    }
+    const lowerName = fileName.toLowerCase();
+    const isJson = lowerName.endsWith('.json') || file.type === 'application/json';
+    const isCsv =
+      lowerName.endsWith('.csv') ||
+      lowerName.endsWith('.tsv') ||
+      file.type === 'text/csv' ||
+      file.type === 'text/tab-separated-values' ||
+      file.type === 'application/vnd.ms-excel';
 
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
-        const text = String(ev.target?.result || '');
-        if (!text.trim()) {
+        const rawText = String(ev.target?.result || '');
+        const text = rawText.replace(/^\uFEFF/, '').trim();
+        if (!text) {
           showToast('Error: El archivo está vacío.');
           return;
         }
 
         let result: GanttImportResult;
-        if (isCsv) {
-          result = parseCSVToGanttData(text, fileName);
+        if (isJson || (!isCsv && (text.startsWith('{') || text.startsWith('[')))) {
+          try {
+            const parsed = JSON.parse(text);
+            result = importGanttData(parsed);
+          } catch (jsonErr) {
+            if (isJson && !isCsv) {
+              const msg = jsonErr instanceof Error ? jsonErr.message : 'JSON inválido';
+              throw new Error(`Error al leer JSON: ${msg}`);
+            }
+            result = parseCSVToGanttData(text, fileName);
+          }
         } else {
-          const parsed = JSON.parse(text);
-          result = importGanttData(parsed);
+          result = parseCSVToGanttData(text, fileName);
         }
 
         const preservedList = preserveActiveWorkspaceInScenarios(
@@ -990,6 +1011,11 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
         setShowSettingsModal(false);
         setScenarioMenuOpen(false);
         setCreateMenuOpen(false);
+
+        const fit = computeFitToProjectScale(result.primaryScenario.items, 980);
+        if (fit.spanDays > 0) {
+          setDayWidth(fit.dayWidth);
+        }
 
         showToast(`Escenario importado: "${result.primaryScenario.name}"`);
       } catch (err) {
@@ -1847,7 +1873,7 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
       <input
         ref={fileInputRef}
         type="file"
-        accept=".json,application/json,.csv,text/csv"
+        accept=".json,application/json,.csv,text/csv,.tsv,text/tab-separated-values,text/plain"
         className="hidden"
         style={{ display: 'none' }}
         data-testid="file-import-input"
@@ -1858,7 +1884,7 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
       {/* Drag & Drop Visual Overlay */}
       {isDraggingFile && (
         <div className="fixed inset-0 z-60 bg-indigo-950/60 backdrop-blur-xs border-4 border-dashed border-indigo-400 flex flex-col items-center justify-center p-6 transition-all pointer-events-none select-none">
-          <div className="bg-white dark:bg-zinc-900 p-8 rounded-2xl shadow-2xl flex flex-col items-center gap-3 border border-indigo-200 dark:border-indigo-800 text-center pointer-events-auto max-w-sm">
+          <div className="bg-white dark:bg-zinc-900 p-8 rounded-2xl shadow-2xl flex flex-col items-center gap-3 border border-indigo-200 dark:border-indigo-800 text-center pointer-events-none max-w-sm">
             <div className="w-16 h-16 rounded-full bg-indigo-100 dark:bg-indigo-950/80 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shadow-inner">
               <Upload className="w-8 h-8 animate-bounce" />
             </div>

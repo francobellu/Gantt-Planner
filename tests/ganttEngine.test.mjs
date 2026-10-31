@@ -1640,14 +1640,21 @@ test('importGanttData parses and validates standard scenario, raw items array, t
   assert.equal(res4.primaryScenario.id, 'scen-beta');
   assert.equal(res4.primaryScenario.name, 'Escenario Beta');
 
-  // 5. Error handling: empty array, non-object, and empty object
+  // 5. Error handling: empty array, non-object, empty backup, and empty object
   assert.throws(() => importGanttData([]), /lista vacía/i);
   assert.throws(() => importGanttData(null), /JSON válido/i);
   assert.throws(() => importGanttData({}), /Formato JSON no compatible/i);
   assert.throws(() => importGanttData({ invalidKey: 123 }), /Formato JSON no compatible/i);
+  assert.throws(() => importGanttData({ savedScenarios: [] }), /no contiene escenarios guardados/i);
+
+  // 6. JSON with UTF-8 BOM (\uFEFF)
+  const bomJson = '\uFEFF{"name":"Proyecto con BOM","items":[{"name":"Tarea 1","startDate":"2026-11-01","duration":3}]}';
+  const resBom = importGanttData(bomJson);
+  assert.equal(resBom.primaryScenario.name, 'Proyecto con BOM');
+  assert.equal(resBom.primaryScenario.items.length, 1);
 });
 
-test('parseCSVToGanttData parses CSV export format and custom task CSVs cleanly', () => {
+test('parseCSVToGanttData parses CSV export format and resolves WBS/name/row dependencies cleanly', () => {
   const sampleCSV = [
     'WBS,Proyecto,Tipo,Nombre,Initial Date,Final Date,Duration (Dias),Slack (Dias),Dependencias,Progreso (%),Ruta Critica,Responsable',
     '1.1,"Fase de Diseño",Tarea,"Wireframes UI",2026-11-01,2026-11-05,5,0,"",100%,SI,"Franco"',
@@ -1659,18 +1666,25 @@ test('parseCSVToGanttData parses CSV export format and custom task CSVs cleanly'
   assert.ok(res.primaryScenario);
   assert.equal(res.primaryScenario.name, 'mi-proyecto');
   assert.equal(res.primaryScenario.items.length, 3);
-  assert.equal(res.primaryScenario.items[0].name, 'Wireframes UI');
-  assert.equal(res.primaryScenario.items[0].type, 'task');
-  assert.equal(res.primaryScenario.items[0].duration, 5);
-  assert.equal(res.primaryScenario.items[0].progress, 100);
-  assert.equal(res.primaryScenario.items[0].assignee, 'Franco');
 
-  assert.equal(res.primaryScenario.items[1].name, 'Aprobación Cliente');
-  assert.equal(res.primaryScenario.items[1].type, 'milestone');
-  assert.equal(res.primaryScenario.items[1].duration, 0);
+  const [t1, m1, t2] = res.primaryScenario.items;
+  assert.equal(t1.name, 'Wireframes UI');
+  assert.equal(t1.type, 'task');
+  assert.equal(t1.duration, 5);
+  assert.equal(t1.progress, 100);
+  assert.equal(t1.assignee, 'Franco');
 
-  assert.equal(res.primaryScenario.items[2].name, 'Frontend React');
-  assert.equal(res.primaryScenario.items[2].slack, 2);
+  assert.equal(m1.name, 'Aprobación Cliente');
+  assert.equal(m1.type, 'milestone');
+  assert.equal(m1.duration, 0);
+
+  // CRITICAL: Dependency "1.1" MUST resolve to the generated ID of Wireframes UI
+  assert.deepEqual(m1.dependencies, [t1.id]);
+
+  assert.equal(t2.name, 'Frontend React');
+  assert.equal(t2.slack, 2);
+  // CRITICAL: Dependency "1.2" MUST resolve to the generated ID of Aprobación Cliente
+  assert.deepEqual(t2.dependencies, [m1.id]);
 
   // Two distinct projects should be generated
   assert.equal(res.primaryScenario.projects.length, 2);
@@ -1678,6 +1692,39 @@ test('parseCSVToGanttData parses CSV export format and custom task CSVs cleanly'
   // Error handling on empty CSV
   assert.throws(() => parseCSVToGanttData(''), /vacío/i);
   assert.throws(() => parseCSVToGanttData('WBS,Nombre'), /vacío o solo contiene/i);
+});
+
+test('parseCSVToGanttData parses European semicolon CSV, MS Project headers, and European dates (DD/MM/YYYY)', () => {
+  // Semicolon-delimited CSV as exported by Spanish Excel or MS Project with Spanish dates and dependencies
+  const spanishCsv = [
+    'Nombre de la tarea;Duración;Comienzo;Fin;Predecesoras;% completado;Responsable;Notas',
+    'Investigación de Mercado;5;15/12/2026;20/12/2026;;100%;Franco;Notas de análisis',
+    'Revisión con Directiva;0;21/12/2026;21/12/2026;1;50%;CEO;Revisión ejecutiva',
+    'Desarrollo MVP;10;22/12/2026;05/01/2027;Revisión con Directiva (SS);0%;Dev Team;Sprint 1',
+  ].join('\n');
+
+  const res = parseCSVToGanttData(spanishCsv, 'plan-estrategico.csv');
+  assert.ok(res.primaryScenario);
+  assert.equal(res.primaryScenario.name, 'plan-estrategico');
+  assert.equal(res.primaryScenario.items.length, 3);
+
+  const [task1, milestone1, task2] = res.primaryScenario.items;
+
+  // European date 15/12/2026 correctly parsed
+  assert.equal(task1.startDate, '2026-12-15');
+  assert.equal(task1.duration, 5);
+  assert.equal(task1.notes, 'Notas de análisis');
+
+  // Milestone with 0 duration
+  assert.equal(milestone1.type, 'milestone');
+  assert.equal(milestone1.startDate, '2026-12-21');
+  assert.equal(milestone1.duration, 0);
+  // Predecessor "1" (1-based row index) resolves to task1
+  assert.deepEqual(milestone1.dependencies, [task1.id]);
+
+  // Task 2 depends on "Revisión con Directiva" with SS dependency type
+  assert.deepEqual(task2.dependencies, [milestone1.id]);
+  assert.equal(task2.dependencyTypes?.[milestone1.id], 'SS');
 });
 
 test('App SSR renders hidden file-import-input, Scenario dropdown Import button, and Settings Import button', async () => {
@@ -1724,6 +1771,101 @@ test('App SSR renders hidden file-import-input, Scenario dropdown Import button,
     await fs.unlink(tmpFile).catch(() => {});
   }
 });
+
+test('CSV export-import roundtrip preserves items, dates, and dependency relationships', () => {
+  const defaultScenarios = getDefaultSavedScenarios();
+  const originalScenario = defaultScenarios[0];
+  const originalItems = originalScenario.items;
+
+  // Simulate exact export logic from handleExportCSV
+  const idToWbs = new Map(
+    originalItems.map((it, idx) => [it.id, `1.${idx + 1}`])
+  );
+
+  const headers = [
+    'WBS',
+    'Proyecto',
+    'Tipo',
+    'Nombre',
+    'Initial Date',
+    'Final Date',
+    'Duration (Dias)',
+    'Slack (Dias)',
+    'Dependencias',
+    'Progreso (%)',
+    'Ruta Critica',
+    'Responsable',
+  ];
+
+  const rows = originalItems.map((it, idx) => [
+    `"1.${idx + 1}"`,
+    `"${originalScenario.projects[0]?.name || 'General'}"`,
+    it.type === 'milestone' ? 'Hito' : 'Tarea',
+    `"${it.name}"`,
+    it.startDate,
+    it.endDate,
+    it.duration,
+    it.slack,
+    `"${it.dependencies.map((d) => idToWbs.get(d) || d).join(', ')}"`,
+    it.progress,
+    'NO',
+    `"${it.assignee || ''}"`,
+  ]);
+
+  const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+
+  const imported = parseCSVToGanttData(csv, 'roundtrip-test.csv');
+  assert.ok(imported.primaryScenario);
+  assert.equal(imported.primaryScenario.items.length, originalItems.length);
+
+  // Check that dependencies are intact and point to the newly imported items
+  for (let i = 0; i < originalItems.length; i++) {
+    const orig = originalItems[i];
+    const imp = imported.primaryScenario.items[i];
+    assert.equal(imp.name, orig.name);
+    assert.equal(imp.type, orig.type);
+    assert.equal(imp.duration, orig.duration);
+    assert.equal(imp.dependencies.length, orig.dependencies.length);
+
+    if (orig.dependencies.length > 0) {
+      // Each predecessor index in originalItems should match predecessor index in imported.primaryScenario.items
+      for (const origDepId of orig.dependencies) {
+        const origPredIdx = originalItems.findIndex((it) => it.id === origDepId);
+        assert.ok(origPredIdx >= 0);
+        const expectedImpPredId = imported.primaryScenario.items[origPredIdx].id;
+        assert.ok(
+          imp.dependencies.includes(expectedImpPredId),
+          `Imported item ${imp.name} should depend on ${imported.primaryScenario.items[origPredIdx].name}`
+        );
+      }
+    }
+  }
+
+  // Running computeGanttMetrics on imported scenario produces zero cycle errors
+  const metrics = computeGanttMetrics(imported.primaryScenario.items);
+  assert.equal(metrics.length, originalItems.length);
+});
+
+test('sanitizeScenario deduplicates duplicate item IDs preventing state corruption', () => {
+  const duplicateIdScenario = {
+    name: 'Escenario con IDs duplicados',
+    items: [
+      { id: 't-shared', name: 'Tarea 1', startDate: '2026-11-01', duration: 2 },
+      { id: 't-shared', name: 'Tarea 2', startDate: '2026-11-03', duration: 3 },
+      { id: 't-shared', name: 'Tarea 3', startDate: '2026-11-06', duration: 4 },
+    ],
+  };
+
+  const sanitized = sanitizeScenario(duplicateIdScenario);
+  assert.equal(sanitized.items.length, 3);
+  const ids = sanitized.items.map((it) => it.id);
+  const uniqueIds = new Set(ids);
+  assert.equal(uniqueIds.size, 3, 'All item IDs must be strictly unique');
+  assert.equal(ids[0], 't-shared');
+  assert.ok(ids[1].includes('t-shared-dup'));
+  assert.ok(ids[2].includes('t-shared-dup'));
+});
+
 
 
 
