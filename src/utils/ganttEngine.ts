@@ -173,6 +173,12 @@ export function isDemoProject(raw?: Partial<GanttProject> | null): boolean {
 
 export function isDemoScenario(raw?: Partial<SavedScenario> | null): boolean {
   if (!raw) return false;
+  if (Array.isArray(raw.projects) && raw.projects.length > 0) {
+    const hasExplicitFlags = raw.projects.some((p) => typeof p?.isDemo === 'boolean');
+    if (hasExplicitFlags) {
+      return raw.projects.every((p) => isDemoProject(p));
+    }
+  }
   if (typeof raw.isDemo === 'boolean') return raw.isDemo;
   const rawId = raw.id != null ? String(raw.id).trim() : '';
   if (rawId && (DEMO_SCENARIO_IDS.has(rawId) || rawId.startsWith('template:'))) {
@@ -1111,14 +1117,23 @@ export function sanitizeScenario(
 
   const scenarioIsDemo = isDemoScenario({ ...raw, id });
 
+  const fallbackProjName =
+    name && !/^Escenario\s+\d+$/i.test(name) && name !== 'Tareas Importadas'
+      ? name
+      : 'Proyecto 1: General';
+  const fallbackProjSlug =
+    fallbackProjName !== 'Proyecto 1: General'
+      ? `proj-${fallbackProjName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'default'}`
+      : 'proj-default';
+
   const baseProjects =
     Array.isArray(raw.projects) && raw.projects.length > 0
       ? raw.projects.map((p, idx) => sanitizeProject(p, idx))
       : [
           sanitizeProject(
             {
-              id: 'proj-default',
-              name: 'Proyecto 1: General',
+              id: fallbackProjSlug,
+              name: fallbackProjName,
               color: 'indigo',
               collapsed: false,
               isDemo: scenarioIsDemo,
@@ -1438,7 +1453,25 @@ export function moveTaskItem(
   const targetItem = items.find((it) => it.id === targetId);
   if (!targetItem) return items;
 
-  const resolvedTargetPid = resolvePid(targetItem) || resolvePid(sourceItem);
+  const sourcePid = resolvePid(sourceItem);
+  const resolvedTargetPid = resolvePid(targetItem) || sourcePid;
+  let effectivePosition = position;
+
+  // If moving onto an immediately adjacent sibling within the same project,
+  // ensure dropping on the next sibling moves after it and dropping on the previous sibling moves before it
+  if (sourcePid === resolvedTargetPid) {
+    const sameProjItems = items.filter((it) => resolvePid(it) === resolvedTargetPid);
+    const sIdx = sameProjItems.findIndex((it) => it.id === sourceId);
+    const tIdx = sameProjItems.findIndex((it) => it.id === targetId);
+    if (sIdx !== -1 && tIdx !== -1) {
+      if (tIdx === sIdx + 1 && effectivePosition === 'before') {
+        effectivePosition = 'after';
+      } else if (tIdx === sIdx - 1 && effectivePosition === 'after') {
+        effectivePosition = 'before';
+      }
+    }
+  }
+
   const updatedSource: GanttItem = {
     ...sourceItem,
     ...(resolvedTargetPid ? { projectId: resolvedTargetPid } : {}),
@@ -1448,7 +1481,8 @@ export function moveTaskItem(
   const targetIdxInFiltered = withoutSource.findIndex((it) => it.id === targetId);
   if (targetIdxInFiltered === -1) return items;
 
-  const insertIdx = position === 'before' ? targetIdxInFiltered : targetIdxInFiltered + 1;
+  const insertIdx =
+    effectivePosition === 'before' ? targetIdxInFiltered : targetIdxInFiltered + 1;
   const next = [...withoutSource];
   next.splice(insertIdx, 0, updatedSource);
   return next;
@@ -2171,12 +2205,16 @@ export function parseCSVToGanttData(csvText: string, fileName?: string): GanttIm
   const rawRows: RawCsvRow[] = [];
   const aliasToId = new Map<string, string>();
   const nowStamp = Date.now();
+  const scenarioName = fileName
+    ? fileName.replace(/\.[^/.]+$/, '').replace(/-gantt$/i, '').trim() || 'CSV Importado'
+    : 'CSV Importado';
+  const defaultCsvProjectName = fileName ? scenarioName : 'General';
 
   for (let i = 1; i < lines.length; i++) {
     const cols = parseCSVLine(lines[i]);
     if (cols.length === 0 || cols.every((c) => !c)) continue;
 
-    const projName = (projIdx >= 0 ? cols[projIdx].trim() : '') || 'General';
+    const projName = (projIdx >= 0 ? cols[projIdx].trim() : '') || defaultCsvProjectName;
     let projId = 'proj-default';
     if (projName) {
       projId = `proj-${projName.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
@@ -2313,10 +2351,6 @@ export function parseCSVToGanttData(csvText: string, fileName?: string): GanttIm
     items.push(item);
   }
 
-  const scenarioName = fileName
-    ? fileName.replace(/\.[^/.]+$/, '').replace(/-gantt$/i, '')
-    : 'CSV Importado';
-
   const importedScenario = sanitizeScenario({
     id: `scen-${nowStamp}-imp`,
     name: scenarioName,
@@ -2378,7 +2412,8 @@ export function mergeImportedGanttData(
       const cleanProj = sanitizeProject(rawProj, mergedProjects.length + i);
       const normIncomingName = cleanProj.name.trim().toLowerCase();
 
-      // 1. Check if a project with the exact same normalized name already exists
+      // 1. Match existing project ONLY by normalized project name so differently named projects
+      //    sharing a generic ID (e.g. "p1" or "proj-1") never overwrite each other
       const byNameIdx = mergedProjects.findIndex(
         (p) => p.name.trim().toLowerCase() === normIncomingName
       );
@@ -2397,31 +2432,7 @@ export function mergeImportedGanttData(
         continue;
       }
 
-      // 2. Check if a project with the same ID exists and is not a generic collision
-      const genericAutoId =
-        /^proj-(imported|csv|default|\d+)$/i.test(cleanProj.id) ||
-        cleanProj.name === 'Proyecto Importado';
-      const byIdIdx = !genericAutoId
-        ? mergedProjects.findIndex((p) => p.id === cleanProj.id)
-        : -1;
-
-      if (byIdIdx !== -1 && !mergedProjects[byIdIdx].isDemo) {
-        const existing = mergedProjects[byIdIdx];
-        mergedProjects[byIdIdx] = {
-          ...existing,
-          name: cleanProj.name || existing.name,
-          color: cleanProj.color || existing.color,
-        };
-        projectIdMap.set(rawProj.id || cleanProj.id, existing.id);
-        projectIdMap.set(cleanProj.id, existing.id);
-        if (!mergedProjectIds.includes(existing.id)) {
-          mergedProjectIds.push(existing.id);
-        }
-        updatedProjectsCount += 1;
-        continue;
-      }
-
-      // 3. New project to append: ensure unique ID and mark as non-demo (unless built-in demo)
+      // 2. New project to append: ensure unique ID and mark as non-demo (unless built-in demo)
       let finalProjId = cleanProj.id;
       if (mergedProjects.some((p) => p.id === finalProjId)) {
         finalProjId = `proj-merged-${Date.now()}-${mergedProjects.length + 1}`;
@@ -2459,6 +2470,7 @@ export function mergeImportedGanttData(
 
     // First pass over incoming items: decide final item ID and whether each item updates an existing one or is appended
     const itemIdMap = new Map<string, string>();
+    const usedExistingItemIndices = new Set<number>();
     const stagedIncoming: Array<{
       item: GanttItem;
       existingIdx: number;
@@ -2476,15 +2488,18 @@ export function mergeImportedGanttData(
 
       const normItemName = cleanItem.name.trim().toLowerCase();
 
-      // Match existing item within the same project by ID or by normalized name
+      // Match existing item within the same project by normalized task name
+      // (ensuring differently named tasks that happen to share generic IDs like "t-1" or "1" never overwrite each other,
+      // and ensuring two identically named tasks in the same import batch don't overwrite the same existing slot)
       const existingInSameProjIdx = mergedItems.findIndex(
-        (existing) =>
+        (existing, idx) =>
+          !usedExistingItemIndices.has(idx) &&
           existing.projectId === resolvedProjId &&
-          (existing.id === cleanItem.id ||
-            existing.name.trim().toLowerCase() === normItemName)
+          existing.name.trim().toLowerCase() === normItemName
       );
 
       if (existingInSameProjIdx !== -1) {
+        usedExistingItemIndices.add(existingInSameProjIdx);
         const existing = mergedItems[existingInSameProjIdx];
         itemIdMap.set(rawItem.id || cleanItem.id, existing.id);
         itemIdMap.set(cleanItem.id, existing.id);
@@ -2498,7 +2513,7 @@ export function mergeImportedGanttData(
           existingIdx: existingInSameProjIdx,
         });
       } else {
-        // New item in target project: ensure its ID doesn't collide with any item in another project
+        // New item in target project: ensure its ID doesn't collide with any item in mergedItems or stagedIncoming
         let finalItemId = cleanItem.id;
         if (
           mergedItems.some((x) => x.id === finalItemId) ||

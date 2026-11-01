@@ -191,11 +191,22 @@ function loadInitialWorkspaceState(
         }
 
         const activeScen = list.find((s) => s.id === activeId) || list[0];
+        const otherScenarios = list.filter((s) => s.id !== activeScen.id);
+        let initialProjects = activeScen.projects;
+        let initialItems = activeScen.items;
+        if (otherScenarios.length > 0) {
+          const merged = mergeImportedGanttData(initialProjects, initialItems, {
+            primaryScenario: otherScenarios[0],
+            allScenarios: otherScenarios,
+          });
+          initialProjects = merged.projects;
+          initialItems = merged.items;
+        }
         return {
           activeScenarioId: activeScen.id,
           projectName: activeScen.name,
-          projects: activeScen.projects,
-          items: activeScen.items,
+          projects: initialProjects,
+          items: initialItems,
           savedScenarios: list,
         };
       }
@@ -524,14 +535,24 @@ export function App({
     return baseComputedItems.map((it) => enrichedMap.get(it.id) || it);
   }, [baseComputedItems, projectGroups]);
 
-  // Project KPI metrics
+  // Project KPI metrics (scoped to currently selected projects when a subset is selected)
   const metrics = useMemo(() => {
-    if (computedItems.length === 0) {
+    const selectedSet = new Set(selectedProjectIds);
+    const activeGroups =
+      selectedSet.size > 0 && selectedSet.size < projectGroups.length
+        ? projectGroups.filter((g) => selectedSet.has(g.project.id))
+        : projectGroups;
+    const activeItems =
+      selectedSet.size > 0 && selectedSet.size < projectGroups.length
+        ? activeGroups.flatMap((g) => g.items)
+        : computedItems;
+
+    if (activeItems.length === 0) {
       return {
         startStr: formatDateISO(new Date()),
         endStr: formatDateISO(new Date()),
         totalDays: 0,
-        projectsCount: projects.length,
+        projectsCount: activeGroups.length,
         tasksCount: 0,
         milestonesCount: 0,
         criticalCount: 0,
@@ -541,8 +562,8 @@ export function App({
       };
     }
 
-    let minStart = parseDateSafe(computedItems[0].startDate);
-    let maxEnd = parseDateSafe(computedItems[0].endDate);
+    let minStart = parseDateSafe(activeItems[0].startDate);
+    let maxEnd = parseDateSafe(activeItems[0].endDate);
     let tasksCount = 0;
     let milestonesCount = 0;
     let criticalCount = 0;
@@ -550,7 +571,7 @@ export function App({
     let progressSum = 0;
     let conflictCount = 0;
 
-    for (const it of computedItems) {
+    for (const it of activeItems) {
       const s = parseDateSafe(it.startDate);
       const e = parseDateSafe(it.endDate);
       if (s < minStart) minStart = s;
@@ -575,7 +596,7 @@ export function App({
       startStr: formatDateISO(minStart),
       endStr: formatDateISO(maxEnd),
       totalDays,
-      projectsCount: projectGroups.length,
+      projectsCount: activeGroups.length,
       tasksCount,
       milestonesCount,
       criticalCount,
@@ -583,7 +604,7 @@ export function App({
       avgProgress,
       conflictCount,
     };
-  }, [computedItems, projects.length, projectGroups.length]);
+  }, [computedItems, projectGroups, selectedProjectIds]);
 
   const handleSaveFromModal = (savedItem: GanttItem, cascade: boolean) => {
     const cleanItem = sanitizeGanttItem({
@@ -646,6 +667,14 @@ export function App({
     setItems((prev) =>
       moveTaskItem(prev, sourceId, targetId, position, effectiveProjects)
     );
+    if (targetId.startsWith('project:')) {
+      const targetProjId = targetId.slice('project:'.length);
+      setProjects(() =>
+        effectiveProjects.map((p) =>
+          p.id === targetProjId && p.collapsed ? { ...p, collapsed: false } : p
+        )
+      );
+    }
   };
 
   const handleToggleSelectProject = (projectId: string) => {
@@ -944,9 +973,23 @@ export function App({
     const container = scrollContainerRef.current;
     const viewportW = container && container.clientWidth > 0 ? container.clientWidth : 980;
     const pid = targetProjectId || selectedProjectId || 'all';
-    const fit = computeFitToProjectScale(computedItems, viewportW, {
-      projectId: pid,
-    });
+    const selectedSet = new Set(selectedProjectIds);
+    const itemsToFit =
+      !targetProjectId &&
+      pid === 'all' &&
+      selectedSet.size > 0 &&
+      selectedSet.size < effectiveProjects.length
+        ? computedItems.filter((it) =>
+            selectedSet.has(it.projectId || effectiveProjects[0]?.id || 'proj-default')
+          )
+        : computedItems;
+    const fit = computeFitToProjectScale(
+      itemsToFit.length > 0 ? itemsToFit : computedItems,
+      viewportW,
+      {
+        projectId: pid,
+      }
+    );
     setDayWidth(fit.dayWidth);
     const matchedPreset = resolveZoomPresetFromDayWidth(fit.dayWidth);
     if (matchedPreset !== 'custom') {
@@ -1240,8 +1283,9 @@ export function App({
   const activeScenarioObj = savedScenarios.find((s) => s.id === activeScenarioId);
   const isCurrentScenarioDemo =
     isViewingTemplate ||
-    Boolean(activeScenarioObj?.isDemo) ||
-    (effectiveProjects.length > 0 && effectiveProjects.every((p) => p.isDemo));
+    (effectiveProjects.length > 0
+      ? effectiveProjects.every((p) => Boolean(p.isDemo))
+      : Boolean(activeScenarioObj?.isDemo));
 
   return (
     <div
@@ -1960,6 +2004,16 @@ export function App({
                 </button>
                 <button
                   type="button"
+                  data-projects-view-import-btn="true"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-violet-500/30 bg-violet-500/10 hover:bg-violet-500/20 text-violet-700 dark:text-violet-300 font-semibold transition cursor-pointer"
+                  title="Importar y fusionar datos desde JSON o CSV sin borrar los datos cargados"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Importar JSON / CSV</span>
+                </button>
+                <button
+                  type="button"
                   data-go-to-gantt-btn="true"
                   onClick={() => setActiveView('gantt')}
                   className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold shadow-sm transition cursor-pointer"
@@ -2127,6 +2181,19 @@ export function App({
                               : 'Sin tareas aún'}
                           </span>
                           <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleUpdateProject({
+                                  ...group.project,
+                                  isDemo: true,
+                                })
+                              }
+                              className="px-2 py-1 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 font-semibold transition"
+                              title="Marcar este proyecto como proyecto Demo"
+                            >
+                              Marcar como Demo
+                            </button>
                             <button
                               type="button"
                               onClick={() => {

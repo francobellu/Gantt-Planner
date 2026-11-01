@@ -374,8 +374,46 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     id: string;
     position: 'before' | 'after';
   } | null>(null);
+  const cleanupPointerListenersRef = useRef<(() => void) | null>(null);
+  const lastMouseDownInteractiveRef = useRef<boolean>(false);
   const onMoveItemRef = useRef(onMoveItem);
   onMoveItemRef.current = onMoveItem;
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+
+  useEffect(() => {
+    return () => {
+      cleanupPointerListenersRef.current?.();
+    };
+  }, []);
+
+  const resolveEffectiveDropPosition = (
+    sourceId: string,
+    targetId: string,
+    rawPos: 'before' | 'after'
+  ): 'before' | 'after' => {
+    if (!sourceId || !targetId || targetId.startsWith('project:')) return 'after';
+    const currentItems = itemsRef.current;
+    const sourceItem = currentItems.find((it) => it.id === sourceId);
+    const targetItem = currentItems.find((it) => it.id === targetId);
+    if (!sourceItem || !targetItem) return rawPos;
+
+    const fallbackPid = projects[0]?.id;
+    const sPid = sourceItem.projectId || fallbackPid;
+    const tPid = targetItem.projectId || fallbackPid;
+    if (sPid === tPid) {
+      const sameProj = currentItems.filter(
+        (it) => (it.projectId || fallbackPid) === tPid
+      );
+      const sIdx = sameProj.findIndex((it) => it.id === sourceId);
+      const tIdx = sameProj.findIndex((it) => it.id === targetId);
+      if (sIdx !== -1 && tIdx !== -1) {
+        if (tIdx === sIdx + 1 && rawPos === 'before') return 'after';
+        if (tIdx === sIdx - 1 && rawPos === 'after') return 'before';
+      }
+    }
+    return rawPos;
+  };
 
   const handleRowPointerMouseDown = (
     e: React.MouseEvent,
@@ -389,17 +427,40 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       targetEl &&
       targetEl.closest('input, button, select, textarea, a')
     ) {
+      lastMouseDownInteractiveRef.current = true;
       return;
     }
 
+    lastMouseDownInteractiveRef.current = false;
+    // Prevent native HTML5 dragstart from hijacking pointer mousemove/mouseup events
+    e.preventDefault();
     if (fromGripHandle) {
-      e.preventDefault();
       e.stopPropagation();
     }
 
+    cleanupPointerListenersRef.current?.();
+
     const startY = e.clientY;
 
+    const detachListeners = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      if (cleanupPointerListenersRef.current === detachListeners) {
+        cleanupPointerListenersRef.current = null;
+      }
+    };
+
     const onMouseMove = (moveEvent: MouseEvent) => {
+      // Safety check: if left mouse button was released outside window or consumed, clean up immediately
+      if (typeof moveEvent.buttons === 'number' && (moveEvent.buttons & 1) === 0) {
+        detachListeners();
+        draggingRowIdRef.current = null;
+        dragOverRowRef.current = null;
+        setDraggingRowId(null);
+        setDragOverRow(null);
+        return;
+      }
+
       const dy = Math.abs(moveEvent.clientY - startY);
       if (!draggingRowIdRef.current && dy < 3) {
         return;
@@ -448,8 +509,13 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             setDragOverRow(null);
           } else {
             const relY = moveEvent.clientY - r.top;
-            const position: 'before' | 'after' =
+            const rawPosition: 'before' | 'after' =
               relY < r.height / 2 ? 'before' : 'after';
+            const position = resolveEffectiveDropPosition(
+              itemId,
+              taskRowId,
+              rawPosition
+            );
             const nextOver = { id: taskRowId, position };
             dragOverRowRef.current = nextOver;
             setDragOverRow(nextOver);
@@ -466,8 +532,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     };
 
     const onMouseUp = () => {
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
+      detachListeners();
 
       const activeSource = draggingRowIdRef.current;
       const activeTarget = dragOverRowRef.current;
@@ -487,6 +552,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       }
     };
 
+    cleanupPointerListenersRef.current = detachListeners;
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
   };
@@ -494,10 +560,15 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   const handleDragRowStart = (e: React.DragEvent, itemId: string) => {
     e.stopPropagation();
     const targetEl = e.target as HTMLElement | null;
-    if (targetEl && targetEl.tagName === 'INPUT') {
+    if (
+      lastMouseDownInteractiveRef.current ||
+      (targetEl && targetEl.closest('input, button, select, textarea, a'))
+    ) {
       e.preventDefault();
       return;
     }
+    // Detach any pointer listeners so HTML5 drag doesn't leak window mousemove/mouseup handlers
+    cleanupPointerListenersRef.current?.();
     e.dataTransfer.setData('text/plain', itemId);
     e.dataTransfer.setData('application/x-gantt-task-id', itemId);
     e.dataTransfer.effectAllowed = 'copyMove';
@@ -523,7 +594,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     }
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const relY = e.clientY - rect.top;
-    const position: 'before' | 'after' = relY < rect.height / 2 ? 'before' : 'after';
+    const rawPosition: 'before' | 'after' = relY < rect.height / 2 ? 'before' : 'after';
+    const position = currentSource
+      ? resolveEffectiveDropPosition(currentSource, targetId, rawPosition)
+      : rawPosition;
     const nextOver = { id: targetId, position };
     dragOverRowRef.current = nextOver;
     setDragOverRow(nextOver);
@@ -543,6 +617,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   const handleDropRow = (e: React.DragEvent, targetId: string) => {
     e.preventDefault();
     e.stopPropagation();
+    cleanupPointerListenersRef.current?.();
     const sourceId =
       draggingRowIdRef.current ||
       draggingRowId ||
@@ -554,7 +629,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       if (!targetId.startsWith('project:')) {
         const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
         if (rect.height > 0) {
-          position = e.clientY - rect.top < rect.height / 2 ? 'before' : 'after';
+          const rawPos = e.clientY - rect.top < rect.height / 2 ? 'before' : 'after';
+          position = resolveEffectiveDropPosition(sourceId, targetId, rawPos);
         } else if (dragOverRowRef.current?.id === targetId) {
           position = dragOverRowRef.current.position;
         }
@@ -569,6 +645,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
   const handleDragRowEnd = (e?: React.DragEvent) => {
     e?.stopPropagation();
+    cleanupPointerListenersRef.current?.();
     draggingRowIdRef.current = null;
     dragOverRowRef.current = null;
     setDraggingRowId(null);
@@ -1598,7 +1675,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         )}
                       </div>
                     )}
-                    {displayRows.map((row) => {
+                    {displayRows.map((row, rowIndex) => {
                       if (row.kind === 'project') {
                         const { group } = row;
                         const projTheme =
@@ -1773,8 +1850,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       const isHovered = hoveredId === item.id;
                       const isCrit = showCriticalPath && item.isCritical;
                       const itemIndexInGroup = group.items.findIndex((x) => x.id === item.id);
-                      const isFirstInGroup = itemIndexInGroup === 0;
-                      const isLastInGroup = itemIndexInGroup === group.items.length - 1;
+                      const isFirstInGroup = groupByProject
+                        ? itemIndexInGroup === 0
+                        : rowIndex === 0;
+                      const isLastInGroup = groupByProject
+                        ? itemIndexInGroup === group.items.length - 1
+                        : rowIndex === displayRows.length - 1;
                       const isBeingDragged = draggingRowId === item.id;
                       const isDropBefore = dragOverRow?.id === item.id && dragOverRow.position === 'before';
                       const isDropAfter = dragOverRow?.id === item.id && dragOverRow.position === 'after';

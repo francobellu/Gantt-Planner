@@ -2383,13 +2383,213 @@ test('SSR Verification: Lista de Proyectos view renders selectable Real & Demo s
   }
 });
 
+test('moveTaskItem swaps immediately adjacent tasks within the same project even when dropped onto the bordering half', () => {
+  const projects = [
+    { id: 'p1', name: 'Proyecto 1', color: 'indigo' },
+    { id: 'p2', name: 'Proyecto 2', color: 'emerald' },
+  ];
+  const items = [
+    {
+      id: 't1',
+      projectId: 'p1',
+      name: 'Tarea 1',
+      type: 'task',
+      startDate: '2026-11-01',
+      endDate: '2026-11-03',
+      duration: 3,
+      slack: 0,
+      dependencies: [],
+      progress: 0,
+      color: 'indigo',
+    },
+    {
+      id: 't2',
+      projectId: 'p1',
+      name: 'Tarea 2',
+      type: 'task',
+      startDate: '2026-11-04',
+      endDate: '2026-11-06',
+      duration: 3,
+      slack: 0,
+      dependencies: [],
+      progress: 0,
+      color: 'indigo',
+    },
+    {
+      id: 't3',
+      projectId: 'p1',
+      name: 'Tarea 3',
+      type: 'task',
+      startDate: '2026-11-07',
+      endDate: '2026-11-09',
+      duration: 3,
+      slack: 0,
+      dependencies: [],
+      progress: 0,
+      color: 'indigo',
+    },
+  ];
 
+  // Dragging t1 down onto the upper half ('before') of immediately adjacent t2 must swap t1 and t2
+  const movedDown = moveTaskItem(items, 't1', 't2', 'before', projects);
+  assert.deepEqual(
+    movedDown.map((it) => it.id),
+    ['t2', 't1', 't3'],
+    'Dragging t1 onto t2 (before) must move t1 after t2'
+  );
 
+  // Dragging t2 up onto the lower half ('after') of immediately adjacent t1 must swap t2 and t1
+  const movedUp = moveTaskItem(items, 't2', 't1', 'after', projects);
+  assert.deepEqual(
+    movedUp.map((it) => it.id),
+    ['t2', 't1', 't3'],
+    'Dragging t2 onto t1 (after) must move t2 before t1'
+  );
+});
 
+test('mergeImportedGanttData preserves existing projects/tasks when imported files reuse generic IDs or omit Proyecto column', () => {
+  const existingProjects = [
+    { id: 'p1', name: 'Proyecto AlphaExistente', color: 'indigo', isDemo: false },
+  ];
+  const existingItems = [
+    {
+      id: 't-1',
+      projectId: 'p1',
+      name: 'Tarea Original Alpha',
+      type: 'task',
+      startDate: '2026-11-01',
+      endDate: '2026-11-05',
+      duration: 5,
+      slack: 0,
+      dependencies: [],
+      progress: 50,
+      color: 'indigo',
+    },
+  ];
 
+  // 1. Import JSON that reuses project id "p1" for a differently named project "Proyecto BetaImportado"
+  // and reuses task id "t-1" for a differently named task in "Proyecto AlphaExistente"
+  const jsonImport = importGanttData({
+    projects: [
+      { id: 'p1', name: 'Proyecto BetaImportado', color: 'rose' },
+      { id: 'p2', name: 'Proyecto AlphaExistente', color: 'indigo' },
+    ],
+    items: [
+      {
+        id: 't-1',
+        projectId: 'p2',
+        name: 'Tarea Nueva En Alpha Con Mismo ID',
+        type: 'task',
+        startDate: '2026-11-06',
+        endDate: '2026-11-10',
+        duration: 5,
+      },
+      {
+        id: 't-beta-1',
+        projectId: 'p1',
+        name: 'Tarea De Beta',
+        type: 'task',
+        startDate: '2026-11-11',
+        endDate: '2026-11-15',
+        duration: 5,
+        dependencies: ['t-1'],
+      },
+    ],
+  });
 
+  const merged1 = mergeImportedGanttData(existingProjects, existingItems, jsonImport);
+  assert.equal(merged1.projects.length, 2, 'Both Alpha and Beta projects must exist without overwriting');
+  assert.ok(
+    merged1.projects.some((p) => p.id === 'p1' && p.name === 'Proyecto AlphaExistente'),
+    'Original p1 project name must not be overwritten by colliding project ID'
+  );
+  const betaProj = merged1.projects.find((p) => p.name === 'Proyecto BetaImportado');
+  assert.ok(betaProj && betaProj.id !== 'p1', 'Beta project must get a remapped unique ID');
 
+  // Original task 'Tarea Original Alpha' (id: 't-1') AND new task 'Tarea Nueva En Alpha Con Mismo ID' must both exist in p1
+  const alphaTasks = merged1.items.filter((it) => it.projectId === 'p1');
+  assert.equal(alphaTasks.length, 2, 'Colliding task ID with different name must NOT overwrite existing task');
+  assert.ok(alphaTasks.some((it) => it.name === 'Tarea Original Alpha' && it.id === 't-1'));
+  const remappedNewTask = alphaTasks.find((it) => it.name === 'Tarea Nueva En Alpha Con Mismo ID');
+  assert.ok(remappedNewTask && remappedNewTask.id !== 't-1');
 
+  // Dependency on 't-1' inside the imported payload must point to the newly imported remapped task ID
+  const betaTask = merged1.items.find((it) => it.projectId === betaProj.id);
+  assert.ok(betaTask);
+  assert.deepEqual(betaTask.dependencies, [remappedNewTask.id]);
 
+  // 2. Import two CSV files without a 'Proyecto' column: each must create a project named after its CSV file
+  const csv1 = parseCSVToGanttData(
+    'Nombre,Initial Date,Final Date\nTarea Marketing,2026-12-01,2026-12-05',
+    'plan-marketing-2027.csv'
+  );
+  const csv2 = parseCSVToGanttData(
+    'Nombre,Initial Date,Final Date\nTarea Ventas,2026-12-06,2026-12-10',
+    'roadmap-ventas-q1.csv'
+  );
+  const afterCsv1 = mergeImportedGanttData(merged1.projects, merged1.items, csv1);
+  const afterCsv2 = mergeImportedGanttData(afterCsv1.projects, afterCsv1.items, csv2);
 
+  assert.ok(
+    afterCsv2.projects.some((p) => p.name === 'plan-marketing-2027' && p.isDemo === false),
+    'First CSV without Proyecto column must create project named after its filename'
+  );
+  assert.ok(
+    afterCsv2.projects.some((p) => p.name === 'roadmap-ventas-q1' && p.isDemo === false),
+    'Second CSV without Proyecto column must create its own distinct project'
+  );
 
+  // 3. Multi-scenario JSON without explicit projects arrays must create distinct projects per scenario name
+  const multiScenarioImport = importGanttData({
+    savedScenarios: [
+      {
+        id: 'scen-custom-a',
+        name: 'Escenario Finanzas',
+        items: [
+          {
+            id: 'fin-1',
+            name: 'Cierre Contable',
+            type: 'task',
+            startDate: '2026-12-15',
+            endDate: '2026-12-20',
+            duration: 6,
+          },
+        ],
+      },
+      {
+        id: 'scen-custom-b',
+        name: 'Escenario RRHH',
+        items: [
+          {
+            id: 'hr-1',
+            name: 'Onboarding',
+            type: 'task',
+            startDate: '2026-12-18',
+            endDate: '2026-12-22',
+            duration: 5,
+          },
+        ],
+      },
+    ],
+  });
+  const afterMulti = mergeImportedGanttData(afterCsv2.projects, afterCsv2.items, multiScenarioImport);
+  assert.ok(afterMulti.projects.some((p) => p.name === 'Escenario Finanzas'));
+  assert.ok(afterMulti.projects.some((p) => p.name === 'Escenario RRHH'));
+});
+
+test('isDemoScenario transitions from true to false when a real project is added to the default scenario', () => {
+  const defaultScen = getDefaultSavedScenarios()[0];
+  assert.equal(defaultScen.id, 'scen-saas-v2');
+  assert.equal(isDemoScenario(defaultScen), true);
+
+  // Adding a real project (isDemo: false) to scen-saas-v2 must transition isDemoScenario to false
+  const withRealProject = sanitizeScenario({
+    ...defaultScen,
+    projects: [
+      ...defaultScen.projects,
+      { id: 'proj-user-real', name: 'Mi Proyecto Real', color: 'emerald', isDemo: false },
+    ],
+  });
+  assert.equal(isDemoScenario(withRealProject), false);
+  assert.equal(withRealProject.isDemo, false);
+});
