@@ -38,6 +38,7 @@ export interface GanttProject {
   color: TaskColor;
   description?: string;
   collapsed?: boolean;
+  isDemo?: boolean;
 }
 
 export interface GanttItem {
@@ -90,6 +91,7 @@ export interface ProjectTemplate {
   description: string;
   projects: GanttProject[];
   items: GanttItem[];
+  isDemo?: boolean;
 }
 
 export interface SavedScenario {
@@ -99,6 +101,7 @@ export interface SavedScenario {
   items: GanttItem[];
   updatedAt: string;
   sourceTemplateId?: string;
+  isDemo?: boolean;
 }
 
 export type ArrowVisibility = 'all' | 'hover' | 'critical' | 'none';

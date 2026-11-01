@@ -53,6 +53,7 @@ import {
   computeTimelineBounds,
   computeWheelZoomDayWidth,
   createRoundedOrthogonalPath,
+  filterGroupsBySelectedProjects,
   formatDateDisplay,
   formatDateISO,
   formatScrubberDate,
@@ -69,6 +70,8 @@ interface GanttWorkspaceProps {
   projects?: GanttProject[];
   groupByProject?: boolean;
   selectedProjectId?: string;
+  selectedProjectIds?: string[];
+  onOpenProjectsView?: () => void;
   zoom: ZoomLevel;
   dayWidth?: number;
   onChangeDayWidth?: (newDayWidth: number) => void;
@@ -236,6 +239,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   projects = [],
   groupByProject = true,
   selectedProjectId = 'all',
+  selectedProjectIds,
+  onOpenProjectsView,
   zoom,
   dayWidth: controlledDayWidth,
   onChangeDayWidth,
@@ -357,45 +362,215 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     });
   };
 
-  // State for drag-and-drop row reordering in the WBS table
+  // State and refs for drag-and-drop row reordering in the WBS table (supports both mouse/pointer drag and HTML5 DnD)
   const [draggingRowId, setDraggingRowId] = useState<string | null>(null);
   const [dragOverRow, setDragOverRow] = useState<{
     id: string;
     position: 'before' | 'after';
   } | null>(null);
 
+  const draggingRowIdRef = useRef<string | null>(null);
+  const dragOverRowRef = useRef<{
+    id: string;
+    position: 'before' | 'after';
+  } | null>(null);
+  const onMoveItemRef = useRef(onMoveItem);
+  onMoveItemRef.current = onMoveItem;
+
+  const handleRowPointerMouseDown = (
+    e: React.MouseEvent,
+    itemId: string,
+    fromGripHandle = false
+  ) => {
+    if (e.button !== 0) return;
+    const targetEl = e.target as HTMLElement | null;
+    if (
+      !fromGripHandle &&
+      targetEl &&
+      targetEl.closest('input, button, select, textarea, a')
+    ) {
+      return;
+    }
+
+    if (fromGripHandle) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    const startY = e.clientY;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const dy = Math.abs(moveEvent.clientY - startY);
+      if (!draggingRowIdRef.current && dy < 3) {
+        return;
+      }
+
+      if (!draggingRowIdRef.current) {
+        draggingRowIdRef.current = itemId;
+        setDraggingRowId(itemId);
+      }
+
+      const rowNodes = document.querySelectorAll<HTMLElement>(
+        '[data-task-row], [data-project-group]'
+      );
+      let matchedEl: HTMLElement | null = null;
+      let matchedRect: DOMRect | null = null;
+      let minDistance = Infinity;
+
+      rowNodes.forEach((node) => {
+        const rect = node.getBoundingClientRect();
+        if (moveEvent.clientY >= rect.top && moveEvent.clientY <= rect.bottom) {
+          matchedEl = node;
+          matchedRect = rect;
+          minDistance = 0;
+        } else if (minDistance > 0) {
+          const dist = Math.min(
+            Math.abs(moveEvent.clientY - rect.top),
+            Math.abs(moveEvent.clientY - rect.bottom)
+          );
+          if (dist < minDistance && dist <= 28) {
+            minDistance = dist;
+            matchedEl = node;
+            matchedRect = rect;
+          }
+        }
+      });
+
+      if (matchedEl && matchedRect) {
+        const el = matchedEl as HTMLElement;
+        const r = matchedRect as DOMRect;
+        const taskRowId = el.getAttribute('data-task-row');
+        const projGroupId = el.getAttribute('data-project-group');
+
+        if (taskRowId) {
+          if (taskRowId === itemId) {
+            dragOverRowRef.current = null;
+            setDragOverRow(null);
+          } else {
+            const relY = moveEvent.clientY - r.top;
+            const position: 'before' | 'after' =
+              relY < r.height / 2 ? 'before' : 'after';
+            const nextOver = { id: taskRowId, position };
+            dragOverRowRef.current = nextOver;
+            setDragOverRow(nextOver);
+          }
+        } else if (projGroupId) {
+          const nextOver = {
+            id: `project:${projGroupId}`,
+            position: 'after' as const,
+          };
+          dragOverRowRef.current = nextOver;
+          setDragOverRow(nextOver);
+        }
+      }
+    };
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+
+      const activeSource = draggingRowIdRef.current;
+      const activeTarget = dragOverRowRef.current;
+
+      draggingRowIdRef.current = null;
+      dragOverRowRef.current = null;
+      setDraggingRowId(null);
+      setDragOverRow(null);
+
+      if (
+        activeSource &&
+        activeTarget &&
+        activeSource !== activeTarget.id &&
+        onMoveItemRef.current
+      ) {
+        onMoveItemRef.current(activeSource, activeTarget.id, activeTarget.position);
+      }
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
   const handleDragRowStart = (e: React.DragEvent, itemId: string) => {
+    e.stopPropagation();
+    const targetEl = e.target as HTMLElement | null;
+    if (targetEl && targetEl.tagName === 'INPUT') {
+      e.preventDefault();
+      return;
+    }
     e.dataTransfer.setData('text/plain', itemId);
-    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('application/x-gantt-task-id', itemId);
+    e.dataTransfer.effectAllowed = 'copyMove';
+    draggingRowIdRef.current = itemId;
     setDraggingRowId(itemId);
   };
 
   const handleDragRowOver = (e: React.DragEvent, targetId: string) => {
     e.preventDefault();
-    if (draggingRowId === targetId) return;
+    e.stopPropagation();
     e.dataTransfer.dropEffect = 'move';
+    const currentSource = draggingRowIdRef.current || draggingRowId;
+    if (currentSource === targetId) {
+      dragOverRowRef.current = null;
+      setDragOverRow(null);
+      return;
+    }
+    if (targetId.startsWith('project:')) {
+      const nextOver = { id: targetId, position: 'after' as const };
+      dragOverRowRef.current = nextOver;
+      setDragOverRow(nextOver);
+      return;
+    }
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const relY = e.clientY - rect.top;
     const position: 'before' | 'after' = relY < rect.height / 2 ? 'before' : 'after';
-    setDragOverRow({ id: targetId, position });
+    const nextOver = { id: targetId, position };
+    dragOverRowRef.current = nextOver;
+    setDragOverRow(nextOver);
   };
 
-  const handleDragRowLeave = () => {
+  const handleDragRowLeave = (e: React.DragEvent) => {
+    e.stopPropagation();
+    const currentTarget = e.currentTarget as HTMLElement;
+    const related = e.relatedTarget as Node | null;
+    if (related && currentTarget.contains(related)) {
+      return;
+    }
+    dragOverRowRef.current = null;
     setDragOverRow(null);
   };
 
   const handleDropRow = (e: React.DragEvent, targetId: string) => {
     e.preventDefault();
-    const sourceId = draggingRowId || e.dataTransfer.getData('text/plain');
+    e.stopPropagation();
+    const sourceId =
+      draggingRowIdRef.current ||
+      draggingRowId ||
+      e.dataTransfer.getData('application/x-gantt-task-id') ||
+      e.dataTransfer.getData('text/plain');
+
     if (sourceId && sourceId !== targetId && onMoveItem) {
-      const position = dragOverRow?.position || 'after';
+      let position: 'before' | 'after' = 'after';
+      if (!targetId.startsWith('project:')) {
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        if (rect.height > 0) {
+          position = e.clientY - rect.top < rect.height / 2 ? 'before' : 'after';
+        } else if (dragOverRowRef.current?.id === targetId) {
+          position = dragOverRowRef.current.position;
+        }
+      }
       onMoveItem(sourceId, targetId, position);
     }
+    draggingRowIdRef.current = null;
+    dragOverRowRef.current = null;
     setDraggingRowId(null);
     setDragOverRow(null);
   };
 
-  const handleDragRowEnd = () => {
+  const handleDragRowEnd = (e?: React.DragEvent) => {
+    e?.stopPropagation();
+    draggingRowIdRef.current = null;
+    dragOverRowRef.current = null;
     setDraggingRowId(null);
     setDragOverRow(null);
   };
@@ -670,12 +845,15 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     return map;
   }, [allProjectGroups]);
 
-  const visibleProjectGroups = useMemo(() => {
-    if (!selectedProjectId || selectedProjectId === 'all') {
-      return allProjectGroups;
-    }
-    return allProjectGroups.filter((g) => g.project.id === selectedProjectId);
-  }, [allProjectGroups, selectedProjectId]);
+  const visibleProjectGroups = useMemo(
+    () =>
+      filterGroupsBySelectedProjects(
+        allProjectGroups,
+        selectedProjectIds,
+        selectedProjectId
+      ),
+    [allProjectGroups, selectedProjectIds, selectedProjectId]
+  );
 
   // All milestones in visible projects for full-canvas vertical alignment guides
   const visibleMilestones = useMemo(() => {
@@ -726,11 +904,22 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     return rows;
   }, [groupByProject, visibleProjectGroups]);
 
+  const timelineScopedItems = useMemo(() => {
+    if (
+      Array.isArray(selectedProjectIds) &&
+      selectedProjectIds.length < allProjectGroups.length
+    ) {
+      const subset = visibleProjectGroups.flatMap((g) => g.items);
+      return subset.length > 0 ? subset : items;
+    }
+    return items;
+  }, [items, selectedProjectIds, allProjectGroups.length, visibleProjectGroups]);
+
   // Compute timeline date range with padding before and after project
   const { timelineDays, timelineStart, monthGroups, todayIndex } = useMemo(() => {
     const today = startOfDay(new Date());
     const { timelineStart: paddedStart, timelineEnd: paddedEnd } =
-      computeTimelineBounds(items, today);
+      computeTimelineBounds(timelineScopedItems, today);
     const days = eachDayOfInterval({ start: paddedStart, end: paddedEnd });
 
     // Group consecutive days by Month + Year for the top header tier
@@ -755,7 +944,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       monthGroups: groups,
       todayIndex: tIdx,
     };
-  }, [items]);
+  }, [timelineScopedItems]);
 
   // Handle mouse drag for task bars on timeline
   const handleBarMouseDown = (
@@ -1385,19 +1574,56 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
                   {/* Table Body Rows */}
                   <div className="divide-y divide-slate-100 dark:divide-zinc-800/60">
+                    {visibleProjectGroups.length === 0 && (
+                      <div
+                        data-empty-selected-projects="true"
+                        style={{ minWidth: tableMinWidth }}
+                        className="flex flex-col items-center justify-center py-12 px-6 text-center bg-slate-50/40 dark:bg-zinc-900/30"
+                      >
+                        <FolderKanban className="w-8 h-8 text-slate-400 dark:text-zinc-500 mb-2" />
+                        <p className="text-sm font-bold text-slate-700 dark:text-zinc-200">
+                          No hay proyectos seleccionados para mostrar en el diagrama Gantt
+                        </p>
+                        <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1 max-w-md">
+                          Abre la vista de Lista de Proyectos y marca al menos un proyecto para visualizar su cronograma aquí.
+                        </p>
+                        {onOpenProjectsView && (
+                          <button
+                            type="button"
+                            onClick={onOpenProjectsView}
+                            className="mt-3 px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm transition cursor-pointer"
+                          >
+                            Ir a Lista de Proyectos
+                          </button>
+                        )}
+                      </div>
+                    )}
                     {displayRows.map((row) => {
                       if (row.kind === 'project') {
                         const { group } = row;
                         const projTheme =
                           COLOR_STYLES[group.project.color] || COLOR_STYLES.indigo;
                         const isCollapsed = Boolean(group.project.collapsed);
+                        const isProjectDragTarget =
+                          dragOverRow?.id === `project:${group.project.id}`;
 
                         return (
                           <div
                             key={row.rowId}
                             data-project-group={group.project.id}
                             style={{ height: ROW_HEIGHT, minWidth: tableMinWidth }}
-                            className={`flex items-center justify-between px-3 text-xs font-semibold border-y border-slate-200/80 dark:border-zinc-800/80 transition-colors ${projTheme.groupRowBg}`}
+                            onDragOver={(e) =>
+                              handleDragRowOver(e, `project:${group.project.id}`)
+                            }
+                            onDragLeave={handleDragRowLeave}
+                            onDrop={(e) =>
+                              handleDropRow(e, `project:${group.project.id}`)
+                            }
+                            className={`flex items-center justify-between px-3 text-xs font-semibold border-y border-slate-200/80 dark:border-zinc-800/80 transition-colors ${
+                              isProjectDragTarget
+                                ? 'ring-2 ring-inset ring-indigo-500 bg-indigo-100/70 dark:bg-indigo-950/60'
+                                : projTheme.groupRowBg
+                            }`}
                           >
                             {/* Project Header Title + Collapse Toggle */}
                             <div
@@ -1425,6 +1651,24 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 P{group.projectIndex}
                               </span>
 
+                              {group.project.isDemo ? (
+                                <span
+                                  data-project-demo-badge={group.project.id}
+                                  className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 shrink-0"
+                                  title="Proyecto de demostración (Demo)"
+                                >
+                                  DEMO
+                                </span>
+                              ) : (
+                                <span
+                                  data-project-real-badge={group.project.id}
+                                  className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 shrink-0"
+                                  title="Proyecto real de trabajo"
+                                >
+                                  REAL
+                                </span>
+                              )}
+
                               <input
                                 type="text"
                                 value={group.project.name}
@@ -1435,7 +1679,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                   })
                                 }
                                 style={{ minWidth: `${Math.max(200, maxNameLength * 8.2)}px` }}
-                                className="w-full bg-transparent font-bold text-slate-900 dark:text-white focus:bg-white dark:focus:bg-zinc-800 focus:px-1.5 focus:py-0.5 rounded outline-none focus:ring-1 focus:ring-indigo-500"
+                                className={`w-full bg-transparent font-bold text-slate-900 dark:text-white focus:bg-white dark:focus:bg-zinc-800 focus:px-1.5 focus:py-0.5 rounded outline-none focus:ring-1 focus:ring-indigo-500 ${
+                                  draggingRowId ? 'pointer-events-none' : ''
+                                }`}
                                 title="Haz clic para renombrar este proyecto"
                               />
 
@@ -1537,9 +1783,13 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         <div
                           key={row.rowId}
                           data-task-row={item.id}
+                          draggable={true}
                           style={{ height: ROW_HEIGHT, minWidth: tableMinWidth }}
                           onMouseEnter={() => setHoveredId(item.id)}
                           onMouseLeave={() => setHoveredId(null)}
+                          onMouseDown={(e) => handleRowPointerMouseDown(e, item.id, false)}
+                          onDragStart={(e) => handleDragRowStart(e, item.id)}
+                          onDragEnd={handleDragRowEnd}
                           onDragOver={(e) => handleDragRowOver(e, item.id)}
                           onDragLeave={handleDragRowLeave}
                           onDrop={(e) => handleDropRow(e, item.id)}
@@ -1570,9 +1820,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             <div className="flex items-center gap-0.5 shrink-0">
                               <span
                                 draggable={true}
+                                onMouseDown={(e) => handleRowPointerMouseDown(e, item.id, true)}
                                 onDragStart={(e) => handleDragRowStart(e, item.id)}
                                 onDragEnd={handleDragRowEnd}
-                                className="cursor-grab active:cursor-grabbing p-0.5 text-slate-300 dark:text-zinc-600 hover:text-slate-600 dark:hover:text-zinc-300 rounded"
+                                style={{ WebkitUserDrag: 'element' } as React.CSSProperties}
+                                className="cursor-grab active:cursor-grabbing p-1 text-slate-400 dark:text-zinc-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded"
                                 title="Arrastra para reordenar la posición de la tarea"
                                 data-row-drag-handle={item.id}
                               >
@@ -1638,7 +1890,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 onUpdateItem({ ...item, name: e.target.value }, false)
                               }
                               style={{ minWidth: `${Math.max(240, maxNameLength * 8.2)}px` }}
-                              className="w-full bg-transparent font-medium text-slate-800 dark:text-zinc-100 focus:bg-white dark:focus:bg-zinc-800 focus:px-1.5 focus:py-0.5 rounded outline-none focus:ring-1 focus:ring-indigo-500"
+                              className={`w-full bg-transparent font-medium text-slate-800 dark:text-zinc-100 focus:bg-white dark:focus:bg-zinc-800 focus:px-1.5 focus:py-0.5 rounded outline-none focus:ring-1 focus:ring-indigo-500 ${
+                                draggingRowId ? 'pointer-events-none' : ''
+                              }`}
                               title={`${item.name} (${group.project.name})`}
                               data-task-name-input={item.id}
                             />
@@ -1661,7 +1915,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           </div>
 
                           {/* Aligned Columns */}
-                          <div className="flex items-center shrink-0">
+                          <div className={`flex items-center shrink-0 ${draggingRowId ? 'pointer-events-none' : ''}`}>
                             {/* 1. Equipo Column */}
                             {visibleColumns.team && (
                               <div className="w-28 shrink-0 flex items-center justify-start pl-2">
@@ -1872,6 +2126,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               name: trimmed,
                               color: newProjectColor,
                               collapsed: false,
+                              isDemo: false,
                             });
                             setIsCreatingProject(false);
                             setNewProjectName('');

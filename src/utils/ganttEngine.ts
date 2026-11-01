@@ -146,6 +146,41 @@ const VALID_COLORS = new Set<TaskColor>([
   'cyan',
 ]);
 
+export const DEMO_PROJECT_IDS = new Set<string>([
+  'proj-discovery',
+  'proj-core',
+  'proj-release',
+  'proj-cloud-foundation',
+  'proj-cloud-cutover',
+  'proj-init',
+  'proj-exec',
+]);
+
+export const DEMO_SCENARIO_IDS = new Set<string>([
+  'scen-saas-v2',
+  'saas-launch',
+  'cloud-migration',
+  'blank-project',
+]);
+
+export function isDemoProject(raw?: Partial<GanttProject> | null): boolean {
+  if (!raw) return false;
+  if (typeof raw.isDemo === 'boolean') return raw.isDemo;
+  const rawId = raw.id != null ? String(raw.id).trim() : '';
+  if (rawId && DEMO_PROJECT_IDS.has(rawId)) return true;
+  return false;
+}
+
+export function isDemoScenario(raw?: Partial<SavedScenario> | null): boolean {
+  if (!raw) return false;
+  if (typeof raw.isDemo === 'boolean') return raw.isDemo;
+  const rawId = raw.id != null ? String(raw.id).trim() : '';
+  if (rawId && (DEMO_SCENARIO_IDS.has(rawId) || rawId.startsWith('template:'))) {
+    return true;
+  }
+  return false;
+}
+
 export function sanitizeProject(
   raw: Partial<GanttProject>,
   fallbackIndex = 0
@@ -158,13 +193,15 @@ export function sanitizeProject(
 
   const rawId = raw.id != null ? String(raw.id).trim() : '';
   const rawName = raw.name != null ? String(raw.name).trim() : '';
+  const id = rawId || `proj-${fallbackIndex + 1}-${Date.now()}`;
 
   return {
-    id: rawId || `proj-${fallbackIndex + 1}-${Date.now()}`,
+    id,
     name: rawName || `Proyecto ${fallbackIndex + 1}`,
     color,
     description: raw.description != null ? String(raw.description).trim() : undefined,
     collapsed: Boolean(raw.collapsed),
+    isDemo: isDemoProject({ ...raw, id }),
   };
 }
 
@@ -703,6 +740,7 @@ export function getProjectTemplates(): ProjectTemplate[] {
       name: 'Lanzamiento Plataforma SaaS v2.0',
       description:
         'Portafolio completo agrupado en 3 proyectos (Discovery & Diseño, Ingeniería Core y QA & Lanzamiento) con ruta crítica, holguras (slack) e hitos.',
+      isDemo: true,
       projects: [
         {
           id: 'proj-discovery',
@@ -710,6 +748,7 @@ export function getProjectTemplates(): ProjectTemplate[] {
           color: 'violet',
           description: 'Investigación UX, diseño de interfaz y congelación de alcance.',
           collapsed: false,
+          isDemo: true,
         },
         {
           id: 'proj-core',
@@ -717,6 +756,7 @@ export function getProjectTemplates(): ProjectTemplate[] {
           color: 'indigo',
           description: 'Arquitectura backend, motor Gantt interactivo e integración Stripe.',
           collapsed: false,
+          isDemo: true,
         },
         {
           id: 'proj-release',
@@ -724,6 +764,7 @@ export function getProjectTemplates(): ProjectTemplate[] {
           color: 'emerald',
           description: 'Pruebas automatizadas, pipeline GitHub Actions + Vercel y salida a producción.',
           collapsed: false,
+          isDemo: true,
         },
       ],
       items: [
@@ -869,6 +910,7 @@ export function getProjectTemplates(): ProjectTemplate[] {
       name: 'Migración de Infraestructura Cloud & IA',
       description:
         'Planificación de modernización de servidores, contenedores Kubernetes y despliegue zero-downtime.',
+      isDemo: true,
       projects: [
         {
           id: 'proj-cloud-foundation',
@@ -876,6 +918,7 @@ export function getProjectTemplates(): ProjectTemplate[] {
           color: 'blue',
           description: 'Preparación de clústeres, Terraform y replicación de datos.',
           collapsed: false,
+          isDemo: true,
         },
         {
           id: 'proj-cloud-cutover',
@@ -883,6 +926,7 @@ export function getProjectTemplates(): ProjectTemplate[] {
           color: 'emerald',
           description: 'Cambio de tráfico en vivo y cierre de servidores antiguos.',
           collapsed: false,
+          isDemo: true,
         },
       ],
       items: [
@@ -976,18 +1020,21 @@ export function getProjectTemplates(): ProjectTemplate[] {
       id: 'blank-project',
       name: 'Proyecto Nuevo (Plantilla Mínima)',
       description: 'Comienza desde una estructura limpia con 2 proyectos, tareas y 1 hito de ejemplo.',
+      isDemo: true,
       projects: [
         {
           id: 'proj-init',
           name: 'Proyecto 1: Fase de Planificación',
           color: 'indigo',
           collapsed: false,
+          isDemo: true,
         },
         {
           id: 'proj-exec',
           name: 'Proyecto 2: Ejecución & Entrega',
           color: 'emerald',
           collapsed: false,
+          isDemo: true,
         },
       ],
       items: [
@@ -1062,6 +1109,8 @@ export function sanitizeScenario(
       })
     : [];
 
+  const scenarioIsDemo = isDemoScenario({ ...raw, id });
+
   const baseProjects =
     Array.isArray(raw.projects) && raw.projects.length > 0
       ? raw.projects.map((p, idx) => sanitizeProject(p, idx))
@@ -1072,6 +1121,7 @@ export function sanitizeScenario(
               name: 'Proyecto 1: General',
               color: 'indigo',
               collapsed: false,
+              isDemo: scenarioIsDemo,
             },
             0
           ),
@@ -1095,6 +1145,7 @@ export function sanitizeScenario(
     items: resolvedItems,
     updatedAt: raw.updatedAt || new Date().toISOString(),
     sourceTemplateId: raw.sourceTemplateId,
+    isDemo: scenarioIsDemo,
   };
 }
 
@@ -1134,9 +1185,10 @@ export function createNewScenario(
     return sanitizeScenario({
       id: uid,
       name: trimmedName,
-      projects: source.projects.map((p, idx) => sanitizeProject(p, idx)),
+      projects: source.projects.map((p, idx) => sanitizeProject({ ...p, isDemo: false }, idx)),
       items: source.items.map((it, idx) => sanitizeGanttItem(it, idx)),
       updatedAt: new Date().toISOString(),
+      isDemo: false,
     });
   }
 
@@ -1150,6 +1202,7 @@ export function createNewScenario(
         name: 'Proyecto 1: Principal',
         color: 'indigo',
         collapsed: false,
+        isDemo: false,
       },
     ],
     items: [
@@ -1166,6 +1219,7 @@ export function createNewScenario(
       }),
     ],
     updatedAt: new Date().toISOString(),
+    isDemo: false,
   });
 }
 
@@ -1224,6 +1278,7 @@ export function preserveActiveWorkspaceInScenarios(
       items: cleanCurrentItems,
       updatedAt: new Date().toISOString(),
       sourceTemplateId: tplId,
+      isDemo: false,
     });
   }
 
@@ -1332,9 +1387,141 @@ export function getDefaultSavedScenarios(): SavedScenario[] {
     items: saasTpl.items,
     updatedAt: new Date().toISOString(),
     sourceTemplateId: saasTpl.id,
+    isDemo: true,
   });
 
   return [saasScenario];
+}
+
+/**
+ * Moves a task/milestone (`sourceId`) before or after another task (`targetId`)
+ * or into a target project header (`project:<projectId>`), updating its `projectId` if moved across projects.
+ */
+export function moveTaskItem(
+  items: GanttItem[],
+  sourceId: string,
+  targetId: string,
+  position: 'before' | 'after' = 'after',
+  projects: GanttProject[] = []
+): GanttItem[] {
+  if (!sourceId || !targetId || sourceId === targetId) return items;
+  const sourceItem = items.find((it) => it.id === sourceId);
+  if (!sourceItem) return items;
+
+  const fallbackProjectId = projects[0]?.id;
+  const resolvePid = (it: GanttItem) =>
+    it.projectId && (projects.length === 0 || projects.some((p) => p.id === it.projectId))
+      ? it.projectId
+      : it.projectId || fallbackProjectId;
+
+  // Dropping directly onto a project group header row (targetId = 'project:<projectId>')
+  if (targetId.startsWith('project:')) {
+    const targetProjectId = targetId.slice('project:'.length);
+    if (!targetProjectId) return items;
+    const updatedSource: GanttItem = {
+      ...sourceItem,
+      projectId: targetProjectId,
+    };
+    const withoutSource = items.filter((it) => it.id !== sourceId);
+    const firstInTargetIdx = withoutSource.findIndex(
+      (it) => resolvePid(it) === targetProjectId
+    );
+    const next = [...withoutSource];
+    if (firstInTargetIdx >= 0) {
+      next.splice(firstInTargetIdx, 0, updatedSource);
+    } else {
+      next.push(updatedSource);
+    }
+    return next;
+  }
+
+  const targetItem = items.find((it) => it.id === targetId);
+  if (!targetItem) return items;
+
+  const resolvedTargetPid = resolvePid(targetItem) || resolvePid(sourceItem);
+  const updatedSource: GanttItem = {
+    ...sourceItem,
+    ...(resolvedTargetPid ? { projectId: resolvedTargetPid } : {}),
+  };
+
+  const withoutSource = items.filter((it) => it.id !== sourceId);
+  const targetIdxInFiltered = withoutSource.findIndex((it) => it.id === targetId);
+  if (targetIdxInFiltered === -1) return items;
+
+  const insertIdx = position === 'before' ? targetIdxInFiltered : targetIdxInFiltered + 1;
+  const next = [...withoutSource];
+  next.splice(insertIdx, 0, updatedSource);
+  return next;
+}
+
+/**
+ * Reorders a task/milestone one step up or down within its project group (when `groupByProject` is true)
+ * or globally in the items list (when `groupByProject` is false).
+ */
+export function reorderTaskItem(
+  items: GanttItem[],
+  itemId: string,
+  direction: 'up' | 'down',
+  groupByProject = true,
+  projects: GanttProject[] = []
+): GanttItem[] {
+  const targetItem = items.find((it) => it.id === itemId);
+  if (!targetItem) return items;
+
+  const fallbackProjectId = projects[0]?.id;
+  const resolvePid = (it: GanttItem) =>
+    it.projectId && (projects.length === 0 || projects.some((p) => p.id === it.projectId))
+      ? it.projectId
+      : it.projectId || fallbackProjectId;
+
+  const targetPid = resolvePid(targetItem);
+
+  if (groupByProject && targetPid) {
+    const projectItems = items.filter((it) => resolvePid(it) === targetPid);
+    const curProjIdx = projectItems.findIndex((it) => it.id === itemId);
+    if (curProjIdx === -1) return items;
+
+    const targetProjIdx = direction === 'up' ? curProjIdx - 1 : curProjIdx + 1;
+    if (targetProjIdx < 0 || targetProjIdx >= projectItems.length) return items;
+
+    const swapSibling = projectItems[targetProjIdx];
+    const prevIdx = items.findIndex((it) => it.id === itemId);
+    const siblingIdx = items.findIndex((it) => it.id === swapSibling.id);
+
+    const next = [...items];
+    next[prevIdx] = swapSibling;
+    next[siblingIdx] = targetItem;
+    return next;
+  }
+
+  const curIdx = items.findIndex((it) => it.id === itemId);
+  if (curIdx === -1) return items;
+  const targetIdx = direction === 'up' ? curIdx - 1 : curIdx + 1;
+  if (targetIdx < 0 || targetIdx >= items.length) return items;
+
+  const next = [...items];
+  const [moved] = next.splice(curIdx, 1);
+  next.splice(targetIdx, 0, moved);
+  return next;
+}
+
+/**
+ * Filters project groups so that ONLY the selected projects appear in the Gantt diagram.
+ * Supports multi-selection (`selectedProjectIds: string[]`) as well as legacy single-project filter (`selectedProjectId`).
+ */
+export function filterGroupsBySelectedProjects(
+  groups: ComputedProjectGroup[],
+  selectedProjectIds?: string[] | null,
+  legacySelectedProjectId?: string
+): ComputedProjectGroup[] {
+  if (Array.isArray(selectedProjectIds)) {
+    const selectedSet = new Set(selectedProjectIds);
+    return groups.filter((g) => selectedSet.has(g.project.id));
+  }
+  if (!legacySelectedProjectId || legacySelectedProjectId === 'all') {
+    return groups;
+  }
+  return groups.filter((g) => g.project.id === legacySelectedProjectId);
 }
 
 export const MIN_DAY_WIDTH = 3;
@@ -2136,10 +2323,250 @@ export function parseCSVToGanttData(csvText: string, fileName?: string): GanttIm
     projects: Array.from(projectMap.values()),
     items,
     updatedAt: new Date().toISOString(),
+    isDemo: false,
   });
 
   return { primaryScenario: importedScenario };
 }
+
+export interface MergeGanttWorkspaceResult {
+  projects: GanttProject[];
+  items: GanttItem[];
+  mergedProjectIds: string[];
+  addedProjectsCount: number;
+  updatedProjectsCount: number;
+  addedItemsCount: number;
+  updatedItemsCount: number;
+}
+
+/**
+ * Merges imported Gantt data (projects and tasks from JSON or CSV) into the
+ * currently loaded projects and items without deleting existing data.
+ */
+export function mergeImportedGanttData(
+  currentProjects: GanttProject[],
+  currentItems: GanttItem[],
+  importResult: GanttImportResult | { projects: GanttProject[]; items: GanttItem[] }
+): MergeGanttWorkspaceResult {
+  const sourceScenarios: Array<{ projects: GanttProject[]; items: GanttItem[] }> =
+    'primaryScenario' in importResult
+      ? importResult.allScenarios && importResult.allScenarios.length > 0
+        ? importResult.allScenarios
+        : [importResult.primaryScenario]
+      : [importResult];
+
+  const mergedProjects: GanttProject[] = currentProjects.map((p, idx) =>
+    sanitizeProject(p, idx)
+  );
+  const mergedItems: GanttItem[] = currentItems.map((it, idx) =>
+    sanitizeGanttItem(it, idx)
+  );
+
+  const mergedProjectIds: string[] = [];
+  let addedProjectsCount = 0;
+  let updatedProjectsCount = 0;
+  let addedItemsCount = 0;
+  let updatedItemsCount = 0;
+
+  for (const sc of sourceScenarios) {
+    const incomingProjects = Array.isArray(sc.projects) ? sc.projects : [];
+    const incomingItems = Array.isArray(sc.items) ? sc.items : [];
+    const projectIdMap = new Map<string, string>();
+
+    for (let i = 0; i < incomingProjects.length; i++) {
+      const rawProj = incomingProjects[i];
+      const cleanProj = sanitizeProject(rawProj, mergedProjects.length + i);
+      const normIncomingName = cleanProj.name.trim().toLowerCase();
+
+      // 1. Check if a project with the exact same normalized name already exists
+      const byNameIdx = mergedProjects.findIndex(
+        (p) => p.name.trim().toLowerCase() === normIncomingName
+      );
+      if (byNameIdx !== -1) {
+        const existing = mergedProjects[byNameIdx];
+        mergedProjects[byNameIdx] = {
+          ...existing,
+          color: rawProj.color ? cleanProj.color : existing.color,
+        };
+        projectIdMap.set(rawProj.id || cleanProj.id, existing.id);
+        projectIdMap.set(cleanProj.id, existing.id);
+        if (!mergedProjectIds.includes(existing.id)) {
+          mergedProjectIds.push(existing.id);
+        }
+        updatedProjectsCount += 1;
+        continue;
+      }
+
+      // 2. Check if a project with the same ID exists and is not a generic collision
+      const genericAutoId =
+        /^proj-(imported|csv|default|\d+)$/i.test(cleanProj.id) ||
+        cleanProj.name === 'Proyecto Importado';
+      const byIdIdx = !genericAutoId
+        ? mergedProjects.findIndex((p) => p.id === cleanProj.id)
+        : -1;
+
+      if (byIdIdx !== -1 && !mergedProjects[byIdIdx].isDemo) {
+        const existing = mergedProjects[byIdIdx];
+        mergedProjects[byIdIdx] = {
+          ...existing,
+          name: cleanProj.name || existing.name,
+          color: cleanProj.color || existing.color,
+        };
+        projectIdMap.set(rawProj.id || cleanProj.id, existing.id);
+        projectIdMap.set(cleanProj.id, existing.id);
+        if (!mergedProjectIds.includes(existing.id)) {
+          mergedProjectIds.push(existing.id);
+        }
+        updatedProjectsCount += 1;
+        continue;
+      }
+
+      // 3. New project to append: ensure unique ID and mark as non-demo (unless built-in demo)
+      let finalProjId = cleanProj.id;
+      if (mergedProjects.some((p) => p.id === finalProjId)) {
+        finalProjId = `proj-merged-${Date.now()}-${mergedProjects.length + 1}`;
+      }
+      const finalProject: GanttProject = {
+        ...cleanProj,
+        id: finalProjId,
+        isDemo: isDemoProject({ ...cleanProj, id: finalProjId }),
+      };
+      mergedProjects.push(finalProject);
+      projectIdMap.set(rawProj.id || cleanProj.id, finalProjId);
+      projectIdMap.set(cleanProj.id, finalProjId);
+      if (!mergedProjectIds.includes(finalProjId)) {
+        mergedProjectIds.push(finalProjId);
+      }
+      addedProjectsCount += 1;
+    }
+
+    // Ensure there is at least one target project if incomingProjects was empty
+    if (mergedProjects.length === 0) {
+      const fallbackProj: GanttProject = {
+        id: 'proj-imported-1',
+        name: 'Proyecto Importado',
+        color: 'indigo',
+        collapsed: false,
+        isDemo: false,
+      };
+      mergedProjects.push(fallbackProj);
+      mergedProjectIds.push(fallbackProj.id);
+      addedProjectsCount += 1;
+    }
+
+    const defaultTargetProjId =
+      mergedProjectIds[0] || mergedProjects[mergedProjects.length - 1].id;
+
+    // First pass over incoming items: decide final item ID and whether each item updates an existing one or is appended
+    const itemIdMap = new Map<string, string>();
+    const stagedIncoming: Array<{
+      item: GanttItem;
+      existingIdx: number;
+    }> = [];
+
+    for (let i = 0; i < incomingItems.length; i++) {
+      const rawItem = incomingItems[i];
+      const cleanItem = sanitizeGanttItem(rawItem, mergedItems.length + i);
+      const resolvedProjId =
+        (cleanItem.projectId && projectIdMap.get(cleanItem.projectId)) ||
+        (cleanItem.projectId &&
+        mergedProjects.some((p) => p.id === cleanItem.projectId)
+          ? cleanItem.projectId
+          : defaultTargetProjId);
+
+      const normItemName = cleanItem.name.trim().toLowerCase();
+
+      // Match existing item within the same project by ID or by normalized name
+      const existingInSameProjIdx = mergedItems.findIndex(
+        (existing) =>
+          existing.projectId === resolvedProjId &&
+          (existing.id === cleanItem.id ||
+            existing.name.trim().toLowerCase() === normItemName)
+      );
+
+      if (existingInSameProjIdx !== -1) {
+        const existing = mergedItems[existingInSameProjIdx];
+        itemIdMap.set(rawItem.id || cleanItem.id, existing.id);
+        itemIdMap.set(cleanItem.id, existing.id);
+        stagedIncoming.push({
+          item: {
+            ...existing,
+            ...cleanItem,
+            id: existing.id,
+            projectId: resolvedProjId,
+          },
+          existingIdx: existingInSameProjIdx,
+        });
+      } else {
+        // New item in target project: ensure its ID doesn't collide with any item in another project
+        let finalItemId = cleanItem.id;
+        if (
+          mergedItems.some((x) => x.id === finalItemId) ||
+          stagedIncoming.some((s) => s.item.id === finalItemId)
+        ) {
+          finalItemId = `${cleanItem.id}-m${mergedItems.length + stagedIncoming.length + 1}`;
+        }
+        itemIdMap.set(rawItem.id || cleanItem.id, finalItemId);
+        itemIdMap.set(cleanItem.id, finalItemId);
+        stagedIncoming.push({
+          item: {
+            ...cleanItem,
+            id: finalItemId,
+            projectId: resolvedProjId,
+          },
+          existingIdx: -1,
+        });
+      }
+    }
+
+    // Second pass: remap dependencies among imported items and commit into mergedItems
+    for (const staged of stagedIncoming) {
+      const { item, existingIdx } = staged;
+      const remappedDeps = (item.dependencies || [])
+        .map((depId) => itemIdMap.get(depId) || depId)
+        .filter((depId, idx, arr) => depId !== item.id && arr.indexOf(depId) === idx);
+
+      let remappedDepTypes: Record<string, DependencyType> | undefined = undefined;
+      if (item.dependencyTypes) {
+        remappedDepTypes = {};
+        for (const [depKey, depVal] of Object.entries(item.dependencyTypes)) {
+          const mappedKey = itemIdMap.get(depKey) || depKey;
+          if (mappedKey !== item.id) {
+            remappedDepTypes[mappedKey] = depVal;
+          }
+        }
+      }
+
+      const finalizedItem: GanttItem = {
+        ...item,
+        dependencies: remappedDeps,
+        dependencyTypes:
+          remappedDepTypes && Object.keys(remappedDepTypes).length > 0
+            ? remappedDepTypes
+            : undefined,
+      };
+
+      if (existingIdx !== -1) {
+        mergedItems[existingIdx] = finalizedItem;
+        updatedItemsCount += 1;
+      } else {
+        mergedItems.push(finalizedItem);
+        addedItemsCount += 1;
+      }
+    }
+  }
+
+  return {
+    projects: mergedProjects,
+    items: mergedItems,
+    mergedProjectIds,
+    addedProjectsCount,
+    updatedProjectsCount,
+    addedItemsCount,
+    updatedItemsCount,
+  };
+}
+
 
 
 

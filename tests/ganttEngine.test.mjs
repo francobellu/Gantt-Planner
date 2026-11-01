@@ -50,6 +50,12 @@ const {
   createRoundedOrthogonalPath,
   importGanttData,
   parseCSVToGanttData,
+  isDemoProject,
+  isDemoScenario,
+  moveTaskItem,
+  reorderTaskItem,
+  filterGroupsBySelectedProjects,
+  mergeImportedGanttData,
 } = await import(codeUrl);
 
 test('calculateEndDateFromDuration & calculateDurationFromDates handle tasks and milestones', () => {
@@ -2140,6 +2146,243 @@ test('Task position reordering and non-clipping name column width in project tab
     await fs.unlink(tmpFile).catch(() => {});
   }
 });
+
+test('moveTaskItem & reorderTaskItem: drag-and-drop and up/down reordering within project, across projects, and onto project headers', () => {
+  const projects = [
+    { id: 'proj-a', name: 'Proyecto A', color: 'indigo', collapsed: false, isDemo: false },
+    { id: 'proj-b', name: 'Proyecto B', color: 'emerald', collapsed: false, isDemo: false },
+    { id: 'proj-empty', name: 'Proyecto Vacío', color: 'amber', collapsed: false, isDemo: false },
+  ];
+  const initialItems = [
+    { id: 't1', projectId: 'proj-a', name: 'Tarea 1', type: 'task', startDate: '2026-11-01', endDate: '2026-11-03', duration: 3, slack: 0, dependencies: [], progress: 0, color: 'indigo' },
+    { id: 't2', projectId: 'proj-a', name: 'Tarea 2', type: 'task', startDate: '2026-11-04', endDate: '2026-11-06', duration: 3, slack: 0, dependencies: [], progress: 0, color: 'indigo' },
+    { id: 't3', projectId: 'proj-a', name: 'Tarea 3', type: 'task', startDate: '2026-11-07', endDate: '2026-11-09', duration: 3, slack: 0, dependencies: [], progress: 0, color: 'indigo' },
+    { id: 'b1', projectId: 'proj-b', name: 'Tarea B1', type: 'task', startDate: '2026-11-01', endDate: '2026-11-02', duration: 2, slack: 0, dependencies: [], progress: 0, color: 'emerald' },
+  ];
+
+  // 1. Drag t3 before t1 within proj-a
+  const movedBefore = moveTaskItem(initialItems, 't3', 't1', 'before', projects);
+  assert.deepEqual(
+    movedBefore.filter((x) => x.projectId === 'proj-a').map((x) => x.id),
+    ['t3', 't1', 't2']
+  );
+
+  // 2. Drag t1 after t3 within proj-a
+  const movedAfter = moveTaskItem(initialItems, 't1', 't3', 'after', projects);
+  assert.deepEqual(
+    movedAfter.filter((x) => x.projectId === 'proj-a').map((x) => x.id),
+    ['t2', 't3', 't1']
+  );
+
+  // 3. Drag t2 across projects onto b1 ('before') -> t2 adopts proj-b and is placed before b1
+  const movedCross = moveTaskItem(initialItems, 't2', 'b1', 'before', projects);
+  const movedT2 = movedCross.find((x) => x.id === 't2');
+  assert.equal(movedT2.projectId, 'proj-b');
+  assert.deepEqual(
+    movedCross.filter((x) => x.projectId === 'proj-b').map((x) => x.id),
+    ['t2', 'b1']
+  );
+
+  // 4. Drop t1 onto project header 'project:proj-empty' (empty project)
+  const droppedOnEmptyProj = moveTaskItem(initialItems, 't1', 'project:proj-empty', 'after', projects);
+  assert.equal(droppedOnEmptyProj.find((x) => x.id === 't1').projectId, 'proj-empty');
+
+  // 5. Drop t3 onto project header 'project:proj-a' -> moves t3 to first position of proj-a
+  const droppedOnProjA = moveTaskItem(initialItems, 't3', 'project:proj-a', 'after', projects);
+  assert.deepEqual(
+    droppedOnProjA.filter((x) => x.projectId === 'proj-a').map((x) => x.id),
+    ['t3', 't1', 't2']
+  );
+
+  // 6. Edge cases: dragging onto self or non-existent target returns original array reference
+  assert.equal(moveTaskItem(initialItems, 't1', 't1', 'before', projects), initialItems);
+  assert.equal(moveTaskItem(initialItems, 't1', 'non-existent', 'after', projects), initialItems);
+
+  // 7. reorderTaskItem up/down buttons
+  const reorderedDown = reorderTaskItem(initialItems, 't1', 'down', true, projects);
+  assert.deepEqual(
+    reorderedDown.filter((x) => x.projectId === 'proj-a').map((x) => x.id),
+    ['t2', 't1', 't3']
+  );
+  const reorderedUp = reorderTaskItem(reorderedDown, 't1', 'up', true, projects);
+  assert.deepEqual(
+    reorderedUp.filter((x) => x.projectId === 'proj-a').map((x) => x.id),
+    ['t1', 't2', 't3']
+  );
+});
+
+test('Demo vs Real separation & multi-project selection filtering for Gantt diagram', () => {
+  // 1. Default templates and default scenarios are marked as demos
+  const templates = getProjectTemplates();
+  assert.ok(templates.length >= 2);
+  for (const tpl of templates) {
+    assert.equal(tpl.isDemo, true, `Template ${tpl.id} must have isDemo=true`);
+    for (const p of tpl.projects) {
+      assert.equal(p.isDemo, true, `Demo template project ${p.id} must have isDemo=true`);
+    }
+  }
+
+  const defaultScenarios = getDefaultSavedScenarios();
+  assert.equal(defaultScenarios[0].isDemo, true, 'Default SaaS scenario must be marked isDemo=true');
+
+  // 2. User-created scenario and projects are marked as Real (isDemo: false)
+  const userScenario = createNewScenario('Plan Real Q4', 'blank');
+  assert.equal(userScenario.isDemo, false, 'User-created scenario must have isDemo=false');
+  assert.equal(userScenario.projects[0].isDemo, false, 'User-created project must have isDemo=false');
+
+  // 3. filterGroupsBySelectedProjects returns only selected projects
+  const computed = computeGanttMetrics(defaultScenarios[0].items);
+  const groups = groupItemsByProject(computed, defaultScenarios[0].projects);
+  assert.equal(groups.length, 3);
+
+  const onlyTwo = filterGroupsBySelectedProjects(groups, ['proj-core', 'proj-release']);
+  assert.deepEqual(onlyTwo.map((g) => g.project.id), ['proj-core', 'proj-release']);
+
+  const noneSelected = filterGroupsBySelectedProjects(groups, []);
+  assert.equal(noneSelected.length, 0);
+});
+
+test('mergeImportedGanttData: importing JSON or CSV merges with loaded projects and tasks without deleting existing data', () => {
+  const existingProjects = [
+    { id: 'proj-core', name: 'Core Platform & Arquitectura', color: 'indigo', collapsed: false, isDemo: true },
+    { id: 'proj-real-1', name: 'App Pagos Real', color: 'emerald', collapsed: false, isDemo: false },
+  ];
+  const existingItems = [
+    {
+      id: 'existing-1',
+      projectId: 'proj-core',
+      name: 'Arquitectura Cloud Base',
+      type: 'task',
+      startDate: '2026-11-01',
+      endDate: '2026-11-05',
+      duration: 5,
+      slack: 0,
+      dependencies: [],
+      progress: 100,
+      color: 'indigo',
+    },
+    {
+      id: 'real-task-1',
+      projectId: 'proj-real-1',
+      name: 'Diseño API Pagos',
+      type: 'task',
+      startDate: '2026-11-02',
+      endDate: '2026-11-06',
+      duration: 5,
+      slack: 0,
+      dependencies: [],
+      progress: 40,
+      color: 'emerald',
+    },
+  ];
+
+  // Import a CSV with a new project "Portal Clientes" AND an additional task for "App Pagos Real"
+  const csvContent = [
+    'WBS,Proyecto,Tipo,Nombre,Initial Date,Final Date,Duration (Dias),Slack (Dias),Dependencias,Progreso (%)',
+    '1,Portal Clientes,Tarea,Wireframes Portal,2026-11-10,2026-11-14,5,0,,20',
+    '2,Portal Clientes,Hito,Aprobación Portal,2026-11-15,2026-11-15,0,0,1,0',
+    '3,App Pagos Real,Tarea,Pasarela Stripe,2026-11-07,2026-11-11,5,1,,0',
+    '4,App Pagos Real,Tarea,Diseño API Pagos,2026-11-02,2026-11-06,5,0,,85',
+  ].join('\n');
+
+  const csvImportResult = parseCSVToGanttData(csvContent, 'portal-y-pagos.csv');
+  const merged = mergeImportedGanttData(existingProjects, existingItems, csvImportResult);
+
+  // 1. All existing projects are preserved AND the new project "Portal Clientes" is added as Real (isDemo: false)
+  assert.equal(merged.projects.length, 3);
+  assert.ok(merged.projects.some((p) => p.id === 'proj-core' && p.isDemo === true));
+  assert.ok(merged.projects.some((p) => p.id === 'proj-real-1' && p.isDemo === false));
+  const portalProj = merged.projects.find((p) => p.name === 'Portal Clientes');
+  assert.ok(portalProj, 'Imported project Portal Clientes must be present');
+  assert.equal(portalProj.isDemo, false, 'Imported project must be marked as Real (isDemo: false)');
+
+  // 2. Existing task in proj-core is untouched
+  assert.ok(merged.items.some((it) => it.id === 'existing-1' && it.projectId === 'proj-core'));
+
+  // 3. Existing task "Diseño API Pagos" in "App Pagos Real" was updated in-place (progress 40 -> 85) without duplicating
+  const apiTasks = merged.items.filter(
+    (it) => it.projectId === 'proj-real-1' && it.name === 'Diseño API Pagos'
+  );
+  assert.equal(apiTasks.length, 1);
+  assert.equal(apiTasks[0].progress, 85);
+
+  // 4. New task "Pasarela Stripe" was added to existing project "App Pagos Real"
+  assert.ok(
+    merged.items.some(
+      (it) => it.projectId === 'proj-real-1' && it.name === 'Pasarela Stripe'
+    )
+  );
+
+  // 5. New tasks in "Portal Clientes" were added with intact internal dependencies
+  const wireframes = merged.items.find(
+    (it) => it.projectId === portalProj.id && it.name === 'Wireframes Portal'
+  );
+  const aprobacion = merged.items.find(
+    (it) => it.projectId === portalProj.id && it.name === 'Aprobación Portal'
+  );
+  assert.ok(wireframes && aprobacion);
+  assert.deepEqual(aprobacion.dependencies, [wireframes.id]);
+});
+
+test('SSR Verification: Lista de Proyectos view renders selectable Real & Demo sections, and Gantt view filters by selectedProjectIds', async () => {
+  const { renderToString } = await import('react-dom/server');
+  const esbuild = await import('esbuild');
+  const bundle = await esbuild.build({
+    stdin: {
+      contents: `
+        import React from 'react';
+        import { App } from './src/App';
+        export function renderProjectsListView() {
+          return <App initialView="projects" />;
+        }
+        export function renderFilteredGanttView() {
+          return <App initialView="gantt" initialSelectedProjectIds={['proj-core']} />;
+        }
+        export function renderEmptySelectionGanttView() {
+          return <App initialView="gantt" initialSelectedProjectIds={[]} />;
+        }
+      `,
+      resolveDir: path.resolve(__dirname, '..'),
+      sourcefile: 'projects-view-ssr-test.tsx',
+      loader: 'tsx',
+    },
+    bundle: true,
+    format: 'cjs',
+    platform: 'node',
+    external: ['react', 'react-dom'],
+    write: false,
+  });
+
+  const fs = await import('node:fs/promises');
+  const tmpFile = path.resolve(__dirname, './.tmp-projects-view-bundle.cjs');
+  await fs.writeFile(tmpFile, bundle.outputFiles[0].text, 'utf8');
+
+  try {
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+
+    // 1. Verify Lista de Proyectos view
+    const projectsHtml = renderToString(mod.renderProjectsListView());
+    assert.ok(projectsHtml.includes('data-projects-list-view="true"'), 'Must render Lista de Proyectos view');
+    assert.ok(projectsHtml.includes('data-real-projects-section="true"'), 'Must render Real projects section');
+    assert.ok(projectsHtml.includes('data-demo-projects-section="true"'), 'Must render Demo projects section');
+    assert.ok(projectsHtml.includes('data-project-select-checkbox="proj-core"'), 'Must render selectable checkbox for proj-core');
+    assert.ok(projectsHtml.includes('data-project-card-demo-badge="proj-core"'), 'Must mark proj-core as DEMO');
+
+    // 2. Verify Gantt view with only proj-core selected
+    const filteredGanttHtml = renderToString(mod.renderFilteredGanttView());
+    assert.ok(filteredGanttHtml.includes('data-project-group="proj-core"'), 'Selected project proj-core must appear in Gantt');
+    assert.ok(filteredGanttHtml.includes('data-project-demo-badge="proj-core"'), 'Demo project in Gantt must display DEMO badge');
+    assert.ok(!filteredGanttHtml.includes('data-project-group="proj-ux"'), 'Unselected project proj-ux must NOT appear in Gantt');
+    assert.ok(!filteredGanttHtml.includes('data-project-group="proj-release"'), 'Unselected project proj-release must NOT appear in Gantt');
+
+    // 3. Verify Gantt view when 0 projects are selected
+    const emptyGanttHtml = renderToString(mod.renderEmptySelectionGanttView());
+    assert.ok(emptyGanttHtml.includes('data-empty-selected-projects="true"'), 'Must show empty state when no projects are selected');
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
 
 
 

@@ -51,6 +51,7 @@ import {
   computeTimelineBounds,
   createNewScenario,
   DEFAULT_DAY_WIDTH,
+  filterGroupsBySelectedProjects,
   formatDateDisplay,
   formatDateISO,
   getDayWidthForPreset,
@@ -58,9 +59,14 @@ import {
   getProjectTemplates,
   groupItemsByProject,
   importGanttData,
+  isDemoProject,
+  isDemoScenario,
+  mergeImportedGanttData,
+  moveTaskItem,
   parseCSVToGanttData,
   parseDateSafe,
   preserveActiveWorkspaceInScenarios,
+  reorderTaskItem,
   resolveZoomPresetFromDayWidth,
   sanitizeGanttItem,
   sanitizeProject,
@@ -75,6 +81,7 @@ import { TaskFormModal } from './components/TaskFormModal';
 const STORAGE_KEY = 'ganttflow_pro_state_v2';
 const LEGACY_STORAGE_KEY_V1 = 'ganttflow_pro_state_v1';
 const SCENARIOS_STORAGE_KEY = 'ganttflow_pro_scenarios_v2';
+const SELECTED_PROJECTS_STORAGE_KEY = 'ganttflow_selected_projects_v1';
 
 interface InitialWorkspaceState {
   activeScenarioId: string;
@@ -249,7 +256,15 @@ function loadInitialWorkspaceState(
   };
 }
 
-export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) {
+export function App({
+  initialScenarioId,
+  initialView = 'gantt',
+  initialSelectedProjectIds,
+}: {
+  initialScenarioId?: string;
+  initialView?: 'gantt' | 'projects';
+  initialSelectedProjectIds?: string[];
+} = {}) {
   const templates = useMemo(() => getProjectTemplates(), []);
   const defaultScenarios = useMemo(() => getDefaultSavedScenarios(), []);
 
@@ -271,6 +286,34 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
     () => initialState.projects
   );
   const [items, setItems] = useState<GanttItem[]>(() => initialState.items);
+
+  const [activeView, setActiveView] = useState<'gantt' | 'projects'>(initialView);
+  const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>(() => {
+    if (Array.isArray(initialSelectedProjectIds)) {
+      return initialSelectedProjectIds;
+    }
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const raw = window.localStorage.getItem(SELECTED_PROJECTS_STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            const validIds = parsed.filter((id) =>
+              initialState.projects.some((p) => p.id === id)
+            );
+            if (validIds.length > 0) {
+              return validIds;
+            }
+          }
+        }
+      }
+    } catch {}
+    return initialState.projects.map((p) => p.id);
+  });
+
+  // Inline creation state inside Projects List View
+  const [projectsViewNewName, setProjectsViewNewName] = useState<string>('');
+  const [projectsViewNewColor, setProjectsViewNewColor] = useState<TaskColor>('indigo');
 
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     try {
@@ -305,6 +348,15 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
       localStorage.setItem('ganttflow_arrow_visibility', arrowVisibility);
     } catch {}
   }, [arrowVisibility]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        SELECTED_PROJECTS_STORAGE_KEY,
+        JSON.stringify(selectedProjectIds)
+      );
+    } catch {}
+  }, [selectedProjectIds]);
 
   // New Scenario inline creator state
   const [showNewScenarioBar, setShowNewScenarioBar] = useState<boolean>(false);
@@ -413,6 +465,16 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
   // Synchronized list of projects (including any auto-recovered orphan project groups)
   const effectiveProjects = useMemo(
     () => projectGroups.map((g) => g.project),
+    [projectGroups]
+  );
+
+  // Separate real projects vs demo projects for the Projects List View
+  const realProjectGroups = useMemo(
+    () => projectGroups.filter((g) => !g.project.isDemo),
+    [projectGroups]
+  );
+  const demoProjectGroups = useMemo(
+    () => projectGroups.filter((g) => Boolean(g.project.isDemo)),
     [projectGroups]
   );
 
@@ -571,40 +633,9 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
   };
 
   const handleReorderItem = (itemId: string, direction: 'up' | 'down') => {
-    setItems((prev) => {
-      const targetItem = prev.find((it) => it.id === itemId);
-      if (!targetItem) return prev;
-
-      if (groupByProject && targetItem.projectId) {
-        // Grouped by project: reorder within the project's task list
-        const projectItems = prev.filter((it) => it.projectId === targetItem.projectId);
-        const curProjIdx = projectItems.findIndex((it) => it.id === itemId);
-        if (curProjIdx === -1) return prev;
-
-        const targetProjIdx = direction === 'up' ? curProjIdx - 1 : curProjIdx + 1;
-        if (targetProjIdx < 0 || targetProjIdx >= projectItems.length) return prev;
-
-        const swapSibling = projectItems[targetProjIdx];
-        const prevIdx = prev.findIndex((it) => it.id === itemId);
-        const siblingIdx = prev.findIndex((it) => it.id === swapSibling.id);
-
-        const next = [...prev];
-        next[prevIdx] = swapSibling;
-        next[siblingIdx] = targetItem;
-        return next;
-      } else {
-        // Flat mode: reorder globally in items array
-        const curIdx = prev.findIndex((it) => it.id === itemId);
-        if (curIdx === -1) return prev;
-        const targetIdx = direction === 'up' ? curIdx - 1 : curIdx + 1;
-        if (targetIdx < 0 || targetIdx >= prev.length) return prev;
-
-        const next = [...prev];
-        const [moved] = next.splice(curIdx, 1);
-        next.splice(targetIdx, 0, moved);
-        return next;
-      }
-    });
+    setItems((prev) =>
+      reorderTaskItem(prev, itemId, direction, groupByProject, effectiveProjects)
+    );
   };
 
   const handleMoveItem = (
@@ -612,33 +643,63 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
     targetId: string,
     position: 'before' | 'after'
   ) => {
-    setItems((prev) => {
-      const sourceItem = prev.find((it) => it.id === sourceId);
-      const targetItem = prev.find((it) => it.id === targetId);
-      if (!sourceItem || !targetItem || sourceId === targetId) return prev;
+    setItems((prev) =>
+      moveTaskItem(prev, sourceId, targetId, position, effectiveProjects)
+    );
+  };
 
-      // Update project ID if moved between projects
-      const updatedSource: GanttItem = {
-        ...sourceItem,
-        projectId: targetItem.projectId || sourceItem.projectId,
-      };
-
-      const withoutSource = prev.filter((it) => it.id !== sourceId);
-      const targetIdxInFiltered = withoutSource.findIndex((it) => it.id === targetId);
-      if (targetIdxInFiltered === -1) return prev;
-
-      const insertIdx = position === 'before' ? targetIdxInFiltered : targetIdxInFiltered + 1;
-      const next = [...withoutSource];
-      next.splice(insertIdx, 0, updatedSource);
+  const handleToggleSelectProject = (projectId: string) => {
+    setSelectedProjectIds((prev) => {
+      const isSelected = prev.includes(projectId);
+      const next = isSelected
+        ? prev.filter((id) => id !== projectId)
+        : [...prev, projectId];
+      if (next.length === 1) {
+        setSelectedProjectId(next[0]);
+      } else {
+        setSelectedProjectId('all');
+      }
       return next;
     });
+  };
+
+  const handleSelectAllProjects = () => {
+    setSelectedProjectIds(effectiveProjects.map((p) => p.id));
+    setSelectedProjectId('all');
+  };
+
+  const handleDeselectAllProjects = () => {
+    setSelectedProjectIds([]);
+    setSelectedProjectId('all');
+  };
+
+  const handleSelectOnlyRealProjects = () => {
+    const realIds = effectiveProjects.filter((p) => !p.isDemo).map((p) => p.id);
+    setSelectedProjectIds(realIds);
+    setSelectedProjectId(realIds.length === 1 ? realIds[0] : 'all');
+  };
+
+  const handleSelectOnlyDemoProjects = () => {
+    const demoIds = effectiveProjects.filter((p) => p.isDemo).map((p) => p.id);
+    setSelectedProjectIds(demoIds);
+    setSelectedProjectId(demoIds.length === 1 ? demoIds[0] : 'all');
+  };
+
+  const handleSelectOnlySingleProject = (projectId: string) => {
+    setSelectedProjectIds([projectId]);
+    setSelectedProjectId(projectId);
   };
 
   const handleOpenCreateModal = (type: TaskType, projectId?: string) => {
     setEditingItem(null);
     setDefaultModalType(type);
     setDefaultModalProjectId(
-      projectId || (selectedProjectId !== 'all' ? selectedProjectId : projects[0]?.id)
+      projectId ||
+        (selectedProjectIds.length === 1
+          ? selectedProjectIds[0]
+          : selectedProjectId !== 'all'
+          ? selectedProjectId
+          : projects[0]?.id)
     );
     setModalOpen(true);
   };
@@ -651,8 +712,14 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
   };
 
   const handleCreateProject = (newProj: GanttProject) => {
-    const clean = sanitizeProject(newProj, projects.length);
+    const clean = {
+      ...sanitizeProject({ ...newProj, isDemo: false }, projects.length),
+      isDemo: false,
+    };
     setProjects((prev) => [...prev, clean]);
+    setSelectedProjectIds((prev) =>
+      prev.includes(clean.id) ? prev : [...prev, clean.id]
+    );
     setGroupByProject(true);
     setSelectedProjectId('all');
   };
@@ -685,6 +752,10 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
         it.projectId === projectId ? { ...it, projectId: fallbackId } : it
       )
     );
+    setSelectedProjectIds((prev) => {
+      const next = prev.filter((id) => id !== projectId);
+      return next.length > 0 ? next : remaining.map((p) => p.id);
+    });
     if (selectedProjectId === projectId) {
       setSelectedProjectId('all');
     }
@@ -714,8 +785,9 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
     setProjectName(next.projectName);
     setProjects(next.projects);
     setItems(next.items);
+    setSelectedProjectIds(next.projects.map((p) => p.id));
     setSelectedProjectId('all');
-    showToast('Plantilla cargada · Tus escenarios siguen guardados');
+    showToast('Plantilla Demo cargada · Tus escenarios siguen guardados');
   };
 
   const handleScenarioSelect = (scenarioId: string) => {
@@ -734,6 +806,7 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
     setProjectName(next.projectName);
     setProjects(next.projects);
     setItems(next.items);
+    setSelectedProjectIds(next.projects.map((p) => p.id));
     setSelectedProjectId('all');
     showToast(`Escenario activo: ${next.projectName}`);
   };
@@ -747,6 +820,7 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
         items,
         updatedAt: new Date().toISOString(),
         sourceTemplateId: activeScenarioId.replace('template:', ''),
+        isDemo: false,
       });
       const nextList = upsertScenarioInList(savedScenarios, created);
       setSavedScenarios(nextList);
@@ -786,6 +860,7 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
     setProjectName(copy.name);
     setProjects(copy.projects);
     setItems(copy.items);
+    setSelectedProjectIds(copy.projects.map((p) => p.id));
     setSelectedProjectId('all');
     showToast(`Copia guardada: "${copy.name}"`);
   };
@@ -813,6 +888,7 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
     setProjectName(created.name);
     setProjects(created.projects);
     setItems(created.items);
+    setSelectedProjectIds(created.projects.map((p) => p.id));
     setSelectedProjectId('all');
     setNewScenarioName('');
     setShowNewScenarioBar(false);
@@ -830,6 +906,7 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
       setProjectName(fallback.name);
       setProjects(fallback.projects);
       setItems(fallback.items);
+      setSelectedProjectIds(fallback.projects.map((p) => p.id));
       setSelectedProjectId('all');
     }
     showToast('Escenario eliminado');
@@ -1046,6 +1123,8 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
           result = parseCSVToGanttData(text, fileName);
         }
 
+        const merged = mergeImportedGanttData(effectiveProjects, items, result);
+
         const preservedList = preserveActiveWorkspaceInScenarios(
           {
             activeScenarioId,
@@ -1057,31 +1136,47 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
           templates
         );
 
-        let mergedList = preservedList;
-        if (result.allScenarios && result.allScenarios.length > 0) {
+        const activeMergedScenario = sanitizeScenario({
+          id: activeScenarioId.startsWith('template:')
+            ? `scen-${Date.now()}-merged`
+            : activeScenarioId,
+          name: projectName,
+          projects: merged.projects,
+          items: merged.items,
+          updatedAt: new Date().toISOString(),
+        });
+
+        let mergedList = upsertScenarioInList(preservedList, activeMergedScenario);
+        if (result.allScenarios && result.allScenarios.length > 1) {
           for (const sc of result.allScenarios) {
             mergedList = upsertScenarioInList(mergedList, sc);
           }
-        } else {
-          mergedList = upsertScenarioInList(mergedList, result.primaryScenario);
         }
 
         setSavedScenarios(mergedList);
-        setActiveScenarioId(result.primaryScenario.id);
-        setProjectName(result.primaryScenario.name);
-        setProjects(result.primaryScenario.projects);
-        setItems(result.primaryScenario.items);
+        setActiveScenarioId(activeMergedScenario.id);
+        setProjects(merged.projects);
+        setItems(merged.items);
+        setSelectedProjectIds((prev) => {
+          const next = new Set(prev);
+          for (const pid of merged.mergedProjectIds) {
+            next.add(pid);
+          }
+          return Array.from(next);
+        });
         setSelectedProjectId('all');
         setShowSettingsModal(false);
         setScenarioMenuOpen(false);
         setCreateMenuOpen(false);
 
-        const fit = computeFitToProjectScale(result.primaryScenario.items, 980);
+        const fit = computeFitToProjectScale(merged.items, 980);
         if (fit.spanDays > 0) {
           setDayWidth(fit.dayWidth);
         }
 
-        showToast(`Escenario importado: "${result.primaryScenario.name}"`);
+        showToast(
+          `Datos fusionados (+${merged.addedProjectsCount} proy, +${merged.addedItemsCount} tareas nuevas, ${merged.updatedItemsCount} actualizadas)`
+        );
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Error al procesar los datos.';
         showToast(`Error al importar: ${msg}`);
@@ -1102,15 +1197,15 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
   };
 
   const handleDragEnter = (e: React.DragEvent) => {
+    if (!e.dataTransfer?.types?.includes('Files')) return;
     e.preventDefault();
     e.stopPropagation();
-    if (e.dataTransfer?.types?.includes('Files')) {
-      dragCounterRef.current += 1;
-      setIsDraggingFile(true);
-    }
+    dragCounterRef.current += 1;
+    setIsDraggingFile(true);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
+    if (!e.dataTransfer?.types?.includes('Files')) return;
     e.preventDefault();
     e.stopPropagation();
     if (e.dataTransfer) {
@@ -1119,6 +1214,7 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
+    if (!e.dataTransfer?.types?.includes('Files')) return;
     e.preventDefault();
     e.stopPropagation();
     dragCounterRef.current -= 1;
@@ -1129,6 +1225,7 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
   };
 
   const handleDrop = (e: React.DragEvent) => {
+    if (!e.dataTransfer?.types?.includes('Files')) return;
     e.preventDefault();
     e.stopPropagation();
     dragCounterRef.current = 0;
@@ -1140,6 +1237,11 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
   };
 
   const isViewingTemplate = activeScenarioId.startsWith('template:');
+  const activeScenarioObj = savedScenarios.find((s) => s.id === activeScenarioId);
+  const isCurrentScenarioDemo =
+    isViewingTemplate ||
+    Boolean(activeScenarioObj?.isDemo) ||
+    (effectiveProjects.length > 0 && effectiveProjects.every((p) => p.isDemo));
 
   return (
     <div
@@ -1152,7 +1254,7 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
       {/* Top Navigation Bar — Single Minimalist 48px Bar */}
       <header className="sticky top-0 z-30 h-13 px-4 bg-white/95 dark:bg-[#09090b]/95 backdrop-blur-md border-b border-slate-200 dark:border-zinc-800/80 flex items-center justify-between gap-3 select-none">
         
-        {/* LEFT: Logo + Escenario Dropdown + "Proyectos" Filter Dropdown */}
+        {/* LEFT: Logo + View Switcher + Escenario Dropdown + "Proyectos" Multi-Select Dropdown */}
         <div className="flex items-center gap-2.5 min-w-0">
           {/* Logo Minimalista Vectorial */}
           <div className="w-7 h-7 rounded-lg bg-indigo-600/10 dark:bg-zinc-900 border border-indigo-500/30 dark:border-zinc-800 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0 shadow-sm">
@@ -1161,6 +1263,47 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
               <line x1="8" y1="12" x2="20" y2="12" />
               <line x1="4" y1="18" x2="12" y2="18" />
             </svg>
+          </div>
+
+          {/* Primary View Switcher: Diagrama Gantt vs Lista de Proyectos */}
+          <div
+            data-view-switcher="true"
+            className="flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shrink-0"
+          >
+            <button
+              type="button"
+              data-view-tab="gantt"
+              onClick={() => setActiveView('gantt')}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition cursor-pointer ${
+                activeView === 'gantt'
+                  ? 'bg-white dark:bg-zinc-800 text-indigo-600 dark:text-indigo-400 shadow-2xs'
+                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+              title="Ver Diagrama Gantt (solo muestra los proyectos seleccionados)"
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              <span>Diagrama Gantt</span>
+            </button>
+            <button
+              type="button"
+              data-view-tab="projects"
+              onClick={() => setActiveView('projects')}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition cursor-pointer ${
+                activeView === 'projects'
+                  ? 'bg-white dark:bg-zinc-800 text-indigo-600 dark:text-indigo-400 shadow-2xs'
+                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+              title="Abrir vista de Lista de Proyectos para seleccionar cuáles aparecen en el Gantt"
+            >
+              <FolderKanban className="w-3.5 h-3.5" />
+              <span>Lista de Proyectos</span>
+              <span
+                data-selected-projects-count="true"
+                className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-indigo-500/15 text-indigo-600 dark:text-indigo-300"
+              >
+                {selectedProjectIds.length}/{effectiveProjects.length}
+              </span>
+            </button>
           </div>
 
           {/* Scenario Selector Dropdown */}
@@ -1176,9 +1319,21 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
               title="Cambiar escenario o plantilla"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-              <span className="max-w-[190px] sm:max-w-[240px] truncate">{projectName}</span>
-              {isViewingTemplate && (
-                <span className="text-[10px] text-amber-500 font-bold uppercase">(Plantilla)</span>
+              <span className="max-w-[160px] sm:max-w-[210px] truncate">{projectName}</span>
+              {isCurrentScenarioDemo ? (
+                <span
+                  data-active-scenario-demo-badge="true"
+                  className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 shrink-0"
+                >
+                  DEMO
+                </span>
+              ) : (
+                <span
+                  data-active-scenario-real-badge="true"
+                  className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 shrink-0"
+                >
+                  REAL
+                </span>
               )}
               <ChevronDown className="w-3 h-3 text-slate-400" />
             </button>
@@ -1188,7 +1343,7 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
               data-scenarios-bar="true"
               className={`${
                 scenarioMenuOpen ? 'flex' : 'hidden'
-              } absolute left-0 top-10 w-72 p-2 bg-white dark:bg-zinc-900/98 border border-slate-200 dark:border-zinc-800 rounded-xl shadow-2xl backdrop-blur-xl z-50 text-xs flex-col gap-1 max-h-[480px] overflow-y-auto`}
+              } absolute left-0 top-10 w-80 p-2 bg-white dark:bg-zinc-900/98 border border-slate-200 dark:border-zinc-800 rounded-xl shadow-2xl backdrop-blur-xl z-50 text-xs flex-col gap-1 max-h-[480px] overflow-y-auto`}
             >
                 <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500">
                   Mis Escenarios ({savedScenarios.length})
@@ -1196,6 +1351,7 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
 
                 {savedScenarios.map((scen) => {
                   const isActive = activeScenarioId === scen.id;
+                  const scenIsDemo = Boolean(scen.isDemo);
                   return (
                     <div
                       key={scen.id}
@@ -1210,13 +1366,36 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
                           : 'hover:bg-slate-100 dark:hover:bg-zinc-800/70 text-slate-700 dark:text-zinc-300'
                       }`}
                     >
-                      <div className="flex items-center gap-2 min-w-0 pr-1">
+                      <div className="flex items-center gap-1.5 min-w-0 pr-1">
                         <span
                           className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                            isActive ? 'bg-white' : 'bg-emerald-400'
+                            isActive ? 'bg-white' : scenIsDemo ? 'bg-amber-400' : 'bg-emerald-400'
                           }`}
                         />
-                        <span className="truncate max-w-[170px]">{scen.name}</span>
+                        {scenIsDemo ? (
+                          <span
+                            data-scenario-demo-badge={scen.id}
+                            className={`px-1 py-0.2 rounded text-[9px] font-bold uppercase shrink-0 ${
+                              isActive
+                                ? 'bg-amber-400/30 text-amber-100 border border-amber-300/40'
+                                : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30'
+                            }`}
+                          >
+                            DEMO
+                          </span>
+                        ) : (
+                          <span
+                            data-scenario-real-badge={scen.id}
+                            className={`px-1 py-0.2 rounded text-[9px] font-bold uppercase shrink-0 ${
+                              isActive
+                                ? 'bg-emerald-400/30 text-emerald-100 border border-emerald-300/40'
+                                : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
+                            }`}
+                          >
+                            REAL
+                          </span>
+                        )}
+                        <span className="truncate max-w-[145px]">{scen.name}</span>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         <span
@@ -1249,8 +1428,9 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
 
                 <div className="border-t border-slate-200 dark:border-zinc-800/80 my-1" />
 
-                <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500">
-                  Plantillas Base
+                <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center justify-between">
+                  <span>Plantillas Demo (Ejemplos)</span>
+                  <span className="px-1 py-0.2 rounded bg-amber-500/15 text-[9px] font-bold">DEMO</span>
                 </div>
                 {templates.map((tpl) => (
                   <button
@@ -1263,7 +1443,9 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
                     className="flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/60 text-slate-700 dark:text-zinc-300 text-left transition"
                   >
                     <span className="truncate">{tpl.name}</span>
-                    <span className="text-[10px] text-amber-500">Plantilla</span>
+                    <span className="px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[9px] font-bold uppercase shrink-0">
+                      DEMO
+                    </span>
                   </button>
                 ))}
 
@@ -1308,7 +1490,7 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
               </div>
           </div>
 
-          {/* Selector Exacto "Proyectos" con icono vectorial */}
+          {/* Selector "Proyectos" con selección múltiple y acceso a Lista de Proyectos */}
           <div ref={projectMenuRef} className="relative hidden sm:block" data-dropdown-container="true">
             <button
               type="button"
@@ -1318,65 +1500,95 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
                 setCreateMenuOpen(false);
               }}
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-zinc-900/90 hover:bg-slate-200/70 dark:hover:bg-zinc-800/80 border border-slate-200 dark:border-zinc-800 text-xs font-medium text-slate-700 dark:text-zinc-300 transition shadow-2xs cursor-pointer"
-              title="Filtrar por proyecto"
+              title="Seleccionar proyectos visibles en el Gantt"
             >
               <FolderKanban className="w-3.5 h-3.5 text-slate-400" />
               <span>Proyectos</span>
-              {selectedProjectId !== 'all' && (
+              {selectedProjectIds.length < effectiveProjects.length && (
                 <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
               )}
               <ChevronDown className="w-3 h-3 text-slate-400" />
             </button>
 
             {projectMenuOpen && (
-              <div className="absolute left-0 top-10 w-60 p-1.5 bg-white dark:bg-zinc-900/98 border border-slate-200 dark:border-zinc-800 rounded-xl shadow-2xl backdrop-blur-xl z-50 text-xs flex flex-col gap-0.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedProjectId('all');
-                    setProjectMenuOpen(false);
-                  }}
-                  className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left transition ${
-                    selectedProjectId === 'all'
-                      ? 'bg-indigo-600 text-white font-medium'
-                      : 'hover:bg-slate-100 dark:hover:bg-zinc-800/60 text-slate-700 dark:text-zinc-300'
-                  }`}
-                >
-                  <span>Todos los proyectos</span>
-                  <span className="text-[10px] font-mono opacity-80">{projectGroups.length}</span>
-                </button>
+              <div className="absolute left-0 top-10 w-72 p-2 bg-white dark:bg-zinc-900/98 border border-slate-200 dark:border-zinc-800 rounded-xl shadow-2xl backdrop-blur-xl z-50 text-xs flex flex-col gap-1">
+                <div className="flex items-center justify-between px-2 py-1">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500">
+                    Visibles en Gantt ({selectedProjectIds.length}/{projectGroups.length})
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={handleSelectAllProjects}
+                      className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
+                    >
+                      Todos
+                    </button>
+                    <span className="text-slate-300 dark:text-zinc-700">·</span>
+                    <button
+                      type="button"
+                      onClick={handleDeselectAllProjects}
+                      className="text-[10px] text-slate-500 hover:underline"
+                    >
+                      Ninguno
+                    </button>
+                  </div>
+                </div>
 
                 {projectGroups.map((group) => {
-                  const isSelected = selectedProjectId === group.project.id;
+                  const isChecked = selectedProjectIds.includes(group.project.id);
                   const colorDot =
                     PROJECT_COLORS.find((c) => c.value === group.project.color)?.bg ||
                     'bg-indigo-500';
                   return (
-                    <button
+                    <label
                       key={group.project.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedProjectId(group.project.id);
-                        setProjectMenuOpen(false);
-                      }}
-                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left transition ${
-                        isSelected
-                          ? 'bg-indigo-600 text-white font-medium'
-                          : 'hover:bg-slate-100 dark:hover:bg-zinc-800/60 text-slate-700 dark:text-zinc-300'
+                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left transition cursor-pointer ${
+                        isChecked
+                          ? 'bg-indigo-50/80 dark:bg-indigo-950/40 text-slate-900 dark:text-white font-medium'
+                          : 'hover:bg-slate-100 dark:hover:bg-zinc-800/60 text-slate-500 dark:text-zinc-400'
                       }`}
                     >
                       <div className="flex items-center gap-2 min-w-0 pr-1">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => handleToggleSelectProject(group.project.id)}
+                          className="rounded border-slate-300 dark:border-zinc-700 text-indigo-600"
+                        />
                         <span className={`w-2 h-2 rounded-full shrink-0 ${colorDot}`} />
-                        <span className="truncate max-w-[150px]">
+                        {group.project.isDemo ? (
+                          <span className="px-1 py-0.2 rounded text-[8px] font-bold uppercase bg-amber-500/20 text-amber-700 dark:text-amber-300 shrink-0">
+                            DEMO
+                          </span>
+                        ) : (
+                          <span className="px-1 py-0.2 rounded text-[8px] font-bold uppercase bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 shrink-0">
+                            REAL
+                          </span>
+                        )}
+                        <span className="truncate max-w-[125px]">
                           P{group.projectIndex}: {group.project.name}
                         </span>
                       </div>
-                      <span className="text-[10px] font-mono opacity-80">
-                        {group.items.length} · {group.progress}%
+                      <span className="text-[10px] font-mono opacity-80 shrink-0">
+                        {group.items.length}t
                       </span>
-                    </button>
+                    </label>
                   );
                 })}
+
+                <div className="border-t border-slate-200 dark:border-zinc-800/80 my-1" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveView('projects');
+                    setProjectMenuOpen(false);
+                  }}
+                  className="w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold transition cursor-pointer"
+                >
+                  <FolderKanban className="w-3.5 h-3.5" />
+                  <span>Abrir Vista Lista de Proyectos</span>
+                </button>
               </div>
             )}
           </div>
@@ -1690,35 +1902,427 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
           </div>
         )}
 
-        {/* Interactive Split-Pane Gantt Chart & WBS Table with Project Grouping */}
-        <GanttWorkspace
-          items={computedItems}
-          projects={effectiveProjects}
-          groupByProject={groupByProject}
-          selectedProjectId={selectedProjectId}
-          zoom={zoom}
-          dayWidth={dayWidth}
-          onChangeDayWidth={handleChangeDayWidth}
-          onFitToProject={(pid) => handleFitToProject(pid)}
-          showCriticalPath={showCriticalPath}
-          showCpmFloat={showCpmFloat}
-          autoCascade={autoCascade}
-          arrowVisibility={arrowVisibility}
-          onChangeArrowVisibility={setArrowVisibility}
-          onUpdateItem={handleUpdateInline}
-          onReorderItem={handleReorderItem}
-          onMoveItem={handleMoveItem}
-          onEditModal={handleOpenEditModal}
-          onDeleteItem={handleDeleteItem}
-          onDuplicateItem={handleDuplicateItem}
-          onQuickAdd={handleOpenCreateModal}
-          onToggleGroupByProject={() => setGroupByProject((prev) => !prev)}
-          onToggleProjectCollapse={handleToggleProjectCollapse}
-          onUpdateProject={handleUpdateProject}
-          onDeleteProject={handleDeleteProject}
-          onCreateProject={handleCreateProject}
-          scrollContainerRef={scrollContainerRef}
-        />
+        {activeView === 'projects' ? (
+          /* VISTA DE LISTA DE PROYECTOS (Seleccionable, separando Reales de Demos) */
+          <div
+            data-projects-list-view="true"
+            className="flex-1 flex flex-col gap-5 bg-white dark:bg-zinc-900/95 border border-slate-200/90 dark:border-zinc-800/90 rounded-2xl shadow-xl p-4 sm:p-6 overflow-y-auto"
+          >
+            {/* Header & Quick Selection Controls */}
+            <div className="flex flex-wrap items-start justify-between gap-4 pb-4 border-b border-slate-200 dark:border-zinc-800">
+              <div>
+                <div className="flex items-center gap-2">
+                  <FolderKanban className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                  <h1 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+                    Lista de Proyectos Guardados
+                  </h1>
+                  <span className="px-2 py-0.5 rounded-full text-xs font-mono font-semibold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                    {selectedProjectIds.length} de {effectiveProjects.length} seleccionados para Gantt
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">
+                  Selecciona los proyectos que deseas visualizar en el Diagrama Gantt. Solo los proyectos marcados aparecerán en el cronograma. Los proyectos de demostración están identificados como <strong>DEMO</strong> y separados de tus proyectos <strong>REALES</strong>.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <button
+                  type="button"
+                  data-select-all-projects="true"
+                  onClick={handleSelectAllProjects}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200 font-medium transition cursor-pointer"
+                >
+                  Seleccionar Todos ({effectiveProjects.length})
+                </button>
+                <button
+                  type="button"
+                  data-select-real-projects="true"
+                  onClick={handleSelectOnlyRealProjects}
+                  className="px-3 py-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-semibold transition cursor-pointer"
+                >
+                  Solo Reales ({realProjectGroups.length})
+                </button>
+                <button
+                  type="button"
+                  data-select-demo-projects="true"
+                  onClick={handleSelectOnlyDemoProjects}
+                  className="px-3 py-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 font-semibold transition cursor-pointer"
+                >
+                  Solo Demos ({demoProjectGroups.length})
+                </button>
+                <button
+                  type="button"
+                  data-deselect-all-projects="true"
+                  onClick={handleDeselectAllProjects}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 text-slate-500 dark:text-zinc-400 font-medium transition cursor-pointer"
+                >
+                  Ninguno
+                </button>
+                <button
+                  type="button"
+                  data-go-to-gantt-btn="true"
+                  onClick={() => setActiveView('gantt')}
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold shadow-sm transition cursor-pointer"
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>Ver en Diagrama Gantt ({selectedProjectIds.length})</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Inline Bar to Create a New Real Project */}
+            <form
+              data-projects-view-create-form="true"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const trimmed = projectsViewNewName.trim();
+                if (!trimmed) return;
+                handleCreateProject({
+                  id: `proj-${Date.now()}`,
+                  name: trimmed,
+                  color: projectsViewNewColor,
+                  collapsed: false,
+                  isDemo: false,
+                });
+                setProjectsViewNewName('');
+              }}
+              className="flex flex-wrap items-center gap-3 p-3.5 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-900/50 text-xs"
+            >
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-600 text-white shrink-0">
+                REAL
+              </span>
+              <span className="font-semibold text-slate-800 dark:text-zinc-200 shrink-0">
+                Crear Proyecto Real:
+              </span>
+              <input
+                type="text"
+                value={projectsViewNewName}
+                onChange={(e) => setProjectsViewNewName(e.target.value)}
+                placeholder="Nombre del nuevo proyecto real..."
+                className="flex-1 min-w-[200px] px-3 py-1.5 rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+              <div className="flex items-center gap-1.5">
+                {PROJECT_COLORS.map((c) => (
+                  <button
+                    key={c.value}
+                    type="button"
+                    onClick={() => setProjectsViewNewColor(c.value)}
+                    className={`w-4 h-4 rounded-full ${c.bg} transition-transform ${
+                      projectsViewNewColor === c.value
+                        ? 'scale-125 ring-2 ring-offset-1 ring-indigo-500'
+                        : 'opacity-70 hover:opacity-100'
+                    }`}
+                    title={c.value}
+                  />
+                ))}
+              </div>
+              <button
+                type="submit"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-sm transition cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Crear Proyecto</span>
+              </button>
+            </form>
+
+            {/* SECTION 1: PROYECTOS REALES */}
+            <section
+              data-real-projects-section="true"
+              className="space-y-3"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                    PROYECTOS REALES
+                  </span>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-white">
+                    Mis Proyectos Reales ({realProjectGroups.length})
+                  </h2>
+                </div>
+                {realProjectGroups.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleSelectOnlyRealProjects}
+                    className="text-xs text-emerald-600 dark:text-emerald-400 hover:underline font-medium cursor-pointer"
+                  >
+                    Mostrar solo proyectos reales en Gantt
+                  </button>
+                )}
+              </div>
+
+              {realProjectGroups.length === 0 ? (
+                <div className="p-6 rounded-xl border border-dashed border-emerald-300 dark:border-emerald-900/60 bg-emerald-50/30 dark:bg-emerald-950/10 text-center text-xs text-slate-600 dark:text-zinc-400">
+                  Aún no has creado ni importado proyectos reales en este escenario (actualmente solo hay proyectos <strong>DEMO</strong>). Usa el formulario superior o importa un archivo JSON/CSV para agregar tus proyectos reales.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                  {realProjectGroups.map((group) => {
+                    const isSelected = selectedProjectIds.includes(group.project.id);
+                    const colorDot =
+                      PROJECT_COLORS.find((c) => c.value === group.project.color)?.bg ||
+                      'bg-indigo-500';
+                    return (
+                      <div
+                        key={group.project.id}
+                        data-project-list-card={group.project.id}
+                        data-project-kind="real"
+                        onClick={() => handleToggleSelectProject(group.project.id)}
+                        className={`p-4 rounded-xl border transition cursor-pointer flex flex-col justify-between gap-3 ${
+                          isSelected
+                            ? 'border-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/25 shadow-sm ring-1 ring-emerald-500/40'
+                            : 'border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-900/50 opacity-75 hover:opacity-100'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <input
+                              type="checkbox"
+                              data-project-select-checkbox={group.project.id}
+                              checked={isSelected}
+                              onChange={() => handleToggleSelectProject(group.project.id)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-4 h-4 rounded border-slate-300 dark:border-zinc-700 text-emerald-600 cursor-pointer shrink-0"
+                            />
+                            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${colorDot}`} />
+                            <span className="font-mono text-xs font-bold text-slate-500 dark:text-zinc-400 shrink-0">
+                              P{group.projectIndex}
+                            </span>
+                            <span className="font-bold text-sm text-slate-900 dark:text-white truncate">
+                              {group.project.name}
+                            </span>
+                          </div>
+                          <span
+                            data-project-card-real-badge={group.project.id}
+                            className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 shrink-0"
+                          >
+                            REAL
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-2 text-[11px] bg-white/80 dark:bg-zinc-950/60 p-2.5 rounded-lg border border-slate-200/60 dark:border-zinc-800/80">
+                          <div>
+                            <div className="text-slate-400 text-[10px]">Ítems</div>
+                            <div className="font-semibold text-slate-800 dark:text-zinc-200">
+                              {group.tasksCount}t · {group.milestonesCount}h
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-slate-400 text-[10px]">Duración</div>
+                            <div className="font-mono font-semibold text-slate-800 dark:text-zinc-200">
+                              {group.duration}d
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-slate-400 text-[10px]">Avance</div>
+                            <div className="font-mono font-semibold text-emerald-600 dark:text-emerald-400">
+                              {group.progress}%
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2 pt-1 text-[11px]">
+                          <span className="font-mono text-slate-500 dark:text-zinc-400">
+                            {group.items.length > 0
+                              ? `${formatDateDisplay(group.startDate, 'dd/MM/yyyy')} → ${formatDateDisplay(group.endDate, 'dd/MM/yyyy')}`
+                              : 'Sin tareas aún'}
+                          </span>
+                          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleSelectOnlySingleProject(group.project.id);
+                                setActiveView('gantt');
+                              }}
+                              className="px-2 py-1 rounded bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-semibold transition"
+                              title="Ver únicamente este proyecto en el Diagrama Gantt"
+                            >
+                              Solo este en Gantt
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            {/* SECTION 2: PROYECTOS DEMO (Separados e indicados claramente como DEMO) */}
+            <section
+              data-demo-projects-section="true"
+              className="space-y-3 pt-4 border-t border-slate-200 dark:border-zinc-800"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                    PROYECTOS DEMO
+                  </span>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-white">
+                    Proyectos de Demostración ({demoProjectGroups.length})
+                  </h2>
+                  <span className="text-xs text-slate-400 dark:text-zinc-500">
+                    (Separados de tus proyectos reales)
+                  </span>
+                </div>
+                {demoProjectGroups.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nonDemoIds = selectedProjectIds.filter(
+                        (id) => !demoProjectGroups.some((g) => g.project.id === id)
+                      );
+                      setSelectedProjectIds(nonDemoIds);
+                    }}
+                    className="text-xs text-amber-600 dark:text-amber-400 hover:underline font-medium cursor-pointer"
+                  >
+                    Ocultar todos los demos del Gantt
+                  </button>
+                )}
+              </div>
+
+              {demoProjectGroups.length === 0 ? (
+                <div className="p-4 rounded-xl border border-slate-200 dark:border-zinc-800 text-xs text-slate-400">
+                  No hay proyectos demo en este escenario.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                  {demoProjectGroups.map((group) => {
+                    const isSelected = selectedProjectIds.includes(group.project.id);
+                    const colorDot =
+                      PROJECT_COLORS.find((c) => c.value === group.project.color)?.bg ||
+                      'bg-indigo-500';
+                    return (
+                      <div
+                        key={group.project.id}
+                        data-project-list-card={group.project.id}
+                        data-project-kind="demo"
+                        onClick={() => handleToggleSelectProject(group.project.id)}
+                        className={`p-4 rounded-xl border transition cursor-pointer flex flex-col justify-between gap-3 ${
+                          isSelected
+                            ? 'border-amber-500/80 bg-amber-50/40 dark:bg-amber-950/20 shadow-sm ring-1 ring-amber-500/30'
+                            : 'border-slate-200 dark:border-zinc-800 bg-slate-50/40 dark:bg-zinc-900/40 opacity-70 hover:opacity-100'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <input
+                              type="checkbox"
+                              data-project-select-checkbox={group.project.id}
+                              checked={isSelected}
+                              onChange={() => handleToggleSelectProject(group.project.id)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-4 h-4 rounded border-slate-300 dark:border-zinc-700 text-amber-600 cursor-pointer shrink-0"
+                            />
+                            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${colorDot}`} />
+                            <span className="font-mono text-xs font-bold text-slate-500 dark:text-zinc-400 shrink-0">
+                              P{group.projectIndex}
+                            </span>
+                            <span className="font-bold text-sm text-slate-900 dark:text-white truncate">
+                              {group.project.name}
+                            </span>
+                          </div>
+                          <span
+                            data-project-card-demo-badge={group.project.id}
+                            className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 shrink-0"
+                          >
+                            DEMO
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-2 text-[11px] bg-white/80 dark:bg-zinc-950/60 p-2.5 rounded-lg border border-slate-200/60 dark:border-zinc-800/80">
+                          <div>
+                            <div className="text-slate-400 text-[10px]">Ítems Demo</div>
+                            <div className="font-semibold text-slate-800 dark:text-zinc-200">
+                              {group.tasksCount}t · {group.milestonesCount}h
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-slate-400 text-[10px]">Duración</div>
+                            <div className="font-mono font-semibold text-slate-800 dark:text-zinc-200">
+                              {group.duration}d
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-slate-400 text-[10px]">Avance</div>
+                            <div className="font-mono font-semibold text-amber-600 dark:text-amber-400">
+                              {group.progress}%
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2 pt-1 text-[11px]">
+                          <span className="font-mono text-slate-500 dark:text-zinc-400">
+                            {group.items.length > 0
+                              ? `${formatDateDisplay(group.startDate, 'dd/MM/yyyy')} → ${formatDateDisplay(group.endDate, 'dd/MM/yyyy')}`
+                              : 'Sin tareas'}
+                          </span>
+                          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleUpdateProject({
+                                  ...group.project,
+                                  isDemo: false,
+                                })
+                              }
+                              className="px-2 py-1 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-semibold transition"
+                              title="Marcar este proyecto como proyecto Real"
+                            >
+                              Marcar como Real
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleSelectOnlySingleProject(group.project.id);
+                                setActiveView('gantt');
+                              }}
+                              className="px-2 py-1 rounded bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-semibold transition"
+                              title="Ver únicamente este proyecto Demo en el Diagrama Gantt"
+                            >
+                              Solo este en Gantt
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          </div>
+        ) : (
+          /* Interactive Split-Pane Gantt Chart & WBS Table with Project Grouping */
+          <GanttWorkspace
+            items={computedItems}
+            projects={effectiveProjects}
+            groupByProject={groupByProject}
+            selectedProjectId={selectedProjectId}
+            selectedProjectIds={selectedProjectIds}
+            onOpenProjectsView={() => setActiveView('projects')}
+            zoom={zoom}
+            dayWidth={dayWidth}
+            onChangeDayWidth={handleChangeDayWidth}
+            onFitToProject={(pid) => handleFitToProject(pid)}
+            showCriticalPath={showCriticalPath}
+            showCpmFloat={showCpmFloat}
+            autoCascade={autoCascade}
+            arrowVisibility={arrowVisibility}
+            onChangeArrowVisibility={setArrowVisibility}
+            onUpdateItem={handleUpdateInline}
+            onReorderItem={handleReorderItem}
+            onMoveItem={handleMoveItem}
+            onEditModal={handleOpenEditModal}
+            onDeleteItem={handleDeleteItem}
+            onDuplicateItem={handleDuplicateItem}
+            onQuickAdd={handleOpenCreateModal}
+            onToggleGroupByProject={() => setGroupByProject((prev) => !prev)}
+            onToggleProjectCollapse={handleToggleProjectCollapse}
+            onUpdateProject={handleUpdateProject}
+            onDeleteProject={handleDeleteProject}
+            onCreateProject={handleCreateProject}
+            scrollContainerRef={scrollContainerRef}
+          />
+        )}
       </main>
 
       {/* Settings Modal (Flechas, auto-cascada, tema, zoom, exportar/importar) */}
