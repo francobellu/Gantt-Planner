@@ -433,6 +433,224 @@ export function cascadeDependencies(items: GanttItem[]): GanttItem[] {
   return cloned;
 }
 
+export type DependencyMutationError = 'self' | 'duplicate' | 'cycle' | 'not_found';
+
+/**
+ * Adds a dependency link (predId -> succId) with cycle detection and optional date cascading.
+ */
+export function addDependencyLink(
+  items: GanttItem[],
+  predId: string,
+  succId: string,
+  depType: DependencyType = 'FS',
+  cascade = false
+): { items: GanttItem[]; added: boolean; error?: DependencyMutationError } {
+  const cleanPredId = (predId || '').trim();
+  const cleanSuccId = (succId || '').trim();
+  if (!cleanPredId || !cleanSuccId) {
+    return { items, added: false, error: 'not_found' };
+  }
+  if (cleanPredId === cleanSuccId) {
+    return { items, added: false, error: 'self' };
+  }
+
+  const predExists = items.some((it) => it.id === cleanPredId);
+  const succItem = items.find((it) => it.id === cleanSuccId);
+  if (!predExists || !succItem) {
+    return { items, added: false, error: 'not_found' };
+  }
+
+  if (succItem.dependencies.includes(cleanPredId)) {
+    return { items, added: false, error: 'duplicate' };
+  }
+
+  if (wouldCreateCycle(items, cleanSuccId, cleanPredId)) {
+    return { items, added: false, error: 'cycle' };
+  }
+
+  const nextTypes: Record<string, DependencyType> = {
+    ...(succItem.dependencyTypes || {}),
+  };
+  if (depType && depType !== 'FS') {
+    nextTypes[cleanPredId] = depType;
+  } else {
+    delete nextTypes[cleanPredId];
+  }
+
+  const updatedSucc = sanitizeGanttItem({
+    ...succItem,
+    dependencies: [...succItem.dependencies, cleanPredId],
+    dependencyTypes: Object.keys(nextTypes).length > 0 ? nextTypes : undefined,
+  });
+
+  const nextItems = items.map((it) =>
+    it.id === cleanSuccId ? updatedSucc : sanitizeGanttItem(it)
+  );
+  return {
+    items: cascade ? cascadeDependencies(nextItems) : nextItems,
+    added: true,
+  };
+}
+
+/**
+ * Removes an existing dependency link (predId -> succId) and optionally cascades dates.
+ */
+export function removeDependencyLink(
+  items: GanttItem[],
+  predId: string,
+  succId: string,
+  cascade = false
+): { items: GanttItem[]; removed: boolean } {
+  const cleanPredId = (predId || '').trim();
+  const cleanSuccId = (succId || '').trim();
+  if (!cleanPredId || !cleanSuccId) {
+    return { items, removed: false };
+  }
+
+  const succItem = items.find((it) => it.id === cleanSuccId);
+  if (!succItem || !succItem.dependencies.includes(cleanPredId)) {
+    return { items, removed: false };
+  }
+
+  const nextDeps = succItem.dependencies.filter((d) => d !== cleanPredId);
+  const nextTypes: Record<string, DependencyType> = {
+    ...(succItem.dependencyTypes || {}),
+  };
+  delete nextTypes[cleanPredId];
+
+  const updatedSucc = sanitizeGanttItem({
+    ...succItem,
+    dependencies: nextDeps,
+    dependencyTypes: Object.keys(nextTypes).length > 0 ? nextTypes : undefined,
+  });
+
+  const nextItems = items.map((it) =>
+    it.id === cleanSuccId ? updatedSucc : sanitizeGanttItem(it)
+  );
+  return {
+    items: cascade ? cascadeDependencies(nextItems) : nextItems,
+    removed: true,
+  };
+}
+
+/**
+ * Updates the dependency type (FS, SS, FF, SF) of an existing dependency link (predId -> succId).
+ */
+export function updateDependencyLinkType(
+  items: GanttItem[],
+  predId: string,
+  succId: string,
+  depType: DependencyType,
+  cascade = false
+): { items: GanttItem[]; updated: boolean } {
+  const cleanPredId = (predId || '').trim();
+  const cleanSuccId = (succId || '').trim();
+  const succItem = items.find((it) => it.id === cleanSuccId);
+  if (!succItem || !succItem.dependencies.includes(cleanPredId)) {
+    return { items, updated: false };
+  }
+
+  const nextTypes: Record<string, DependencyType> = {
+    ...(succItem.dependencyTypes || {}),
+  };
+  if (depType && depType !== 'FS') {
+    nextTypes[cleanPredId] = depType;
+  } else {
+    delete nextTypes[cleanPredId];
+  }
+
+  const updatedSucc = sanitizeGanttItem({
+    ...succItem,
+    dependencyTypes: Object.keys(nextTypes).length > 0 ? nextTypes : undefined,
+  });
+
+  const nextItems = items.map((it) =>
+    it.id === cleanSuccId ? updatedSucc : sanitizeGanttItem(it)
+  );
+  return {
+    items: cascade ? cascadeDependencies(nextItems) : nextItems,
+    updated: true,
+  };
+}
+
+/**
+ * Moves / reconnects an existing dependency link from (oldPredId -> oldSuccId)
+ * to (newPredId -> newSuccId), preserving its dependency type (or applying depType)
+ * and validating against self-dependencies, duplicates, and cycles.
+ */
+export function moveDependencyLink(
+  items: GanttItem[],
+  oldPredId: string,
+  oldSuccId: string,
+  newPredId: string,
+  newSuccId: string,
+  depType?: DependencyType,
+  cascade = false
+): { items: GanttItem[]; moved: boolean; error?: DependencyMutationError } {
+  const cOldPred = (oldPredId || '').trim();
+  const cOldSucc = (oldSuccId || '').trim();
+  const cNewPred = (newPredId || '').trim();
+  const cNewSucc = (newSuccId || '').trim();
+
+  if (!cOldPred || !cOldSucc || !cNewPred || !cNewSucc) {
+    return { items, moved: false, error: 'not_found' };
+  }
+  if (cNewPred === cNewSucc) {
+    return { items, moved: false, error: 'self' };
+  }
+
+  const oldSuccItem = items.find((it) => it.id === cOldSucc);
+  const newPredExists = items.some((it) => it.id === cNewPred);
+  const newSuccExists = items.some((it) => it.id === cNewSucc);
+
+  if (
+    !oldSuccItem ||
+    !oldSuccItem.dependencies.includes(cOldPred) ||
+    !newPredExists ||
+    !newSuccExists
+  ) {
+    return { items, moved: false, error: 'not_found' };
+  }
+
+  const resolvedDepType: DependencyType =
+    depType || oldSuccItem.dependencyTypes?.[cOldPred] || 'FS';
+
+  if (cOldPred === cNewPred && cOldSucc === cNewSucc) {
+    const currentType = oldSuccItem.dependencyTypes?.[cOldPred] || 'FS';
+    if (depType && depType !== currentType) {
+      const updated = updateDependencyLinkType(
+        items,
+        cOldPred,
+        cOldSucc,
+        depType,
+        cascade
+      );
+      return { items: updated.items, moved: updated.updated };
+    }
+    return { items, moved: false };
+  }
+
+  // 1. Remove old link first so cycle detection evaluates the resulting graph accurately
+  const removedStep = removeDependencyLink(items, cOldPred, cOldSucc, false);
+  if (!removedStep.removed) {
+    return { items, moved: false, error: 'not_found' };
+  }
+
+  // 2. Add new link on the intermediate graph
+  const addedStep = addDependencyLink(
+    removedStep.items,
+    cNewPred,
+    cNewSucc,
+    resolvedDepType,
+    cascade
+  );
+  if (!addedStep.added) {
+    return { items, moved: false, error: addedStep.error };
+  }
+
+  return { items: addedStep.items, moved: true };
+}
+
 /**
  * Computes Critical Path Method (CPM), Slack End Date, WBS numbers, and dependency conflicts.
  */

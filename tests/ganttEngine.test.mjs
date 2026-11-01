@@ -56,6 +56,10 @@ const {
   reorderTaskItem,
   filterGroupsBySelectedProjects,
   mergeImportedGanttData,
+  addDependencyLink,
+  removeDependencyLink,
+  updateDependencyLinkType,
+  moveDependencyLink,
 } = await import(codeUrl);
 
 test('calculateEndDateFromDuration & calculateDurationFromDates handle tasks and milestones', () => {
@@ -934,8 +938,10 @@ test('App renders default clean SaaS scenario, + Nuevo Proyecto button, and Save
     assert.ok(!html.includes('proj-xcode27'));
     assert.ok(!html.includes('biocatch'));
 
-    // Verify unified single-point project creation: "+ Nuevo Proyecto" in WBS table
-    assert.ok(html.includes('+ Nuevo Proyecto'));
+    // Verify unified actions in WBS table: "Nueva Tarea" and "Nuevo Proyecto" (with redundant "+" prefix removed)
+    assert.ok(html.includes('Nuevo Proyecto'));
+    assert.ok(html.includes('Nueva Tarea'));
+    assert.ok(!html.includes('+ Nuevo Proyecto'));
 
     // Verify SaaS projects and tasks are rendered
     assert.ok(html.includes('Proyecto 1: Discovery &amp; Diseño de Producto'));
@@ -1464,7 +1470,9 @@ test('Purging of Xcode 27 data and single-point project creation in GanttWorkspa
     const html = renderToString(mod.renderFullApp());
 
     // 1. Proyectos dropdown and Crear dropdown should NOT have duplicate project creation
-    assert.ok(html.includes('+ Nuevo Proyecto'));
+    assert.ok(html.includes('Nuevo Proyecto'));
+    assert.ok(html.includes('Nueva Tarea'));
+    assert.ok(!html.includes('+ Nuevo Proyecto'));
 
     // 2. Neither old footer "Añadir Tarea", "Añadir Hito", nor "Añadir Proyecto" buttons exist
     assert.ok(!html.includes('Añadir Tarea'));
@@ -1480,7 +1488,9 @@ test('Purging of Xcode 27 data and single-point project creation in GanttWorkspa
 
     // 5. Standalone GanttWorkspace render with onCreateProject
     const wsHtml = renderToString(mod.renderWorkspace(() => {}));
-    assert.ok(wsHtml.includes('+ Nuevo Proyecto'));
+    assert.ok(wsHtml.includes('Nuevo Proyecto'));
+    assert.ok(wsHtml.includes('Nueva Tarea'));
+    assert.ok(!wsHtml.includes('+ Nuevo Proyecto'));
     assert.ok(!wsHtml.includes('Añadir Tarea'));
     assert.ok(!wsHtml.includes('Añadir Hito'));
     assert.ok(!wsHtml.includes('Añadir Proyecto'));
@@ -1525,8 +1535,10 @@ test('Independent dropdown outside-click dismiss, escape key handlers, and proje
     assert.ok(html.includes('data-dropdown-container="true"'));
     // Verify Escenarios menu container exists
     assert.ok(html.includes('data-scenarios-bar="true"'));
-    // Verify + Nuevo Proyecto exists
-    assert.ok(html.includes('+ Nuevo Proyecto'));
+    // Verify Nuevo Proyecto and Nueva Tarea exist
+    assert.ok(html.includes('Nuevo Proyecto'));
+    assert.ok(html.includes('Nueva Tarea'));
+    assert.ok(!html.includes('+ Nuevo Proyecto'));
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -2593,3 +2605,468 @@ test('isDemoScenario transitions from true to false when a real project is added
   assert.equal(isDemoScenario(withRealProject), false);
   assert.equal(withRealProject.isDemo, false);
 });
+
+test('addDependencyLink, removeDependencyLink, updateDependencyLinkType, and moveDependencyLink handle creation, moves, and deletion with cycle detection and autoCascade', () => {
+  const baseItems = [
+    {
+      id: 't-1',
+      name: 'Diseño UI',
+      type: 'task',
+      startDate: '2026-10-01',
+      endDate: '2026-10-05',
+      duration: 5,
+      slack: 0,
+      dependencies: [],
+      progress: 0,
+      color: 'indigo',
+    },
+    {
+      id: 't-2',
+      name: 'Desarrollo Frontend',
+      type: 'task',
+      startDate: '2026-10-06',
+      endDate: '2026-10-15',
+      duration: 10,
+      slack: 0,
+      dependencies: [],
+      progress: 0,
+      color: 'indigo',
+    },
+    {
+      id: 't-3',
+      name: 'Desarrollo Backend',
+      type: 'task',
+      startDate: '2026-10-06',
+      endDate: '2026-10-12',
+      duration: 7,
+      slack: 0,
+      dependencies: [],
+      progress: 0,
+      color: 'indigo',
+    },
+    {
+      id: 'm-1',
+      name: 'Hito Lanzamiento',
+      type: 'milestone',
+      startDate: '2026-10-16',
+      endDate: '2026-10-16',
+      duration: 0,
+      slack: 0,
+      dependencies: [],
+      progress: 0,
+      color: 'amber',
+    },
+  ];
+
+  // 1. Create dependency link t-1 -> t-2 (FS)
+  const add1 = addDependencyLink(baseItems, 't-1', 't-2', 'FS', false);
+  assert.equal(add1.added, true);
+  const t2AfterAdd1 = add1.items.find((it) => it.id === 't-2');
+  assert.deepEqual(t2AfterAdd1.dependencies, ['t-1']);
+
+  // 2. Reject self dependency
+  const selfAdd = addDependencyLink(baseItems, 't-1', 't-1', 'FS', false);
+  assert.equal(selfAdd.added, false);
+  assert.equal(selfAdd.error, 'self');
+
+  // 3. Reject duplicate dependency
+  const dupAdd = addDependencyLink(add1.items, 't-1', 't-2', 'FS', false);
+  assert.equal(dupAdd.added, false);
+  assert.equal(dupAdd.error, 'duplicate');
+
+  // 4. Reject circular dependency (cycle)
+  // If t-1 -> t-2, then adding t-2 -> t-1 must fail with 'cycle'
+  const cycleAdd = addDependencyLink(add1.items, 't-2', 't-1', 'FS', false);
+  assert.equal(cycleAdd.added, false);
+  assert.equal(cycleAdd.error, 'cycle');
+
+  // 5. Update dependency link type to 'SS'
+  const updateType = updateDependencyLinkType(add1.items, 't-1', 't-2', 'SS', false);
+  assert.equal(updateType.updated, true);
+  const t2AfterType = updateType.items.find((it) => it.id === 't-2');
+  assert.equal(t2AfterType.dependencyTypes?.['t-1'], 'SS');
+
+  // 6. Move dependency link: reconnect predecessor (source) from t-1 to t-3
+  // t-3 -> t-2
+  const moveSource = moveDependencyLink(add1.items, 't-1', 't-2', 't-3', 't-2', undefined, false);
+  assert.equal(moveSource.moved, true);
+  const t2AfterMoveSource = moveSource.items.find((it) => it.id === 't-2');
+  assert.deepEqual(t2AfterMoveSource.dependencies, ['t-3']);
+
+  // 7. Move dependency link: reconnect successor (target) from t-2 to m-1
+  // t-3 -> m-1
+  const moveTarget = moveDependencyLink(moveSource.items, 't-3', 't-2', 't-3', 'm-1', undefined, false);
+  assert.equal(moveTarget.moved, true);
+  const t2AfterMoveTarget = moveTarget.items.find((it) => it.id === 't-2');
+  assert.deepEqual(t2AfterMoveTarget.dependencies, []);
+  const m1AfterMoveTarget = moveTarget.items.find((it) => it.id === 'm-1');
+  assert.deepEqual(m1AfterMoveTarget.dependencies, ['t-3']);
+
+  // 8. Delete dependency link
+  const removed = removeDependencyLink(moveTarget.items, 't-3', 'm-1', false);
+  assert.equal(removed.removed, true);
+  const m1AfterRemove = removed.items.find((it) => it.id === 'm-1');
+  assert.deepEqual(m1AfterRemove.dependencies, []);
+  assert.equal(m1AfterRemove.dependencyTypes?.['t-3'], undefined);
+
+  // 9. AutoCascade date propagation on dependency creation
+  const unalignedItems = [
+    {
+      id: 'a',
+      name: 'Task A',
+      type: 'task',
+      startDate: '2026-10-01',
+      endDate: '2026-10-10',
+      duration: 10,
+      slack: 0,
+      dependencies: [],
+      progress: 0,
+      color: 'indigo',
+    },
+    {
+      id: 'b',
+      name: 'Task B',
+      type: 'task',
+      startDate: '2026-10-02', // Early start that overlaps A
+      endDate: '2026-10-06',
+      duration: 5,
+      slack: 0,
+      dependencies: [],
+      progress: 0,
+      color: 'indigo',
+    },
+  ];
+  const cascadedAdd = addDependencyLink(unalignedItems, 'a', 'b', 'FS', true);
+  assert.equal(cascadedAdd.added, true);
+  const bCascaded = cascadedAdd.items.find((it) => it.id === 'b');
+  assert.equal(bCascaded.startDate, '2026-10-11', 'Task B start date must cascade to day after Task A ends');
+  assert.equal(bCascaded.endDate, '2026-10-15', 'Task B duration 5d must keep end date aligned');
+});
+
+test('SSR Verification: GanttWorkspace renders interactive dependency ports, SVG hit areas, endpoint handles, midpoint delete button, and docked dependency panel', async () => {
+  const { renderToString } = await import('react-dom/server');
+  const esbuild = await import('esbuild');
+
+  const bundle = await esbuild.build({
+    stdin: {
+      contents: `
+        import React from 'react';
+        import { GanttWorkspace } from './src/components/GanttWorkspace.tsx';
+        import { computeGanttMetrics } from './src/utils/ganttEngine.ts';
+
+        const sampleItems = [
+          {
+            id: 't-alpha',
+            projectId: 'proj-1',
+            name: 'Diseño UX',
+            type: 'task',
+            startDate: '2026-10-01',
+            endDate: '2026-10-05',
+            duration: 5,
+            slack: 0,
+            dependencies: [],
+            progress: 50,
+            color: 'indigo',
+          },
+          {
+            id: 't-beta',
+            projectId: 'proj-1',
+            name: 'Frontend Build',
+            type: 'task',
+            startDate: '2026-10-06',
+            endDate: '2026-10-15',
+            duration: 10,
+            slack: 0,
+            dependencies: ['t-alpha'],
+            progress: 10,
+            color: 'indigo',
+          },
+        ];
+
+        const computed = computeGanttMetrics(sampleItems);
+        const projects = [{ id: 'proj-1', name: 'Web App', color: 'indigo', isDemo: false }];
+
+        export function renderWorkspaceWithSelectedDependency() {
+          return React.createElement(GanttWorkspace, {
+            items: computed,
+            projects: projects,
+            groupByProject: true,
+            selectedProjectId: 'all',
+            selectedProjectIds: ['proj-1'],
+            zoom: 'd',
+            dayWidth: 24,
+            showCriticalPath: true,
+            showCpmFloat: true,
+            autoCascade: true,
+            arrowVisibility: 'all',
+            onUpdateItem: () => {},
+            onEditModal: () => {},
+            onDeleteItem: () => {},
+            onDuplicateItem: () => {},
+            onQuickAdd: () => {},
+            scrollContainerRef: { current: null },
+            initialSelectedDepLink: { predId: 't-alpha', succId: 't-beta' },
+          });
+        }
+      `,
+      resolveDir: path.resolve(__dirname, '..'),
+      sourcefile: 'dep-ssr-test.tsx',
+      loader: 'tsx',
+    },
+    bundle: true,
+    format: 'cjs',
+    platform: 'node',
+    write: false,
+    external: ['react', 'react-dom', 'react-dom/server'],
+  });
+
+  const fs = await import('node:fs/promises');
+  const tmpFile = path.resolve(__dirname, './.tmp-ssr-dep-bundle.cjs');
+  await fs.writeFile(tmpFile, bundle.outputFiles[0].text, 'utf8');
+
+  try {
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+    const html = renderToString(mod.renderWorkspaceWithSelectedDependency());
+
+    // 1. Interactive connector ports on timeline task bars (Input and Output)
+    assert.ok(html.includes('data-dep-port-in="t-alpha"'), 'Must render input port on task t-alpha');
+    assert.ok(html.includes('data-dep-port-out="t-alpha"'), 'Must render output port on task t-alpha');
+    assert.ok(html.includes('data-dep-port-in="t-beta"'), 'Must render input port on task t-beta');
+    assert.ok(html.includes('data-dep-port-out="t-beta"'), 'Must render output port on task t-beta');
+
+    // 2. Wide invisible hit-area path for easy clicking/hovering of arrows
+    assert.ok(
+      html.includes('data-dep-hit-area="t-alpha-&gt;t-beta"') ||
+        html.includes('data-dep-hit-area="t-alpha->t-beta"'),
+      'Must render wide hit-area path for dependency'
+    );
+
+    // 3. Draggable endpoint handles for moving source (tail) or target (head)
+    assert.ok(
+      html.includes('data-dep-handle-source="t-alpha-&gt;t-beta"') ||
+        html.includes('data-dep-handle-source="t-alpha->t-beta"'),
+      'Must render source handle to move predecessor'
+    );
+    assert.ok(
+      html.includes('data-dep-handle-target="t-alpha-&gt;t-beta"') ||
+        html.includes('data-dep-handle-target="t-alpha->t-beta"'),
+      'Must render target handle to move successor'
+    );
+
+    // 4. Midpoint quick-action pill with 1-click Delete button
+    assert.ok(
+      html.includes('data-dep-midpoint="t-alpha-&gt;t-beta"') ||
+        html.includes('data-dep-midpoint="t-alpha->t-beta"'),
+      'Must render midpoint quick-action pill'
+    );
+    assert.ok(
+      html.includes('data-dep-quick-delete="t-alpha-&gt;t-beta"') ||
+        html.includes('data-dep-quick-delete="t-alpha->t-beta"'),
+      'Must render 1-click delete button on midpoint'
+    );
+
+    // 5. Docked dependency panel for editing type or deleting
+    assert.ok(
+      html.includes('id="gantt-dependency-popover"') ||
+        html.includes('id="gantt-dep-panel"'),
+      'Must render docked dependency panel when dependency is selected'
+    );
+    assert.ok(html.includes('data-dep-type-btn="FS"'), 'Must render FS dependency type button');
+    assert.ok(html.includes('data-dep-type-btn="SS"'), 'Must render SS dependency type button');
+    assert.ok(html.includes('data-dep-delete-btn="true"'), 'Must render delete dependency button in panel');
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
+test('Milestone labels in calendar bar are centered, Nueva Tarea button renders at task list bottom, and clickable panels dismiss on outside click and Escape', async () => {
+  const { renderToString } = await import('react-dom/server');
+  const esbuild = await import('esbuild');
+
+  const bundle = await esbuild.build({
+    stdin: {
+      contents: `
+        import React from 'react';
+        import { GanttWorkspace } from './src/components/GanttWorkspace.tsx';
+        import { TaskFormModal } from './src/components/TaskFormModal.tsx';
+        import { computeGanttMetrics, getProjectTemplates } from './src/utils/ganttEngine.ts';
+
+        const tpl = getProjectTemplates()[0];
+        const computed = computeGanttMetrics(tpl.items);
+
+        export function renderWorkspaceStandard() {
+          return React.createElement(GanttWorkspace, {
+            items: computed,
+            projects: tpl.projects,
+            groupByProject: true,
+            selectedProjectId: 'all',
+            selectedProjectIds: tpl.projects.map(p => p.id),
+            zoom: 'd',
+            dayWidth: 24,
+            showCriticalPath: true,
+            showCpmFloat: true,
+            autoCascade: true,
+            arrowVisibility: 'all',
+            onUpdateItem: () => {},
+            onEditModal: () => {},
+            onDeleteItem: () => {},
+            onDuplicateItem: () => {},
+            onQuickAdd: () => {},
+            scrollContainerRef: { current: null },
+            initialSelectedItemId: 't-2',
+          });
+        }
+
+        export function renderTaskModal() {
+          return React.createElement(TaskFormModal, {
+            isOpen: true,
+            onClose: () => {},
+            onSave: () => {},
+            allItems: computed,
+            projects: tpl.projects,
+            defaultType: 'task',
+          });
+        }
+      `,
+      resolveDir: path.resolve(__dirname, '..'),
+      sourcefile: 'milestone-panel-test.tsx',
+      loader: 'tsx',
+    },
+    bundle: true,
+    format: 'cjs',
+    platform: 'node',
+    write: false,
+    external: ['react', 'react-dom', 'react-dom/server'],
+  });
+
+  const fs = await import('node:fs/promises');
+  const tmpFile = path.resolve(__dirname, './.tmp-ssr-milestone-panel.cjs');
+  await fs.writeFile(tmpFile, bundle.outputFiles[0].text, 'utf8');
+
+  try {
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+    const wsHtml = renderToString(mod.renderWorkspaceStandard());
+
+    // 1. Requirement 1: Centered milestone label in calendar bar / timeline
+    // Milestone container has w-0 so coordinate is centered exactly on day/diamond
+    assert.ok(
+      wsHtml.includes('w-0') && wsHtml.includes('data-milestone-guide="m-1"'),
+      'Milestone vertical guide container must have w-0 for precise centering'
+    );
+    // Top Diamond Pill Marker has left: 0 and translateX(calc(-50%...))
+    assert.ok(
+      wsHtml.includes('left:0') || wsHtml.includes('left: 0'),
+      'Milestone guide pill must anchor at left: 0 of w-0 container'
+    );
+    assert.ok(
+      wsHtml.includes('translateX(calc(-50%'),
+      'Milestone guide pill must shift by -50% to center perfectly on milestone date'
+    );
+    assert.ok(
+      wsHtml.includes('justify-center'),
+      'Milestone guide pill must justify-center its contents'
+    );
+    // Vertical dashed line must be centered at x=0 with -translate-x-1/2
+    assert.ok(
+      wsHtml.includes('-translate-x-1/2 border-l-2 border-dashed'),
+      'Milestone vertical guide line must be centered with -translate-x-1/2'
+    );
+    // Check that milestone diamond barLeft is coords.startX - 10 (338 = 348 - 10) for 20px diamond
+    assert.ok(
+      wsHtml.includes('data-timeline-milestone="m-1"') &&
+        wsHtml.includes('data-milestone-x="348"') &&
+        wsHtml.includes('style="left:338px" data-timeline-milestone="m-1"'),
+      'Milestone diamond barLeft must be coords.startX - 10 (338px) so its 20px center aligns with milestoneX (348px)'
+    );
+    // Ensure no broken Tailwind class top-11.5 is present
+    assert.ok(!wsHtml.includes('top-11.5'), 'Must not contain non-standard Tailwind class top-11.5');
+
+    // 2. Requirement 2: Nueva Tarea button at bottom of task list & unrepeated Nuevo Proyecto
+    assert.ok(
+      wsHtml.includes('data-quick-add-task-btn="true"'),
+      'Must render Nueva Tarea button with data-quick-add-task-btn'
+    );
+    assert.ok(
+      wsHtml.includes('<span>Nueva Tarea</span>'),
+      'Must render Nueva Tarea label'
+    );
+    assert.ok(
+      wsHtml.includes('<span>Nuevo Proyecto</span>'),
+      'Must render Nuevo Proyecto label without repeated + prefix'
+    );
+    assert.ok(
+      !wsHtml.includes('<span>+ Nuevo Proyecto</span>'),
+      'Must not have repeated + prefix on Nuevo Proyecto'
+    );
+
+    // 3. Requirement 3: Task detail inspection panel & TaskFormModal dismissibility
+    // Verify task inspection panel is rendered with data-selected-item-id
+    assert.ok(
+      wsHtml.includes('id="gantt-inspection-panel"'),
+      'Must render task inspection panel when selectedItemId is set'
+    );
+    assert.ok(
+      wsHtml.includes('data-selected-item-id="t-2"'),
+      'Inspection panel must show selected task t-2'
+    );
+    assert.ok(
+      wsHtml.includes('data-close-inspection-panel="true"'),
+      'Inspection panel must have close button'
+    );
+
+    // Verify TaskFormModal
+    const modalHtml = renderToString(mod.renderTaskModal());
+    assert.ok(
+      modalHtml.includes('Crear Nueva Tarea') || modalHtml.includes('Editar Tarea'),
+      'TaskFormModal must render task editor when isOpen'
+    );
+    assert.ok(
+      modalHtml.includes('fixed inset-0'),
+      'TaskFormModal must render fixed backdrop overlay'
+    );
+
+    // 4. Source code verification: Outside click & Escape event listeners are registered for all panels
+    const fsMod = await import('node:fs/promises');
+    const wsSrc = await fsMod.readFile(
+      path.resolve(__dirname, '../src/components/GanttWorkspace.tsx'),
+      'utf8'
+    );
+    const modalSrc = await fsMod.readFile(
+      path.resolve(__dirname, '../src/components/TaskFormModal.tsx'),
+      'utf8'
+    );
+    const appSrc = await fsMod.readFile(
+      path.resolve(__dirname, '../src/App.tsx'),
+      'utf8'
+    );
+
+    // Task inspection panel has both mousedown (outside click) and keydown (Escape) handlers
+    assert.ok(
+      wsSrc.includes('setSelectedItemId(null)') && wsSrc.includes("e.key === 'Escape'"),
+      'GanttWorkspace must dismiss selectedItemId on Escape key'
+    );
+    // Dependency popover has both mousedown (outside click) and keydown (Escape) handlers
+    assert.ok(
+      wsSrc.includes('setSelectedDepLink(null)') && wsSrc.includes('depPopoverRef.current'),
+      'GanttWorkspace must dismiss selectedDepLink on outside click'
+    );
+    // TaskFormModal has both mousedown (outside click) and keydown (Escape) handlers
+    assert.ok(
+      modalSrc.includes('modalCardRef.current') &&
+        modalSrc.includes("e.key === 'Escape'") &&
+        modalSrc.includes('onClose()'),
+      'TaskFormModal must close on outside click and Escape key'
+    );
+    // App settings and metrics drawer have outside click and Escape handlers
+    assert.ok(
+      appSrc.includes('setShowSettingsModal(false)') &&
+        appSrc.includes('settingsModalRef.current') &&
+        appSrc.includes('metricsDrawerRef.current') &&
+        appSrc.includes('setShowMetricsDrawer(false)'),
+      'App must dismiss settings modal and metrics drawer on outside click and Escape key'
+    );
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+

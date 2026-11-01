@@ -46,6 +46,7 @@ import {
   ZoomLevel,
 } from '../types/gantt';
 import {
+  addDependencyLink,
   calculateDurationFromDates,
   calculateEndDateFromDuration,
   clampDayWidth,
@@ -61,9 +62,41 @@ import {
   groupItemsByProject,
   MAX_DAY_WIDTH,
   MIN_DAY_WIDTH,
+  moveDependencyLink,
   OrthogonalPoint,
   parseDateSafe,
+  removeDependencyLink,
+   sanitizeGanttItem,
+  updateDependencyLinkType,
+  wouldCreateCycle,
 } from '../utils/ganttEngine';
+
+function computePolylineMidpoint(pts: OrthogonalPoint[]): OrthogonalPoint {
+  if (pts.length === 0) return { x: 0, y: 0 };
+  if (pts.length === 1) return pts[0];
+  let totalLen = 0;
+  const segLens: number[] = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const len = Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y);
+    segLens.push(len);
+    totalLen += len;
+  }
+  if (totalLen <= 0) return pts[0];
+  const half = totalLen / 2;
+  let acc = 0;
+  for (let i = 0; i < segLens.length; i++) {
+    const segLen = segLens[i];
+    if (acc + segLen >= half && segLen > 0) {
+      const t = (half - acc) / segLen;
+      return {
+        x: Math.round((pts[i].x + (pts[i + 1].x - pts[i].x) * t) * 10) / 10,
+        y: Math.round((pts[i].y + (pts[i + 1].y - pts[i].y) * t) * 10) / 10,
+      };
+    }
+    acc += segLen;
+  }
+  return pts[pts.length - 1];
+}
 
 interface GanttWorkspaceProps {
   items: ComputedGanttItem[];
@@ -82,6 +115,7 @@ interface GanttWorkspaceProps {
   arrowVisibility?: ArrowVisibility;
   onChangeArrowVisibility?: (visibility: ArrowVisibility) => void;
   onUpdateItem: (updated: GanttItem, cascade: boolean) => void;
+  onUpdateItems?: (nextItems: GanttItem[]) => void;
   onReorderItem?: (itemId: string, direction: 'up' | 'down') => void;
   onMoveItem?: (sourceId: string, targetId: string, position: 'before' | 'after') => void;
   onEditModal: (item: ComputedGanttItem) => void;
@@ -97,7 +131,11 @@ interface GanttWorkspaceProps {
   initialSelectedItemId?: string;
   initialHoveredItemId?: string;
   initialCursorScrubber?: { x: number; date: Date };
+  initialSelectedDepLink?: { predId: string; succId: string } | null;
+  initialHoveredDepKey?: string | null;
+  initialConnectModeSource?: { itemId: string; role: 'pred' | 'succ' } | null;
 }
+
 
 type DisplayRow =
   | {
@@ -251,6 +289,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   arrowVisibility: controlledArrowVisibility,
   onChangeArrowVisibility,
   onUpdateItem,
+  onUpdateItems,
   onReorderItem,
   onMoveItem,
   onEditModal,
@@ -266,6 +305,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   initialSelectedItemId,
   initialHoveredItemId,
   initialCursorScrubber,
+  initialSelectedDepLink,
+  initialHoveredDepKey,
+  initialConnectModeSource,
 }) => {
   const [hoveredId, setHoveredId] = useState<string | null>(
     initialHoveredItemId || null
@@ -273,11 +315,48 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   const [selectedItemId, setSelectedItemId] = useState<string | null>(
     initialSelectedItemId || null
   );
+  const [selectedDepLink, setSelectedDepLink] = useState<{
+    predId: string;
+    succId: string;
+  } | null>(initialSelectedDepLink || null);
+  const inspectionPanelRef = useRef<HTMLElement>(null);
+  const depPopoverRef = useRef<HTMLElement>(null);
+  const [hoveredDepKey, setHoveredDepKey] = useState<string | null>(
+    initialHoveredDepKey || null
+  );
+  const [connectModeSource, setConnectModeSource] = useState<{
+    itemId: string;
+    role: 'pred' | 'succ';
+  } | null>(initialConnectModeSource || null);
+  const [reconnectMode, setReconnectMode] = useState<{
+    oldPredId: string;
+    oldSuccId: string;
+    endpoint: 'source' | 'target';
+    depType: DependencyType;
+  } | null>(null);
+  const [depDragState, setDepDragState] = useState<{
+    mode: 'create' | 'move-source' | 'move-target';
+    originPort?: 'out' | 'in';
+    fixedItemId: string;
+    oldPredId?: string;
+    oldSuccId?: string;
+    depType: DependencyType;
+    startX: number;
+    startY: number;
+    cursorX: number;
+    cursorY: number;
+    hoveredTargetId: string | null;
+  } | null>(null);
+  const [depFeedback, setDepFeedback] = useState<{
+    message: string;
+    tone: 'success' | 'error' | 'info';
+  } | null>(null);
   const [cursorScrubber, setCursorScrubber] = useState<{
     x: number;
     date: Date;
   } | null>(initialCursorScrubber || null);
   const hasDraggedRef = useRef<boolean>(false);
+
   const [splitWidth, setSplitWidth] = useState<number>(480);
   const [showTable, setShowTable] = useState<boolean>(true);
   const [wheelZoomEnabled, setWheelZoomEnabled] = useState<boolean>(true);
@@ -351,6 +430,78 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isCreatingProject, newProjectName]);
+
+  // Outside click & escape handlers to dismiss task inspection panel
+  useEffect(() => {
+    if (!selectedItemId) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (
+        inspectionPanelRef.current &&
+        !inspectionPanelRef.current.contains(e.target as Node)
+      ) {
+        const target = e.target as HTMLElement | null;
+        if (target?.closest('[data-timeline-task], [data-timeline-milestone], [data-task-row]')) {
+          return;
+        }
+        setSelectedItemId(null);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSelectedItemId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectedItemId]);
+
+  // Outside click & escape handlers to dismiss dependency details popover
+  useEffect(() => {
+    if (!selectedDepLink) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (
+        depPopoverRef.current &&
+        !depPopoverRef.current.contains(e.target as Node)
+      ) {
+        const target = e.target as HTMLElement | null;
+        if (target?.closest('[data-dep-link-id], [data-dep-hit-area], [data-dep-midpoint]')) {
+          return;
+        }
+        setSelectedDepLink(null);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSelectedDepLink(null);
+        setReconnectMode(null);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectedDepLink]);
+
+  // Cancel interactive connection modes with Escape key
+  useEffect(() => {
+    if (!connectModeSource && !reconnectMode) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setConnectModeSource(null);
+        setReconnectMode(null);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [connectModeSource, reconnectMode]);
 
   const toggleVisibleColumn = (key: keyof typeof visibleColumns) => {
     setVisibleColumns((prev) => {
@@ -1098,12 +1249,223 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     window.addEventListener('mouseup', onMouseUp);
   };
 
+  const showDepToast = (
+    message: string,
+    tone: 'success' | 'error' | 'info' = 'info'
+  ) => {
+    setDepFeedback({ message, tone });
+    if (typeof window !== 'undefined') {
+      window.setTimeout(() => {
+        setDepFeedback((prev) => (prev?.message === message ? null : prev));
+      }, 2800);
+    }
+  };
+
+  const commitAddDependency = (
+    predId: string,
+    succId: string,
+    depType: DependencyType = 'FS'
+  ): boolean => {
+    const res = addDependencyLink(items, predId, succId, depType, autoCascade);
+    if (!res.added) {
+      if (res.error === 'cycle') {
+        showDepToast(
+          'No se puede conectar: generaría una dependencia circular (ciclo).',
+          'error'
+        );
+      } else if (res.error === 'self') {
+        showDepToast('Una tarea no puede depender de sí misma.', 'error');
+      } else if (res.error === 'duplicate') {
+        showDepToast('Esta dependencia ya existe entre ambas tareas.', 'info');
+      }
+      return false;
+    }
+
+    if (onUpdateItems) {
+      onUpdateItems(res.items);
+    } else {
+      const nonCascaded = addDependencyLink(items, predId, succId, depType, false);
+      const updatedSucc = nonCascaded.items.find((it) => it.id === succId);
+      if (updatedSucc) {
+        onUpdateItem(updatedSucc, autoCascade);
+      }
+    }
+    showDepToast('Dependencia creada en el diagrama', 'success');
+    return true;
+  };
+
+  const commitRemoveDependency = (predId: string, succId: string): boolean => {
+    const res = removeDependencyLink(items, predId, succId, false);
+    if (!res.removed) return false;
+
+    if (onUpdateItems) {
+      onUpdateItems(res.items);
+    } else {
+      const updatedSucc = res.items.find((it) => it.id === succId);
+      if (updatedSucc) {
+        onUpdateItem(updatedSucc, false);
+      }
+    }
+
+    setSelectedDepLink((prev) =>
+      prev && prev.predId === predId && prev.succId === succId ? null : prev
+    );
+    setHoveredDepKey((prev) =>
+      prev === `dep-${predId}-${succId}` ? null : prev
+    );
+    showDepToast('Dependencia eliminada', 'info');
+    return true;
+  };
+
+  const commitMoveDependency = (
+    oldPredId: string,
+    oldSuccId: string,
+    newPredId: string,
+    newSuccId: string,
+    depType?: DependencyType
+  ): boolean => {
+    const res = moveDependencyLink(
+      items,
+      oldPredId,
+      oldSuccId,
+      newPredId,
+      newSuccId,
+      depType,
+      autoCascade
+    );
+    if (!res.moved) {
+      if (res.error === 'cycle') {
+        showDepToast(
+          'No se puede mover la dependencia: generaría un ciclo circular.',
+          'error'
+        );
+      } else if (res.error === 'self') {
+        showDepToast('Una tarea no puede depender de sí misma.', 'error');
+      } else if (res.error === 'duplicate') {
+        showDepToast('Esa dependencia ya existe en la tarea destino.', 'info');
+      }
+      return false;
+    }
+
+    if (onUpdateItems) {
+      onUpdateItems(res.items);
+    } else {
+      const nonCascaded = moveDependencyLink(
+        items,
+        oldPredId,
+        oldSuccId,
+        newPredId,
+        newSuccId,
+        depType,
+        false
+      );
+      if (oldSuccId !== newSuccId) {
+        const updatedOldSucc = nonCascaded.items.find((it) => it.id === oldSuccId);
+        if (updatedOldSucc) {
+          onUpdateItem(updatedOldSucc, false);
+        }
+      }
+      const updatedNewSucc = nonCascaded.items.find((it) => it.id === newSuccId);
+      if (updatedNewSucc) {
+        onUpdateItem(updatedNewSucc, autoCascade);
+      }
+    }
+
+    setSelectedDepLink((prev) =>
+      prev && prev.predId === oldPredId && prev.succId === oldSuccId
+        ? { predId: newPredId, succId: newSuccId }
+        : prev
+    );
+    showDepToast('Dependencia movida correctamente', 'success');
+    return true;
+  };
+
+  const commitUpdateDependencyType = (
+    predId: string,
+    succId: string,
+    depType: DependencyType
+  ): boolean => {
+    const res = updateDependencyLinkType(items, predId, succId, depType, autoCascade);
+    if (!res.updated) return false;
+
+    if (onUpdateItems) {
+      onUpdateItems(res.items);
+    } else {
+      const nonCascaded = updateDependencyLinkType(items, predId, succId, depType, false);
+      const updatedSucc = nonCascaded.items.find((it) => it.id === succId);
+      if (updatedSucc) {
+        onUpdateItem(updatedSucc, autoCascade);
+      }
+    }
+    showDepToast(`Relación actualizada a ${depType}`, 'success');
+    return true;
+  };
+
+  // Keyboard shortcuts for deleting selected dependency (Delete / Backspace) or cancelling connect/select modes (Escape)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setConnectModeSource(null);
+        setReconnectMode(null);
+        setDepDragState(null);
+        setSelectedDepLink(null);
+        setSelectedItemId(null);
+        return;
+      }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedDepLink) {
+        const activeEl = document.activeElement as HTMLElement | null;
+        if (
+          activeEl &&
+          (activeEl.tagName === 'INPUT' ||
+            activeEl.tagName === 'TEXTAREA' ||
+            activeEl.tagName === 'SELECT' ||
+            activeEl.isContentEditable)
+        ) {
+          return;
+        }
+        e.preventDefault();
+        commitRemoveDependency(selectedDepLink.predId, selectedDepLink.succId);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedDepLink, items, autoCascade]);
+
   const handleBarClick = (e: React.MouseEvent, itemId: string) => {
     e.stopPropagation();
     if (hasDraggedRef.current) {
       hasDraggedRef.current = false;
       return;
     }
+    if (connectModeSource) {
+      if (connectModeSource.itemId === itemId) {
+        setConnectModeSource(null);
+        return;
+      }
+      const predId =
+        connectModeSource.role === 'pred' ? connectModeSource.itemId : itemId;
+      const succId =
+        connectModeSource.role === 'pred' ? itemId : connectModeSource.itemId;
+      commitAddDependency(predId, succId, 'FS');
+      setConnectModeSource(null);
+      return;
+    }
+    if (reconnectMode) {
+      const newPredId =
+        reconnectMode.endpoint === 'source' ? itemId : reconnectMode.oldPredId;
+      const newSuccId =
+        reconnectMode.endpoint === 'target' ? itemId : reconnectMode.oldSuccId;
+      commitMoveDependency(
+        reconnectMode.oldPredId,
+        reconnectMode.oldSuccId,
+        newPredId,
+        newSuccId,
+        reconnectMode.depType
+      );
+      setReconnectMode(null);
+      return;
+    }
+    setSelectedDepLink(null);
     setSelectedItemId((prev) => (prev === itemId ? null : itemId));
   };
 
@@ -1197,6 +1559,230 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     return map;
   }, [displayRows, dragState, timelineStart, dayWidth]);
 
+  // Interactive pointer drag handler for creating new dependencies from task/milestone ports
+  // or moving/reconnecting existing dependency arrow endpoints directly on the diagram
+  const handleStartDependencyDrag = (
+    e: React.MouseEvent,
+    config: {
+      mode: 'create' | 'move-source' | 'move-target';
+      originPort?: 'out' | 'in';
+      fixedItemId: string;
+      oldPredId?: string;
+      oldSuccId?: string;
+      depType?: DependencyType;
+    }
+  ) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+
+    const fixedCoords = itemRowMap.get(config.fixedItemId);
+    if (!fixedCoords) return;
+
+    const isFixedPredecessor =
+      (config.mode === 'create' && config.originPort === 'out') ||
+      config.mode === 'move-target';
+
+    const anchorX = isFixedPredecessor
+      ? fixedCoords.item.type === 'milestone'
+        ? fixedCoords.startX + 11
+        : fixedCoords.endX
+      : fixedCoords.item.type === 'milestone'
+      ? fixedCoords.startX - 11
+      : fixedCoords.startX;
+    const anchorY = fixedCoords.centerY;
+
+    const canvasEl = canvasRef.current;
+    const initRect = canvasEl?.getBoundingClientRect();
+    const initX = initRect ? e.clientX - initRect.left : anchorX;
+    const initY = initRect ? e.clientY - initRect.top : anchorY;
+    const startClientX = e.clientX;
+    const startClientY = e.clientY;
+    let hasMoved = false;
+    let latestTargetId: string | null = null;
+
+    setDepDragState({
+      mode: config.mode,
+      originPort: config.originPort,
+      fixedItemId: config.fixedItemId,
+      oldPredId: config.oldPredId,
+      oldSuccId: config.oldSuccId,
+      depType: config.depType || 'FS',
+      startX: anchorX,
+      startY: anchorY,
+      cursorX: initX,
+      cursorY: initY,
+      hoveredTargetId: null,
+    });
+
+    const resolveTargetItemFromPoint = (
+      clientX: number,
+      clientY: number,
+      canvasY: number
+    ): string | null => {
+      if (typeof document !== 'undefined' && document.elementsFromPoint) {
+        const els = document.elementsFromPoint(clientX, clientY);
+        for (const el of els) {
+          const htmlEl = el as HTMLElement;
+          if (!htmlEl || !htmlEl.closest) continue;
+          const portEl = htmlEl.closest(
+            '[data-dep-port-in], [data-dep-port-out]'
+          ) as HTMLElement | null;
+          if (portEl) {
+            const pid =
+              portEl.getAttribute('data-dep-port-in') ||
+              portEl.getAttribute('data-dep-port-out');
+            if (pid && pid !== config.fixedItemId) return pid;
+          }
+          const barEl = htmlEl.closest(
+            '[data-timeline-task], [data-timeline-milestone]'
+          ) as HTMLElement | null;
+          if (barEl) {
+            const bid =
+              barEl.getAttribute('data-timeline-task') ||
+              barEl.getAttribute('data-timeline-milestone');
+            if (bid && bid !== config.fixedItemId) return bid;
+          }
+          const rowEl = htmlEl.closest('[data-task-row]') as HTMLElement | null;
+          if (rowEl) {
+            const rid = rowEl.getAttribute('data-task-row');
+            if (rid && rid !== config.fixedItemId) return rid;
+          }
+        }
+      }
+
+      const rowIndex = Math.floor(canvasY / ROW_HEIGHT);
+      if (rowIndex >= 0 && rowIndex < displayRows.length) {
+        const row = displayRows[rowIndex];
+        if (row.kind === 'item' && row.item.id !== config.fixedItemId) {
+          return row.item.id;
+        }
+      }
+      return null;
+    };
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const dist = Math.hypot(
+        moveEvent.clientX - startClientX,
+        moveEvent.clientY - startClientY
+      );
+      if (dist > 4) {
+        hasMoved = true;
+      }
+      const rect = canvasRef.current?.getBoundingClientRect();
+      const curX = rect ? moveEvent.clientX - rect.left : initX;
+      const curY = rect ? moveEvent.clientY - rect.top : initY;
+      const targetId = resolveTargetItemFromPoint(
+        moveEvent.clientX,
+        moveEvent.clientY,
+        curY
+      );
+      latestTargetId = targetId;
+
+      setDepDragState((prev) =>
+        prev
+          ? {
+              ...prev,
+              cursorX: curX,
+              cursorY: curY,
+              hoveredTargetId: targetId,
+            }
+          : null
+      );
+    };
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      setDepDragState(null);
+
+      if (!hasMoved) {
+        // Click without dragging: toggle click-to-connect or click-to-reconnect mode
+        if (config.mode === 'create') {
+          if (
+            connectModeSource &&
+            connectModeSource.itemId !== config.fixedItemId
+          ) {
+            const predId =
+              connectModeSource.role === 'pred'
+                ? connectModeSource.itemId
+                : config.fixedItemId;
+            const succId =
+              connectModeSource.role === 'pred'
+                ? config.fixedItemId
+                : connectModeSource.itemId;
+            commitAddDependency(predId, succId, 'FS');
+            setConnectModeSource(null);
+          } else {
+            const nextRole: 'pred' | 'succ' =
+              config.originPort === 'in' ? 'succ' : 'pred';
+            setReconnectMode(null);
+            setSelectedDepLink(null);
+            setConnectModeSource((prev) =>
+              prev && prev.itemId === config.fixedItemId && prev.role === nextRole
+                ? null
+                : { itemId: config.fixedItemId, role: nextRole }
+            );
+          }
+        } else if (
+          (config.mode === 'move-source' || config.mode === 'move-target') &&
+          config.oldPredId &&
+          config.oldSuccId
+        ) {
+          setSelectedItemId(null);
+          setSelectedDepLink({
+            predId: config.oldPredId,
+            succId: config.oldSuccId,
+          });
+          setReconnectMode({
+            oldPredId: config.oldPredId,
+            oldSuccId: config.oldSuccId,
+            endpoint: config.mode === 'move-source' ? 'source' : 'target',
+            depType: config.depType || 'FS',
+          });
+        }
+        return;
+      }
+
+      if (latestTargetId && latestTargetId !== config.fixedItemId) {
+        if (config.mode === 'create') {
+          const predId =
+            config.originPort === 'in' ? latestTargetId : config.fixedItemId;
+          const succId =
+            config.originPort === 'in' ? config.fixedItemId : latestTargetId;
+          commitAddDependency(predId, succId, config.depType || 'FS');
+        } else if (
+          config.mode === 'move-source' &&
+          config.oldPredId &&
+          config.oldSuccId
+        ) {
+          commitMoveDependency(
+            config.oldPredId,
+            config.oldSuccId,
+            latestTargetId,
+            config.oldSuccId,
+            config.depType
+          );
+        } else if (
+          config.mode === 'move-target' &&
+          config.oldPredId &&
+          config.oldSuccId
+        ) {
+          commitMoveDependency(
+            config.oldPredId,
+            config.oldSuccId,
+            config.oldPredId,
+            latestTargetId,
+            config.depType
+          );
+        }
+      }
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
   // Selected item and project metadata for the docked top-right inspection panel
   const selectedItem = useMemo(
     () => (selectedItemId ? enrichedItemById.get(selectedItemId) || null : null),
@@ -1232,6 +1818,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   // Check if tasks are directly connected to highlight on hover or selection
   const relatedIds = useMemo(() => {
     const set = new Set<string>();
+    if (selectedDepLink) {
+      set.add(selectedDepLink.predId);
+      set.add(selectedDepLink.succId);
+    }
     const activeId = hoveredId || selectedItemId;
     if (!activeId) return set;
     set.add(activeId);
@@ -1244,7 +1834,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       }
     }
     return set;
-  }, [hoveredId, selectedItemId, items]);
+  }, [hoveredId, selectedItemId, selectedDepLink, items]);
 
   // Memoized dependency links with channel separation (multi-lane routing),
   // unified left-anchor entrance, smooth rounded corners (fillet curves), and density/visibility filtering
@@ -1282,6 +1872,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       key: string;
       predId: string;
       succId: string;
+      depType: DependencyType;
+      x1: number;
+      y1: number;
+      x2: number;
+      y2: number;
+      midPoint: OrthogonalPoint;
       dPath: string;
       strokeColor: string;
       strokeWidth: number;
@@ -1289,6 +1885,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       hasConflict: boolean;
       isHighlighted: boolean;
       isCriticalLink: boolean;
+      isSelectedLink: boolean;
+      isHoveredLink: boolean;
     }> = [];
 
     for (const succ of items) {
@@ -1322,8 +1920,14 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
         const depType: DependencyType = succ.dependencyTypes?.[predId] || 'FS';
         const fromStart = depType === 'SS' || depType === 'SF';
+        const linkKey = `dep-${predId}-${succ.id}`;
+        const isSelectedLink =
+          selectedDepLink?.predId === predId && selectedDepLink?.succId === succ.id;
+        const isHoveredLink = hoveredDepKey === linkKey;
 
         const isHighlighted =
+          isSelectedLink ||
+          isHoveredLink ||
           hoveredId === succ.id ||
           hoveredId === predId ||
           selectedItemId === succ.id ||
@@ -1414,30 +2018,43 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         }
 
         const dPath = createRoundedOrthogonalPath(waypoints, 6);
+        const midPoint = computePolylineMidpoint(waypoints);
 
-        const strokeColor = isCriticalLink
+        const strokeColor = isSelectedLink
+          ? '#4f46e5'
+          : isCriticalLink
           ? '#f43f5e'
           : isHighlighted
           ? '#4f46e5'
           : '#94a3b8';
 
-        const markerEnd = isCriticalLink
+        const markerEnd = isSelectedLink
+          ? 'url(#arrow-active)'
+          : isCriticalLink
           ? 'url(#arrow-critical)'
           : isHighlighted
           ? 'url(#arrow-active)'
           : 'url(#arrow-normal)';
 
         list.push({
-          key: `dep-${predId}-${succ.id}`,
+          key: linkKey,
           predId,
           succId: succ.id,
+          depType,
+          x1,
+          y1,
+          x2,
+          y2,
+          midPoint,
           dPath,
           strokeColor,
-          strokeWidth: isHighlighted || isCriticalLink ? 2.2 : 1.5,
+          strokeWidth: isSelectedLink || isHoveredLink ? 2.6 : isHighlighted || isCriticalLink ? 2.2 : 1.5,
           markerEnd,
           hasConflict: succ.hasConflict,
           isHighlighted,
           isCriticalLink,
+          isSelectedLink,
+          isHoveredLink,
         });
       });
     }
@@ -1448,9 +2065,143 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     itemRowMap,
     hoveredId,
     selectedItemId,
+    selectedDepLink,
+    hoveredDepKey,
     showCriticalPath,
     arrowVisibility,
   ]);
+
+  // Live SVG drag preview path when creating or moving a dependency arrow on the diagram
+  const depDragPreview = useMemo(() => {
+    if (!depDragState) return null;
+    const isFixedPred =
+      (depDragState.mode === 'create' && depDragState.originPort === 'out') ||
+      depDragState.mode === 'move-target';
+
+    let x1 = depDragState.startX;
+    let y1 = depDragState.startY;
+    let x2 = depDragState.cursorX;
+    let y2 = depDragState.cursorY;
+
+    if (!isFixedPred) {
+      x2 = depDragState.startX;
+      y2 = depDragState.startY;
+      x1 = depDragState.cursorX;
+      y1 = depDragState.cursorY;
+    }
+
+    let isValidTarget = true;
+    let statusLabel =
+      depDragState.mode === 'create'
+        ? 'Arrastra hacia una tarea destino...'
+        : 'Arrastra hacia otra tarea para reconectar...';
+
+    if (depDragState.hoveredTargetId) {
+      const targetCoords = itemRowMap.get(depDragState.hoveredTargetId);
+      const targetItem = enrichedItemById.get(depDragState.hoveredTargetId);
+      const fixedItem = enrichedItemById.get(depDragState.fixedItemId);
+
+      if (targetCoords) {
+        if (isFixedPred) {
+          x2 =
+            targetCoords.item.type === 'milestone'
+              ? targetCoords.startX - 11
+              : targetCoords.startX;
+          y2 = targetCoords.centerY;
+        } else {
+          x1 =
+            targetCoords.item.type === 'milestone'
+              ? targetCoords.startX + 11
+              : targetCoords.endX;
+          y1 = targetCoords.centerY;
+        }
+      }
+
+      if (depDragState.mode === 'create') {
+        const candidatePred = isFixedPred
+          ? depDragState.fixedItemId
+          : depDragState.hoveredTargetId;
+        const candidateSucc = isFixedPred
+          ? depDragState.hoveredTargetId
+          : depDragState.fixedItemId;
+        const check = addDependencyLink(
+          items,
+          candidatePred,
+          candidateSucc,
+          depDragState.depType,
+          false
+        );
+        isValidTarget = check.added;
+        if (check.added) {
+          const pItem = enrichedItemById.get(candidatePred);
+          const sItem = enrichedItemById.get(candidateSucc);
+          statusLabel = `Conectar #${pItem?.wbsCode || pItem?.wbs} → #${
+            sItem?.wbsCode || sItem?.wbs
+          } (${depDragState.depType})`;
+        } else if (check.error === 'cycle') {
+          statusLabel = 'Ciclo no permitido';
+        } else if (check.error === 'duplicate') {
+          statusLabel = 'Dependencia ya existente';
+        }
+      } else if (depDragState.oldPredId && depDragState.oldSuccId) {
+        const candidatePred =
+          depDragState.mode === 'move-source'
+            ? depDragState.hoveredTargetId
+            : depDragState.oldPredId;
+        const candidateSucc =
+          depDragState.mode === 'move-target'
+            ? depDragState.hoveredTargetId
+            : depDragState.oldSuccId;
+        const check = moveDependencyLink(
+          items,
+          depDragState.oldPredId,
+          depDragState.oldSuccId,
+          candidatePred,
+          candidateSucc,
+          depDragState.depType,
+          false
+        );
+        isValidTarget = check.moved;
+        if (check.moved) {
+          const pItem = enrichedItemById.get(candidatePred);
+          const sItem = enrichedItemById.get(candidateSucc);
+          statusLabel = `Mover a #${pItem?.wbsCode || pItem?.wbs} → #${
+            sItem?.wbsCode || sItem?.wbs
+          }`;
+        } else if (check.error === 'cycle') {
+          statusLabel = 'Ciclo no permitido';
+        } else if (check.error === 'duplicate') {
+          statusLabel = 'Dependencia ya existente';
+        } else if (targetItem && fixedItem) {
+          isValidTarget = false;
+        }
+      }
+    }
+
+    const midX = (x1 + x2) / 2;
+    const previewWaypoints: OrthogonalPoint[] =
+      Math.abs(y1 - y2) < 2
+        ? [
+            { x: x1, y: y1 },
+            { x: x2, y: y2 },
+          ]
+        : [
+            { x: x1, y: y1 },
+            { x: midX, y: y1 },
+            { x: midX, y: y2 },
+            { x: x2, y: y2 },
+          ];
+
+    return {
+      dPath: createRoundedOrthogonalPath(previewWaypoints, 6),
+      x1,
+      y1,
+      x2,
+      y2,
+      isValidTarget,
+      statusLabel,
+    };
+  }, [depDragState, itemRowMap, enrichedItemById, items]);
 
   const totalCanvasWidth = timelineDays.length * dayWidth;
   const totalCanvasHeight = Math.max(displayRows.length * ROW_HEIGHT + 56, 360);
@@ -1498,7 +2249,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
   // Track cursor position and exact calendar date over timeline canvas for the date scrubber
   const handleTimelineMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (dragState || isResizingSplitRef.current) {
+    if (dragState || depDragState || isResizingSplitRef.current) {
       if (cursorScrubber) setCursorScrubber(null);
       return;
     }
@@ -1521,6 +2272,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   };
 
   const handleTimelineMouseLeave = () => {
+
     setCursorScrubber(null);
   };
 
@@ -2177,24 +2929,45 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       );
                     })}
 
-                    {/* Inline Project Creator Row directly below last project */}
+                    {/* Inline Actions Bar below the tasks & projects table */}
                     <div
                       ref={newProjectFormRef}
                       style={{ minHeight: 48, minWidth: tableMinWidth }}
-                      className="flex items-center px-3 py-2 bg-slate-50/50 dark:bg-zinc-900/50 border-t border-slate-200/70 dark:border-zinc-800/70"
+                      className="flex items-center gap-2 px-3 py-2 bg-slate-50/50 dark:bg-zinc-900/50 border-t border-slate-200/70 dark:border-zinc-800/70"
                     >
+                      <button
+                        type="button"
+                        data-quick-add-task-btn="true"
+                        onClick={() => {
+                          const targetProjId =
+                            visibleProjectGroups.length > 0
+                              ? visibleProjectGroups[visibleProjectGroups.length - 1].project.id
+                              : undefined;
+                          onQuickAdd('task', targetProjId);
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 transition cursor-pointer"
+                        title="Crear nueva tarea"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Nueva Tarea</span>
+                      </button>
+
+                      <div className="w-px h-4 bg-slate-200 dark:bg-zinc-800" />
+
                       {!isCreatingProject ? (
                         <button
                           type="button"
+                          data-create-project-btn="true"
                           onClick={() => {
                             setIsCreatingProject(true);
                             setNewProjectName('');
                             setNewProjectColor('indigo');
                           }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 transition cursor-pointer"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 dark:text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition cursor-pointer"
+                          title="Crear nuevo proyecto"
                         >
                           <Plus className="w-3.5 h-3.5" />
-                          <span>+ Nuevo Proyecto</span>
+                          <span>Nuevo Proyecto</span>
                         </button>
                       ) : (
                         <form
@@ -2288,7 +3061,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         {/* RIGHT PANE: Interactive Gantt Timeline Canvas */}
         <div
           ref={scrollContainerRef}
-          onClick={() => setSelectedItemId(null)}
+          onClick={() => {
+            setSelectedItemId(null);
+            setSelectedDepLink(null);
+          }}
           onMouseMove={handleTimelineMouseMove}
           onMouseLeave={handleTimelineMouseLeave}
           className="flex-1 overflow-x-auto overflow-y-hidden relative bg-white dark:bg-slate-950 select-none"
@@ -2470,7 +3246,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                 ({ milestone: m, milestoneX, tier, badgeClampOffset }) => {
                   const isCrit = showCriticalPath && m.isCritical;
                   const tierTopClass =
-                    tier === 1 ? 'top-6' : tier === 2 ? 'top-11.5' : 'top-0.5';
+                    tier === 1 ? 'top-6' : tier === 2 ? 'top-[46px]' : 'top-0.5';
                   const mTheme = COLOR_STYLES[m.color] || COLOR_STYLES.amber;
 
                   return (
@@ -2480,27 +3256,28 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       data-milestone-x={milestoneX}
                       data-milestone-color={m.color}
                       style={{ left: milestoneX }}
-                      className="absolute top-0 bottom-0 pointer-events-none z-10 flex flex-col items-center"
+                      className="absolute top-0 bottom-0 pointer-events-none z-10 w-0"
                     >
                       {/* Top Diamond Pill Marker */}
                       <div
                         style={{
+                          left: 0,
                           transform: `translateX(calc(-50% + ${badgeClampOffset}px))`,
                         }}
-                        className={`absolute ${tierTopClass} flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold shadow-sm whitespace-nowrap z-20 ${
+                        className={`absolute ${tierTopClass} flex items-center justify-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold shadow-sm whitespace-nowrap z-20 ${
                           isCrit
                             ? 'bg-rose-500 text-white ring-1 ring-rose-400'
                             : mTheme.guidePill
                         }`}
                         title={`Hito: ${m.name} (${formatDateDisplay(m.startDate, 'dd MMM yyyy')})`}
                       >
-                        <span className="text-[8px] leading-none">◆</span>
-                        <span className="max-w-[80px] sm:max-w-[120px] truncate">{m.name}</span>
+                        <span className="text-[8px] leading-none shrink-0">◆</span>
+                        <span className="max-w-[80px] sm:max-w-[120px] truncate text-center">{m.name}</span>
                       </div>
 
                       {/* Vertical Dashed Guide Line from Top to Bottom */}
                       <div
-                        className={`w-0 h-full border-l-2 border-dashed ${mTheme.guideLine}`}
+                        className={`absolute top-0 bottom-0 left-0 w-0 -translate-x-1/2 border-l-2 border-dashed ${mTheme.guideLine}`}
                       />
                     </div>
                   );
@@ -2537,6 +3314,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   <div
                     key={`row-bg-${row.rowId}`}
                     style={{ height: ROW_HEIGHT }}
+                    onMouseEnter={() => setHoveredId(row.item.id)}
+                    onMouseLeave={() => setHoveredId(null)}
                     className={`border-b border-slate-100 dark:border-slate-800/70 transition-colors ${
                       isHovered ? 'bg-indigo-50/40 dark:bg-indigo-950/20' : ''
                     }`}
@@ -2545,12 +3324,14 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               })}
 
               {/* Orthogonal SVG Dependency Lines Overlay */}
-              {arrowVisibility !== 'none' && (
+              {(arrowVisibility !== 'none' || depDragPreview) && (
                 <svg
                   width={totalCanvasWidth}
                   height={displayRows.length * ROW_HEIGHT + 52}
-                  className="absolute inset-0 pointer-events-none z-10 overflow-visible"
-                  data-arrow-visibility={arrowVisibility}
+                  className="absolute inset-0 pointer-events-none z-[25] overflow-visible"
+                  {...(arrowVisibility !== 'none'
+                    ? { 'data-arrow-visibility': arrowVisibility }
+                    : {})}
                 >
                   <defs>
                     <marker
@@ -2588,22 +3369,262 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     </marker>
                   </defs>
 
-                  {dependencyLinks.map((link) => (
-                    <path
-                      key={link.key}
-                      d={link.dPath}
-                      fill="none"
-                      stroke={link.strokeColor}
-                      strokeWidth={link.strokeWidth}
-                      strokeDasharray={link.hasConflict ? '4 3' : undefined}
-                      markerEnd={link.markerEnd}
-                      className="transition-opacity duration-150"
-                      style={{
-                        opacity: hoveredId && !link.isHighlighted ? 0.25 : 0.95,
-                      }}
-                    />
-                  ))}
+                  {dependencyLinks.map((link) => {
+                    const isInteractiveActive =
+                      link.isSelectedLink || link.isHoveredLink;
+                    const canInteract = !depDragState && !dragState;
+
+                    return (
+                      <g
+                        key={link.key}
+                        data-dep-link={`${link.predId}->${link.succId}`}
+                      >
+                        {/* Visible Orthogonal Dependency Path */}
+                        <path
+                          d={link.dPath}
+                          data-dep-arrow={`${link.predId}->${link.succId}`}
+                          data-dep-type={link.depType}
+                          fill="none"
+                          stroke={link.strokeColor}
+                          strokeWidth={link.strokeWidth}
+                          strokeDasharray={link.hasConflict ? '4 3' : undefined}
+                          markerEnd={link.markerEnd}
+                          className="transition-opacity duration-150"
+                          style={{
+                            opacity:
+                              hoveredId && !link.isHighlighted ? 0.25 : 0.95,
+                          }}
+                        />
+
+                        {/* Wide Invisible Hit-Area Path so arrows are easy to click and hover */}
+                        <path
+                          d={link.dPath}
+                          data-dep-hit-area={`${link.predId}->${link.succId}`}
+                          fill="none"
+                          stroke="transparent"
+                          strokeWidth={14}
+                          style={{
+                            pointerEvents: canInteract ? 'stroke' : 'none',
+                          }}
+                          className="cursor-pointer"
+                          onMouseEnter={() => setHoveredDepKey(link.key)}
+                          onMouseLeave={() =>
+                            setHoveredDepKey((prev) =>
+                              prev === link.key ? null : prev
+                            )
+                          }
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedItemId(null);
+                            setConnectModeSource(null);
+                            setReconnectMode(null);
+                            setSelectedDepLink((prev) =>
+                              prev?.predId === link.predId &&
+                              prev?.succId === link.succId
+                                ? null
+                                : { predId: link.predId, succId: link.succId }
+                            );
+                          }}
+                        >
+                          <title>{`Dependencia (${link.depType}) — Haz clic para editar, mover o eliminar`}</title>
+                        </path>
+
+                        {/* Draggable Source (Predecessor / Tail) Endpoint Handle */}
+                        <circle
+                          data-dep-handle-source={`${link.predId}->${link.succId}`}
+                          cx={link.x1}
+                          cy={link.y1}
+                          r={isInteractiveActive ? 5 : 3.5}
+                          style={{
+                            pointerEvents:
+                              isInteractiveActive && canInteract ? 'all' : 'none',
+                            opacity: isInteractiveActive ? 1 : 0,
+                          }}
+                          onMouseEnter={() => setHoveredDepKey(link.key)}
+                          onMouseLeave={() =>
+                            setHoveredDepKey((prev) =>
+                              prev === link.key ? null : prev
+                            )
+                          }
+                          onMouseDown={(e) =>
+                            handleStartDependencyDrag(e, {
+                              mode: 'move-source',
+                              oldPredId: link.predId,
+                              oldSuccId: link.succId,
+                              fixedItemId: link.succId,
+                              depType: link.depType,
+                            })
+                          }
+                          className="cursor-grab active:cursor-grabbing fill-white dark:fill-slate-900 stroke-indigo-600 dark:stroke-indigo-400 stroke-2 transition-opacity"
+                        >
+                          <title>{'Arrastra este extremo para mover la tarea predecesora (origen)'}</title>
+                        </circle>
+
+                        {/* Draggable Target (Successor / Head) Endpoint Handle */}
+                        <circle
+                          data-dep-handle-target={`${link.predId}->${link.succId}`}
+                          cx={link.x2}
+                          cy={link.y2}
+                          r={isInteractiveActive ? 5.5 : 4}
+                          style={{
+                            pointerEvents:
+                              isInteractiveActive && canInteract ? 'all' : 'none',
+                            opacity: isInteractiveActive ? 1 : 0,
+                          }}
+                          onMouseEnter={() => setHoveredDepKey(link.key)}
+                          onMouseLeave={() =>
+                            setHoveredDepKey((prev) =>
+                              prev === link.key ? null : prev
+                            )
+                          }
+                          onMouseDown={(e) =>
+                            handleStartDependencyDrag(e, {
+                              mode: 'move-target',
+                              oldPredId: link.predId,
+                              oldSuccId: link.succId,
+                              fixedItemId: link.predId,
+                              depType: link.depType,
+                            })
+                          }
+                          className="cursor-grab active:cursor-grabbing fill-indigo-600 dark:fill-indigo-400 stroke-white dark:stroke-slate-900 stroke-2 transition-opacity"
+                        >
+                          <title>{'Arrastra la punta de la flecha para mover la tarea sucesora (destino)'}</title>
+                        </circle>
+
+                        {/* Midpoint Quick Action Pill (Dependency Type + 1-Click Delete ×) */}
+                        <g
+                          data-dep-midpoint={`${link.predId}->${link.succId}`}
+                          transform={`translate(${link.midPoint.x}, ${link.midPoint.y})`}
+                          style={{
+                            pointerEvents:
+                              isInteractiveActive && canInteract ? 'all' : 'none',
+                            opacity: isInteractiveActive ? 1 : 0,
+                          }}
+                          onMouseEnter={() => setHoveredDepKey(link.key)}
+                          onMouseLeave={() =>
+                            setHoveredDepKey((prev) =>
+                              prev === link.key ? null : prev
+                            )
+                          }
+                          className="transition-opacity duration-150"
+                        >
+                          <rect
+                            x={-22}
+                            y={-9}
+                            width={44}
+                            height={18}
+                            rx={9}
+                            className="fill-white dark:fill-slate-900 stroke-indigo-500 dark:stroke-indigo-400 stroke-[1.5] shadow-md"
+                          />
+                          <g
+                            data-dep-midpoint-select={`${link.predId}->${link.succId}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedItemId(null);
+                              setSelectedDepLink({
+                                predId: link.predId,
+                                succId: link.succId,
+                              });
+                            }}
+                            className="cursor-pointer"
+                          >
+                            <title>{`Editar o reconectar dependencia (${link.depType})`}</title>
+                            <text
+                              x={-7}
+                              y={3.5}
+                              textAnchor="middle"
+                              className="fill-indigo-700 dark:fill-indigo-300 text-[9px] font-mono font-bold select-none"
+                            >
+                              {link.depType}
+                            </text>
+                          </g>
+                          <g
+                            data-dep-quick-delete={`${link.predId}->${link.succId}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              commitRemoveDependency(link.predId, link.succId);
+                            }}
+                            className="cursor-pointer"
+                          >
+                            <title>{'Eliminar dependencia inmediatamente'}</title>
+                            <circle
+                              cx={11}
+                              cy={0}
+                              r={6.5}
+                              className="fill-rose-500 hover:fill-rose-600 transition-colors"
+                            />
+                            <path
+                              d="M 8.5 -2.5 L 13.5 2.5 M 13.5 -2.5 L 8.5 2.5"
+                              stroke="#ffffff"
+                              strokeWidth={1.6}
+                              strokeLinecap="round"
+                            />
+                          </g>
+                        </g>
+                      </g>
+                    );
+                  })}
+
+                  {/* Live Drag Preview Line when creating or moving a dependency */}
+                  {depDragPreview && (
+                    <g
+                      id="gantt-dep-drag-preview"
+                      data-dep-drag-preview="true"
+                      className="pointer-events-none"
+                    >
+                      <path
+                        d={depDragPreview.dPath}
+                        fill="none"
+                        stroke={
+                          depDragPreview.isValidTarget ? '#4f46e5' : '#f43f5e'
+                        }
+                        strokeWidth={2.4}
+                        strokeDasharray="5 3"
+                        markerEnd={
+                          depDragPreview.isValidTarget
+                            ? 'url(#arrow-active)'
+                            : 'url(#arrow-critical)'
+                        }
+                      />
+                      <circle
+                        cx={depDragPreview.x1}
+                        cy={depDragPreview.y1}
+                        r={4.5}
+                        fill={
+                          depDragPreview.isValidTarget ? '#4f46e5' : '#f43f5e'
+                        }
+                      />
+                      <circle
+                        cx={depDragPreview.x2}
+                        cy={depDragPreview.y2}
+                        r={5}
+                        fill={
+                          depDragPreview.isValidTarget ? '#10b981' : '#f43f5e'
+                        }
+                      />
+                    </g>
+                  )}
                 </svg>
+              )}
+
+              {/* Live Floating Status Badge while Dragging a Dependency */}
+              {depDragPreview && depDragState && (
+                <div
+                  style={{
+                    left: Math.max(
+                      12,
+                      Math.min(totalCanvasWidth - 180, depDragState.cursorX + 14)
+                    ),
+                    top: Math.max(8, depDragState.cursorY - 28),
+                  }}
+                  className={`absolute z-50 pointer-events-none px-2.5 py-1 rounded-full text-[10px] font-semibold shadow-lg border whitespace-nowrap ${
+                    depDragPreview.isValidTarget
+                      ? 'bg-indigo-600 text-white border-indigo-400'
+                      : 'bg-rose-600 text-white border-rose-400'
+                  }`}
+                >
+                  {depDragPreview.statusLabel}
+                </div>
               )}
 
               {/* Foreground Project Rollup Summary Bars, Task Bars, Slack Ghost Bars & Milestones */}
@@ -2671,26 +3692,41 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                 }
 
                 // Task or Milestone Bar
-                const { item, group } = row;
+                const { item } = row;
                 const coords = itemRowMap.get(item.id);
                 if (!coords) return null;
 
                 const isHovered = hoveredId === item.id;
                 const isSelected = selectedItemId === item.id;
+                const isDepDropTarget = depDragState?.hoveredTargetId === item.id;
+                const isConnectSource = connectModeSource?.itemId === item.id;
                 const isDimmed =
-                  (hoveredId !== null || selectedItemId !== null) &&
-                  !relatedIds.has(item.id);
+                  (hoveredId !== null ||
+                    selectedItemId !== null ||
+                    selectedDepLink !== null) &&
+                  !relatedIds.has(item.id) &&
+                  !isDepDropTarget &&
+                  !isConnectSource;
                 const isCrit = showCriticalPath && item.isCritical;
                 const isDraggingThis = dragState && dragState.itemId === item.id;
                 const styleTheme = COLOR_STYLES[item.color] || COLOR_STYLES.indigo;
 
+                const showPortHandles =
+                  isHovered ||
+                  isSelected ||
+                  isDepDropTarget ||
+                  isConnectSource ||
+                  Boolean(depDragState) ||
+                  Boolean(connectModeSource) ||
+                  Boolean(reconnectMode);
+
                 const barLeft =
                   item.type === 'milestone'
-                    ? coords.startX - 11
+                    ? coords.startX - 10
                     : coords.startX;
                 const barWidth =
                   item.type === 'milestone'
-                    ? 22
+                    ? 20
                     : Math.max(6, dayWidth, coords.endX - coords.startX);
 
                 // Visual Slack width (user-configured slack, plus optional CPM float)
@@ -2719,12 +3755,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     }}
                     onMouseEnter={() => setHoveredId(item.id)}
                     onMouseLeave={() => setHoveredId(null)}
-                    className={`absolute left-0 right-0 flex items-center transition-opacity ${
+                    className={`absolute left-0 right-0 flex items-center pointer-events-none transition-opacity ${
                       isDimmed ? 'opacity-40' : 'opacity-100'
                     }`}
                   >
                     {item.type === 'milestone' ? (
-                      /* MILESTONE RENDERER (◆ Diamond) */
+                      /* MILESTONE RENDERER (◆ Diamond) + Dependency Connector Ports */
                       <div
                         style={{ left: barLeft }}
                         onMouseDown={(e) => handleBarMouseDown(e, item, 'move')}
@@ -2732,10 +3768,60 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         onDoubleClick={() => onEditModal(item)}
                         data-timeline-milestone={item.id}
                         data-milestone-color={item.color}
-                        className={`absolute z-20 flex items-center group cursor-grab active:cursor-grabbing ${
+                        className={`absolute z-20 flex items-center pointer-events-auto group cursor-grab active:cursor-grabbing ${
                           isDraggingThis ? 'z-40' : ''
                         }`}
                       >
+                        {/* Left Input Dependency Connector Port (Sucesora) */}
+                        <button
+                          type="button"
+                          data-dep-port-in={item.id}
+                          data-dep-port-role="in"
+                          onMouseDown={(e) =>
+                            handleStartDependencyDrag(e, {
+                              mode: 'create',
+                              originPort: 'in',
+                              fixedItemId: item.id,
+                            })
+                          }
+                          onClick={(e) => e.stopPropagation()}
+                          title="Puerto de entrada: arrastra o haz clic para conectar una predecesora a este hito"
+                          className={`absolute -left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-slate-900 bg-indigo-500 hover:bg-indigo-600 hover:scale-125 shadow-sm transition-all cursor-crosshair z-30 ${
+                            showPortHandles
+                              ? 'opacity-100 scale-105'
+                              : 'opacity-0 group-hover:opacity-100'
+                          } ${
+                            isDepDropTarget
+                              ? 'ring-2 ring-emerald-400 bg-emerald-500 scale-125 opacity-100'
+                              : ''
+                          }`}
+                        />
+
+                        {/* Right Output Dependency Connector Port (Predecesora) */}
+                        <button
+                          type="button"
+                          data-dep-port-out={item.id}
+                          data-dep-port-role="out"
+                          onMouseDown={(e) =>
+                            handleStartDependencyDrag(e, {
+                              mode: 'create',
+                              originPort: 'out',
+                              fixedItemId: item.id,
+                            })
+                          }
+                          onClick={(e) => e.stopPropagation()}
+                          title="Puerto de salida: arrastra hacia otra tarea/hito o haz clic para crear dependencia"
+                          className={`absolute left-[22px] top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-slate-900 bg-indigo-600 hover:bg-indigo-500 hover:scale-125 shadow-sm transition-all cursor-crosshair z-30 ${
+                            showPortHandles
+                              ? 'opacity-100 scale-105'
+                              : 'opacity-0 group-hover:opacity-100'
+                          } ${
+                            isConnectSource
+                              ? 'ring-2 ring-emerald-400 bg-emerald-500 scale-125 opacity-100'
+                              : ''
+                          }`}
+                        />
+
                         {isDraggingThis && (
                           <div className="absolute -top-7 left-2.5 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-slate-900/95 dark:bg-zinc-100/95 text-white dark:text-zinc-900 text-[10px] font-mono font-bold shadow-xl border border-slate-700/60 dark:border-zinc-300/60 pointer-events-none whitespace-nowrap z-50">
                             ◆ {formatDateDisplay(coords.effectiveStartStr, 'd MMM yyyy')}
@@ -2745,6 +3831,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           className={`w-5 h-5 rotate-45 rounded-[4px] border-2 shadow-md transition-transform group-hover:scale-125 ${
                             isDraggingThis
                               ? 'scale-125 ring-2 ring-indigo-500 shadow-xl'
+                              : isDepDropTarget
+                              ? 'scale-125 ring-2 ring-emerald-500'
+                              : isConnectSource
+                              ? 'scale-125 ring-2 ring-indigo-500'
                               : isSelected
                               ? 'scale-125 ring-2 ring-indigo-500'
                               : ''
@@ -2755,7 +3845,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           }`}
                         />
                         <div
-                          className={`ml-3 px-2 py-0.5 rounded-md border text-[11px] font-semibold whitespace-nowrap shadow-sm ${styleTheme.diamondPill}`}
+                          className={`ml-4 px-2 py-0.5 rounded-md border text-[11px] font-semibold whitespace-nowrap shadow-sm ${styleTheme.diamondPill}`}
                         >
                           ◆ {item.name}{' '}
                           <span className="font-mono text-[10px] opacity-75">
@@ -2764,10 +3854,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         </div>
                       </div>
                     ) : (
-                      /* STANDARD TASK BAR + SLACK EXTENSION BAR */
+                      /* STANDARD TASK BAR + SLACK EXTENSION BAR + Dependency Connector Ports */
                       <div
                         style={{ left: barLeft }}
-                        className={`absolute z-20 flex items-center ${
+                        className={`absolute z-20 flex items-center pointer-events-auto group ${
                           isDraggingThis ? 'z-40' : ''
                         }`}
                       >
@@ -2776,69 +3866,127 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             {formatDateDisplay(coords.effectiveStartStr, 'd MMM')} → {formatDateDisplay(coords.effectiveEndStr, 'd MMM')} ({coords.effectiveDuration}d)
                           </div>
                         )}
-                        {/* Main Task Bar */}
-                        <div
-                          style={{ width: barWidth }}
-                          onMouseDown={(e) => handleBarMouseDown(e, item, 'move')}
-                          onClick={(e) => handleBarClick(e, item.id)}
-                          onDoubleClick={() => onEditModal(item)}
-                          data-timeline-task={item.id}
-                          className={`relative h-8 rounded-lg border overflow-hidden cursor-grab active:cursor-grabbing shadow-sm transition-shadow ${
-                            styleTheme.barBg
-                          } ${
-                            isDraggingThis
-                              ? 'ring-2 ring-indigo-500 ring-offset-1 dark:ring-offset-slate-950 shadow-xl opacity-95'
-                              : isSelected
-                              ? 'ring-2 ring-indigo-500 ring-offset-1 dark:ring-offset-slate-950 shadow-md'
-                              : isCrit
-                              ? 'border-rose-500 ring-2 ring-rose-500/40'
-                              : item.hasConflict
-                              ? 'border-rose-500 ring-2 ring-rose-500/30'
-                              : styleTheme.border
-                          } ${isHovered ? 'shadow-md' : ''}`}
-                        >
-                          {/* Progress Fill Layer */}
-                          <div
-                            style={{ width: `${item.progress}%` }}
-                            className={`h-full transition-all ${
-                              isCrit ? 'bg-rose-600 dark:bg-rose-500' : styleTheme.fillBg
+
+                        {/* Wrapper for Task Bar + Left/Right Dependency Connector Ports */}
+                        <div className="relative flex items-center">
+                          {/* Left Input Dependency Connector Port (Sucesora) */}
+                          <button
+                            type="button"
+                            data-dep-port-in={item.id}
+                            data-dep-port-role="in"
+                            onMouseDown={(e) =>
+                              handleStartDependencyDrag(e, {
+                                mode: 'create',
+                                originPort: 'in',
+                                fixedItemId: item.id,
+                              })
+                            }
+                            onClick={(e) => e.stopPropagation()}
+                            title="Puerto de entrada: arrastra o haz clic para conectar una predecesora a esta tarea"
+                            className={`absolute -left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-slate-900 bg-indigo-500 hover:bg-indigo-600 hover:scale-125 shadow-sm transition-all cursor-crosshair z-30 ${
+                              showPortHandles
+                                ? 'opacity-100 scale-105'
+                                : 'opacity-0 group-hover:opacity-100'
+                            } ${
+                              isDepDropTarget
+                                ? 'ring-2 ring-emerald-400 bg-emerald-500 scale-125 opacity-100'
+                                : ''
                             }`}
                           />
 
-                          {/* Task Label Inside Bar (only when bar is wide enough) */}
-                          {barWidth >= 56 && (
-                            <div className="absolute inset-0 px-2.5 flex items-center justify-between text-[11px] font-semibold pointer-events-none">
-                              <span
-                                className={`truncate ${
-                                  item.progress > 45
-                                    ? 'text-white drop-shadow-sm'
-                                    : styleTheme.text
-                                }`}
-                              >
-                                {item.name}
-                              </span>
-                              {barWidth >= 70 && (
+                          {/* Main Task Bar */}
+                          <div
+                            style={{ width: barWidth }}
+                            onMouseDown={(e) => handleBarMouseDown(e, item, 'move')}
+                            onClick={(e) => handleBarClick(e, item.id)}
+                            onDoubleClick={() => onEditModal(item)}
+                            data-timeline-task={item.id}
+                            className={`relative h-8 rounded-lg border overflow-hidden cursor-grab active:cursor-grabbing shadow-sm transition-shadow ${
+                              styleTheme.barBg
+                            } ${
+                              isDraggingThis
+                                ? 'ring-2 ring-indigo-500 ring-offset-1 dark:ring-offset-slate-950 shadow-xl opacity-95'
+                                : isDepDropTarget
+                                ? 'ring-2 ring-emerald-500 ring-offset-1 dark:ring-offset-slate-950 shadow-md'
+                                : isConnectSource
+                                ? 'ring-2 ring-indigo-500 ring-offset-1 dark:ring-offset-slate-950 shadow-md'
+                                : isSelected
+                                ? 'ring-2 ring-indigo-500 ring-offset-1 dark:ring-offset-slate-950 shadow-md'
+                                : isCrit
+                                ? 'border-rose-500 ring-2 ring-rose-500/40'
+                                : item.hasConflict
+                                ? 'border-rose-500 ring-2 ring-rose-500/30'
+                                : styleTheme.border
+                            } ${isHovered ? 'shadow-md' : ''}`}
+                          >
+                            {/* Progress Fill Layer */}
+                            <div
+                              style={{ width: `${item.progress}%` }}
+                              className={`h-full transition-all ${
+                                isCrit ? 'bg-rose-600 dark:bg-rose-500' : styleTheme.fillBg
+                              }`}
+                            />
+
+                            {/* Task Label Inside Bar (only when bar is wide enough) */}
+                            {barWidth >= 56 && (
+                              <div className="absolute inset-0 px-2.5 flex items-center justify-between text-[11px] font-semibold pointer-events-none">
                                 <span
-                                  className={`font-mono text-[10px] ml-1 shrink-0 ${
-                                    item.progress > 80
-                                      ? 'text-white/90'
-                                      : 'text-slate-600 dark:text-slate-300'
+                                  className={`truncate ${
+                                    item.progress > 45
+                                      ? 'text-white drop-shadow-sm'
+                                      : styleTheme.text
                                   }`}
                                 >
-                                  {coords.effectiveDuration}d
+                                  {item.name}
                                 </span>
-                              )}
-                            </div>
-                          )}
+                                {barWidth >= 70 && (
+                                  <span
+                                    className={`font-mono text-[10px] ml-1 shrink-0 ${
+                                      item.progress > 80
+                                        ? 'text-white/90'
+                                        : 'text-slate-600 dark:text-slate-300'
+                                    }`}
+                                  >
+                                    {coords.effectiveDuration}d
+                                  </span>
+                                )}
+                              </div>
+                            )}
 
-                          {/* Right-Edge Drag Handle for Duration Resizing */}
-                          <div
-                            onMouseDown={(e) => handleBarMouseDown(e, item, 'resize')}
-                            title="Arrastra el borde derecho para cambiar la duración"
-                            className="absolute right-0 top-0 bottom-0 w-2.5 cursor-ew-resize hover:bg-black/20 dark:hover:bg-white/30 flex items-center justify-center"
-                          >
-                            <div className="w-0.5 h-3.5 bg-white/70 rounded" />
+                            {/* Right-Edge Drag Handle for Duration Resizing */}
+                            <div
+                              onMouseDown={(e) => handleBarMouseDown(e, item, 'resize')}
+                              title="Arrastra el borde derecho para cambiar la duración"
+                              className="absolute right-0 top-0 bottom-0 w-2.5 cursor-ew-resize hover:bg-black/20 dark:hover:bg-white/30 flex items-center justify-center"
+                            >
+                              <div className="w-0.5 h-3.5 bg-white/70 rounded" />
+                            </div>
                           </div>
+
+                          {/* Right Output Dependency Connector Port (Predecesora) */}
+                          <button
+                            type="button"
+                            data-dep-port-out={item.id}
+                            data-dep-port-role="out"
+                            onMouseDown={(e) =>
+                              handleStartDependencyDrag(e, {
+                                mode: 'create',
+                                originPort: 'out',
+                                fixedItemId: item.id,
+                              })
+                            }
+                            onClick={(e) => e.stopPropagation()}
+                            title="Puerto de salida: arrastra hacia otra tarea/hito o haz clic para crear dependencia"
+                            className={`absolute -right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-slate-900 bg-indigo-600 hover:bg-indigo-500 hover:scale-125 shadow-sm transition-all cursor-crosshair z-30 ${
+                              showPortHandles
+                                ? 'opacity-100 scale-105'
+                                : 'opacity-0 group-hover:opacity-100'
+                            } ${
+                              isConnectSource
+                                ? 'ring-2 ring-emerald-400 bg-emerald-500 scale-125 opacity-100'
+                                : ''
+                            }`}
+                          />
                         </div>
 
                         {/* SLACK / HOLGURA GHOST BAR EXTENSION */}
@@ -2864,7 +4012,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
                         {/* Outside Label when bar is narrow */}
                         {barWidth < 56 && (
-                          <span className="ml-2 text-[11px] font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap pointer-events-none">
+                          <span className="ml-3 text-[11px] font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap pointer-events-none">
                             {item.name} ({coords.effectiveDuration}d)
                           </span>
                         )}
@@ -2877,12 +4025,344 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
           </div>
         </div>
 
+        {/* Floating Banner when Click-to-Connect or Click-to-Reconnect Mode is Active */}
+        {(connectModeSource || reconnectMode) && (
+          <div
+            id="gantt-connect-mode-banner"
+            data-connect-mode-source={
+              connectModeSource?.itemId ||
+              `${reconnectMode?.oldPredId}->${reconnectMode?.oldSuccId}`
+            }
+            onClick={(e) => e.stopPropagation()}
+            className="absolute top-3 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-medium shadow-xl border border-indigo-400/60"
+          >
+            <GitBranch className="w-4 h-4 shrink-0" />
+            {connectModeSource ? (
+              <span>
+                Modo conexión activo desde{' '}
+                <strong>
+                  #
+                  {enrichedItemById.get(connectModeSource.itemId)?.wbsCode ||
+                    enrichedItemById.get(connectModeSource.itemId)?.wbs}{' '}
+                  {enrichedItemById.get(connectModeSource.itemId)?.name}
+                </strong>{' '}
+                — Haz clic en otra tarea o hito del diagrama para crear la dependencia
+              </span>
+            ) : (
+              <span>
+                Reconectando{' '}
+                <strong>
+                  {reconnectMode?.endpoint === 'source'
+                    ? 'origen (predecesora)'
+                    : 'destino (sucesora)'}
+                </strong>{' '}
+                de la dependencia — Haz clic en la nueva tarea del diagrama
+              </span>
+            )}
+            <button
+              type="button"
+              data-cancel-connect-mode="true"
+              onClick={() => {
+                setConnectModeSource(null);
+                setReconnectMode(null);
+              }}
+              className="px-2 py-0.5 rounded-lg bg-white/20 hover:bg-white/30 text-white text-[11px] font-semibold transition cursor-pointer"
+            >
+              Cancelar (Esc)
+            </button>
+          </div>
+        )}
+
+        {/* Inline Toast Feedback for Dependency Actions & Cycle Validation */}
+        {depFeedback && (
+          <div
+            id="gantt-dep-feedback-toast"
+            data-dep-feedback-toast={depFeedback.tone}
+            className={`absolute bottom-3 right-3 z-40 flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold shadow-xl border transition-all ${
+              depFeedback.tone === 'error'
+                ? 'bg-rose-600 text-white border-rose-400'
+                : depFeedback.tone === 'success'
+                ? 'bg-emerald-600 text-white border-emerald-400'
+                : 'bg-slate-800 text-white border-slate-700'
+            }`}
+          >
+            <GitBranch className="w-3.5 h-3.5 shrink-0" />
+            <span>{depFeedback.message}</span>
+          </div>
+        )}
+
+        {/* Interactive Dependency Popover / Inspector when a Dependency Arrow is Selected */}
+        {selectedDepLink &&
+          (() => {
+            const predItem = enrichedItemById.get(selectedDepLink.predId);
+            const succItem = enrichedItemById.get(selectedDepLink.succId);
+            if (
+              !predItem ||
+              !succItem ||
+              !succItem.dependencies.includes(predItem.id)
+            ) {
+              return null;
+            }
+            const currentDepType: DependencyType =
+              succItem.dependencyTypes?.[predItem.id] || 'FS';
+            const itemsWithoutCurrentLink = removeDependencyLink(
+              items,
+              predItem.id,
+              succItem.id,
+              false
+            ).items;
+
+            return (
+              <aside
+                ref={depPopoverRef}
+                id="gantt-dependency-popover"
+                data-selected-dependency={`${predItem.id}->${succItem.id}`}
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                className="absolute top-3 right-3 z-40 w-80 max-w-[calc(100%-24px)] bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-xl border border-indigo-200 dark:border-indigo-800/80 shadow-xl p-3.5 text-xs flex flex-col gap-3 transition-all"
+              >
+                {/* Header */}
+                <div className="flex items-start justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="p-1.5 rounded-lg bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 shrink-0">
+                      <GitBranch className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-[10px] font-bold text-indigo-600 dark:text-indigo-400">
+                          #{predItem.wbsCode || predItem.wbs} → #
+                          {succItem.wbsCode || succItem.wbs}
+                        </span>
+                        <span className="px-1.5 py-0.2 rounded bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 font-mono text-[10px] font-bold">
+                          {currentDepType}
+                        </span>
+                      </div>
+                      <h4 className="font-bold text-slate-900 dark:text-slate-100 truncate mt-0.5 text-sm">
+                        Editar / Mover Dependencia
+                      </h4>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    data-close-dep-popover="true"
+                    onClick={() => {
+                      setSelectedDepLink(null);
+                      setReconnectMode(null);
+                    }}
+                    className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition shrink-0 cursor-pointer"
+                    title="Cerrar inspector de dependencia"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Move Source (Predecessor) */}
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Tarea Origen (Predecesora)
+                    </label>
+                    <button
+                      type="button"
+                      data-dep-reconnect-source-btn="true"
+                      onClick={() =>
+                        setReconnectMode({
+                          oldPredId: predItem.id,
+                          oldSuccId: succItem.id,
+                          endpoint: 'source',
+                          depType: currentDepType,
+                        })
+                      }
+                      className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                      title="Haz clic aquí y luego en otra tarea del diagrama para cambiar el origen"
+                    >
+                      Elegir en diagrama
+                    </button>
+                  </div>
+                  <select
+                    data-dep-move-pred-select="true"
+                    value={predItem.id}
+                    onChange={(e) => {
+                      const nextPredId = e.target.value;
+                      if (nextPredId && nextPredId !== predItem.id) {
+                        commitMoveDependency(
+                          predItem.id,
+                          succItem.id,
+                          nextPredId,
+                          succItem.id,
+                          currentDepType
+                        );
+                      }
+                    }}
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                  >
+                    {items
+                      .filter((it) => it.id !== succItem.id)
+                      .map((candidate) => {
+                        const enriched = enrichedItemById.get(candidate.id) || candidate;
+                        const createsCycle = wouldCreateCycle(
+                          itemsWithoutCurrentLink,
+                          succItem.id,
+                          candidate.id
+                        );
+                        const isDuplicate =
+                          candidate.id !== predItem.id &&
+                          succItem.dependencies.includes(candidate.id);
+                        return (
+                          <option
+                            key={candidate.id}
+                            value={candidate.id}
+                            disabled={createsCycle || isDuplicate}
+                          >
+                            #{enriched.wbsCode || enriched.wbs} {enriched.name}
+                            {createsCycle
+                              ? ' (Ciclo)'
+                              : isDuplicate
+                              ? ' (Ya conectada)'
+                              : ''}
+                          </option>
+                        );
+                      })}
+                  </select>
+                </div>
+
+                {/* Move Target (Successor) */}
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Tarea Destino (Sucesora)
+                    </label>
+                    <button
+                      type="button"
+                      data-dep-reconnect-target-btn="true"
+                      onClick={() =>
+                        setReconnectMode({
+                          oldPredId: predItem.id,
+                          oldSuccId: succItem.id,
+                          endpoint: 'target',
+                          depType: currentDepType,
+                        })
+                      }
+                      className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                      title="Haz clic aquí y luego en otra tarea del diagrama para cambiar el destino"
+                    >
+                      Elegir en diagrama
+                    </button>
+                  </div>
+                  <select
+                    data-dep-move-succ-select="true"
+                    value={succItem.id}
+                    onChange={(e) => {
+                      const nextSuccId = e.target.value;
+                      if (nextSuccId && nextSuccId !== succItem.id) {
+                        commitMoveDependency(
+                          predItem.id,
+                          succItem.id,
+                          predItem.id,
+                          nextSuccId,
+                          currentDepType
+                        );
+                      }
+                    }}
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                  >
+                    {items
+                      .filter((it) => it.id !== predItem.id)
+                      .map((candidate) => {
+                        const enriched = enrichedItemById.get(candidate.id) || candidate;
+                        const createsCycle = wouldCreateCycle(
+                          itemsWithoutCurrentLink,
+                          candidate.id,
+                          predItem.id
+                        );
+                        const isDuplicate =
+                          candidate.id !== succItem.id &&
+                          candidate.dependencies.includes(predItem.id);
+                        return (
+                          <option
+                            key={candidate.id}
+                            value={candidate.id}
+                            disabled={createsCycle || isDuplicate}
+                          >
+                            #{enriched.wbsCode || enriched.wbs} {enriched.name}
+                            {createsCycle
+                              ? ' (Ciclo)'
+                              : isDuplicate
+                              ? ' (Ya conectada)'
+                              : ''}
+                          </option>
+                        );
+                      })}
+                  </select>
+                </div>
+
+                {/* Dependency Type Selector (FS, SS, FF, SF) */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Tipo de Relación
+                  </label>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {(
+                      [
+                        { id: 'FS', label: 'FS', desc: 'Fin → Inicio' },
+                        { id: 'SS', label: 'SS', desc: 'Inicio → Inicio' },
+                        { id: 'FF', label: 'FF', desc: 'Fin → Fin' },
+                        { id: 'SF', label: 'SF', desc: 'Inicio → Fin' },
+                      ] as const
+                    ).map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        data-dep-type-btn={opt.id}
+                        onClick={() =>
+                          commitUpdateDependencyType(
+                            predItem.id,
+                            succItem.id,
+                            opt.id
+                          )
+                        }
+                        title={opt.desc}
+                        className={`py-1 px-1.5 rounded-lg border font-mono text-[10px] font-bold transition cursor-pointer ${
+                          currentDepType === opt.id
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                            : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-indigo-400'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Delete Dependency Action */}
+                <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <span className="text-[10px] text-slate-400">
+                    O arrastra los extremos de la flecha
+                  </span>
+                  <button
+                    type="button"
+                    data-dep-delete-btn="true"
+                    onClick={() =>
+                      commitRemoveDependency(predItem.id, succItem.id)
+                    }
+                    className="px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs shrink-0"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Eliminar Dependencia</span>
+                  </button>
+                </div>
+              </aside>
+            );
+          })()}
+
         {/* Non-intrusive Top-Right Docked Inspection Panel on Click */}
         {selectedItem && (
           <aside
+            ref={inspectionPanelRef}
             id="gantt-inspection-panel"
             data-selected-item-id={selectedItem.id}
             onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
             className="absolute top-3 right-3 z-40 w-80 max-w-[calc(100%-24px)] bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-xl border border-slate-200/90 dark:border-slate-700/90 shadow-xl p-3.5 text-xs flex flex-col gap-2.5 transition-all"
           >
             {/* Panel Header: WBS Code + Title + Type Badge + Close button */}
@@ -2992,41 +4472,113 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               </div>
             </div>
 
-            {/* Dependencies relations (Predecessors & Successors) */}
-            {(selectedPredecessors.length > 0 || selectedSuccessors.length > 0) && (
-              <div className="flex flex-col gap-1 text-[11px]">
-                {selectedPredecessors.length > 0 && (
-                  <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300 flex-wrap">
-                    <span className="text-slate-400 font-medium">Predecesoras:</span>
-                    {selectedPredecessors.map((p) => (
+            {/* Dependencies relations (Predecessors & Successors + Direct Add/Remove/Connect) */}
+            <div className="flex flex-col gap-1.5 text-[11px]">
+              {selectedPredecessors.length > 0 && (
+                <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300 flex-wrap">
+                  <span className="text-slate-400 font-medium">Predecesoras:</span>
+                  {selectedPredecessors.map((p) => (
+                    <span
+                      key={p.id}
+                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-mono border border-slate-200/80 dark:border-slate-700"
+                    >
                       <button
-                        key={p.id}
                         type="button"
                         onClick={() => setSelectedItemId(p.id)}
-                        className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:text-indigo-600 text-[10px] font-mono border border-slate-200/80 dark:border-slate-700 transition cursor-pointer"
+                        className="hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer truncate max-w-[160px]"
                       >
                         #{p.wbsCode || p.wbs} {p.name}
                       </button>
-                    ))}
-                  </div>
-                )}
-                {selectedSuccessors.length > 0 && (
-                  <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300 flex-wrap">
-                    <span className="text-slate-400 font-medium">Sucesoras:</span>
-                    {selectedSuccessors.map((s) => (
                       <button
-                        key={s.id}
+                        type="button"
+                        data-inspect-remove-pred={p.id}
+                        onClick={() => commitRemoveDependency(p.id, selectedItem.id)}
+                        title={`Quitar dependencia con #${p.wbsCode || p.wbs}`}
+                        className="text-slate-400 hover:text-rose-500 transition cursor-pointer"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              {selectedSuccessors.length > 0 && (
+                <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300 flex-wrap">
+                  <span className="text-slate-400 font-medium">Sucesoras:</span>
+                  {selectedSuccessors.map((s) => (
+                    <span
+                      key={s.id}
+                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-mono border border-slate-200/80 dark:border-slate-700"
+                    >
+                      <button
                         type="button"
                         onClick={() => setSelectedItemId(s.id)}
-                        className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:text-indigo-600 text-[10px] font-mono border border-slate-200/80 dark:border-slate-700 transition cursor-pointer"
+                        className="hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer truncate max-w-[160px]"
                       >
                         #{s.wbsCode || s.wbs} {s.name}
                       </button>
-                    ))}
-                  </div>
-                )}
+                      <button
+                        type="button"
+                        data-inspect-remove-succ={s.id}
+                        onClick={() => commitRemoveDependency(selectedItem.id, s.id)}
+                        title={`Quitar dependencia hacia #${s.wbsCode || s.wbs}`}
+                        className="text-slate-400 hover:text-rose-500 transition cursor-pointer"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Quick Dependency Creator directly inside Inspection Panel */}
+              <div className="flex items-center gap-1.5 pt-1">
+                <select
+                  data-inspect-add-pred-select="true"
+                  value=""
+                  onChange={(e) => {
+                    const predId = e.target.value;
+                    if (predId) {
+                      commitAddDependency(predId, selectedItem.id, 'FS');
+                    }
+                  }}
+                  className="flex-1 min-w-0 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                >
+                  <option value="">+ Añadir predecesora...</option>
+                  {items
+                    .filter(
+                      (it) =>
+                        it.id !== selectedItem.id &&
+                        !selectedItem.dependencies.includes(it.id) &&
+                        !wouldCreateCycle(items, selectedItem.id, it.id)
+                    )
+                    .map((candidate) => {
+                      const enriched = enrichedItemById.get(candidate.id) || candidate;
+                      return (
+                        <option key={candidate.id} value={candidate.id}>
+                          #{enriched.wbsCode || enriched.wbs} {enriched.name}
+                        </option>
+                      );
+                    })}
+                </select>
+                <button
+                  type="button"
+                  data-inspect-start-connect="true"
+                  onClick={() => {
+                    setConnectModeSource({
+                      itemId: selectedItem.id,
+                      role: 'pred',
+                    });
+                    setSelectedItemId(null);
+                  }}
+                  className="px-2 py-1 rounded-lg border border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-semibold text-[10px] flex items-center gap-1 shrink-0 transition cursor-pointer"
+                  title="Haz clic aquí y luego en otra tarea del diagrama para conectarlas"
+                >
+                  <GitBranch className="w-3 h-3" />
+                  <span>Conectar</span>
+                </button>
               </div>
-            )}
+            </div>
 
             {/* Notes if present */}
             {selectedItem.notes && (
@@ -3039,7 +4591,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
               <button
                 type="button"
-                onClick={() => onEditModal(selectedItem)}
+                onClick={() => {
+                  onEditModal(selectedItem);
+                  setSelectedItemId(null);
+                }}
                 className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center gap-1 transition cursor-pointer shadow-2xs"
               >
                 <Edit3 className="w-3.5 h-3.5" />
@@ -3052,3 +4607,4 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     </div>
   );
 };
+

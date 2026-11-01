@@ -385,6 +385,9 @@ export function App({
   const scenarioMenuRef = useRef<HTMLDivElement>(null);
   const projectMenuRef = useRef<HTMLDivElement>(null);
   const createMenuRef = useRef<HTMLDivElement>(null);
+  const settingsModalRef = useRef<HTMLDivElement>(null);
+  const metricsDrawerRef = useRef<HTMLDivElement>(null);
+  const metricsToggleBtnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const handleGlobalClick = (e: MouseEvent) => {
@@ -398,12 +401,27 @@ export function App({
       if (createMenuRef.current && !createMenuRef.current.contains(target)) {
         setCreateMenuOpen(false);
       }
+      if (showSettingsModal && settingsModalRef.current && !settingsModalRef.current.contains(target)) {
+        setShowSettingsModal(false);
+      }
+      if (
+        showMetricsDrawer &&
+        metricsDrawerRef.current &&
+        !metricsDrawerRef.current.contains(target) &&
+        metricsToggleBtnRef.current &&
+        !metricsToggleBtnRef.current.contains(target)
+      ) {
+        setShowMetricsDrawer(false);
+      }
     };
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setScenarioMenuOpen(false);
         setProjectMenuOpen(false);
         setCreateMenuOpen(false);
+        setShowSettingsModal(false);
+        setShowMetricsDrawer(false);
+        setShowNewScenarioBar(false);
       }
     };
     document.addEventListener('mousedown', handleGlobalClick);
@@ -412,7 +430,7 @@ export function App({
       document.removeEventListener('mousedown', handleGlobalClick);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, []);
+  }, [showSettingsModal, showMetricsDrawer]);
 
   // Modal state
   const [modalOpen, setModalOpen] = useState<boolean>(false);
@@ -626,6 +644,10 @@ export function App({
       const next = prev.map((it) => (it.id === cleanItem.id ? cleanItem : it));
       return cascade ? cascadeDependencies(next) : next;
     });
+  };
+
+  const handleUpdateItems = (nextItems: GanttItem[]) => {
+    setItems(nextItems.map(sanitizeGanttItem));
   };
 
   const handleDeleteItem = (id: string) => {
@@ -1774,6 +1796,7 @@ export function App({
           {/* Métricas Drawer Toggle */}
           <div className="relative group">
             <button
+              ref={metricsToggleBtnRef}
               type="button"
               onClick={() => setShowMetricsDrawer((prev) => !prev)}
               className={`p-1.5 rounded-lg border transition shadow-2xs ${
@@ -1810,7 +1833,10 @@ export function App({
 
       {/* Collapsible Metrics Drawer (Hidden by default) */}
       {showMetricsDrawer && (
-        <div className="px-4 py-3 bg-white/95 dark:bg-zinc-900/95 border-b border-slate-200 dark:border-zinc-800/80 text-xs backdrop-blur-md">
+        <div
+          ref={metricsDrawerRef}
+          className="px-4 py-3 bg-white/95 dark:bg-zinc-900/95 border-b border-slate-200 dark:border-zinc-800/80 text-xs backdrop-blur-md"
+        >
           <div className="max-w-[1920px] mx-auto">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500">
@@ -2376,6 +2402,7 @@ export function App({
             arrowVisibility={arrowVisibility}
             onChangeArrowVisibility={setArrowVisibility}
             onUpdateItem={handleUpdateInline}
+            onUpdateItems={handleUpdateItems}
             onReorderItem={handleReorderItem}
             onMoveItem={handleMoveItem}
             onEditModal={handleOpenEditModal}
@@ -2393,8 +2420,20 @@ export function App({
       </main>
 
       {/* Settings Modal (Flechas, auto-cascada, tema, zoom, exportar/importar) */}
-      <div className={`${showSettingsModal ? 'fixed' : 'hidden'} inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4`}>
-        <div className="w-full max-w-md bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-2xl overflow-hidden p-5 space-y-4">
+      <div
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            setShowSettingsModal(false);
+          }
+        }}
+        className={`${showSettingsModal ? 'fixed' : 'hidden'} inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4`}
+      >
+        <div
+          ref={settingsModalRef}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          className="w-full max-w-md bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-2xl overflow-hidden p-5 space-y-4"
+        >
           <div className="flex items-center justify-between border-b border-slate-200 dark:border-zinc-800 pb-3">
             <div className="flex items-center gap-2">
               <SlidersHorizontal className="w-4 h-4 text-slate-500 dark:text-zinc-400" />
