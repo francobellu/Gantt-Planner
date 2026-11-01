@@ -104,6 +104,8 @@ interface GanttWorkspaceProps {
   groupByProject?: boolean;
   selectedProjectId?: string;
   selectedProjectIds?: string[];
+  showTable?: boolean;
+  onToggleShowTable?: () => void;
   onOpenProjectsView?: () => void;
   zoom: ZoomLevel;
   dayWidth?: number;
@@ -302,6 +304,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   onDeleteProject,
   onCreateProject,
   scrollContainerRef,
+  showTable: showTableProp,
+  onToggleShowTable,
   initialSelectedItemId,
   initialHoveredItemId,
   initialCursorScrubber,
@@ -358,7 +362,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   const hasDraggedRef = useRef<boolean>(false);
 
   const [splitWidth, setSplitWidth] = useState<number>(480);
-  const [showTable, setShowTable] = useState<boolean>(true);
+  const [internalShowTable, setInternalShowTable] = useState<boolean>(true);
+  const showTable = showTableProp !== undefined ? showTableProp : internalShowTable;
   const [wheelZoomEnabled, setWheelZoomEnabled] = useState<boolean>(true);
   const [visibleColumns, setVisibleColumns] = useState<{
     team: boolean;
@@ -2479,24 +2484,6 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               >
                                 P{group.projectIndex}
                               </span>
-
-                              {group.project.isDemo ? (
-                                <span
-                                  data-project-demo-badge={group.project.id}
-                                  className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 shrink-0"
-                                  title="Proyecto de demostración (Demo)"
-                                >
-                                  DEMO
-                                </span>
-                              ) : (
-                                <span
-                                  data-project-real-badge={group.project.id}
-                                  className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 shrink-0"
-                                  title="Proyecto real de trabajo"
-                                >
-                                  REAL
-                                </span>
-                              )}
 
                               <input
                                 type="text"

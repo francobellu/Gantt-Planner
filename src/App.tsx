@@ -120,12 +120,50 @@ function purgeXcodeScenario(s: SavedScenario): SavedScenario | null {
   };
 }
 
+function isDemoOrTemplateProject(raw?: Partial<GanttProject> | null): boolean {
+  if (!raw) return false;
+  if (raw.isDemo === true) return true;
+  const id = (raw.id || '').toLowerCase();
+  const name = (raw.name || '').toLowerCase();
+  if (
+    id.includes('demo') ||
+    id.includes('saas') ||
+    id.includes('cloud') ||
+    id.includes('discovery') ||
+    id.includes('release') ||
+    id === 'proj-core' ||
+    id === 'proj-xcode27'
+  ) {
+    return true;
+  }
+  if (
+    name.includes('descubrimiento') ||
+    name.includes('lanzamiento') ||
+    name.includes('saas') ||
+    name.includes('cloud') ||
+    name.includes('plantilla') ||
+    name.includes('demo') ||
+    name.includes('xcode')
+  ) {
+    return true;
+  }
+  return false;
+}
+
+const CLEAN_DEFAULT_PROJECT: GanttProject = {
+  id: 'proj-1',
+  name: 'Mi Proyecto',
+  color: 'indigo',
+  collapsed: false,
+  isDemo: false,
+};
+
 function loadInitialWorkspaceState(
-  templates: ProjectTemplate[],
-  defaultScenarios: SavedScenario[],
+  _templates?: ProjectTemplate[],
+  defaultScenarios: SavedScenario[] = [],
   initialScenarioId?: string
 ): InitialWorkspaceState {
-  if (initialScenarioId && initialScenarioId !== 'scen-xcode27') {
+  if (initialScenarioId && defaultScenarios.length > 0) {
     const target =
       defaultScenarios.find((s) => s.id === initialScenarioId) || defaultScenarios[0];
     return {
@@ -139,131 +177,76 @@ function loadInitialWorkspaceState(
 
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
+      // 1. Primary single-workspace storage
+      const rawWorkspace = window.localStorage.getItem(STORAGE_KEY);
+      if (rawWorkspace) {
+        const parsed = JSON.parse(rawWorkspace);
+        const rawProjects: Partial<GanttProject>[] = Array.isArray(parsed.projects) ? parsed.projects : [];
+        const rawItems: Partial<GanttItem>[] = Array.isArray(parsed.items) ? parsed.items : [];
+
+        const cleanProjects = rawProjects
+          .filter((p) => !isDemoOrTemplateProject(p) && !isXcode27Project(p))
+          .map((p, i) => sanitizeProject({ ...p, isDemo: false }, i));
+
+        const cleanItems = rawItems
+          .filter((it) => !isXcode27Task(it) && cleanProjects.some((p) => p.id === it.projectId))
+          .map((it, i) => sanitizeGanttItem(it, i));
+
+        if (cleanProjects.length > 0) {
+          const rawName = (parsed.projectName || '').trim();
+          const cleanName = rawName && !rawName.toLowerCase().includes('saas') ? rawName : 'GanttFlow';
+          return {
+            activeScenarioId: 'scen-user',
+            projectName: cleanName,
+            projects: cleanProjects,
+            items: cleanItems,
+            savedScenarios: [],
+          };
+        }
+      }
+
+      // 2. Legacy scenarios storage fallback
       const savedScenariosRaw = window.localStorage.getItem(SCENARIOS_STORAGE_KEY);
       if (savedScenariosRaw) {
         const parsed = JSON.parse(savedScenariosRaw);
-        let list: SavedScenario[] = Array.isArray(parsed.savedScenarios)
-          ? parsed.savedScenarios
-              .map((s: Partial<SavedScenario>, i: number) => sanitizeScenario(s, i))
-              .map((s: SavedScenario) => purgeXcodeScenario(s))
-              .filter(
-                (s: SavedScenario | null): s is SavedScenario =>
-                  s !== null && (s.projects.length > 0 || s.items.length > 0)
-              )
-          : [...defaultScenarios];
-
-        if (list.length === 0) {
-          list = [...defaultScenarios];
-        }
-
-        let activeId: string =
-          typeof parsed.activeScenarioId === 'string' &&
-          parsed.activeScenarioId &&
-          parsed.activeScenarioId !== 'scen-xcode27'
-            ? parsed.activeScenarioId
-            : list[0].id;
-
-        if (!activeId.startsWith('template:') && !list.some((s) => s.id === activeId)) {
-          activeId = list[0].id;
-        }
-
-        if (activeId.startsWith('template:')) {
-          const tplId = activeId.replace('template:', '');
-          const tpl = templates.find((t) => t.id === tplId);
-          if (tpl) {
-            const rawProjects = Array.isArray(parsed.projects) ? parsed.projects : [];
-            const rawItems = Array.isArray(parsed.items) ? parsed.items : [];
+        if (Array.isArray(parsed.savedScenarios)) {
+          for (const s of parsed.savedScenarios) {
+            if (!s || s.isDemo) continue;
+            const rawProjects: Partial<GanttProject>[] = Array.isArray(s.projects) ? s.projects : [];
+            const rawItems: Partial<GanttItem>[] = Array.isArray(s.items) ? s.items : [];
             const cleanProjects = rawProjects
-              .filter((p: Partial<GanttProject>) => !isXcode27Project(p))
-              .map((p: Partial<GanttProject>, i: number) => sanitizeProject(p, i));
+              .filter((p) => !isDemoOrTemplateProject(p) && !isXcode27Project(p))
+              .map((p, i) => sanitizeProject({ ...p, isDemo: false }, i));
             const cleanItems = rawItems
-              .filter((it: Partial<GanttItem>) => !isXcode27Task(it))
-              .map((it: Partial<GanttItem>, i: number) => sanitizeGanttItem(it, i));
+              .filter((it) => !isXcode27Task(it) && cleanProjects.some((p) => p.id === it.projectId))
+              .map((it, i) => sanitizeGanttItem(it, i));
 
-            return {
-              activeScenarioId: activeId,
-              projectName: parsed.projectName || tpl.name,
-              projects: cleanProjects.length > 0 ? cleanProjects : tpl.projects,
-              items: cleanItems.length > 0 ? cleanItems : tpl.items,
-              savedScenarios: list,
-            };
-          }
-        }
-
-        const activeScen = list.find((s) => s.id === activeId) || list[0];
-        const otherScenarios = list.filter((s) => s.id !== activeScen.id);
-        let initialProjects = activeScen.projects;
-        let initialItems = activeScen.items;
-        if (otherScenarios.length > 0) {
-          const merged = mergeImportedGanttData(initialProjects, initialItems, {
-            primaryScenario: otherScenarios[0],
-            allScenarios: otherScenarios,
-          });
-          initialProjects = merged.projects;
-          initialItems = merged.items;
-        }
-        return {
-          activeScenarioId: activeScen.id,
-          projectName: activeScen.name,
-          projects: initialProjects,
-          items: initialItems,
-          savedScenarios: list,
-        };
-      }
-
-      // Migrate legacy single-workspace state (v2 or v1) if present
-      const legacyRaw =
-        window.localStorage.getItem(STORAGE_KEY) ||
-        window.localStorage.getItem(LEGACY_STORAGE_KEY_V1);
-      let migratedList = [...defaultScenarios];
-      if (legacyRaw) {
-        const legacy = JSON.parse(legacyRaw);
-        if (Array.isArray(legacy.items) && legacy.items.length > 0) {
-          const rawProjects = Array.isArray(legacy.projects) ? legacy.projects : [];
-          const cleanProjects = rawProjects.filter(
-            (p: Partial<GanttProject>) => !isXcode27Project(p)
-          );
-          const cleanItems = legacy.items.filter(
-            (it: Partial<GanttItem>) => !isXcode27Task(it)
-          );
-
-          if (cleanItems.length > 0) {
-            const legacyName = legacy.projectName || templates[0].name;
-            const isIdenticalDefault = legacyName === templates[0].name;
-            const legacyScenario = sanitizeScenario({
-              id: isIdenticalDefault ? 'scen-saas-v2' : 'scen-migrated-user',
-              name: legacyName,
-              projects: cleanProjects,
-              items: cleanItems,
-              updatedAt: new Date().toISOString(),
-            });
-            migratedList = upsertScenarioInList(migratedList, legacyScenario);
+            if (cleanProjects.length > 0) {
+              const rawName = (s.name || '').trim();
+              const cleanName = rawName && !rawName.toLowerCase().includes('saas') ? rawName : 'GanttFlow';
+              return {
+                activeScenarioId: 'scen-user',
+                projectName: cleanName,
+                projects: cleanProjects,
+                items: cleanItems,
+                savedScenarios: [],
+              };
+            }
           }
         }
       }
-
-      const active = migratedList[0] || defaultScenarios[0];
-      return {
-        activeScenarioId: active.id,
-        projectName: active.name,
-        projects: active.projects,
-        items: active.items,
-        savedScenarios: migratedList,
-      };
     }
   } catch {
     // ignore storage errors
   }
 
-  // Default SSR / fresh fallback
-  const fallback =
-    defaultScenarios.find((s) => s.id === 'scen-saas-v2') || defaultScenarios[0];
+  // Clean fallback: zero demo projects
   return {
-    activeScenarioId: fallback.id,
-    projectName: fallback.name,
-    projects: fallback.projects,
-    items: fallback.items,
-    savedScenarios: defaultScenarios,
+    activeScenarioId: 'scen-user',
+    projectName: 'GanttFlow',
+    projects: [CLEAN_DEFAULT_PROJECT],
+    items: [],
+    savedScenarios: [],
   };
 }
 
@@ -271,10 +254,12 @@ export function App({
   initialScenarioId,
   initialView = 'gantt',
   initialSelectedProjectIds,
+  initialShowTable = true,
 }: {
   initialScenarioId?: string;
   initialView?: 'gantt' | 'projects';
   initialSelectedProjectIds?: string[];
+  initialShowTable?: boolean;
 } = {}) {
   const templates = useMemo(() => getProjectTemplates(), []);
   const defaultScenarios = useMemo(() => getDefaultSavedScenarios(), []);
@@ -284,12 +269,6 @@ export function App({
     [templates, defaultScenarios, initialScenarioId]
   );
 
-  const [savedScenarios, setSavedScenarios] = useState<SavedScenario[]>(
-    () => initialState.savedScenarios
-  );
-  const [activeScenarioId, setActiveScenarioId] = useState<string>(
-    () => initialState.activeScenarioId
-  );
   const [projectName, setProjectName] = useState<string>(
     () => initialState.projectName
   );
@@ -298,7 +277,27 @@ export function App({
   );
   const [items, setItems] = useState<GanttItem[]>(() => initialState.items);
 
-  const [activeView, setActiveView] = useState<'gantt' | 'projects'>(initialView);
+  const [showTable, setShowTable] = useState<boolean>(() => {
+    if (initialShowTable !== undefined) {
+      return initialShowTable;
+    }
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const saved = window.localStorage.getItem('ganttflow_show_table');
+        if (saved !== null) {
+          return saved !== 'false';
+        }
+      }
+    } catch {}
+    return true;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ganttflow_show_table', String(showTable));
+    } catch {}
+  }, [showTable]);
+
   const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>(() => {
     if (Array.isArray(initialSelectedProjectIds)) {
       return initialSelectedProjectIds;
@@ -321,10 +320,6 @@ export function App({
     } catch {}
     return initialState.projects.map((p) => p.id);
   });
-
-  // Inline creation state inside Projects List View
-  const [projectsViewNewName, setProjectsViewNewName] = useState<string>('');
-  const [projectsViewNewColor, setProjectsViewNewColor] = useState<TaskColor>('indigo');
 
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     try {
@@ -369,20 +364,14 @@ export function App({
     } catch {}
   }, [selectedProjectIds]);
 
-  // New Scenario inline creator state
-  const [showNewScenarioBar, setShowNewScenarioBar] = useState<boolean>(false);
-  const [newScenarioName, setNewScenarioName] = useState<string>('');
-  const [newScenarioMode, setNewScenarioMode] = useState<'blank' | 'duplicate'>('blank');
   const [scenarioSavedToast, setScenarioSavedToast] = useState<string | null>(null);
 
   // Minimalist UI toggles and menus
   const [showMetricsDrawer, setShowMetricsDrawer] = useState<boolean>(false);
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
-  const [scenarioMenuOpen, setScenarioMenuOpen] = useState<boolean>(false);
   const [projectMenuOpen, setProjectMenuOpen] = useState<boolean>(false);
   const [createMenuOpen, setCreateMenuOpen] = useState<boolean>(false);
 
-  const scenarioMenuRef = useRef<HTMLDivElement>(null);
   const projectMenuRef = useRef<HTMLDivElement>(null);
   const createMenuRef = useRef<HTMLDivElement>(null);
   const settingsModalRef = useRef<HTMLDivElement>(null);
@@ -392,9 +381,6 @@ export function App({
   useEffect(() => {
     const handleGlobalClick = (e: MouseEvent) => {
       const target = e.target as Node;
-      if (scenarioMenuRef.current && !scenarioMenuRef.current.contains(target)) {
-        setScenarioMenuOpen(false);
-      }
       if (projectMenuRef.current && !projectMenuRef.current.contains(target)) {
         setProjectMenuOpen(false);
       }
@@ -416,12 +402,10 @@ export function App({
     };
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setScenarioMenuOpen(false);
         setProjectMenuOpen(false);
         setCreateMenuOpen(false);
         setShowSettingsModal(false);
         setShowMetricsDrawer(false);
-        setShowNewScenarioBar(false);
       }
     };
     document.addEventListener('mousedown', handleGlobalClick);
@@ -497,49 +481,40 @@ export function App({
     [projectGroups]
   );
 
-  // Separate real projects vs demo projects for the Projects List View
-  const realProjectGroups = useMemo(
-    () => projectGroups.filter((g) => !g.project.isDemo),
-    [projectGroups]
-  );
-  const demoProjectGroups = useMemo(
-    () => projectGroups.filter((g) => Boolean(g.project.isDemo)),
-    [projectGroups]
-  );
-
-  // Keep active user scenario automatically synced in savedScenarios and localStorage
+  // Keep active workspace automatically synced in localStorage
   useEffect(() => {
-    let nextScenarios = savedScenarios;
-    if (activeScenarioId && !activeScenarioId.startsWith('template:')) {
-      nextScenarios = upsertScenarioInList(savedScenarios, {
-        id: activeScenarioId,
-        name: projectName,
-        projects: effectiveProjects,
-        items,
-        updatedAt: new Date().toISOString(),
-      });
-      setSavedScenarios(nextScenarios);
-    }
-
     try {
       localStorage.setItem(
         STORAGE_KEY,
         JSON.stringify({ projectName, projects: effectiveProjects, items })
       );
       localStorage.setItem(
+        SELECTED_PROJECTS_STORAGE_KEY,
+        JSON.stringify(selectedProjectIds)
+      );
+      localStorage.setItem(
         SCENARIOS_STORAGE_KEY,
         JSON.stringify({
-          activeScenarioId,
+          activeScenarioId: 'scen-user',
           projectName,
           projects: effectiveProjects,
           items,
-          savedScenarios: nextScenarios,
+          savedScenarios: [
+            {
+              id: 'scen-user',
+              name: projectName,
+              projects: effectiveProjects,
+              items,
+              updatedAt: new Date().toISOString(),
+              isDemo: false,
+            },
+          ],
         })
       );
     } catch {
       // ignore quota errors
     }
-  }, [activeScenarioId, projectName, effectiveProjects, items]);
+  }, [projectName, effectiveProjects, items, selectedProjectIds]);
 
 
   // Enrich computedItems with hierarchical wbsCode (e.g. 1.1, 1.2, 2.1) and resolved projectId
@@ -724,18 +699,6 @@ export function App({
     setSelectedProjectId('all');
   };
 
-  const handleSelectOnlyRealProjects = () => {
-    const realIds = effectiveProjects.filter((p) => !p.isDemo).map((p) => p.id);
-    setSelectedProjectIds(realIds);
-    setSelectedProjectId(realIds.length === 1 ? realIds[0] : 'all');
-  };
-
-  const handleSelectOnlyDemoProjects = () => {
-    const demoIds = effectiveProjects.filter((p) => p.isDemo).map((p) => p.id);
-    setSelectedProjectIds(demoIds);
-    setSelectedProjectId(demoIds.length === 1 ? demoIds[0] : 'all');
-  };
-
   const handleSelectOnlySingleProject = (projectId: string) => {
     setSelectedProjectIds([projectId]);
     setSelectedProjectId(projectId);
@@ -762,9 +725,18 @@ export function App({
     setModalOpen(true);
   };
 
-  const handleCreateProject = (newProj: GanttProject) => {
+  const handleCreateProject = (newProj?: Partial<GanttProject>) => {
     const clean = {
-      ...sanitizeProject({ ...newProj, isDemo: false }, projects.length),
+      ...sanitizeProject(
+        {
+          id: `proj-${Date.now()}`,
+          name: newProj?.name || `Proyecto ${projects.length + 1}`,
+          color: newProj?.color || 'indigo',
+          ...newProj,
+          isDemo: false,
+        },
+        projects.length
+      ),
       isDemo: false,
     };
     setProjects((prev) => [...prev, clean]);
@@ -819,149 +791,7 @@ export function App({
     }, 2800);
   };
 
-  const handleTemplateSelect = (templateId: string) => {
-    const next = switchWorkspaceToTemplate(
-      {
-        activeScenarioId,
-        projectName,
-        projects: effectiveProjects,
-        items,
-      },
-      savedScenarios,
-      templateId,
-      templates
-    );
-    setSavedScenarios(next.savedScenarios);
-    setActiveScenarioId(next.activeScenarioId);
-    setProjectName(next.projectName);
-    setProjects(next.projects);
-    setItems(next.items);
-    setSelectedProjectIds(next.projects.map((p) => p.id));
-    setSelectedProjectId('all');
-    showToast('Plantilla Demo cargada · Tus escenarios siguen guardados');
-  };
 
-  const handleScenarioSelect = (scenarioId: string) => {
-    const next = switchWorkspaceToScenario(
-      {
-        activeScenarioId,
-        projectName,
-        projects: effectiveProjects,
-        items,
-      },
-      savedScenarios,
-      scenarioId
-    );
-    setSavedScenarios(next.savedScenarios);
-    setActiveScenarioId(next.activeScenarioId);
-    setProjectName(next.projectName);
-    setProjects(next.projects);
-    setItems(next.items);
-    setSelectedProjectIds(next.projects.map((p) => p.id));
-    setSelectedProjectId('all');
-    showToast(`Escenario activo: ${next.projectName}`);
-  };
-
-  const handleSaveCurrentScenario = () => {
-    if (activeScenarioId.startsWith('template:')) {
-      const created = sanitizeScenario({
-        id: `scen-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        name: projectName,
-        projects: effectiveProjects,
-        items,
-        updatedAt: new Date().toISOString(),
-        sourceTemplateId: activeScenarioId.replace('template:', ''),
-        isDemo: false,
-      });
-      const nextList = upsertScenarioInList(savedScenarios, created);
-      setSavedScenarios(nextList);
-      setActiveScenarioId(created.id);
-      showToast(`Guardado en Mis Escenarios: "${created.name}"`);
-    } else {
-      const nextList = upsertScenarioInList(savedScenarios, {
-        id: activeScenarioId,
-        name: projectName,
-        projects: effectiveProjects,
-        items,
-        updatedAt: new Date().toISOString(),
-      });
-      setSavedScenarios(nextList);
-      showToast(`Escenario guardado: "${projectName}"`);
-    }
-  };
-
-  const handleDuplicateCurrentScenario = () => {
-    const baseList = preserveActiveWorkspaceInScenarios(
-      {
-        activeScenarioId,
-        projectName,
-        projects: effectiveProjects,
-        items,
-      },
-      savedScenarios,
-      templates
-    );
-    const copy = createNewScenario(`${projectName} (Copia)`, 'duplicate', {
-      projects: effectiveProjects,
-      items,
-    });
-    const nextList = upsertScenarioInList(baseList, copy);
-    setSavedScenarios(nextList);
-    setActiveScenarioId(copy.id);
-    setProjectName(copy.name);
-    setProjects(copy.projects);
-    setItems(copy.items);
-    setSelectedProjectIds(copy.projects.map((p) => p.id));
-    setSelectedProjectId('all');
-    showToast(`Copia guardada: "${copy.name}"`);
-  };
-
-  const handleCreateScenarioFromBar = (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmed = newScenarioName.trim() || `Escenario ${savedScenarios.length + 1}`;
-    const baseList = preserveActiveWorkspaceInScenarios(
-      {
-        activeScenarioId,
-        projectName,
-        projects: effectiveProjects,
-        items,
-      },
-      savedScenarios,
-      templates
-    );
-    const created = createNewScenario(trimmed, newScenarioMode, {
-      projects: effectiveProjects,
-      items,
-    });
-    const nextList = upsertScenarioInList(baseList, created);
-    setSavedScenarios(nextList);
-    setActiveScenarioId(created.id);
-    setProjectName(created.name);
-    setProjects(created.projects);
-    setItems(created.items);
-    setSelectedProjectIds(created.projects.map((p) => p.id));
-    setSelectedProjectId('all');
-    setNewScenarioName('');
-    setShowNewScenarioBar(false);
-    showToast(`Nuevo escenario creado: "${created.name}"`);
-  };
-
-  const handleDeleteScenario = (scenarioId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (savedScenarios.length <= 1) return;
-    const remaining = savedScenarios.filter((s) => s.id !== scenarioId);
-    setSavedScenarios(remaining);
-    if (activeScenarioId === scenarioId) {
-      const fallback = remaining[0];
-      setActiveScenarioId(fallback.id);
-      setProjectName(fallback.name);
-      setProjects(fallback.projects);
-      setItems(fallback.items);
-      setSelectedProjectIds(fallback.projects.map((p) => p.id));
-      setSelectedProjectId('all');
-    }
-    showToast('Escenario eliminado');
-  };
 
   const handleResolveAllConflicts = () => {
     setItems((prev) => cascadeDependencies(prev));
@@ -1064,7 +894,7 @@ export function App({
         });
       }
     }
-  }, [activeScenarioId]);
+  }, []);
 
   const scrollToToday = () => {
     if (!scrollContainerRef.current) return;
@@ -1081,7 +911,7 @@ export function App({
   const handleExportJSON = () => {
     const payload = JSON.stringify(
       {
-        id: activeScenarioId,
+        id: 'workspace',
         name: projectName,
         projectName,
         projects: effectiveProjects,
@@ -1190,36 +1020,6 @@ export function App({
 
         const merged = mergeImportedGanttData(effectiveProjects, items, result);
 
-        const preservedList = preserveActiveWorkspaceInScenarios(
-          {
-            activeScenarioId,
-            projectName,
-            projects: effectiveProjects,
-            items,
-          },
-          savedScenarios,
-          templates
-        );
-
-        const activeMergedScenario = sanitizeScenario({
-          id: activeScenarioId.startsWith('template:')
-            ? `scen-${Date.now()}-merged`
-            : activeScenarioId,
-          name: projectName,
-          projects: merged.projects,
-          items: merged.items,
-          updatedAt: new Date().toISOString(),
-        });
-
-        let mergedList = upsertScenarioInList(preservedList, activeMergedScenario);
-        if (result.allScenarios && result.allScenarios.length > 1) {
-          for (const sc of result.allScenarios) {
-            mergedList = upsertScenarioInList(mergedList, sc);
-          }
-        }
-
-        setSavedScenarios(mergedList);
-        setActiveScenarioId(activeMergedScenario.id);
         setProjects(merged.projects);
         setItems(merged.items);
         setSelectedProjectIds((prev) => {
@@ -1231,7 +1031,7 @@ export function App({
         });
         setSelectedProjectId('all');
         setShowSettingsModal(false);
-        setScenarioMenuOpen(false);
+        setProjectMenuOpen(false);
         setCreateMenuOpen(false);
 
         const fit = computeFitToProjectScale(merged.items, 980);
@@ -1301,14 +1101,6 @@ export function App({
     }
   };
 
-  const isViewingTemplate = activeScenarioId.startsWith('template:');
-  const activeScenarioObj = savedScenarios.find((s) => s.id === activeScenarioId);
-  const isCurrentScenarioDemo =
-    isViewingTemplate ||
-    (effectiveProjects.length > 0
-      ? effectiveProjects.every((p) => Boolean(p.isDemo))
-      : Boolean(activeScenarioObj?.isDemo));
-
   return (
     <div
       className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#09090b] text-slate-900 dark:text-zinc-100 selection:bg-indigo-500/30 relative"
@@ -1320,249 +1112,35 @@ export function App({
       {/* Top Navigation Bar — Single Minimalist 48px Bar */}
       <header className="sticky top-0 z-30 h-13 px-4 bg-white/95 dark:bg-[#09090b]/95 backdrop-blur-md border-b border-slate-200 dark:border-zinc-800/80 flex items-center justify-between gap-3 select-none">
         
-        {/* LEFT: Logo + View Switcher + Escenario Dropdown + "Proyectos" Multi-Select Dropdown */}
+        {/* LEFT: Toggle Table Button + "Proyectos" Multi-Select Dropdown */}
         <div className="flex items-center gap-2.5 min-w-0">
-          {/* Logo Minimalista Vectorial */}
-          <div className="w-7 h-7 rounded-lg bg-indigo-600/10 dark:bg-zinc-900 border border-indigo-500/30 dark:border-zinc-800 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0 shadow-sm">
+          {/* Botón posicionado en el icono para esconder la tabla y enseñar solo el diagrama */}
+          <button
+            type="button"
+            data-testid="toggle-table-btn"
+            onClick={() => setShowTable((prev) => !prev)}
+            className={`w-7 h-7 rounded-lg border flex items-center justify-center shrink-0 shadow-sm transition cursor-pointer ${
+              showTable
+                ? 'bg-indigo-600/10 dark:bg-zinc-900 border-indigo-500/30 dark:border-zinc-800 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-600/20'
+                : 'bg-slate-200 dark:bg-zinc-800 border-slate-300 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
+            }`}
+            title={showTable ? 'Ocultar tabla de tareas (solo diagrama)' : 'Mostrar tabla de tareas'}
+            aria-label={showTable ? 'Ocultar tabla de tareas' : 'Mostrar tabla de tareas'}
+          >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="4" y1="6" x2="16" y2="6" />
               <line x1="8" y1="12" x2="20" y2="12" />
               <line x1="4" y1="18" x2="12" y2="18" />
             </svg>
-          </div>
+          </button>
 
-          {/* Primary View Switcher: Diagrama Gantt vs Lista de Proyectos */}
-          <div
-            data-view-switcher="true"
-            className="flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shrink-0"
-          >
+          {/* Selector "Proyectos" con selección múltiple */}
+          <div ref={projectMenuRef} className="relative" data-dropdown-container="true">
             <button
               type="button"
-              data-view-tab="gantt"
-              onClick={() => setActiveView('gantt')}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition cursor-pointer ${
-                activeView === 'gantt'
-                  ? 'bg-white dark:bg-zinc-800 text-indigo-600 dark:text-indigo-400 shadow-2xs'
-                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-              title="Ver Diagrama Gantt (solo muestra los proyectos seleccionados)"
-            >
-              <Calendar className="w-3.5 h-3.5" />
-              <span>Diagrama Gantt</span>
-            </button>
-            <button
-              type="button"
-              data-view-tab="projects"
-              onClick={() => setActiveView('projects')}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition cursor-pointer ${
-                activeView === 'projects'
-                  ? 'bg-white dark:bg-zinc-800 text-indigo-600 dark:text-indigo-400 shadow-2xs'
-                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-              title="Abrir vista de Lista de Proyectos para seleccionar cuáles aparecen en el Gantt"
-            >
-              <FolderKanban className="w-3.5 h-3.5" />
-              <span>Lista de Proyectos</span>
-              <span
-                data-selected-projects-count="true"
-                className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-indigo-500/15 text-indigo-600 dark:text-indigo-300"
-              >
-                {selectedProjectIds.length}/{effectiveProjects.length}
-              </span>
-            </button>
-          </div>
-
-          {/* Scenario Selector Dropdown */}
-          <div ref={scenarioMenuRef} className="relative" data-dropdown-container="true">
-            <button
-              type="button"
-              onClick={() => {
-                setScenarioMenuOpen((prev) => !prev);
-                setProjectMenuOpen(false);
-                setCreateMenuOpen(false);
-              }}
-              className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-zinc-900/90 hover:bg-slate-200/70 dark:hover:bg-zinc-800/80 border border-slate-200 dark:border-zinc-800 text-xs font-semibold text-slate-800 dark:text-zinc-100 transition shadow-2xs cursor-pointer"
-              title="Cambiar escenario o plantilla"
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-              <span className="max-w-[160px] sm:max-w-[210px] truncate">{projectName}</span>
-              {isCurrentScenarioDemo ? (
-                <span
-                  data-active-scenario-demo-badge="true"
-                  className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 shrink-0"
-                >
-                  DEMO
-                </span>
-              ) : (
-                <span
-                  data-active-scenario-real-badge="true"
-                  className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 shrink-0"
-                >
-                  REAL
-                </span>
-              )}
-              <ChevronDown className="w-3 h-3 text-slate-400" />
-            </button>
-
-            {/* Escenarios Popover */}
-            <div
-              data-scenarios-bar="true"
-              className={`${
-                scenarioMenuOpen ? 'flex' : 'hidden'
-              } absolute left-0 top-10 w-80 p-2 bg-white dark:bg-zinc-900/98 border border-slate-200 dark:border-zinc-800 rounded-xl shadow-2xl backdrop-blur-xl z-50 text-xs flex-col gap-1 max-h-[480px] overflow-y-auto`}
-            >
-                <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500">
-                  Mis Escenarios ({savedScenarios.length})
-                </div>
-
-                {savedScenarios.map((scen) => {
-                  const isActive = activeScenarioId === scen.id;
-                  const scenIsDemo = Boolean(scen.isDemo);
-                  return (
-                    <div
-                      key={scen.id}
-                      data-scenario-pill={scen.id}
-                      onClick={() => {
-                        handleScenarioSelect(scen.id);
-                        setScenarioMenuOpen(false);
-                      }}
-                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left transition cursor-pointer ${
-                        isActive
-                          ? 'bg-indigo-600 text-white font-medium shadow-sm'
-                          : 'hover:bg-slate-100 dark:hover:bg-zinc-800/70 text-slate-700 dark:text-zinc-300'
-                      }`}
-                    >
-                      <div className="flex items-center gap-1.5 min-w-0 pr-1">
-                        <span
-                          className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                            isActive ? 'bg-white' : scenIsDemo ? 'bg-amber-400' : 'bg-emerald-400'
-                          }`}
-                        />
-                        {scenIsDemo ? (
-                          <span
-                            data-scenario-demo-badge={scen.id}
-                            className={`px-1 py-0.2 rounded text-[9px] font-bold uppercase shrink-0 ${
-                              isActive
-                                ? 'bg-amber-400/30 text-amber-100 border border-amber-300/40'
-                                : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30'
-                            }`}
-                          >
-                            DEMO
-                          </span>
-                        ) : (
-                          <span
-                            data-scenario-real-badge={scen.id}
-                            className={`px-1 py-0.2 rounded text-[9px] font-bold uppercase shrink-0 ${
-                              isActive
-                                ? 'bg-emerald-400/30 text-emerald-100 border border-emerald-300/40'
-                                : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
-                            }`}
-                          >
-                            REAL
-                          </span>
-                        )}
-                        <span className="truncate max-w-[145px]">{scen.name}</span>
-                      </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <span
-                          className={`text-[10px] px-1 py-0.5 rounded font-mono ${
-                            isActive
-                              ? 'bg-white/20 text-white'
-                              : 'bg-slate-200/80 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400'
-                          }`}
-                        >
-                          {scen.projects.length}p · {scen.items.length}t
-                        </span>
-                        {savedScenarios.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              handleDeleteScenario(scen.id, e);
-                            }}
-                            className={`p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 ${
-                              isActive ? 'text-white' : 'text-slate-400 hover:text-rose-500'
-                            }`}
-                            title="Eliminar escenario"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-
-                <div className="border-t border-slate-200 dark:border-zinc-800/80 my-1" />
-
-                <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center justify-between">
-                  <span>Plantillas Demo (Ejemplos)</span>
-                  <span className="px-1 py-0.2 rounded bg-amber-500/15 text-[9px] font-bold">DEMO</span>
-                </div>
-                {templates.map((tpl) => (
-                  <button
-                    key={tpl.id}
-                    type="button"
-                    onClick={() => {
-                      handleTemplateSelect(tpl.id);
-                      setScenarioMenuOpen(false);
-                    }}
-                    className="flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/60 text-slate-700 dark:text-zinc-300 text-left transition"
-                  >
-                    <span className="truncate">{tpl.name}</span>
-                    <span className="px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[9px] font-bold uppercase shrink-0">
-                      DEMO
-                    </span>
-                  </button>
-                ))}
-
-                <div className="border-t border-slate-200 dark:border-zinc-800/80 my-1" />
-
-                <div className="flex items-center justify-between gap-1 pt-0.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowNewScenarioBar(true);
-                      setScenarioMenuOpen(false);
-                    }}
-                    className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 font-medium transition"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Nuevo</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleSaveCurrentScenario();
-                      setScenarioMenuOpen(false);
-                    }}
-                    className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10 font-medium transition"
-                  >
-                    <Save className="w-3.5 h-3.5" />
-                    <span>Guardar Copia</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      fileInputRef.current?.click();
-                      setScenarioMenuOpen(false);
-                    }}
-                    className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-violet-600 dark:text-violet-400 hover:bg-violet-500/10 font-medium transition"
-                    title="Importar escenario desde JSON o CSV"
-                  >
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>Importar</span>
-                  </button>
-                </div>
-              </div>
-          </div>
-
-          {/* Selector "Proyectos" con selección múltiple y acceso a Lista de Proyectos */}
-          <div ref={projectMenuRef} className="relative hidden sm:block" data-dropdown-container="true">
-            <button
-              type="button"
+              data-project-selector-btn="true"
               onClick={() => {
                 setProjectMenuOpen((prev) => !prev);
-                setScenarioMenuOpen(false);
                 setCreateMenuOpen(false);
               }}
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-zinc-900/90 hover:bg-slate-200/70 dark:hover:bg-zinc-800/80 border border-slate-200 dark:border-zinc-800 text-xs font-medium text-slate-700 dark:text-zinc-300 transition shadow-2xs cursor-pointer"
@@ -1573,11 +1151,17 @@ export function App({
               {selectedProjectIds.length < effectiveProjects.length && (
                 <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
               )}
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-indigo-500/15 text-indigo-600 dark:text-indigo-300">
+                {selectedProjectIds.length}/{effectiveProjects.length}
+              </span>
               <ChevronDown className="w-3 h-3 text-slate-400" />
             </button>
 
             {projectMenuOpen && (
-              <div className="absolute left-0 top-10 w-72 p-2 bg-white dark:bg-zinc-900/98 border border-slate-200 dark:border-zinc-800 rounded-xl shadow-2xl backdrop-blur-xl z-50 text-xs flex flex-col gap-1">
+              <div
+                data-projects-dropdown-menu="true"
+                className="absolute left-0 top-10 w-72 p-2 bg-white dark:bg-zinc-900/98 border border-slate-200 dark:border-zinc-800 rounded-xl shadow-2xl backdrop-blur-xl z-50 text-xs flex flex-col gap-1 max-h-[380px] overflow-y-auto"
+              >
                 <div className="flex items-center justify-between px-2 py-1">
                   <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500">
                     Visibles en Gantt ({selectedProjectIds.length}/{projectGroups.length})
@@ -1585,16 +1169,18 @@ export function App({
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
+                      data-select-all-btn="true"
                       onClick={handleSelectAllProjects}
-                      className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
+                      className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline font-medium cursor-pointer"
                     >
                       Todos
                     </button>
                     <span className="text-slate-300 dark:text-zinc-700">·</span>
                     <button
                       type="button"
+                      data-deselect-all-btn="true"
                       onClick={handleDeselectAllProjects}
-                      className="text-[10px] text-slate-500 hover:underline"
+                      className="text-[10px] text-slate-500 hover:underline cursor-pointer"
                     >
                       Ninguno
                     </button>
@@ -1609,6 +1195,7 @@ export function App({
                   return (
                     <label
                       key={group.project.id}
+                      data-project-menu-item={group.project.id}
                       className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left transition cursor-pointer ${
                         isChecked
                           ? 'bg-indigo-50/80 dark:bg-indigo-950/40 text-slate-900 dark:text-white font-medium'
@@ -1623,16 +1210,7 @@ export function App({
                           className="rounded border-slate-300 dark:border-zinc-700 text-indigo-600"
                         />
                         <span className={`w-2 h-2 rounded-full shrink-0 ${colorDot}`} />
-                        {group.project.isDemo ? (
-                          <span className="px-1 py-0.2 rounded text-[8px] font-bold uppercase bg-amber-500/20 text-amber-700 dark:text-amber-300 shrink-0">
-                            DEMO
-                          </span>
-                        ) : (
-                          <span className="px-1 py-0.2 rounded text-[8px] font-bold uppercase bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 shrink-0">
-                            REAL
-                          </span>
-                        )}
-                        <span className="truncate max-w-[125px]">
+                        <span className="truncate max-w-[150px]">
                           P{group.projectIndex}: {group.project.name}
                         </span>
                       </div>
@@ -1646,14 +1224,15 @@ export function App({
                 <div className="border-t border-slate-200 dark:border-zinc-800/80 my-1" />
                 <button
                   type="button"
+                  data-add-project-dropdown-btn="true"
                   onClick={() => {
-                    setActiveView('projects');
+                    handleCreateProject();
                     setProjectMenuOpen(false);
                   }}
                   className="w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold transition cursor-pointer"
                 >
-                  <FolderKanban className="w-3.5 h-3.5" />
-                  <span>Abrir Vista Lista de Proyectos</span>
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Nuevo Proyecto</span>
                 </button>
               </div>
             )}
@@ -1686,7 +1265,6 @@ export function App({
               type="button"
               onClick={() => {
                 setCreateMenuOpen((prev) => !prev);
-                setScenarioMenuOpen(false);
                 setProjectMenuOpen(false);
               }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium shadow-sm transition cursor-pointer"
@@ -1704,7 +1282,7 @@ export function App({
                     handleOpenCreateModal('task');
                     setCreateMenuOpen(false);
                   }}
-                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/70 text-slate-800 dark:text-zinc-200 font-medium transition text-left"
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/70 text-slate-800 dark:text-zinc-200 font-medium transition text-left cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5 text-indigo-500" />
                   <span>Nueva Tarea</span>
@@ -1715,10 +1293,21 @@ export function App({
                     handleOpenCreateModal('milestone');
                     setCreateMenuOpen(false);
                   }}
-                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/70 text-slate-800 dark:text-zinc-200 font-medium transition text-left"
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/70 text-slate-800 dark:text-zinc-200 font-medium transition text-left cursor-pointer"
                 >
                   <Diamond className="w-3.5 h-3.5 text-amber-500 fill-current" />
                   <span>Nuevo Hito</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleCreateProject();
+                    setCreateMenuOpen(false);
+                  }}
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/70 text-slate-800 dark:text-zinc-200 font-medium transition text-left cursor-pointer"
+                >
+                  <FolderKanban className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>Nuevo Proyecto</span>
                 </button>
                 <div className="border-t border-slate-100 dark:border-zinc-800 my-0.5" />
                 <button
@@ -1727,7 +1316,7 @@ export function App({
                     fileInputRef.current?.click();
                     setCreateMenuOpen(false);
                   }}
-                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/70 text-slate-800 dark:text-zinc-200 font-medium transition text-left"
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/70 text-slate-800 dark:text-zinc-200 font-medium transition text-left cursor-pointer"
                   title="Importar datos desde JSON o CSV"
                 >
                   <Upload className="w-3.5 h-3.5 text-violet-500" />
@@ -1888,68 +1477,7 @@ export function App({
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col max-w-[1920px] w-full mx-auto px-2 sm:px-4 py-2 sm:py-3 gap-2 min-h-0">
-        {/* Inline New Scenario Creation Bar */}
-        {showNewScenarioBar && (
-          <form
-            onSubmit={handleCreateScenarioFromBar}
-            className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/80 shadow-sm text-xs"
-          >
-            <div className="flex items-center gap-2.5 flex-1 min-w-[240px]">
-              <BookmarkPlus className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <span className="font-bold text-emerald-950 dark:text-emerald-200 shrink-0">
-                Nuevo Escenario:
-              </span>
-              <input
-                type="text"
-                required
-                value={newScenarioName}
-                onChange={(e) => setNewScenarioName(e.target.value)}
-                placeholder="Ej. Escenario Plan B / Release Q1 2027"
-                className="flex-1 px-3 py-1.5 rounded-xl border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-            </div>
 
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-2 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-xl border border-emerald-200 dark:border-emerald-800">
-                <label className="flex items-center gap-1.5 cursor-pointer font-medium text-slate-700 dark:text-slate-300">
-                  <input
-                    type="radio"
-                    name="scenarioMode"
-                    checked={newScenarioMode === 'blank'}
-                    onChange={() => setNewScenarioMode('blank')}
-                    className="text-emerald-600"
-                  />
-                  <span>Desde cero (1 proyecto limpio)</span>
-                </label>
-                <span className="text-slate-300 dark:text-slate-700">|</span>
-                <label className="flex items-center gap-1.5 cursor-pointer font-medium text-slate-700 dark:text-slate-300">
-                  <input
-                    type="radio"
-                    name="scenarioMode"
-                    checked={newScenarioMode === 'duplicate'}
-                    onChange={() => setNewScenarioMode('duplicate')}
-                    className="text-emerald-600"
-                  />
-                  <span>Clonar escenario actual</span>
-                </label>
-              </div>
-
-              <button
-                type="submit"
-                className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-sm"
-              >
-                Crear y Guardar Escenario
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowNewScenarioBar(false)}
-                className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-200/60 dark:hover:bg-slate-800"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          </form>
-        )}
 
         {/* Conflict Banner if any task violates predecessor dependencies */}
         {metrics.conflictCount > 0 && (
@@ -1972,418 +1500,6 @@ export function App({
           </div>
         )}
 
-        {activeView === 'projects' ? (
-          /* VISTA DE LISTA DE PROYECTOS (Seleccionable, separando Reales de Demos) */
-          <div
-            data-projects-list-view="true"
-            className="flex-1 flex flex-col gap-5 bg-white dark:bg-zinc-900/95 border border-slate-200/90 dark:border-zinc-800/90 rounded-2xl shadow-xl p-4 sm:p-6 overflow-y-auto"
-          >
-            {/* Header & Quick Selection Controls */}
-            <div className="flex flex-wrap items-start justify-between gap-4 pb-4 border-b border-slate-200 dark:border-zinc-800">
-              <div>
-                <div className="flex items-center gap-2">
-                  <FolderKanban className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                  <h1 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
-                    Lista de Proyectos Guardados
-                  </h1>
-                  <span className="px-2 py-0.5 rounded-full text-xs font-mono font-semibold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
-                    {selectedProjectIds.length} de {effectiveProjects.length} seleccionados para Gantt
-                  </span>
-                </div>
-                <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">
-                  Selecciona los proyectos que deseas visualizar en el Diagrama Gantt. Solo los proyectos marcados aparecerán en el cronograma. Los proyectos de demostración están identificados como <strong>DEMO</strong> y separados de tus proyectos <strong>REALES</strong>.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2 text-xs">
-                <button
-                  type="button"
-                  data-select-all-projects="true"
-                  onClick={handleSelectAllProjects}
-                  className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200 font-medium transition cursor-pointer"
-                >
-                  Seleccionar Todos ({effectiveProjects.length})
-                </button>
-                <button
-                  type="button"
-                  data-select-real-projects="true"
-                  onClick={handleSelectOnlyRealProjects}
-                  className="px-3 py-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-semibold transition cursor-pointer"
-                >
-                  Solo Reales ({realProjectGroups.length})
-                </button>
-                <button
-                  type="button"
-                  data-select-demo-projects="true"
-                  onClick={handleSelectOnlyDemoProjects}
-                  className="px-3 py-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 font-semibold transition cursor-pointer"
-                >
-                  Solo Demos ({demoProjectGroups.length})
-                </button>
-                <button
-                  type="button"
-                  data-deselect-all-projects="true"
-                  onClick={handleDeselectAllProjects}
-                  className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 text-slate-500 dark:text-zinc-400 font-medium transition cursor-pointer"
-                >
-                  Ninguno
-                </button>
-                <button
-                  type="button"
-                  data-projects-view-import-btn="true"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-violet-500/30 bg-violet-500/10 hover:bg-violet-500/20 text-violet-700 dark:text-violet-300 font-semibold transition cursor-pointer"
-                  title="Importar y fusionar datos desde JSON o CSV sin borrar los datos cargados"
-                >
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>Importar JSON / CSV</span>
-                </button>
-                <button
-                  type="button"
-                  data-go-to-gantt-btn="true"
-                  onClick={() => setActiveView('gantt')}
-                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold shadow-sm transition cursor-pointer"
-                >
-                  <Calendar className="w-3.5 h-3.5" />
-                  <span>Ver en Diagrama Gantt ({selectedProjectIds.length})</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Inline Bar to Create a New Real Project */}
-            <form
-              data-projects-view-create-form="true"
-              onSubmit={(e) => {
-                e.preventDefault();
-                const trimmed = projectsViewNewName.trim();
-                if (!trimmed) return;
-                handleCreateProject({
-                  id: `proj-${Date.now()}`,
-                  name: trimmed,
-                  color: projectsViewNewColor,
-                  collapsed: false,
-                  isDemo: false,
-                });
-                setProjectsViewNewName('');
-              }}
-              className="flex flex-wrap items-center gap-3 p-3.5 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-900/50 text-xs"
-            >
-              <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-600 text-white shrink-0">
-                REAL
-              </span>
-              <span className="font-semibold text-slate-800 dark:text-zinc-200 shrink-0">
-                Crear Proyecto Real:
-              </span>
-              <input
-                type="text"
-                value={projectsViewNewName}
-                onChange={(e) => setProjectsViewNewName(e.target.value)}
-                placeholder="Nombre del nuevo proyecto real..."
-                className="flex-1 min-w-[200px] px-3 py-1.5 rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-              <div className="flex items-center gap-1.5">
-                {PROJECT_COLORS.map((c) => (
-                  <button
-                    key={c.value}
-                    type="button"
-                    onClick={() => setProjectsViewNewColor(c.value)}
-                    className={`w-4 h-4 rounded-full ${c.bg} transition-transform ${
-                      projectsViewNewColor === c.value
-                        ? 'scale-125 ring-2 ring-offset-1 ring-indigo-500'
-                        : 'opacity-70 hover:opacity-100'
-                    }`}
-                    title={c.value}
-                  />
-                ))}
-              </div>
-              <button
-                type="submit"
-                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-sm transition cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Crear Proyecto</span>
-              </button>
-            </form>
-
-            {/* SECTION 1: PROYECTOS REALES */}
-            <section
-              data-real-projects-section="true"
-              className="space-y-3"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
-                    PROYECTOS REALES
-                  </span>
-                  <h2 className="text-sm font-bold text-slate-900 dark:text-white">
-                    Mis Proyectos Reales ({realProjectGroups.length})
-                  </h2>
-                </div>
-                {realProjectGroups.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={handleSelectOnlyRealProjects}
-                    className="text-xs text-emerald-600 dark:text-emerald-400 hover:underline font-medium cursor-pointer"
-                  >
-                    Mostrar solo proyectos reales en Gantt
-                  </button>
-                )}
-              </div>
-
-              {realProjectGroups.length === 0 ? (
-                <div className="p-6 rounded-xl border border-dashed border-emerald-300 dark:border-emerald-900/60 bg-emerald-50/30 dark:bg-emerald-950/10 text-center text-xs text-slate-600 dark:text-zinc-400">
-                  Aún no has creado ni importado proyectos reales en este escenario (actualmente solo hay proyectos <strong>DEMO</strong>). Usa el formulario superior o importa un archivo JSON/CSV para agregar tus proyectos reales.
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                  {realProjectGroups.map((group) => {
-                    const isSelected = selectedProjectIds.includes(group.project.id);
-                    const colorDot =
-                      PROJECT_COLORS.find((c) => c.value === group.project.color)?.bg ||
-                      'bg-indigo-500';
-                    return (
-                      <div
-                        key={group.project.id}
-                        data-project-list-card={group.project.id}
-                        data-project-kind="real"
-                        onClick={() => handleToggleSelectProject(group.project.id)}
-                        className={`p-4 rounded-xl border transition cursor-pointer flex flex-col justify-between gap-3 ${
-                          isSelected
-                            ? 'border-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/25 shadow-sm ring-1 ring-emerald-500/40'
-                            : 'border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-900/50 opacity-75 hover:opacity-100'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <input
-                              type="checkbox"
-                              data-project-select-checkbox={group.project.id}
-                              checked={isSelected}
-                              onChange={() => handleToggleSelectProject(group.project.id)}
-                              onClick={(e) => e.stopPropagation()}
-                              className="w-4 h-4 rounded border-slate-300 dark:border-zinc-700 text-emerald-600 cursor-pointer shrink-0"
-                            />
-                            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${colorDot}`} />
-                            <span className="font-mono text-xs font-bold text-slate-500 dark:text-zinc-400 shrink-0">
-                              P{group.projectIndex}
-                            </span>
-                            <span className="font-bold text-sm text-slate-900 dark:text-white truncate">
-                              {group.project.name}
-                            </span>
-                          </div>
-                          <span
-                            data-project-card-real-badge={group.project.id}
-                            className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 shrink-0"
-                          >
-                            REAL
-                          </span>
-                        </div>
-
-                        <div className="grid grid-cols-3 gap-2 text-[11px] bg-white/80 dark:bg-zinc-950/60 p-2.5 rounded-lg border border-slate-200/60 dark:border-zinc-800/80">
-                          <div>
-                            <div className="text-slate-400 text-[10px]">Ítems</div>
-                            <div className="font-semibold text-slate-800 dark:text-zinc-200">
-                              {group.tasksCount}t · {group.milestonesCount}h
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-slate-400 text-[10px]">Duración</div>
-                            <div className="font-mono font-semibold text-slate-800 dark:text-zinc-200">
-                              {group.duration}d
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-slate-400 text-[10px]">Avance</div>
-                            <div className="font-mono font-semibold text-emerald-600 dark:text-emerald-400">
-                              {group.progress}%
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between gap-2 pt-1 text-[11px]">
-                          <span className="font-mono text-slate-500 dark:text-zinc-400">
-                            {group.items.length > 0
-                              ? `${formatDateDisplay(group.startDate, 'dd/MM/yyyy')} → ${formatDateDisplay(group.endDate, 'dd/MM/yyyy')}`
-                              : 'Sin tareas aún'}
-                          </span>
-                          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleUpdateProject({
-                                  ...group.project,
-                                  isDemo: true,
-                                })
-                              }
-                              className="px-2 py-1 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 font-semibold transition"
-                              title="Marcar este proyecto como proyecto Demo"
-                            >
-                              Marcar como Demo
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                handleSelectOnlySingleProject(group.project.id);
-                                setActiveView('gantt');
-                              }}
-                              className="px-2 py-1 rounded bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-semibold transition"
-                              title="Ver únicamente este proyecto en el Diagrama Gantt"
-                            >
-                              Solo este en Gantt
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
-
-            {/* SECTION 2: PROYECTOS DEMO (Separados e indicados claramente como DEMO) */}
-            <section
-              data-demo-projects-section="true"
-              className="space-y-3 pt-4 border-t border-slate-200 dark:border-zinc-800"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30">
-                    PROYECTOS DEMO
-                  </span>
-                  <h2 className="text-sm font-bold text-slate-900 dark:text-white">
-                    Proyectos de Demostración ({demoProjectGroups.length})
-                  </h2>
-                  <span className="text-xs text-slate-400 dark:text-zinc-500">
-                    (Separados de tus proyectos reales)
-                  </span>
-                </div>
-                {demoProjectGroups.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const nonDemoIds = selectedProjectIds.filter(
-                        (id) => !demoProjectGroups.some((g) => g.project.id === id)
-                      );
-                      setSelectedProjectIds(nonDemoIds);
-                    }}
-                    className="text-xs text-amber-600 dark:text-amber-400 hover:underline font-medium cursor-pointer"
-                  >
-                    Ocultar todos los demos del Gantt
-                  </button>
-                )}
-              </div>
-
-              {demoProjectGroups.length === 0 ? (
-                <div className="p-4 rounded-xl border border-slate-200 dark:border-zinc-800 text-xs text-slate-400">
-                  No hay proyectos demo en este escenario.
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                  {demoProjectGroups.map((group) => {
-                    const isSelected = selectedProjectIds.includes(group.project.id);
-                    const colorDot =
-                      PROJECT_COLORS.find((c) => c.value === group.project.color)?.bg ||
-                      'bg-indigo-500';
-                    return (
-                      <div
-                        key={group.project.id}
-                        data-project-list-card={group.project.id}
-                        data-project-kind="demo"
-                        onClick={() => handleToggleSelectProject(group.project.id)}
-                        className={`p-4 rounded-xl border transition cursor-pointer flex flex-col justify-between gap-3 ${
-                          isSelected
-                            ? 'border-amber-500/80 bg-amber-50/40 dark:bg-amber-950/20 shadow-sm ring-1 ring-amber-500/30'
-                            : 'border-slate-200 dark:border-zinc-800 bg-slate-50/40 dark:bg-zinc-900/40 opacity-70 hover:opacity-100'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <input
-                              type="checkbox"
-                              data-project-select-checkbox={group.project.id}
-                              checked={isSelected}
-                              onChange={() => handleToggleSelectProject(group.project.id)}
-                              onClick={(e) => e.stopPropagation()}
-                              className="w-4 h-4 rounded border-slate-300 dark:border-zinc-700 text-amber-600 cursor-pointer shrink-0"
-                            />
-                            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${colorDot}`} />
-                            <span className="font-mono text-xs font-bold text-slate-500 dark:text-zinc-400 shrink-0">
-                              P{group.projectIndex}
-                            </span>
-                            <span className="font-bold text-sm text-slate-900 dark:text-white truncate">
-                              {group.project.name}
-                            </span>
-                          </div>
-                          <span
-                            data-project-card-demo-badge={group.project.id}
-                            className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 shrink-0"
-                          >
-                            DEMO
-                          </span>
-                        </div>
-
-                        <div className="grid grid-cols-3 gap-2 text-[11px] bg-white/80 dark:bg-zinc-950/60 p-2.5 rounded-lg border border-slate-200/60 dark:border-zinc-800/80">
-                          <div>
-                            <div className="text-slate-400 text-[10px]">Ítems Demo</div>
-                            <div className="font-semibold text-slate-800 dark:text-zinc-200">
-                              {group.tasksCount}t · {group.milestonesCount}h
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-slate-400 text-[10px]">Duración</div>
-                            <div className="font-mono font-semibold text-slate-800 dark:text-zinc-200">
-                              {group.duration}d
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-slate-400 text-[10px]">Avance</div>
-                            <div className="font-mono font-semibold text-amber-600 dark:text-amber-400">
-                              {group.progress}%
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between gap-2 pt-1 text-[11px]">
-                          <span className="font-mono text-slate-500 dark:text-zinc-400">
-                            {group.items.length > 0
-                              ? `${formatDateDisplay(group.startDate, 'dd/MM/yyyy')} → ${formatDateDisplay(group.endDate, 'dd/MM/yyyy')}`
-                              : 'Sin tareas'}
-                          </span>
-                          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleUpdateProject({
-                                  ...group.project,
-                                  isDemo: false,
-                                })
-                              }
-                              className="px-2 py-1 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-semibold transition"
-                              title="Marcar este proyecto como proyecto Real"
-                            >
-                              Marcar como Real
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                handleSelectOnlySingleProject(group.project.id);
-                                setActiveView('gantt');
-                              }}
-                              className="px-2 py-1 rounded bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-semibold transition"
-                              title="Ver únicamente este proyecto Demo en el Diagrama Gantt"
-                            >
-                              Solo este en Gantt
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
-          </div>
-        ) : (
           /* Interactive Split-Pane Gantt Chart & WBS Table with Project Grouping */
           <GanttWorkspace
             items={computedItems}
@@ -2391,7 +1507,6 @@ export function App({
             groupByProject={groupByProject}
             selectedProjectId={selectedProjectId}
             selectedProjectIds={selectedProjectIds}
-            onOpenProjectsView={() => setActiveView('projects')}
             zoom={zoom}
             dayWidth={dayWidth}
             onChangeDayWidth={handleChangeDayWidth}
@@ -2415,8 +1530,9 @@ export function App({
             onDeleteProject={handleDeleteProject}
             onCreateProject={handleCreateProject}
             scrollContainerRef={scrollContainerRef}
+          showTable={showTable}
+          onToggleShowTable={() => setShowTable((prev) => !prev)}
           />
-        )}
       </main>
 
       {/* Settings Modal (Flechas, auto-cascada, tema, zoom, exportar/importar) */}

@@ -454,7 +454,7 @@ test('App and GanttWorkspace render complete WBS table, project groups, summary 
         import { GanttWorkspace } from './src/components/GanttWorkspace.tsx';
         import { computeGanttMetrics, getProjectTemplates } from './src/utils/ganttEngine.ts';
         export function createAppElement() {
-          return <App />;
+          return <App initialScenarioId="scen-saas-v2" />;
         }
         export function createCollapsedWorkspaceElement() {
           const tpl = getProjectTemplates()[0];
@@ -643,8 +643,7 @@ test('App and GanttWorkspace render complete WBS table, project groups, summary 
       mod.createMultiMilestonesWorkspaceElement || mod.default?.createMultiMilestonesWorkspaceElement;
     const html = renderToString(createAppElement());
 
-    // Verify default template title, project groups, project summary bars, tasks, milestones, slack badges, and today marker render
-    assert.ok(html.includes('Lanzamiento Plataforma SaaS v2.0'));
+    // Verify project groups, project summary bars, tasks, milestones, slack badges, and today marker render
     assert.ok(html.includes('Proyecto 1: Discovery &amp; Diseño de Producto'));
     assert.ok(html.includes('Proyecto 2: Ingeniería Core &amp; Pagos'));
     assert.ok(html.includes('Proyecto 3: QA, Cloud CI/CD &amp; Go-Live'));
@@ -897,7 +896,7 @@ test('Scenario manager saves custom scenario, switches to a template, and return
   assert.equal(autoPromoted.items[0].name, 'Tarea Editada en Vista Plantilla');
 });
 
-test('App renders default clean SaaS scenario, + Nuevo Proyecto button, and Saved Scenarios bar in SSR', async () => {
+test('App renders default clean workspace, toggle-table button, and + Nuevo Proyecto button in SSR', async () => {
   const { renderToString } = await import('react-dom/server');
   const appBundle = await build({
     stdin: {
@@ -927,10 +926,14 @@ test('App renders default clean SaaS scenario, + Nuevo Proyecto button, and Save
     const createDefaultApp = mod.createDefaultApp || mod.default?.createDefaultApp;
     const html = renderToString(createDefaultApp());
 
-    // Verify SaaS v2.0 scenario renders as active scenario
-    assert.ok(html.includes('Lanzamiento Plataforma SaaS v2.0'));
-    assert.ok(html.includes('data-scenarios-bar="true"'));
-    assert.ok(html.includes('data-scenario-pill="scen-saas-v2"'));
+    // Verify clean default workspace renders (Mi Proyecto)
+    assert.ok(html.includes('Mi Proyecto'));
+    assert.ok(html.includes('data-testid="toggle-table-btn"'), 'Must render toggle-table button at top left');
+    assert.ok(html.includes('data-project-selector-btn="true"'), 'Must render Proyectos dropdown selector');
+
+    // Verify NO demo projects or scenarios exist
+    assert.ok(!html.includes('data-scenarios-bar="true"'), 'Old scenario bar must not be rendered');
+    assert.ok(!html.includes('Lanzamiento Plataforma SaaS v2.0'), 'Demo projects must not be rendered by default');
 
     // Verify NO hardcoded Xcode 27 data exists in rendered HTML
     assert.ok(!html.includes('Xcode 27'));
@@ -942,11 +945,6 @@ test('App renders default clean SaaS scenario, + Nuevo Proyecto button, and Save
     assert.ok(html.includes('Nuevo Proyecto'));
     assert.ok(html.includes('Nueva Tarea'));
     assert.ok(!html.includes('+ Nuevo Proyecto'));
-
-    // Verify SaaS projects and tasks are rendered
-    assert.ok(html.includes('Proyecto 1: Discovery &amp; Diseño de Producto'));
-    assert.ok(html.includes('Proyecto 2: Ingeniería Core &amp; Pagos'));
-    assert.ok(html.includes('Proyecto 3: QA, Cloud CI/CD &amp; Go-Live'));
 
     // Verify flexible zoom & fit-to-project UI controls render
     assert.ok(html.includes('data-zoom-slider="true"'));
@@ -1531,10 +1529,11 @@ test('Independent dropdown outside-click dismiss, escape key handlers, and proje
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const html = renderToString(mod.renderFullApp());
 
-    // Verify all 3 dropdown containers have data-dropdown-container
+    // Verify dropdown containers have data-dropdown-container
     assert.ok(html.includes('data-dropdown-container="true"'));
-    // Verify Escenarios menu container exists
-    assert.ok(html.includes('data-scenarios-bar="true"'));
+    // Verify Proyectos selector and toggle-table button exist
+    assert.ok(html.includes('data-project-selector-btn="true"'));
+    assert.ok(html.includes('data-testid="toggle-table-btn"'));
     // Verify Nuevo Proyecto and Nueva Tarea exist
     assert.ok(html.includes('Nuevo Proyecto'));
     assert.ok(html.includes('Nueva Tarea'));
@@ -1745,7 +1744,7 @@ test('parseCSVToGanttData parses European semicolon CSV, MS Project headers, and
   assert.equal(task2.dependencyTypes?.[milestone1.id], 'SS');
 });
 
-test('App SSR renders hidden file-import-input, Scenario dropdown Import button, and Settings Import button', async () => {
+test('App SSR renders hidden file-import-input, Crear dropdown Import button, and Settings Import button', async () => {
   const { renderToString } = await import('react-dom/server');
   const appBundle = await build({
     stdin: {
@@ -1780,10 +1779,11 @@ test('App SSR renders hidden file-import-input, Scenario dropdown Import button,
     assert.ok(html.includes('type="file"'));
     assert.ok(html.includes('.json,application/json,.csv,text/csv'));
 
-    // 2. Import button in Escenario dropdown exists
-    assert.ok(html.includes('Importar escenario desde JSON o CSV'));
+    // 2. Settings modal has Export / Import section and Import file input
+    assert.ok(html.includes('Exportar / Importar Datos'));
+    assert.ok(html.includes('aria-label="Importar archivo JSON o CSV"'));
 
-    // 3. Import label is present in the Escenario popover
+    // 3. Import label is present
     assert.ok(html.includes('Importar'));
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
@@ -2336,7 +2336,7 @@ test('mergeImportedGanttData: importing JSON or CSV merges with loaded projects 
   assert.deepEqual(aprobacion.dependencies, [wireframes.id]);
 });
 
-test('SSR Verification: Lista de Proyectos view renders selectable Real & Demo sections, and Gantt view filters by selectedProjectIds', async () => {
+test('SSR Verification: Toggle-table button controls table visibility, and Gantt view filters by selectedProjectIds', async () => {
   const { renderToString } = await import('react-dom/server');
   const esbuild = await import('esbuild');
   const bundle = await esbuild.build({
@@ -2344,14 +2344,17 @@ test('SSR Verification: Lista de Proyectos view renders selectable Real & Demo s
       contents: `
         import React from 'react';
         import { App } from './src/App';
-        export function renderProjectsListView() {
-          return <App initialView="projects" />;
+        export function renderFullGanttOnlyView() {
+          return <App initialShowTable={false} initialScenarioId="scen-saas-v2" />;
+        }
+        export function renderWithTableView() {
+          return <App initialShowTable={true} initialScenarioId="scen-saas-v2" />;
         }
         export function renderFilteredGanttView() {
-          return <App initialView="gantt" initialSelectedProjectIds={['proj-core']} />;
+          return <App initialScenarioId="scen-saas-v2" initialSelectedProjectIds={['proj-core']} />;
         }
         export function renderEmptySelectionGanttView() {
-          return <App initialView="gantt" initialSelectedProjectIds={[]} />;
+          return <App initialScenarioId="scen-saas-v2" initialSelectedProjectIds={[]} />;
         }
       `,
       resolveDir: path.resolve(__dirname, '..'),
@@ -2372,22 +2375,24 @@ test('SSR Verification: Lista de Proyectos view renders selectable Real & Demo s
   try {
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
 
-    // 1. Verify Lista de Proyectos view
-    const projectsHtml = renderToString(mod.renderProjectsListView());
-    assert.ok(projectsHtml.includes('data-projects-list-view="true"'), 'Must render Lista de Proyectos view');
-    assert.ok(projectsHtml.includes('data-real-projects-section="true"'), 'Must render Real projects section');
-    assert.ok(projectsHtml.includes('data-demo-projects-section="true"'), 'Must render Demo projects section');
-    assert.ok(projectsHtml.includes('data-project-select-checkbox="proj-core"'), 'Must render selectable checkbox for proj-core');
-    assert.ok(projectsHtml.includes('data-project-card-demo-badge="proj-core"'), 'Must mark proj-core as DEMO');
+    // 1. Verify toggle-table button hides WBS table (# / Orden) when initialShowTable={false}
+    const fullGanttHtml = renderToString(mod.renderFullGanttOnlyView());
+    assert.ok(fullGanttHtml.includes('data-testid="toggle-table-btn"'), 'Must render toggle-table button');
+    assert.ok(!fullGanttHtml.includes('# / Orden'), 'Table header must NOT be rendered when showTable is false');
+    assert.ok(fullGanttHtml.includes('data-timeline-task='), 'Gantt timeline bars must still be rendered when table is hidden');
 
-    // 2. Verify Gantt view with only proj-core selected
+    // 2. Verify with initialShowTable={true}, WBS table is rendered
+    const withTableHtml = renderToString(mod.renderWithTableView());
+    assert.ok(withTableHtml.includes('# / Orden'), 'Table header must be rendered when showTable is true');
+    assert.ok(withTableHtml.includes('data-project-group='), 'Project groups must be rendered');
+
+    // 3. Verify Gantt view with only proj-core selected
     const filteredGanttHtml = renderToString(mod.renderFilteredGanttView());
     assert.ok(filteredGanttHtml.includes('data-project-group="proj-core"'), 'Selected project proj-core must appear in Gantt');
-    assert.ok(filteredGanttHtml.includes('data-project-demo-badge="proj-core"'), 'Demo project in Gantt must display DEMO badge');
-    assert.ok(!filteredGanttHtml.includes('data-project-group="proj-ux"'), 'Unselected project proj-ux must NOT appear in Gantt');
+    assert.ok(!filteredGanttHtml.includes('data-project-group="proj-discovery"'), 'Unselected project proj-discovery must NOT appear in Gantt');
     assert.ok(!filteredGanttHtml.includes('data-project-group="proj-release"'), 'Unselected project proj-release must NOT appear in Gantt');
 
-    // 3. Verify Gantt view when 0 projects are selected
+    // 4. Verify Gantt view when 0 projects are selected
     const emptyGanttHtml = renderToString(mod.renderEmptySelectionGanttView());
     assert.ok(emptyGanttHtml.includes('data-empty-selected-projects="true"'), 'Must show empty state when no projects are selected');
   } finally {
