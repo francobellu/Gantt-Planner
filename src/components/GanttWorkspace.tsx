@@ -15,6 +15,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
   Clock,
   Copy,
   Diamond,
@@ -23,6 +24,7 @@ import {
   FolderKanban,
   GitBranch,
   GripHorizontal,
+  GripVertical,
   Maximize2,
   Minus,
   MousePointer,
@@ -77,6 +79,8 @@ interface GanttWorkspaceProps {
   arrowVisibility?: ArrowVisibility;
   onChangeArrowVisibility?: (visibility: ArrowVisibility) => void;
   onUpdateItem: (updated: GanttItem, cascade: boolean) => void;
+  onReorderItem?: (itemId: string, direction: 'up' | 'down') => void;
+  onMoveItem?: (sourceId: string, targetId: string, position: 'before' | 'after') => void;
   onEditModal: (item: ComputedGanttItem) => void;
   onDeleteItem: (id: string) => void;
   onDuplicateItem: (item: ComputedGanttItem) => void;
@@ -242,6 +246,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   arrowVisibility: controlledArrowVisibility,
   onChangeArrowVisibility,
   onUpdateItem,
+  onReorderItem,
+  onMoveItem,
   onEditModal,
   onDeleteItem,
   onDuplicateItem,
@@ -351,16 +357,82 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     });
   };
 
-  // Calculates exact minimum content width to guarantee columns NEVER overlap
+  // State for drag-and-drop row reordering in the WBS table
+  const [draggingRowId, setDraggingRowId] = useState<string | null>(null);
+  const [dragOverRow, setDragOverRow] = useState<{
+    id: string;
+    position: 'before' | 'after';
+  } | null>(null);
+
+  const handleDragRowStart = (e: React.DragEvent, itemId: string) => {
+    e.dataTransfer.setData('text/plain', itemId);
+    e.dataTransfer.effectAllowed = 'move';
+    setDraggingRowId(itemId);
+  };
+
+  const handleDragRowOver = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    if (draggingRowId === targetId) return;
+    e.dataTransfer.dropEffect = 'move';
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const relY = e.clientY - rect.top;
+    const position: 'before' | 'after' = relY < rect.height / 2 ? 'before' : 'after';
+    setDragOverRow({ id: targetId, position });
+  };
+
+  const handleDragRowLeave = () => {
+    setDragOverRow(null);
+  };
+
+  const handleDropRow = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    const sourceId = draggingRowId || e.dataTransfer.getData('text/plain');
+    if (sourceId && sourceId !== targetId && onMoveItem) {
+      const position = dragOverRow?.position || 'after';
+      onMoveItem(sourceId, targetId, position);
+    }
+    setDraggingRowId(null);
+    setDragOverRow(null);
+  };
+
+  const handleDragRowEnd = () => {
+    setDraggingRowId(null);
+    setDragOverRow(null);
+  };
+
+  // Calculate longest name across items and projects to guarantee NO text is ever clipped
+  const maxNameLength = useMemo(() => {
+    let maxLen = 32;
+    for (const it of items) {
+      if (it.name && it.name.length > maxLen) {
+        maxLen = it.name.length;
+      }
+    }
+    if (projects) {
+      for (const p of projects) {
+        if (p.name && p.name.length > maxLen) {
+          maxLen = p.name.length;
+        }
+      }
+    }
+    return maxLen;
+  }, [items, projects]);
+
+  // Allocate sufficient width for name column (approx 8.5px/char + padding + badges)
+  const nameColumnWidth = useMemo(() => {
+    return Math.max(320, Math.ceil(maxNameLength * 8.5) + 60);
+  }, [maxNameLength]);
+
+  // Calculates exact minimum content width to guarantee columns NEVER overlap or clip
   const tableMinWidth = useMemo(() => {
-    let w = 260; // # + Name + Actions
+    let w = nameColumnWidth + 216; // Grip & Move (44px) + WBS (40px) + Name Column + Badges (48px) + Actions (84px)
     if (visibleColumns.team) w += 112;
     if (visibleColumns.dates) w += 176;
     if (visibleColumns.dur) w += 64;
     if (visibleColumns.slack) w += 56;
     if (visibleColumns.deps) w += 80;
     return w;
-  }, [visibleColumns]);
+  }, [nameColumnWidth, visibleColumns]);
 
   const [fallbackArrowVisibility, setFallbackArrowVisibility] =
     useState<ArrowVisibility>('all');
@@ -1205,9 +1277,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     style={{ height: HEADER_HEIGHT, minWidth: tableMinWidth }}
                     className="flex items-center justify-between px-3 bg-slate-100/90 dark:bg-zinc-900/80 border-b border-slate-200 dark:border-zinc-800/80 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 shrink-0 select-none"
                   >
-                    <div className="flex items-center gap-2 flex-1 min-w-[160px]">
-                      <span className="w-10 font-mono">#</span>
-                      <span>Nombre</span>
+                    <div
+                      style={{ minWidth: nameColumnWidth }}
+                      className="flex items-center gap-2 flex-1"
+                    >
+                      <span className="w-16 font-mono text-center shrink-0"># / Orden</span>
+                      <span className="font-semibold">Nombre</span>
                     </div>
 
                     {/* Column Titles & Icon-Only Configurator */}
@@ -1325,7 +1400,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             className={`flex items-center justify-between px-3 text-xs font-semibold border-y border-slate-200/80 dark:border-zinc-800/80 transition-colors ${projTheme.groupRowBg}`}
                           >
                             {/* Project Header Title + Collapse Toggle */}
-                            <div className="flex items-center gap-1.5 pr-2 flex-1 min-w-[160px]">
+                            <div
+                              style={{ minWidth: nameColumnWidth }}
+                              className="flex items-center gap-1.5 pr-2 flex-1 pl-1"
+                            >
                               <button
                                 type="button"
                                 onClick={() => onToggleProjectCollapse?.(group.project.id)}
@@ -1356,7 +1434,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                     name: e.target.value,
                                   })
                                 }
-                                className="flex-1 min-w-[90px] bg-transparent font-bold text-slate-900 dark:text-white focus:bg-white dark:focus:bg-zinc-800 focus:px-1.5 focus:py-0.5 rounded outline-none focus:ring-1 focus:ring-indigo-500"
+                                style={{ minWidth: `${Math.max(200, maxNameLength * 8.2)}px` }}
+                                className="w-full bg-transparent font-bold text-slate-900 dark:text-white focus:bg-white dark:focus:bg-zinc-800 focus:px-1.5 focus:py-0.5 rounded outline-none focus:ring-1 focus:ring-indigo-500"
                                 title="Haz clic para renombrar este proyecto"
                               />
 
@@ -1447,28 +1526,94 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       const { item, group } = row;
                       const isHovered = hoveredId === item.id;
                       const isCrit = showCriticalPath && item.isCritical;
+                      const itemIndexInGroup = group.items.findIndex((x) => x.id === item.id);
+                      const isFirstInGroup = itemIndexInGroup === 0;
+                      const isLastInGroup = itemIndexInGroup === group.items.length - 1;
+                      const isBeingDragged = draggingRowId === item.id;
+                      const isDropBefore = dragOverRow?.id === item.id && dragOverRow.position === 'before';
+                      const isDropAfter = dragOverRow?.id === item.id && dragOverRow.position === 'after';
+
                       return (
                         <div
                           key={row.rowId}
+                          data-task-row={item.id}
                           style={{ height: ROW_HEIGHT, minWidth: tableMinWidth }}
                           onMouseEnter={() => setHoveredId(item.id)}
                           onMouseLeave={() => setHoveredId(null)}
+                          onDragOver={(e) => handleDragRowOver(e, item.id)}
+                          onDragLeave={handleDragRowLeave}
+                          onDrop={(e) => handleDropRow(e, item.id)}
                           className={`flex items-center justify-between px-3 text-xs transition-colors border-b border-slate-100 dark:border-zinc-800/50 ${
-                            isHovered
+                            isDropBefore
+                              ? 'border-t-2 border-t-indigo-600 bg-indigo-50/60 dark:bg-indigo-950/40'
+                              : isDropAfter
+                              ? 'border-b-2 border-b-indigo-600 bg-indigo-50/60 dark:bg-indigo-950/40'
+                              : ''
+                          } ${
+                            isBeingDragged
+                              ? 'opacity-40 bg-slate-100 dark:bg-zinc-800/60'
+                              : isHovered
                               ? 'bg-indigo-50/70 dark:bg-indigo-950/30'
                               : isCrit
                               ? 'bg-rose-50/30 dark:bg-rose-950/10'
                               : 'hover:bg-slate-50 dark:hover:bg-zinc-900/40'
                           }`}
                         >
-                          {/* WBS + Name */}
+                          {/* WBS + Reorder Controls + Name */}
                           <div
-                            className={`flex items-center gap-1.5 pr-2 flex-1 min-w-[160px] ${
-                              groupByProject ? 'pl-4' : ''
+                            style={{ minWidth: nameColumnWidth }}
+                            className={`flex items-center gap-1.5 pr-2 flex-1 ${
+                              groupByProject ? 'pl-2' : ''
                             }`}
                           >
+                            {/* Reorder grip handle and up/down arrows */}
+                            <div className="flex items-center gap-0.5 shrink-0">
+                              <span
+                                draggable={true}
+                                onDragStart={(e) => handleDragRowStart(e, item.id)}
+                                onDragEnd={handleDragRowEnd}
+                                className="cursor-grab active:cursor-grabbing p-0.5 text-slate-300 dark:text-zinc-600 hover:text-slate-600 dark:hover:text-zinc-300 rounded"
+                                title="Arrastra para reordenar la posición de la tarea"
+                                data-row-drag-handle={item.id}
+                              >
+                                <GripVertical className="w-3.5 h-3.5" />
+                              </span>
+                              <div className="flex flex-col -space-y-1">
+                                <button
+                                  type="button"
+                                  disabled={isFirstInGroup}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onReorderItem?.(item.id, 'up');
+                                  }}
+                                  className={`p-0.5 rounded text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors ${
+                                    isFirstInGroup ? 'opacity-20 cursor-not-allowed hover:bg-transparent hover:text-slate-400' : ''
+                                  }`}
+                                  title="Subir posición (mover tarea arriba)"
+                                  data-move-up={item.id}
+                                >
+                                  <ChevronUp className="w-3 h-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={isLastInGroup}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onReorderItem?.(item.id, 'down');
+                                  }}
+                                  className={`p-0.5 rounded text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors ${
+                                    isLastInGroup ? 'opacity-20 cursor-not-allowed hover:bg-transparent hover:text-slate-400' : ''
+                                  }`}
+                                  title="Bajar posición (mover tarea abajo)"
+                                  data-move-down={item.id}
+                                >
+                                  <ChevronDown className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+
                             <span
-                              className="font-mono text-[10px] w-8 text-center py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 shrink-0"
+                              className="font-mono text-[10px] w-8 text-center py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 shrink-0 font-semibold"
                               title={`Código WBS ${item.wbsCode || item.wbs} (Global #${item.wbs})`}
                             >
                               {groupByProject ? item.wbsCode || `${item.wbs}.` : `${item.wbs}.`}
@@ -1492,8 +1637,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               onChange={(e) =>
                                 onUpdateItem({ ...item, name: e.target.value }, false)
                               }
-                              className="flex-1 min-w-[90px] bg-transparent font-medium text-slate-800 dark:text-zinc-100 focus:bg-white dark:focus:bg-zinc-800 focus:px-1.5 focus:py-0.5 rounded outline-none focus:ring-1 focus:ring-indigo-500"
+                              style={{ minWidth: `${Math.max(240, maxNameLength * 8.2)}px` }}
+                              className="w-full bg-transparent font-medium text-slate-800 dark:text-zinc-100 focus:bg-white dark:focus:bg-zinc-800 focus:px-1.5 focus:py-0.5 rounded outline-none focus:ring-1 focus:ring-indigo-500"
                               title={`${item.name} (${group.project.name})`}
+                              data-task-name-input={item.id}
                             />
                             {isCrit && (
                               <span

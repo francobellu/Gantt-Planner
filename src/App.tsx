@@ -570,6 +570,70 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
     });
   };
 
+  const handleReorderItem = (itemId: string, direction: 'up' | 'down') => {
+    setItems((prev) => {
+      const targetItem = prev.find((it) => it.id === itemId);
+      if (!targetItem) return prev;
+
+      if (groupByProject && targetItem.projectId) {
+        // Grouped by project: reorder within the project's task list
+        const projectItems = prev.filter((it) => it.projectId === targetItem.projectId);
+        const curProjIdx = projectItems.findIndex((it) => it.id === itemId);
+        if (curProjIdx === -1) return prev;
+
+        const targetProjIdx = direction === 'up' ? curProjIdx - 1 : curProjIdx + 1;
+        if (targetProjIdx < 0 || targetProjIdx >= projectItems.length) return prev;
+
+        const swapSibling = projectItems[targetProjIdx];
+        const prevIdx = prev.findIndex((it) => it.id === itemId);
+        const siblingIdx = prev.findIndex((it) => it.id === swapSibling.id);
+
+        const next = [...prev];
+        next[prevIdx] = swapSibling;
+        next[siblingIdx] = targetItem;
+        return next;
+      } else {
+        // Flat mode: reorder globally in items array
+        const curIdx = prev.findIndex((it) => it.id === itemId);
+        if (curIdx === -1) return prev;
+        const targetIdx = direction === 'up' ? curIdx - 1 : curIdx + 1;
+        if (targetIdx < 0 || targetIdx >= prev.length) return prev;
+
+        const next = [...prev];
+        const [moved] = next.splice(curIdx, 1);
+        next.splice(targetIdx, 0, moved);
+        return next;
+      }
+    });
+  };
+
+  const handleMoveItem = (
+    sourceId: string,
+    targetId: string,
+    position: 'before' | 'after'
+  ) => {
+    setItems((prev) => {
+      const sourceItem = prev.find((it) => it.id === sourceId);
+      const targetItem = prev.find((it) => it.id === targetId);
+      if (!sourceItem || !targetItem || sourceId === targetId) return prev;
+
+      // Update project ID if moved between projects
+      const updatedSource: GanttItem = {
+        ...sourceItem,
+        projectId: targetItem.projectId || sourceItem.projectId,
+      };
+
+      const withoutSource = prev.filter((it) => it.id !== sourceId);
+      const targetIdxInFiltered = withoutSource.findIndex((it) => it.id === targetId);
+      if (targetIdxInFiltered === -1) return prev;
+
+      const insertIdx = position === 'before' ? targetIdxInFiltered : targetIdxInFiltered + 1;
+      const next = [...withoutSource];
+      next.splice(insertIdx, 0, updatedSource);
+      return next;
+    });
+  };
+
   const handleOpenCreateModal = (type: TaskType, projectId?: string) => {
     setEditingItem(null);
     setDefaultModalType(type);
@@ -1642,6 +1706,8 @@ export function App({ initialScenarioId }: { initialScenarioId?: string } = {}) 
           arrowVisibility={arrowVisibility}
           onChangeArrowVisibility={setArrowVisibility}
           onUpdateItem={handleUpdateInline}
+          onReorderItem={handleReorderItem}
+          onMoveItem={handleMoveItem}
           onEditModal={handleOpenEditModal}
           onDeleteItem={handleDeleteItem}
           onDuplicateItem={handleDuplicateItem}

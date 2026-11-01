@@ -1999,6 +1999,149 @@ test('Milestones support custom colors across engine, TaskFormModal, and GanttWo
   }
 });
 
+test('Task position reordering and non-clipping name column width in project table', async () => {
+  // 1. Reordering items within a project and across projects
+  const p1 = { id: 'proj-1', name: 'Proyecto Alfa', color: 'indigo', collapsed: false };
+  const p2 = { id: 'proj-2', name: 'Proyecto Beta', color: 'emerald', collapsed: false };
+
+  const initialItems = [
+    { id: 't-1', projectId: 'proj-1', name: 'Planificación Inicial', type: 'task', startDate: '2026-11-01', duration: 3, slack: 0, dependencies: [] },
+    { id: 't-2', projectId: 'proj-1', name: 'Diseño UX/UI del Sistema', type: 'task', startDate: '2026-11-04', duration: 4, slack: 0, dependencies: [] },
+    { id: 't-3', projectId: 'proj-1', name: 'Desarrollo e Implementación de la Infraestructura de Pagos y Seguridad PCI-DSS Certificada', type: 'task', startDate: '2026-11-08', duration: 10, slack: 0, dependencies: [] },
+    { id: 't-4', projectId: 'proj-2', name: 'Testing de Integración', type: 'task', startDate: '2026-11-15', duration: 5, slack: 0, dependencies: [] },
+  ];
+
+  // Verify initial WBS sequence
+  let groups = groupItemsByProject(computeGanttMetrics(initialItems), [p1, p2]);
+  assert.equal(groups[0].items[0].id, 't-1');
+  assert.equal(groups[0].items[0].wbsCode, '1.1');
+  assert.equal(groups[0].items[1].id, 't-2');
+  assert.equal(groups[0].items[1].wbsCode, '1.2');
+  assert.equal(groups[0].items[2].id, 't-3');
+  assert.equal(groups[0].items[2].wbsCode, '1.3');
+
+  // Move t-2 UP (swap with t-1)
+  const afterMoveUp = [
+    initialItems[1], // t-2
+    initialItems[0], // t-1
+    initialItems[2], // t-3
+    initialItems[3], // t-4
+  ];
+  groups = groupItemsByProject(computeGanttMetrics(afterMoveUp), [p1, p2]);
+  assert.equal(groups[0].items[0].id, 't-2');
+  assert.equal(groups[0].items[0].wbsCode, '1.1');
+  assert.equal(groups[0].items[1].id, 't-1');
+  assert.equal(groups[0].items[1].wbsCode, '1.2');
+
+  // Drag t-4 from proj-2 to before t-2 in proj-1
+  const movedToP1 = { ...initialItems[3], projectId: 'proj-1' };
+  const afterCrossProjectMove = [
+    movedToP1,       // t-4 now in proj-1
+    afterMoveUp[0],  // t-2
+    afterMoveUp[1],  // t-1
+    afterMoveUp[2],  // t-3
+  ];
+  groups = groupItemsByProject(computeGanttMetrics(afterCrossProjectMove), [p1, p2]);
+  assert.equal(groups[0].items.length, 4);
+  assert.equal(groups[0].items[0].id, 't-4');
+  assert.equal(groups[0].items[0].wbsCode, '1.1');
+  assert.equal(groups[1].items.length, 0);
+
+  // 2. SSR UI verification of GanttWorkspace reorder controls and non-clipping name column
+  const { renderToString } = await import('react-dom/server');
+  const esbuild = await import('esbuild');
+  const bundle = await esbuild.build({
+    stdin: {
+      contents: `
+        import React from 'react';
+        import { GanttWorkspace } from './src/components/GanttWorkspace';
+        import { computeGanttMetrics, groupItemsByProject } from './src/utils/ganttEngine';
+
+        export function renderReorderWorkspace() {
+          const p1 = { id: 'proj-1', name: 'Proyecto Alfa', color: 'indigo', collapsed: false };
+          const items = [
+            { id: 't-1', projectId: 'proj-1', name: 'Planificación Inicial', type: 'task', startDate: '2026-11-01', duration: 3, slack: 0, dependencies: [] },
+            { id: 't-2', projectId: 'proj-1', name: 'Desarrollo e Implementación de la Infraestructura de Pagos y Seguridad PCI-DSS Certificada', type: 'task', startDate: '2026-11-04', duration: 10, slack: 0, dependencies: [] },
+          ];
+          const computed = computeGanttMetrics(items);
+          const scrollRef = { current: null };
+
+          return (
+            <GanttWorkspace
+              items={computed}
+              projects={[p1]}
+              groupByProject={true}
+              selectedProjectId="all"
+              zoom="month"
+              dayWidth={14}
+              showCriticalPath={false}
+              showCpmFloat={false}
+              autoCascade={true}
+              onUpdateItem={() => {}}
+              onReorderItem={() => {}}
+              onMoveItem={() => {}}
+              onEditModal={() => {}}
+              onDeleteItem={() => {}}
+              onDuplicateItem={() => {}}
+              onQuickAdd={() => {}}
+              scrollContainerRef={scrollRef}
+            />
+          );
+        }
+      `,
+      resolveDir: path.resolve(__dirname, '..'),
+      sourcefile: 'reorder-table-test.tsx',
+      loader: 'tsx',
+    },
+    bundle: true,
+    format: 'cjs',
+    platform: 'node',
+    external: ['react', 'react-dom'],
+    write: false,
+  });
+
+  const fs = await import('node:fs/promises');
+  const tmpFile = path.resolve(__dirname, './.tmp-reorder-table-bundle.cjs');
+  await fs.writeFile(tmpFile, bundle.outputFiles[0].text, 'utf8');
+
+  try {
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+    const html = renderToString(mod.renderReorderWorkspace());
+
+    // Verify row reorder drag handles and move buttons
+    assert.ok(html.includes('data-task-row="t-1"'), 'Must render data-task-row="t-1"');
+    assert.ok(html.includes('data-task-row="t-2"'), 'Must render data-task-row="t-2"');
+    assert.ok(html.includes('data-row-drag-handle="t-1"'), 'Must render data-row-drag-handle="t-1"');
+    assert.ok(html.includes('data-move-up="t-1"'), 'Must render data-move-up="t-1"');
+    assert.ok(html.includes('data-move-down="t-1"'), 'Must render data-move-down="t-1"');
+
+    // First item move up should be disabled
+    assert.ok(/<button[^>]*disabled[^>]*data-move-up="t-1"/.test(html) || /data-move-up="t-1"[^>]*disabled/.test(html), 'First item move up must be disabled');
+
+    // Last item move down should be disabled
+    assert.ok(/<button[^>]*disabled[^>]*data-move-down="t-2"/.test(html) || /data-move-down="t-2"[^>]*disabled/.test(html), 'Last item move down must be disabled');
+
+    // Verify header has # / Orden column title
+    assert.ok(html.includes('# / Orden'), 'WBS table header must include # / Orden title');
+
+    // Verify task name inputs have data-task-name-input and generous min-width preventing clipping
+    assert.ok(html.includes('data-task-name-input="t-1"'), 'Must have data-task-name-input="t-1"');
+    assert.ok(html.includes('data-task-name-input="t-2"'), 'Must have data-task-name-input="t-2"');
+
+    // Long task name (89 chars) should produce min-width >= 700px on the input so text is NEVER cut off
+    const inputStyleMatch = html.match(/data-task-name-input="t-2"[^>]*style="([^"]*)"/) ||
+                            html.match(/style="([^"]*)"[^>]*data-task-name-input="t-2"/);
+    assert.ok(inputStyleMatch, 'Task name input must have inline style');
+    assert.ok(inputStyleMatch[1].includes('min-width'), 'Task name input must specify min-width style');
+
+    const minWidthVal = parseFloat(inputStyleMatch[1].match(/min-width:\s*([0-9.]+)px/)?.[1] || '0');
+    assert.ok(minWidthVal >= 700, `Task name input min-width (${minWidthVal}px) must be >= 700px to prevent clipping long names`);
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
+
 
 
 
