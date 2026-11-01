@@ -118,6 +118,11 @@ const COLOR_STYLES: Record<
     badge: string;
     groupRowBg: string;
     groupBadgeBg: string;
+    diamondBg: string;
+    diamondPill: string;
+    diamondText: string;
+    guideLine: string;
+    guidePill: string;
   }
 > = {
   indigo: {
@@ -128,6 +133,11 @@ const COLOR_STYLES: Record<
     badge: 'bg-indigo-500',
     groupRowBg: 'bg-indigo-50/70 dark:bg-indigo-950/35',
     groupBadgeBg: 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-500/30',
+    diamondBg: 'bg-indigo-600 dark:bg-indigo-500 border-white dark:border-slate-900 ring-2 ring-indigo-500/40',
+    diamondPill: 'bg-indigo-500/15 dark:bg-indigo-500/20 border-indigo-500/30 text-indigo-950 dark:text-indigo-200',
+    diamondText: 'text-indigo-600 dark:text-indigo-400',
+    guideLine: 'border-indigo-500/60 dark:border-indigo-400/60',
+    guidePill: 'bg-indigo-600 text-white ring-1 ring-indigo-400',
   },
   blue: {
     barBg: 'bg-blue-500/25 dark:bg-blue-500/30',
@@ -137,6 +147,11 @@ const COLOR_STYLES: Record<
     badge: 'bg-blue-500',
     groupRowBg: 'bg-blue-50/70 dark:bg-blue-950/35',
     groupBadgeBg: 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30',
+    diamondBg: 'bg-blue-600 dark:bg-blue-500 border-white dark:border-slate-900 ring-2 ring-blue-500/40',
+    diamondPill: 'bg-blue-500/15 dark:bg-blue-500/20 border-blue-500/30 text-blue-950 dark:text-blue-200',
+    diamondText: 'text-blue-600 dark:text-blue-400',
+    guideLine: 'border-blue-500/60 dark:border-blue-400/60',
+    guidePill: 'bg-blue-600 text-white ring-1 ring-blue-400',
   },
   emerald: {
     barBg: 'bg-emerald-500/25 dark:bg-emerald-500/30',
@@ -147,6 +162,11 @@ const COLOR_STYLES: Record<
     groupRowBg: 'bg-emerald-50/70 dark:bg-emerald-950/35',
     groupBadgeBg:
       'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
+    diamondBg: 'bg-emerald-600 dark:bg-emerald-500 border-white dark:border-slate-900 ring-2 ring-emerald-500/40',
+    diamondPill: 'bg-emerald-500/15 dark:bg-emerald-500/20 border-emerald-500/30 text-emerald-950 dark:text-emerald-200',
+    diamondText: 'text-emerald-600 dark:text-emerald-400',
+    guideLine: 'border-emerald-500/60 dark:border-emerald-400/60',
+    guidePill: 'bg-emerald-600 text-white ring-1 ring-emerald-400',
   },
   amber: {
     barBg: 'bg-amber-500/25 dark:bg-amber-500/30',
@@ -156,6 +176,11 @@ const COLOR_STYLES: Record<
     badge: 'bg-amber-500',
     groupRowBg: 'bg-amber-50/70 dark:bg-amber-950/35',
     groupBadgeBg: 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30',
+    diamondBg: 'bg-amber-500 border-white dark:border-slate-900 ring-2 ring-amber-500/40',
+    diamondPill: 'bg-amber-500/15 dark:bg-amber-500/20 border-amber-500/30 text-amber-950 dark:text-amber-200',
+    diamondText: 'text-amber-500 dark:text-amber-400',
+    guideLine: 'border-amber-500/60 dark:border-amber-400/60',
+    guidePill: 'bg-amber-500 text-white ring-1 ring-amber-400',
   },
   rose: {
     barBg: 'bg-rose-500/25 dark:bg-rose-500/30',
@@ -165,6 +190,11 @@ const COLOR_STYLES: Record<
     badge: 'bg-rose-500',
     groupRowBg: 'bg-rose-50/70 dark:bg-rose-950/35',
     groupBadgeBg: 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30',
+    diamondBg: 'bg-rose-600 dark:bg-rose-500 border-white dark:border-slate-900 ring-2 ring-rose-500/40',
+    diamondPill: 'bg-rose-500/15 dark:bg-rose-500/20 border-rose-500/30 text-rose-950 dark:text-rose-200',
+    diamondText: 'text-rose-600 dark:text-rose-400',
+    guideLine: 'border-rose-500/60 dark:border-rose-400/60',
+    guidePill: 'bg-rose-600 text-white ring-1 ring-rose-400',
   },
   violet: {
     barBg: 'bg-violet-500/25 dark:bg-violet-500/30',
@@ -175,6 +205,11 @@ const COLOR_STYLES: Record<
     groupRowBg: 'bg-violet-50/70 dark:bg-violet-950/35',
     groupBadgeBg:
       'bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-500/30',
+    diamondBg: 'bg-violet-600 dark:bg-violet-500 border-white dark:border-slate-900 ring-2 ring-violet-500/40',
+    diamondPill: 'bg-violet-500/15 dark:bg-violet-500/20 border-violet-500/30 text-violet-950 dark:text-violet-200',
+    diamondText: 'text-violet-600 dark:text-violet-400',
+    guideLine: 'border-violet-500/60 dark:border-violet-400/60',
+    guidePill: 'bg-violet-600 text-white ring-1 ring-violet-400',
   },
   cyan: {
     barBg: 'bg-cyan-500/25 dark:bg-cyan-500/30',
@@ -184,6 +219,11 @@ const COLOR_STYLES: Record<
     badge: 'bg-cyan-500',
     groupRowBg: 'bg-cyan-50/70 dark:bg-cyan-950/35',
     groupBadgeBg: 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border-cyan-500/30',
+    diamondBg: 'bg-cyan-600 dark:bg-cyan-500 border-white dark:border-slate-900 ring-2 ring-cyan-500/40',
+    diamondPill: 'bg-cyan-500/15 dark:bg-cyan-500/20 border-cyan-500/30 text-cyan-950 dark:text-cyan-200',
+    diamondText: 'text-cyan-600 dark:text-cyan-400',
+    guideLine: 'border-cyan-500/60 dark:border-cyan-400/60',
+    guidePill: 'bg-cyan-600 text-white ring-1 ring-cyan-400',
   },
 };
 
@@ -1434,7 +1474,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               {groupByProject ? item.wbsCode || `${item.wbs}.` : `${item.wbs}.`}
                             </span>
                             {item.type === 'milestone' ? (
-                              <Diamond className="w-3.5 h-3.5 text-amber-500 fill-current shrink-0" />
+                              <Diamond
+                                className={`w-3.5 h-3.5 ${
+                                  (COLOR_STYLES[item.color] || COLOR_STYLES.amber).diamondText
+                                } fill-current shrink-0`}
+                              />
                             ) : (
                               <span
                                 className={`w-2.5 h-2.5 rounded-full shrink-0 ${
@@ -1944,12 +1988,14 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   const isCrit = showCriticalPath && m.isCritical;
                   const tierTopClass =
                     tier === 1 ? 'top-6' : tier === 2 ? 'top-11.5' : 'top-0.5';
+                  const mTheme = COLOR_STYLES[m.color] || COLOR_STYLES.amber;
 
                   return (
                     <div
                       key={`milestone-guide-${m.id}`}
                       data-milestone-guide={m.id}
                       data-milestone-x={milestoneX}
+                      data-milestone-color={m.color}
                       style={{ left: milestoneX }}
                       className="absolute top-0 bottom-0 pointer-events-none z-10 flex flex-col items-center"
                     >
@@ -1961,7 +2007,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         className={`absolute ${tierTopClass} flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold shadow-sm whitespace-nowrap z-20 ${
                           isCrit
                             ? 'bg-rose-500 text-white ring-1 ring-rose-400'
-                            : 'bg-amber-500 text-white ring-1 ring-amber-400'
+                            : mTheme.guidePill
                         }`}
                         title={`Hito: ${m.name} (${formatDateDisplay(m.startDate, 'dd MMM yyyy')})`}
                       >
@@ -1970,7 +2016,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       </div>
 
                       {/* Vertical Dashed Guide Line from Top to Bottom */}
-                      <div className="w-0 h-full border-l-2 border-dashed border-amber-500/60 dark:border-amber-400/60" />
+                      <div
+                        className={`w-0 h-full border-l-2 border-dashed ${mTheme.guideLine}`}
+                      />
                     </div>
                   );
                 }
@@ -2200,6 +2248,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         onClick={(e) => handleBarClick(e, item.id)}
                         onDoubleClick={() => onEditModal(item)}
                         data-timeline-milestone={item.id}
+                        data-milestone-color={item.color}
                         className={`absolute z-20 flex items-center group cursor-grab active:cursor-grabbing ${
                           isDraggingThis ? 'z-40' : ''
                         }`}
@@ -2219,10 +2268,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           } ${
                             isCrit
                               ? 'bg-rose-500 border-white dark:border-slate-900 ring-2 ring-rose-500'
-                              : 'bg-amber-500 border-white dark:border-slate-900 ring-2 ring-amber-500/40'
+                              : styleTheme.diamondBg
                           }`}
                         />
-                        <div className="ml-3 px-2 py-0.5 rounded-md bg-amber-500/15 dark:bg-amber-500/20 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-[11px] font-semibold whitespace-nowrap shadow-sm">
+                        <div
+                          className={`ml-3 px-2 py-0.5 rounded-md border text-[11px] font-semibold whitespace-nowrap shadow-sm ${styleTheme.diamondPill}`}
+                        >
                           ◆ {item.name}{' '}
                           <span className="font-mono text-[10px] opacity-75">
                             ({formatDateDisplay(coords.effectiveStartStr, 'dd MMM')})
@@ -2355,7 +2406,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             <div className="flex items-start justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-1.5 min-w-0">
                 {selectedItem.type === 'milestone' ? (
-                  <Diamond className="w-4 h-4 text-amber-500 fill-current shrink-0" />
+                  <Diamond
+                    className={`w-4 h-4 ${
+                      (COLOR_STYLES[selectedItem.color] || COLOR_STYLES.amber).diamondText
+                    } fill-current shrink-0`}
+                  />
                 ) : (
                   <span
                     className={`w-3 h-3 rounded-full shrink-0 ${
@@ -2369,10 +2424,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       #{selectedItem.wbsCode || selectedItem.wbs}
                     </span>
                     <span
-                      className={`text-[10px] font-semibold px-1.5 py-0.2 rounded ${
+                      className={`text-[10px] font-semibold px-1.5 py-0.2 rounded border ${
                         selectedItem.type === 'milestone'
-                          ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
-                          : 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300'
+                          ? (COLOR_STYLES[selectedItem.color] || COLOR_STYLES.amber).diamondPill
+                          : 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-500/30'
                       }`}
                     >
                       {selectedItem.type === 'milestone' ? 'Hito' : 'Tarea'}

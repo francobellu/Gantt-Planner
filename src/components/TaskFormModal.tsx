@@ -55,6 +55,26 @@ const COLOR_OPTIONS: { value: TaskColor; label: string; bg: string; ring: string
   { value: 'cyan', label: 'Cian', bg: 'bg-cyan-500', ring: 'ring-cyan-500' },
 ];
 
+const MILESTONE_TEXT_COLORS: Record<TaskColor, string> = {
+  indigo: 'text-indigo-600 dark:text-indigo-400',
+  blue: 'text-blue-600 dark:text-blue-400',
+  emerald: 'text-emerald-600 dark:text-emerald-400',
+  amber: 'text-amber-500 dark:text-amber-400',
+  rose: 'text-rose-600 dark:text-rose-400',
+  violet: 'text-violet-600 dark:text-violet-400',
+  cyan: 'text-cyan-600 dark:text-cyan-400',
+};
+
+const MILESTONE_CALLOUT_STYLES: Record<TaskColor, string> = {
+  indigo: 'bg-indigo-500/10 border-indigo-500/20 text-indigo-700 dark:text-indigo-300',
+  blue: 'bg-blue-500/10 border-blue-500/20 text-blue-700 dark:text-blue-300',
+  emerald: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-300',
+  amber: 'bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-300',
+  rose: 'bg-rose-500/10 border-rose-500/20 text-rose-700 dark:text-rose-300',
+  violet: 'bg-violet-500/10 border-violet-500/20 text-violet-700 dark:text-violet-300',
+  cyan: 'bg-cyan-500/10 border-cyan-500/20 text-cyan-700 dark:text-cyan-300',
+};
+
 export const TaskFormModal: React.FC<TaskFormModalProps> = ({
   isOpen,
   onClose,
@@ -68,22 +88,38 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
 }) => {
   const todayStr = formatDateISO(new Date());
 
-  const [type, setType] = useState<TaskType>(defaultType);
-  const [name, setName] = useState('');
-  const [projectId, setProjectId] = useState<string>('');
+  const isInitialMilestone = (initialItem ? initialItem.type : defaultType) === 'milestone';
+  const [type, setType] = useState<TaskType>(initialItem?.type || defaultType);
+  const [name, setName] = useState(initialItem?.name || '');
+  const [projectId, setProjectId] = useState<string>(initialItem?.projectId || defaultProjectId || '');
   const [isCreatingNewProject, setIsCreatingNewProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectColor, setNewProjectColor] = useState<TaskColor>('indigo');
-  const [startDate, setStartDate] = useState(todayStr);
-  const [endDate, setEndDate] = useState(calculateEndDateFromDuration(todayStr, 4, 'task'));
-  const [duration, setDuration] = useState(4);
-  const [slack, setSlack] = useState(0);
-  const [dependencies, setDependencies] = useState<string[]>([]);
-  const [dependencyTypes, setDependencyTypes] = useState<Record<string, DependencyType>>({});
-  const [progress, setProgress] = useState(0);
-  const [color, setColor] = useState<TaskColor>('indigo');
-  const [assignee, setAssignee] = useState('');
-  const [notes, setNotes] = useState('');
+  const [startDate, setStartDate] = useState(initialItem?.startDate || todayStr);
+  const [endDate, setEndDate] = useState(
+    initialItem?.endDate ||
+      (isInitialMilestone ? todayStr : calculateEndDateFromDuration(todayStr, 4, 'task'))
+  );
+  const [duration, setDuration] = useState(
+    initialItem
+      ? initialItem.type === 'milestone'
+        ? 0
+        : Math.max(1, initialItem.duration)
+      : isInitialMilestone
+      ? 0
+      : 4
+  );
+  const [slack, setSlack] = useState(initialItem?.slack ?? 0);
+  const [dependencies, setDependencies] = useState<string[]>(initialItem?.dependencies || []);
+  const [dependencyTypes, setDependencyTypes] = useState<Record<string, DependencyType>>(
+    initialItem?.dependencyTypes || {}
+  );
+  const [progress, setProgress] = useState(initialItem?.progress ?? 0);
+  const [color, setColor] = useState<TaskColor>(
+    initialItem?.color || (isInitialMilestone ? 'amber' : 'indigo')
+  );
+  const [assignee, setAssignee] = useState(initialItem?.assignee || '');
+  const [notes, setNotes] = useState(initialItem?.notes || '');
   const [autoCascade, setAutoCascade] = useState(true);
   const [dateInputMode, setDateInputMode] = useState<'duration' | 'endDate'>('duration');
 
@@ -104,7 +140,9 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
       setDependencies(initialItem.dependencies || []);
       setDependencyTypes(initialItem.dependencyTypes || {});
       setProgress(initialItem.progress ?? 0);
-      setColor(initialItem.color || 'indigo');
+      setColor(
+        initialItem.color || (initialItem.type === 'milestone' ? 'amber' : 'indigo')
+      );
       setAssignee(initialItem.assignee || '');
       setNotes(initialItem.notes || '');
     } else {
@@ -152,6 +190,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
       const newDur = duration > 0 ? duration : 3;
       setDuration(newDur);
       setEndDate(calculateEndDateFromDuration(startDate, newDur, 'task'));
+      if (color === 'amber') setColor('indigo');
     }
   };
 
@@ -379,8 +418,9 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/60">
           <div className="flex items-center gap-3">
             <div
-              className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-sm ${
-                type === 'milestone' ? 'bg-amber-500' : 'bg-indigo-600'
+              className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-sm transition-colors ${
+                COLOR_OPTIONS.find((c) => c.value === color)?.bg ||
+                (type === 'milestone' ? 'bg-amber-500' : 'bg-indigo-600')
               }`}
             >
               {type === 'milestone' ? (
@@ -591,7 +631,12 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                   />
                 </div>
                 <div className="flex flex-col justify-end">
-                  <div className="px-3.5 py-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs flex items-center gap-2">
+                  <div
+                    className={`px-3.5 py-2.5 rounded-lg border text-xs flex items-center gap-2 transition-colors ${
+                      MILESTONE_CALLOUT_STYLES[color] ||
+                      'bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-300'
+                    }`}
+                  >
                     <Diamond className="w-4 h-4 shrink-0 fill-current" />
                     <span>
                       Los hitos representan entregas o fechas clave de duración 0 días (
@@ -798,7 +843,11 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                             </span>
                           )}
                           {candidate.type === 'milestone' && (
-                            <Diamond className="w-3.5 h-3.5 text-amber-500 fill-current shrink-0" />
+                            <Diamond
+                              className={`w-3.5 h-3.5 ${
+                                MILESTONE_TEXT_COLORS[candidate.color] || 'text-amber-500'
+                              } fill-current shrink-0`}
+                            />
                           )}
                           <span className="font-medium text-slate-800 dark:text-slate-200 truncate">
                             {candidate.name}
@@ -868,9 +917,21 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-2">
-                Color Visual en Cronograma
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                  {type === 'milestone' ? 'Color del Hito ◆' : 'Color Visual en Cronograma'}
+                </label>
+                {type === 'milestone' && (
+                  <span
+                    className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border flex items-center gap-1 ${
+                      MILESTONE_CALLOUT_STYLES[color] || 'bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-300'
+                    }`}
+                  >
+                    <Diamond className="w-2.5 h-2.5 fill-current" />
+                    <span>Hito</span>
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-2">
                 {COLOR_OPTIONS.map((c) => (
                   <button
@@ -878,6 +939,8 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                     type="button"
                     onClick={() => setColor(c.value)}
                     title={c.label}
+                    data-color={c.value}
+                    aria-label={`Color ${c.label}`}
                     className={`w-7 h-7 rounded-full ${c.bg} flex items-center justify-center transition-transform ${
                       color === c.value
                         ? `scale-110 ring-2 ring-offset-2 dark:ring-offset-slate-900 ${c.ring}`

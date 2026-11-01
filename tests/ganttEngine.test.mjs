@@ -1866,6 +1866,140 @@ test('sanitizeScenario deduplicates duplicate item IDs preventing state corrupti
   assert.ok(ids[2].includes('t-shared-dup'));
 });
 
+test('Milestones support custom colors across engine, TaskFormModal, and GanttWorkspace timeline/WBS/inspection canvas', async () => {
+  const allColors = ['indigo', 'blue', 'emerald', 'amber', 'rose', 'violet', 'cyan'];
+
+  // 1. Engine & sanitization verifies custom colors persist
+  for (const c of allColors) {
+    const item = sanitizeGanttItem({
+      id: `m-${c}`,
+      name: `Hito ${c}`,
+      type: 'milestone',
+      startDate: '2026-11-10',
+      color: c,
+    });
+    assert.equal(item.color, c, `Milestone must preserve color ${c}`);
+    assert.equal(item.duration, 0);
+    assert.equal(item.type, 'milestone');
+  }
+
+  // 2. SSR rendering of GanttWorkspace and TaskFormModal with custom-colored milestones
+  const { renderToString } = await import('react-dom/server');
+
+  const bundle = await build({
+    stdin: {
+      contents: `
+        import React from 'react';
+        import { GanttWorkspace } from './src/components/GanttWorkspace.tsx';
+        import { TaskFormModal } from './src/components/TaskFormModal.tsx';
+        import { computeGanttMetrics, sanitizeProject } from './src/utils/ganttEngine.ts';
+
+        export function renderMilestoneWorkspace(color) {
+          const project = sanitizeProject({ id: 'p-1', name: 'Proyecto Milestone', color: 'indigo' });
+          const items = computeGanttMetrics([
+            {
+              id: 'm-custom',
+              name: 'Hito ' + color,
+              type: 'milestone',
+              projectId: 'p-1',
+              startDate: '2026-11-05',
+              endDate: '2026-11-05',
+              duration: 0,
+              slack: 0,
+              dependencies: [],
+              progress: 100,
+              color: color,
+            }
+          ]);
+          return (
+            <GanttWorkspace
+              items={items}
+              projects={[project]}
+              groupByProject={true}
+              selectedProjectId="all"
+              zoom="day"
+              showCriticalPath={false}
+              showCpmFloat={false}
+              autoCascade={true}
+              initialSelectedItemId="m-custom"
+              onUpdateItem={() => {}}
+              onEditModal={() => {}}
+              onDeleteItem={() => {}}
+              onDuplicateItem={() => {}}
+              onQuickAdd={() => {}}
+              scrollContainerRef={{ current: null }}
+            />
+          );
+        }
+
+        export function renderMilestoneModal(color) {
+          const item = {
+            id: 'm-modal',
+            name: 'Hito Modal',
+            type: 'milestone',
+            projectId: 'p-1',
+            startDate: '2026-11-05',
+            endDate: '2026-11-05',
+            duration: 0,
+            slack: 0,
+            dependencies: [],
+            progress: 100,
+            color: color,
+          };
+          return (
+            <TaskFormModal
+              isOpen={true}
+              onClose={() => {}}
+              onSave={() => {}}
+              initialItem={item}
+              allItems={[item]}
+            />
+          );
+        }
+      `,
+      resolveDir: path.resolve(__dirname, '..'),
+      sourcefile: 'milestone-color-test.tsx',
+      loader: 'tsx',
+    },
+    bundle: true,
+    format: 'cjs',
+    platform: 'node',
+    external: ['react', 'react-dom'],
+    write: false,
+  });
+
+  const fs = await import('node:fs/promises');
+  const tmpFile = path.resolve(__dirname, './.tmp-milestone-color-bundle.cjs');
+  await fs.writeFile(tmpFile, bundle.outputFiles[0].text, 'utf8');
+
+  try {
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+
+    // Verify emerald milestone rendering in GanttWorkspace
+    const emeraldHtml = renderToString(mod.renderMilestoneWorkspace('emerald'));
+    assert.ok(emeraldHtml.includes('data-milestone-color="emerald"'), 'Must include data-milestone-color="emerald"');
+    assert.ok(emeraldHtml.includes('bg-emerald-600'), 'Timeline diamond must use emerald background class');
+    assert.ok(emeraldHtml.includes('border-emerald-500/30'), 'Timeline milestone pill must use emerald border');
+    assert.ok(emeraldHtml.includes('border-emerald-500/60'), 'Milestone vertical guide line must use emerald dashed border');
+    assert.ok(emeraldHtml.includes('text-emerald-600'), 'WBS table and inspection panel diamond icons must use emerald text color');
+
+    // Verify violet milestone rendering in GanttWorkspace
+    const violetHtml = renderToString(mod.renderMilestoneWorkspace('violet'));
+    assert.ok(violetHtml.includes('data-milestone-color="violet"'), 'Must include data-milestone-color="violet"');
+    assert.ok(violetHtml.includes('bg-violet-600'), 'Timeline diamond must use violet background class');
+    assert.ok(violetHtml.includes('border-violet-500/60'), 'Milestone vertical guide line must use violet dashed border');
+
+    // Verify TaskFormModal renders emerald milestone header and preview
+    const modalHtml = renderToString(mod.renderMilestoneModal('emerald'));
+    assert.ok(modalHtml.includes('bg-emerald-500'), 'Modal top header icon must use emerald bg');
+    assert.ok(modalHtml.includes('Color del Hito ◆'), 'Modal must display milestone color label');
+    assert.ok(modalHtml.includes('data-color="emerald"'), 'Modal must have color button for emerald');
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
+
 
 
 
