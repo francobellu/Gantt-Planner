@@ -1103,14 +1103,14 @@ export function App({
 
   return (
     <div
-      className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#09090b] text-slate-900 dark:text-zinc-100 selection:bg-indigo-500/30 relative"
+      className="min-h-screen flex flex-col bg-[#F4F4F1] dark:bg-[#0C0C09] text-[#0C0C09] dark:text-[#F4F4F1] selection:bg-[#0C0C09]/15 relative font-sans"
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
       {/* Top Navigation Bar — Single Minimalist 48px Bar */}
-      <header className="sticky top-0 z-30 h-13 px-4 bg-white/95 dark:bg-[#09090b]/95 backdrop-blur-md border-b border-slate-200 dark:border-zinc-800/80 flex items-center justify-between gap-3 select-none">
+      <header className="sticky top-0 z-30 h-12 px-4 bg-[#F4F4F1] dark:bg-[#0C0C09] border-b border-[#0C0C09] dark:border-zinc-800 flex items-center justify-between gap-3 select-none">
         
         {/* LEFT: Toggle Table Button + "Proyectos" Multi-Select Dropdown */}
         <div className="flex items-center gap-2.5 min-w-0">
@@ -1119,15 +1119,15 @@ export function App({
             type="button"
             data-testid="toggle-table-btn"
             onClick={() => setShowTable((prev) => !prev)}
-            className={`w-7 h-7 rounded-lg border flex items-center justify-center shrink-0 shadow-sm transition cursor-pointer ${
+            className={`w-7 h-7 rounded-[4px] border flex items-center justify-center shrink-0 transition cursor-pointer ${
               showTable
-                ? 'bg-indigo-600/10 dark:bg-zinc-900 border-indigo-500/30 dark:border-zinc-800 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-600/20'
-                : 'bg-slate-200 dark:bg-zinc-800 border-slate-300 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
+                ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-200 hover:bg-[#312C85]'
+                : 'bg-white border-[#0C0C09] text-[#0C0C09] dark:bg-zinc-900 dark:border-zinc-700 dark:text-zinc-400 hover:bg-[#F4F4F1]'
             }`}
             title={showTable ? 'Ocultar tabla de tareas (solo diagrama)' : 'Mostrar tabla de tareas'}
             aria-label={showTable ? 'Ocultar tabla de tareas' : 'Mostrar tabla de tareas'}
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <line x1="4" y1="6" x2="16" y2="6" />
               <line x1="8" y1="12" x2="20" y2="12" />
               <line x1="4" y1="18" x2="12" y2="18" />
@@ -1143,27 +1143,27 @@ export function App({
                 setProjectMenuOpen((prev) => !prev);
                 setCreateMenuOpen(false);
               }}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-zinc-900/90 hover:bg-slate-200/70 dark:hover:bg-zinc-800/80 border border-slate-200 dark:border-zinc-800 text-xs font-medium text-slate-700 dark:text-zinc-300 transition shadow-2xs cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] bg-white dark:bg-zinc-900 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 border border-[#0C0C09] dark:border-zinc-700 text-xs font-medium text-[#0C0C09] dark:text-zinc-200 transition shadow-none cursor-pointer"
               title="Seleccionar proyectos visibles en el Gantt"
             >
-              <FolderKanban className="w-3.5 h-3.5 text-slate-400" />
-              <span>Proyectos</span>
+              <FolderKanban className="w-3.5 h-3.5 text-[#6B6B66]" />
+              <span className="font-display font-medium">Proyectos</span>
               {selectedProjectIds.length < effectiveProjects.length && (
-                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
+                <span className="w-1.5 h-1.5 rounded-full bg-[#312C85] shrink-0" />
               )}
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-indigo-500/15 text-indigo-600 dark:text-indigo-300">
+              <span className="px-1.5 py-0.2 rounded-[2px] text-[10px] font-mono bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-300 border border-[#E2E2DC] dark:border-zinc-700">
                 {selectedProjectIds.length}/{effectiveProjects.length}
               </span>
-              <ChevronDown className="w-3 h-3 text-slate-400" />
+              <ChevronDown className="w-3 h-3 text-[#6B6B66]" />
             </button>
 
             {projectMenuOpen && (
               <div
                 data-projects-dropdown-menu="true"
-                className="absolute left-0 top-10 w-72 p-2 bg-white dark:bg-zinc-900/98 border border-slate-200 dark:border-zinc-800 rounded-xl shadow-2xl backdrop-blur-xl z-50 text-xs flex flex-col gap-1 max-h-[380px] overflow-y-auto"
+                className="absolute left-0 top-10 w-72 p-2 bg-white dark:bg-zinc-900 border border-[#0C0C09] dark:border-zinc-700 rounded-[4px] shadow-xl z-50 text-xs flex flex-col gap-1 max-h-[380px] overflow-y-auto"
               >
-                <div className="flex items-center justify-between px-2 py-1">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500">
+                <div className="flex items-center justify-between px-2 py-1 border-b border-[#E2E2DC] dark:border-zinc-800 pb-1.5 mb-0.5">
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400">
                     Visibles en Gantt ({selectedProjectIds.length}/{projectGroups.length})
                   </span>
                   <div className="flex items-center gap-1">
@@ -1171,16 +1171,16 @@ export function App({
                       type="button"
                       data-select-all-btn="true"
                       onClick={handleSelectAllProjects}
-                      className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline font-medium cursor-pointer"
+                      className="text-[10px] text-[#0C0C09] dark:text-zinc-200 hover:underline font-bold cursor-pointer"
                     >
                       Todos
                     </button>
-                    <span className="text-slate-300 dark:text-zinc-700">·</span>
+                    <span className="text-[#D1D1CB] dark:text-zinc-700">·</span>
                     <button
                       type="button"
                       data-deselect-all-btn="true"
                       onClick={handleDeselectAllProjects}
-                      className="text-[10px] text-slate-500 hover:underline cursor-pointer"
+                      className="text-[10px] text-[#6B6B66] hover:underline cursor-pointer"
                     >
                       Ninguno
                     </button>
@@ -1191,15 +1191,15 @@ export function App({
                   const isChecked = selectedProjectIds.includes(group.project.id);
                   const colorDot =
                     PROJECT_COLORS.find((c) => c.value === group.project.color)?.bg ||
-                    'bg-indigo-500';
+                    'bg-[#0C0C09]';
                   return (
                     <label
                       key={group.project.id}
                       data-project-menu-item={group.project.id}
-                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left transition cursor-pointer ${
+                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-[2px] text-left transition cursor-pointer ${
                         isChecked
-                          ? 'bg-indigo-50/80 dark:bg-indigo-950/40 text-slate-900 dark:text-white font-medium'
-                          : 'hover:bg-slate-100 dark:hover:bg-zinc-800/60 text-slate-500 dark:text-zinc-400'
+                          ? 'bg-[#F4F4F1] dark:bg-zinc-800/80 text-[#0C0C09] dark:text-white font-medium'
+                          : 'hover:bg-[#F4F4F1]/60 dark:hover:bg-zinc-800/40 text-[#6B6B66] dark:text-zinc-400'
                       }`}
                     >
                       <div className="flex items-center gap-2 min-w-0 pr-1">
@@ -1207,10 +1207,10 @@ export function App({
                           type="checkbox"
                           checked={isChecked}
                           onChange={() => handleToggleSelectProject(group.project.id)}
-                          className="rounded border-slate-300 dark:border-zinc-700 text-indigo-600"
+                          className="rounded-[2px] border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] focus:ring-0"
                         />
                         <span className={`w-2 h-2 rounded-full shrink-0 ${colorDot}`} />
-                        <span className="truncate max-w-[150px]">
+                        <span className="truncate max-w-[150px] font-display">
                           P{group.projectIndex}: {group.project.name}
                         </span>
                       </div>
@@ -1221,7 +1221,7 @@ export function App({
                   );
                 })}
 
-                <div className="border-t border-slate-200 dark:border-zinc-800/80 my-1" />
+                <div className="border-t border-[#E2E2DC] dark:border-zinc-800 my-1" />
                 <button
                   type="button"
                   data-add-project-dropdown-btn="true"
@@ -1229,7 +1229,7 @@ export function App({
                     handleCreateProject();
                     setProjectMenuOpen(false);
                   }}
-                  className="w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold transition cursor-pointer"
+                  className="w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-[4px] bg-[#0C0C09] hover:bg-[#312C85] dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-[#0C0C09] font-display font-semibold transition cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Nuevo Proyecto</span>
@@ -1240,10 +1240,10 @@ export function App({
 
           {scenarioSavedToast && (
             <span
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-semibold text-white shadow-sm animate-fade-in ${
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-[11px] font-mono font-semibold text-white shadow-none animate-fade-in ${
                 scenarioSavedToast.startsWith('Error')
-                  ? 'bg-rose-600'
-                  : 'bg-emerald-600'
+                  ? 'bg-[#DC2626]'
+                  : 'bg-[#16A34A]'
               }`}
             >
               {scenarioSavedToast.startsWith('Error') ? (
@@ -1267,7 +1267,7 @@ export function App({
                 setCreateMenuOpen((prev) => !prev);
                 setProjectMenuOpen(false);
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium shadow-sm transition cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] bg-[#0C0C09] hover:bg-[#312C85] dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-[#0C0C09] text-xs font-display font-semibold shadow-none transition cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Crear</span>
@@ -1275,16 +1275,16 @@ export function App({
             </button>
 
             {createMenuOpen && (
-              <div className="absolute right-0 top-10 w-48 p-1.5 bg-white dark:bg-zinc-900/98 border border-slate-200 dark:border-zinc-800 rounded-xl shadow-2xl backdrop-blur-xl z-50 text-xs flex flex-col gap-0.5">
+              <div className="absolute right-0 top-10 w-48 p-1.5 bg-white dark:bg-zinc-900 border border-[#0C0C09] dark:border-zinc-700 rounded-[4px] shadow-xl z-50 text-xs flex flex-col gap-0.5">
                 <button
                   type="button"
                   onClick={() => {
                     handleOpenCreateModal('task');
                     setCreateMenuOpen(false);
                   }}
-                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/70 text-slate-800 dark:text-zinc-200 font-medium transition text-left cursor-pointer"
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-[2px] hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 font-medium transition text-left cursor-pointer"
                 >
-                  <Plus className="w-3.5 h-3.5 text-indigo-500" />
+                  <Plus className="w-3.5 h-3.5 text-[#0C0C09] dark:text-zinc-200" />
                   <span>Nueva Tarea</span>
                 </button>
                 <button
@@ -1293,9 +1293,9 @@ export function App({
                     handleOpenCreateModal('milestone');
                     setCreateMenuOpen(false);
                   }}
-                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/70 text-slate-800 dark:text-zinc-200 font-medium transition text-left cursor-pointer"
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-[2px] hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 font-medium transition text-left cursor-pointer"
                 >
-                  <Diamond className="w-3.5 h-3.5 text-amber-500 fill-current" />
+                  <Diamond className="w-3.5 h-3.5 text-[#D97706] fill-current" />
                   <span>Nuevo Hito</span>
                 </button>
                 <button
@@ -1304,29 +1304,29 @@ export function App({
                     handleCreateProject();
                     setCreateMenuOpen(false);
                   }}
-                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/70 text-slate-800 dark:text-zinc-200 font-medium transition text-left cursor-pointer"
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-[2px] hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 font-medium transition text-left cursor-pointer"
                 >
-                  <FolderKanban className="w-3.5 h-3.5 text-emerald-500" />
+                  <FolderKanban className="w-3.5 h-3.5 text-[#16A34A]" />
                   <span>Nuevo Proyecto</span>
                 </button>
-                <div className="border-t border-slate-100 dark:border-zinc-800 my-0.5" />
+                <div className="border-t border-[#E2E2DC] dark:border-zinc-800 my-0.5" />
                 <button
                   type="button"
                   onClick={() => {
                     fileInputRef.current?.click();
                     setCreateMenuOpen(false);
                   }}
-                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/70 text-slate-800 dark:text-zinc-200 font-medium transition text-left cursor-pointer"
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-[2px] hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 font-medium transition text-left cursor-pointer"
                   title="Importar datos desde JSON o CSV"
                 >
-                  <Upload className="w-3.5 h-3.5 text-violet-500" />
+                  <Upload className="w-3.5 h-3.5 text-[#312C85]" />
                   <span>Importar Datos</span>
                 </button>
               </div>
             )}
           </div>
 
-          <div className="h-4 w-px bg-slate-200 dark:bg-zinc-800 hidden sm:block" />
+          <div className="h-4 w-px bg-[#0C0C09] dark:bg-zinc-700 hidden sm:block" />
 
           {/* Iconos Vectoriales SVG Minimalistas con Tooltip Hints */}
 
@@ -1335,16 +1335,16 @@ export function App({
             <button
               type="button"
               onClick={() => setShowCriticalPath((prev) => !prev)}
-              className={`p-1.5 rounded-lg border transition shadow-2xs ${
+              className={`p-1.5 rounded-[4px] border transition shadow-none ${
                 showCriticalPath
-                  ? 'bg-rose-500/10 border-rose-500/40 text-rose-500 hover:bg-rose-500/20'
-                  : 'bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-white'
+                  ? 'bg-[#D97706]/15 border-[#D97706] text-[#D97706] hover:bg-[#D97706]/25'
+                  : 'bg-white dark:bg-zinc-900 border-[#0C0C09] dark:border-zinc-700 text-[#6B6B66] hover:text-[#0C0C09] dark:hover:text-white'
               }`}
               aria-label="Ruta Crítica"
             >
               <Flame className="w-4 h-4" />
             </button>
-            <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute right-0 top-10 px-2 py-1 bg-slate-900 text-white dark:bg-zinc-900 dark:text-zinc-200 text-[11px] font-medium rounded-lg shadow-xl border border-slate-800 dark:border-zinc-800 whitespace-nowrap z-50 pointer-events-none">
+            <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute right-0 top-10 px-2 py-1 bg-[#0C0C09] text-[#F4F4F1] text-[11px] font-mono font-medium rounded-[2px] shadow-lg border border-[#E2E2DC] whitespace-nowrap z-50 pointer-events-none">
               Ruta Crítica (CPM)
             </div>
           </div>

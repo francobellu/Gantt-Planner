@@ -2026,12 +2026,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         const midPoint = computePolylineMidpoint(waypoints);
 
         const strokeColor = isSelectedLink
-          ? '#4f46e5'
+          ? '#0C0C09'
           : isCriticalLink
-          ? '#f43f5e'
+          ? '#D97706'
           : isHighlighted
-          ? '#4f46e5'
-          : '#94a3b8';
+          ? '#0C0C09'
+          : '#71717A';
 
         const markerEnd = isSelectedLink
           ? 'url(#arrow-active)'
@@ -2053,7 +2053,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
           midPoint,
           dPath,
           strokeColor,
-          strokeWidth: isSelectedLink || isHoveredLink ? 2.6 : isHighlighted || isCriticalLink ? 2.2 : 1.5,
+          strokeWidth: isSelectedLink || isHoveredLink ? 2.0 : isHighlighted || isCriticalLink ? 1.8 : 1.5,
           markerEnd,
           hasConflict: succ.hasConflict,
           isHighlighted,
@@ -3326,33 +3326,33 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       viewBox="0 0 10 10"
                       refX="7"
                       refY="5"
-                      markerWidth="6"
-                      markerHeight="6"
+                      markerWidth="5"
+                      markerHeight="5"
                       orient="auto-start-reverse"
                     >
-                      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#64748b" />
+                      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#71717A" />
                     </marker>
                     <marker
                       id="arrow-active"
                       viewBox="0 0 10 10"
                       refX="7"
                       refY="5"
-                      markerWidth="6"
-                      markerHeight="6"
+                      markerWidth="5"
+                      markerHeight="5"
                       orient="auto-start-reverse"
                     >
-                      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#4f46e5" />
+                      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#0C0C09" />
                     </marker>
                     <marker
                       id="arrow-critical"
                       viewBox="0 0 10 10"
                       refX="7"
                       refY="5"
-                      markerWidth="6"
-                      markerHeight="6"
+                      markerWidth="5"
+                      markerHeight="5"
                       orient="auto-start-reverse"
                     >
-                      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+                      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#D97706" />
                     </marker>
                   </defs>
 
@@ -3500,8 +3500,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             y={-9}
                             width={44}
                             height={18}
-                            rx={9}
-                            className="fill-white dark:fill-slate-900 stroke-indigo-500 dark:stroke-indigo-400 stroke-[1.5] shadow-md"
+                            rx={3}
+                            className="fill-white dark:fill-zinc-900 stroke-[#0C0C09] dark:stroke-zinc-400 stroke-[1] shadow-none"
                           />
                           <g
                             data-dep-midpoint-select={`${link.predId}->${link.succId}`}
@@ -3520,7 +3520,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               x={-7}
                               y={3.5}
                               textAnchor="middle"
-                              className="fill-indigo-700 dark:fill-indigo-300 text-[9px] font-mono font-bold select-none"
+                              className="fill-[#0C0C09] dark:fill-zinc-200 text-[9px] font-mono font-bold select-none"
                             >
                               {link.depType}
                             </text>
