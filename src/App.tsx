@@ -1356,13 +1356,13 @@ export function App({
               data-fit-timeline-btn="true"
               data-fit-project-header-btn="true"
               onClick={() => handleFitToProject()}
-              className="p-1.5 rounded-lg border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 text-emerald-600 dark:text-emerald-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition shadow-2xs"
+              className="p-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 transition shadow-none cursor-pointer"
               aria-label="Ajustar"
               title="Ajustar a Proyecto"
             >
               <Maximize2 className="w-4 h-4" />
             </button>
-            <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute right-0 top-10 px-2 py-1 bg-slate-900 text-white dark:bg-zinc-900 dark:text-zinc-200 text-[11px] font-medium rounded-lg shadow-xl border border-slate-800 dark:border-zinc-800 whitespace-nowrap z-50 pointer-events-none">
+            <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute right-0 top-10 px-2 py-1 bg-[#0C0C09] text-[#F4F4F1] text-[11px] font-mono font-medium rounded-[2px] shadow-lg border border-[#E2E2DC] whitespace-nowrap z-50 pointer-events-none">
               Ajustar a Proyecto
             </div>
           </div>
@@ -1372,12 +1372,12 @@ export function App({
             <button
               type="button"
               onClick={scrollToToday}
-              className="p-1.5 rounded-lg border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 text-indigo-600 dark:text-indigo-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition shadow-2xs"
+              className="p-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 transition shadow-none cursor-pointer"
               aria-label="Hoy"
             >
               <Compass className="w-4 h-4" />
             </button>
-            <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute right-0 top-10 px-2 py-1 bg-slate-900 text-white dark:bg-zinc-900 dark:text-zinc-200 text-[11px] font-medium rounded-lg shadow-xl border border-slate-800 dark:border-zinc-800 whitespace-nowrap z-50 pointer-events-none">
+            <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute right-0 top-10 px-2 py-1 bg-[#0C0C09] text-[#F4F4F1] text-[11px] font-mono font-medium rounded-[2px] shadow-lg border border-[#E2E2DC] whitespace-nowrap z-50 pointer-events-none">
               Ir a Hoy
             </div>
           </div>
@@ -1388,17 +1388,38 @@ export function App({
               ref={metricsToggleBtnRef}
               type="button"
               onClick={() => setShowMetricsDrawer((prev) => !prev)}
-              className={`p-1.5 rounded-lg border transition shadow-2xs ${
+              className={`p-1.5 rounded-[4px] border transition shadow-none cursor-pointer ${
                 showMetricsDrawer
-                  ? 'bg-amber-500/10 border-amber-500/40 text-amber-500 hover:bg-amber-500/20'
-                  : 'bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-amber-600 dark:text-amber-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
+                  ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09]'
+                  : 'bg-white dark:bg-zinc-900 border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1]'
               }`}
               aria-label="Métricas"
             >
               <BarChart3 className="w-4 h-4" />
             </button>
-            <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute right-0 top-10 px-2 py-1 bg-slate-900 text-white dark:bg-zinc-900 dark:text-zinc-200 text-[11px] font-medium rounded-lg shadow-xl border border-slate-800 dark:border-zinc-800 whitespace-nowrap z-50 pointer-events-none">
+            <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute right-0 top-10 px-2 py-1 bg-[#0C0C09] text-[#F4F4F1] text-[11px] font-mono font-medium rounded-[2px] shadow-lg border border-[#E2E2DC] whitespace-nowrap z-50 pointer-events-none">
               Métricas del proyecto
+            </div>
+          </div>
+
+          {/* Selector Rápido de Tema (Claro / Oscuro) */}
+          <div className="relative group">
+            <button
+              type="button"
+              data-testid="header-theme-toggle-btn"
+              onClick={() => setDarkMode((prev) => !prev)}
+              className="p-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 transition shadow-none cursor-pointer"
+              aria-label={darkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+              title={darkMode ? 'Modo claro (Alabastro minimalista)' : 'Modo oscuro'}
+            >
+              {darkMode ? (
+                <Sun className="w-4 h-4 text-amber-400" />
+              ) : (
+                <Moon className="w-4 h-4 text-[#0C0C09]" />
+              )}
+            </button>
+            <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute right-0 top-10 px-2 py-1 bg-[#0C0C09] text-[#F4F4F1] text-[11px] font-mono font-medium rounded-[2px] shadow-lg border border-[#E2E2DC] whitespace-nowrap z-50 pointer-events-none">
+              {darkMode ? 'Cambiar a Modo Claro' : 'Cambiar a Modo Oscuro'}
             </div>
           </div>
 
@@ -1407,12 +1428,12 @@ export function App({
             <button
               type="button"
               onClick={() => setShowSettingsModal(true)}
-              className="p-1.5 rounded-lg border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-zinc-800 transition shadow-2xs"
+              className="p-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 transition shadow-none cursor-pointer"
               aria-label="Configuración"
             >
               <SlidersHorizontal className="w-4 h-4" />
             </button>
-            <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute right-0 top-10 px-2 py-1 bg-slate-900 text-white dark:bg-zinc-900 dark:text-zinc-200 text-[11px] font-medium rounded-lg shadow-xl border border-slate-800 dark:border-zinc-800 whitespace-nowrap z-50 pointer-events-none">
+            <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute right-0 top-10 px-2 py-1 bg-[#0C0C09] text-[#F4F4F1] text-[11px] font-mono font-medium rounded-[2px] shadow-lg border border-[#E2E2DC] whitespace-nowrap z-50 pointer-events-none">
               Configuración (Flechas, datos, tema)
             </div>
           </div>
@@ -1424,49 +1445,49 @@ export function App({
       {showMetricsDrawer && (
         <div
           ref={metricsDrawerRef}
-          className="px-4 py-3 bg-white/95 dark:bg-zinc-900/95 border-b border-slate-200 dark:border-zinc-800/80 text-xs backdrop-blur-md"
+          className="px-4 py-3 bg-white dark:bg-[#0C0C09] border-b border-[#0C0C09] dark:border-zinc-800 text-xs"
         >
           <div className="max-w-[1920px] mx-auto">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500">
+              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400">
                 Métricas Clave del Proyecto
               </span>
               <button
                 type="button"
                 onClick={() => setShowMetricsDrawer(false)}
-                className="text-slate-400 hover:text-slate-700 dark:hover:text-white text-xs"
+                className="text-[#6B6B66] hover:text-[#0C0C09] dark:hover:text-white text-xs cursor-pointer"
               >
                 ✕
               </button>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
-              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800/80">
-                <div className="text-slate-400 dark:text-zinc-500 text-[10px]">Duración Total</div>
-                <div className="font-semibold text-slate-800 dark:text-white mt-0.5">
+              <div className="p-2.5 rounded-[4px] bg-[#F4F4F1] dark:bg-zinc-900 border border-[#E2E2DC] dark:border-zinc-800">
+                <div className="text-[#6B6B66] dark:text-zinc-400 text-[10px] font-mono uppercase">Duración Total</div>
+                <div className="font-semibold text-[#0C0C09] dark:text-white mt-0.5">
                   {metrics.projectsCount} proy · {metrics.totalDays}d
                 </div>
               </div>
-              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800/80">
-                <div className="text-slate-400 dark:text-zinc-500 text-[10px]">Avance Global</div>
-                <div className="font-semibold text-slate-800 dark:text-white mt-0.5">
+              <div className="p-2.5 rounded-[4px] bg-[#F4F4F1] dark:bg-zinc-900 border border-[#E2E2DC] dark:border-zinc-800">
+                <div className="text-[#6B6B66] dark:text-zinc-400 text-[10px] font-mono uppercase">Avance Global</div>
+                <div className="font-semibold text-[#0C0C09] dark:text-white mt-0.5">
                   {metrics.tasksCount} tareas · {metrics.avgProgress}%
                 </div>
               </div>
-              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800/80">
-                <div className="text-slate-400 dark:text-zinc-500 text-[10px]">Hitos Clave</div>
-                <div className="font-semibold text-amber-500 mt-0.5">
+              <div className="p-2.5 rounded-[4px] bg-[#F4F4F1] dark:bg-zinc-900 border border-[#E2E2DC] dark:border-zinc-800">
+                <div className="text-[#6B6B66] dark:text-zinc-400 text-[10px] font-mono uppercase">Hitos Clave</div>
+                <div className="font-semibold text-[#D97706] mt-0.5">
                   {metrics.milestonesCount} hitos
                 </div>
               </div>
-              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800/80">
-                <div className="text-slate-400 dark:text-zinc-500 text-[10px]">Holgura (Slack)</div>
-                <div className="font-semibold text-violet-500 mt-0.5">
+              <div className="p-2.5 rounded-[4px] bg-[#F4F4F1] dark:bg-zinc-900 border border-[#E2E2DC] dark:border-zinc-800">
+                <div className="text-[#6B6B66] dark:text-zinc-400 text-[10px] font-mono uppercase">Holgura (Slack)</div>
+                <div className="font-semibold text-[#312C85] dark:text-indigo-400 mt-0.5">
                   +{metrics.totalSlackDays}d de margen
                 </div>
               </div>
-              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800/80">
-                <div className="text-slate-400 dark:text-zinc-500 text-[10px]">Ruta Crítica</div>
-                <div className="font-semibold text-rose-500 mt-0.5">
+              <div className="p-2.5 rounded-[4px] bg-[#F4F4F1] dark:bg-zinc-900 border border-[#E2E2DC] dark:border-zinc-800">
+                <div className="text-[#6B6B66] dark:text-zinc-400 text-[10px] font-mono uppercase">Ruta Crítica</div>
+                <div className="font-semibold text-[#DC2626] mt-0.5">
                   {metrics.criticalCount} críticas
                 </div>
               </div>
@@ -1548,19 +1569,19 @@ export function App({
           ref={settingsModalRef}
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-md bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-2xl overflow-hidden p-5 space-y-4"
+          className="w-full max-w-md bg-white dark:bg-[#0C0C09] border border-[#0C0C09] dark:border-zinc-700 rounded-[8px] shadow-2xl overflow-hidden p-5 space-y-4"
         >
-          <div className="flex items-center justify-between border-b border-slate-200 dark:border-zinc-800 pb-3">
+          <div className="flex items-center justify-between border-b border-[#0C0C09] dark:border-zinc-800 pb-3">
             <div className="flex items-center gap-2">
-              <SlidersHorizontal className="w-4 h-4 text-slate-500 dark:text-zinc-400" />
-              <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
+              <SlidersHorizontal className="w-4 h-4 text-[#0C0C09] dark:text-zinc-400" />
+              <h2 className="text-sm font-bold text-[#0C0C09] dark:text-white">
                 Configuración del Cronograma
               </h2>
             </div>
             <button
               type="button"
               onClick={() => setShowSettingsModal(false)}
-              className="text-slate-400 hover:text-slate-700 dark:hover:text-white text-xs"
+              className="text-[#6B6B66] hover:text-[#0C0C09] dark:hover:text-white text-xs cursor-pointer"
             >
               ✕
             </button>
@@ -1568,7 +1589,7 @@ export function App({
 
           {/* Configuración de Flechas de Dependencia */}
           <div className="space-y-2">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+            <label className="block text-xs font-mono font-bold uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400">
               Flechas de Dependencia (Por defecto: Visibles)
             </label>
             <div
@@ -1587,10 +1608,10 @@ export function App({
                 <label
                   key={opt.id}
                   data-arrow-visibility-option={opt.id}
-                  className={`p-2.5 rounded-xl border flex items-center gap-2 cursor-pointer transition ${
+                  className={`p-2.5 rounded-[4px] border flex items-center gap-2 cursor-pointer transition ${
                     arrowVisibility === opt.id
-                      ? 'border-indigo-500 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-semibold'
-                      : 'border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-600 dark:text-zinc-400'
+                      ? 'border-[#0C0C09] bg-[#0C0C09] text-white dark:border-zinc-200 dark:bg-zinc-100 dark:text-[#0C0C09] font-bold'
+                      : 'border-[#E2E2DC] dark:border-zinc-800 bg-[#F4F4F1] dark:bg-zinc-950 text-[#0C0C09] dark:text-zinc-300'
                   }`}
                 >
                   <input
@@ -1598,7 +1619,7 @@ export function App({
                     name="arrow-visibility"
                     checked={arrowVisibility === opt.id}
                     onChange={() => setArrowVisibility(opt.id)}
-                    className="text-indigo-600"
+                    className="text-[#0C0C09]"
                   />
                   <span>{opt.label}</span>
                 </label>
@@ -1673,7 +1694,7 @@ export function App({
                     key={preset.id}
                     type="button"
                     onClick={() => handleChangeDayWidth(preset.val)}
-                    className="px-2 py-1 rounded-lg border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 text-center font-medium"
+                    className="px-2 py-1 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:bg-[#F4F4F1] dark:hover:bg-zinc-700 text-[#0C0C09] dark:text-zinc-200 text-center font-mono text-xs cursor-pointer"
                   >
                     {preset.label}
                   </button>
@@ -1682,11 +1703,11 @@ export function App({
             </div>
 
             <div className="flex items-center justify-between pt-1">
-              <span className="text-slate-700 dark:text-zinc-300 font-medium">Tema visual</span>
+              <span className="text-[#0C0C09] dark:text-zinc-300 font-medium">Tema visual</span>
               <button
                 type="button"
                 onClick={() => setDarkMode((prev) => !prev)}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-zinc-700 bg-slate-100 dark:bg-zinc-800 text-xs font-medium"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-medium text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] cursor-pointer"
               >
                 {darkMode ? (
                   <>
@@ -1695,7 +1716,7 @@ export function App({
                   </>
                 ) : (
                   <>
-                    <Moon className="w-3.5 h-3.5 text-slate-600" />
+                    <Moon className="w-3.5 h-3.5 text-[#0C0C09]" />
                     <span>Modo Claro</span>
                   </>
                 )}

@@ -3075,3 +3075,26 @@ test('Milestone labels in calendar bar are centered, Nueva Tarea button renders 
   }
 });
 
+test('Minimal Design System: Index typography, Alabaster/Ink palette, Header Theme Toggle, and sharp Gantt elements', async () => {
+  const fs = await import('node:fs/promises');
+  const indexHtml = await fs.readFile(path.resolve(__dirname, '../index.html'), 'utf8');
+  assert.ok(indexHtml.includes('family=Inconsolata'), 'index.html must load Inconsolata font');
+  assert.ok(indexHtml.includes('family=Inter'), 'index.html must load Inter font');
+  assert.ok(indexHtml.includes('family=Open+Sans'), 'index.html must load Open Sans font');
+  assert.ok(indexHtml.includes('bg-[#F4F4F1]'), 'index.html body must default to alabaster #F4F4F1 background');
+  assert.ok(indexHtml.includes('text-[#0C0C09]'), 'index.html body must default to ink #0C0C09 text');
+
+  // Verify App header renders quick 1-click theme toggle button
+  const appSrc = await fs.readFile(path.resolve(__dirname, '../src/App.tsx'), 'utf8');
+  assert.ok(appSrc.includes('data-testid="header-theme-toggle-btn"'), 'App header must render direct theme toggle button');
+  assert.ok(appSrc.includes('setDarkMode((prev) => !prev)'), 'Header theme button must toggle darkMode state');
+
+  // Verify GanttWorkspace uses minimal styling classes
+  const wsSrc = await fs.readFile(path.resolve(__dirname, '../src/components/GanttWorkspace.tsx'), 'utf8');
+  assert.ok(wsSrc.includes('rounded-[8px]'), 'GanttWorkspace main card must use sharp rounded-[8px]');
+  assert.ok(wsSrc.includes('border-[#0C0C09]'), 'GanttWorkspace must use stark border-[#0C0C09]');
+  assert.ok(wsSrc.includes('bg-[#F4F4F1]'), 'GanttWorkspace table header must use alabaster #F4F4F1');
+  assert.ok(wsSrc.includes('rounded-[4px]'), 'GanttWorkspace task bars must use rounded-[4px]');
+});
+
+

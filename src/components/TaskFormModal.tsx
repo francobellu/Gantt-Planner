@@ -446,10 +446,10 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
         ref={modalCardRef}
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-2xl rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden my-8"
+        className="relative w-full max-w-2xl rounded-[8px] bg-white dark:bg-[#0C0C09] border border-[#0C0C09] dark:border-zinc-700 shadow-2xl overflow-hidden my-8"
       >
         {/* Top Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/60">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#0C0C09] dark:border-zinc-800 bg-[#F4F4F1] dark:bg-zinc-900">
           <div className="flex items-center gap-3">
             <div
               className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-sm transition-colors ${
@@ -1018,17 +1018,17 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
           </div>
 
           {/* Footer Buttons */}
-          <div className="flex items-center justify-end gap-3 pt-2">
+          <div className="flex items-center justify-end gap-3 pt-2 border-t border-[#E2E2DC] dark:border-zinc-800">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              className="px-4 py-2 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-semibold text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 transition cursor-pointer"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-500/20 transition-all"
+              className="px-5 py-2 rounded-[4px] text-xs font-semibold bg-[#0C0C09] hover:bg-[#312C85] dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-[#0C0C09] transition cursor-pointer"
             >
               {initialItem ? 'Guardar Cambios' : `Añadir ${type === 'milestone' ? 'Hito' : 'Tarea'}`}
             </button>

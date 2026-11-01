@@ -173,104 +173,102 @@ const COLOR_STYLES: Record<
   }
 > = {
   indigo: {
-    barBg: 'bg-indigo-500/25 dark:bg-indigo-500/30',
-    fillBg: 'bg-indigo-600 dark:bg-indigo-500',
-    border: 'border-indigo-600/60 dark:border-indigo-400/60',
-    text: 'text-indigo-950 dark:text-indigo-100',
-    badge: 'bg-indigo-500',
-    groupRowBg: 'bg-indigo-50/70 dark:bg-indigo-950/35',
-    groupBadgeBg: 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-500/30',
-    diamondBg: 'bg-indigo-600 dark:bg-indigo-500 border-white dark:border-slate-900 ring-2 ring-indigo-500/40',
-    diamondPill: 'bg-indigo-500/15 dark:bg-indigo-500/20 border-indigo-500/30 text-indigo-950 dark:text-indigo-200',
-    diamondText: 'text-indigo-600 dark:text-indigo-400',
-    guideLine: 'border-indigo-500/60 dark:border-indigo-400/60',
-    guidePill: 'bg-indigo-600 text-white ring-1 ring-indigo-400',
+    barBg: 'bg-[#0C0C09] text-white border border-[#0C0C09] dark:bg-zinc-800 dark:border-zinc-700',
+    fillBg: 'bg-white/20 dark:bg-zinc-600',
+    border: 'border-[#0C0C09] dark:border-zinc-700',
+    text: 'text-white',
+    badge: 'bg-[#0C0C09] text-white',
+    groupRowBg: 'bg-[#F4F4F1] dark:bg-zinc-900 border-b border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-white',
+    groupBadgeBg: 'bg-[#0C0C09] text-white border border-[#0C0C09]',
+    diamondBg: 'bg-[#0C0C09] text-white border border-[#0C0C09]',
+    diamondPill: 'bg-[#0C0C09] text-white border border-[#0C0C09]',
+    diamondText: 'text-[#0C0C09] dark:text-zinc-200',
+    guideLine: 'border-[#0C0C09]',
+    guidePill: 'bg-[#0C0C09] text-white font-mono rounded-[2px]',
   },
   blue: {
-    barBg: 'bg-blue-500/25 dark:bg-blue-500/30',
-    fillBg: 'bg-blue-600 dark:bg-blue-500',
-    border: 'border-blue-600/60 dark:border-blue-400/60',
-    text: 'text-blue-950 dark:text-blue-100',
-    badge: 'bg-blue-500',
-    groupRowBg: 'bg-blue-50/70 dark:bg-blue-950/35',
-    groupBadgeBg: 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30',
-    diamondBg: 'bg-blue-600 dark:bg-blue-500 border-white dark:border-slate-900 ring-2 ring-blue-500/40',
-    diamondPill: 'bg-blue-500/15 dark:bg-blue-500/20 border-blue-500/30 text-blue-950 dark:text-blue-200',
-    diamondText: 'text-blue-600 dark:text-blue-400',
-    guideLine: 'border-blue-500/60 dark:border-blue-400/60',
-    guidePill: 'bg-blue-600 text-white ring-1 ring-blue-400',
+    barBg: 'bg-[#312C85] text-white border border-[#0C0C09] dark:bg-zinc-800 dark:border-zinc-700',
+    fillBg: 'bg-white/20 dark:bg-zinc-600',
+    border: 'border-[#0C0C09] dark:border-zinc-700',
+    text: 'text-white',
+    badge: 'bg-[#312C85] text-white',
+    groupRowBg: 'bg-[#F4F4F1] dark:bg-zinc-900 border-b border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-white',
+    groupBadgeBg: 'bg-[#312C85] text-white border border-[#312C85]',
+    diamondBg: 'bg-[#312C85] text-white border border-[#0C0C09]',
+    diamondPill: 'bg-[#312C85] text-white border border-[#312C85]',
+    diamondText: 'text-[#312C85]',
+    guideLine: 'border-[#312C85]',
+    guidePill: 'bg-[#312C85] text-white font-mono rounded-[2px]',
   },
   emerald: {
-    barBg: 'bg-emerald-500/25 dark:bg-emerald-500/30',
-    fillBg: 'bg-emerald-600 dark:bg-emerald-500',
-    border: 'border-emerald-600/60 dark:border-emerald-400/60',
-    text: 'text-emerald-950 dark:text-emerald-100',
-    badge: 'bg-emerald-500',
-    groupRowBg: 'bg-emerald-50/70 dark:bg-emerald-950/35',
-    groupBadgeBg:
-      'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
-    diamondBg: 'bg-emerald-600 dark:bg-emerald-500 border-white dark:border-slate-900 ring-2 ring-emerald-500/40',
-    diamondPill: 'bg-emerald-500/15 dark:bg-emerald-500/20 border-emerald-500/30 text-emerald-950 dark:text-emerald-200',
-    diamondText: 'text-emerald-600 dark:text-emerald-400',
-    guideLine: 'border-emerald-500/60 dark:border-emerald-400/60',
-    guidePill: 'bg-emerald-600 text-white ring-1 ring-emerald-400',
+    barBg: 'bg-[#16A34A] text-white border border-[#0C0C09] dark:bg-zinc-800 dark:border-zinc-700',
+    fillBg: 'bg-white/20 dark:bg-zinc-600',
+    border: 'border-[#0C0C09] dark:border-zinc-700',
+    text: 'text-white',
+    badge: 'bg-emerald-500 text-white',
+    groupRowBg: 'bg-[#F4F4F1] dark:bg-zinc-900 border-b border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-white',
+    groupBadgeBg: 'bg-[#16A34A] text-white border border-[#16A34A]',
+    diamondBg: 'bg-emerald-600 text-white border border-[#0C0C09]',
+    diamondPill: 'bg-emerald-600 text-white border border-emerald-500/30',
+    diamondText: 'text-emerald-600',
+    guideLine: 'border-emerald-500/60',
+    guidePill: 'bg-emerald-600 text-white font-mono rounded-[2px]',
   },
   amber: {
-    barBg: 'bg-amber-500/25 dark:bg-amber-500/30',
-    fillBg: 'bg-amber-500 dark:bg-amber-500',
-    border: 'border-amber-600/60 dark:border-amber-400/60',
-    text: 'text-amber-950 dark:text-amber-100',
-    badge: 'bg-amber-500',
-    groupRowBg: 'bg-amber-50/70 dark:bg-amber-950/35',
-    groupBadgeBg: 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30',
-    diamondBg: 'bg-amber-500 border-white dark:border-slate-900 ring-2 ring-amber-500/40',
-    diamondPill: 'bg-amber-500/15 dark:bg-amber-500/20 border-amber-500/30 text-amber-950 dark:text-amber-200',
-    diamondText: 'text-amber-500 dark:text-amber-400',
-    guideLine: 'border-amber-500/60 dark:border-amber-400/60',
-    guidePill: 'bg-amber-500 text-white ring-1 ring-amber-400',
+    barBg: 'bg-[#D97706] text-white border border-[#0C0C09] dark:bg-zinc-800 dark:border-zinc-700',
+    fillBg: 'bg-white/20 dark:bg-zinc-600',
+    border: 'border-[#0C0C09] dark:border-zinc-700',
+    text: 'text-white',
+    badge: 'bg-amber-500 text-white',
+    groupRowBg: 'bg-[#F4F4F1] dark:bg-zinc-900 border-b border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-white',
+    groupBadgeBg: 'bg-[#D97706] text-white border border-[#D97706]',
+    diamondBg: 'bg-amber-500 border border-[#0C0C09]',
+    diamondPill: 'bg-[#D97706] text-white border border-[#D97706]',
+    diamondText: 'text-amber-500',
+    guideLine: 'border-amber-500/60',
+    guidePill: 'bg-[#D97706] text-white font-mono rounded-[2px]',
   },
   rose: {
-    barBg: 'bg-rose-500/25 dark:bg-rose-500/30',
-    fillBg: 'bg-rose-600 dark:bg-rose-500',
-    border: 'border-rose-600/60 dark:border-rose-400/60',
-    text: 'text-rose-950 dark:text-rose-100',
-    badge: 'bg-rose-500',
-    groupRowBg: 'bg-rose-50/70 dark:bg-rose-950/35',
-    groupBadgeBg: 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30',
-    diamondBg: 'bg-rose-600 dark:bg-rose-500 border-white dark:border-slate-900 ring-2 ring-rose-500/40',
-    diamondPill: 'bg-rose-500/15 dark:bg-rose-500/20 border-rose-500/30 text-rose-950 dark:text-rose-200',
-    diamondText: 'text-rose-600 dark:text-rose-400',
-    guideLine: 'border-rose-500/60 dark:border-rose-400/60',
-    guidePill: 'bg-rose-600 text-white ring-1 ring-rose-400',
+    barBg: 'bg-[#DC2626] text-white border border-[#0C0C09] dark:bg-zinc-800 dark:border-zinc-700',
+    fillBg: 'bg-white/20 dark:bg-zinc-600',
+    border: 'border-[#0C0C09] dark:border-zinc-700',
+    text: 'text-white',
+    badge: 'bg-[#DC2626] text-white',
+    groupRowBg: 'bg-[#F4F4F1] dark:bg-zinc-900 border-b border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-white',
+    groupBadgeBg: 'bg-[#DC2626] text-white border border-[#DC2626]',
+    diamondBg: 'bg-[#DC2626] border border-[#0C0C09]',
+    diamondPill: 'bg-[#DC2626] text-white border border-[#DC2626]',
+    diamondText: 'text-[#DC2626]',
+    guideLine: 'border-[#DC2626]',
+    guidePill: 'bg-[#DC2626] text-white font-mono rounded-[2px]',
   },
   violet: {
-    barBg: 'bg-violet-500/25 dark:bg-violet-500/30',
-    fillBg: 'bg-violet-600 dark:bg-violet-500',
-    border: 'border-violet-600/60 dark:border-violet-400/60',
-    text: 'text-violet-950 dark:text-violet-100',
-    badge: 'bg-violet-500',
-    groupRowBg: 'bg-violet-50/70 dark:bg-violet-950/35',
-    groupBadgeBg:
-      'bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-500/30',
-    diamondBg: 'bg-violet-600 dark:bg-violet-500 border-white dark:border-slate-900 ring-2 ring-violet-500/40',
-    diamondPill: 'bg-violet-500/15 dark:bg-violet-500/20 border-violet-500/30 text-violet-950 dark:text-violet-200',
-    diamondText: 'text-violet-600 dark:text-violet-400',
-    guideLine: 'border-violet-500/60 dark:border-violet-400/60',
-    guidePill: 'bg-violet-600 text-white ring-1 ring-violet-400',
+    barBg: 'bg-[#312C85] text-white border border-[#0C0C09] dark:bg-zinc-800 dark:border-zinc-700',
+    fillBg: 'bg-white/20 dark:bg-zinc-600',
+    border: 'border-[#0C0C09] dark:border-zinc-700',
+    text: 'text-white',
+    badge: 'bg-[#312C85] text-white',
+    groupRowBg: 'bg-[#F4F4F1] dark:bg-zinc-900 border-b border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-white',
+    groupBadgeBg: 'bg-[#312C85] text-white border border-[#312C85]',
+    diamondBg: 'bg-violet-600 border border-[#0C0C09]',
+    diamondPill: 'bg-[#312C85] text-white border border-[#312C85]',
+    diamondText: 'text-violet-600',
+    guideLine: 'border-violet-500/60',
+    guidePill: 'bg-[#312C85] text-white font-mono rounded-[2px]',
   },
   cyan: {
-    barBg: 'bg-cyan-500/25 dark:bg-cyan-500/30',
-    fillBg: 'bg-cyan-600 dark:bg-cyan-500',
-    border: 'border-cyan-600/60 dark:border-cyan-400/60',
-    text: 'text-cyan-950 dark:text-cyan-100',
-    badge: 'bg-cyan-500',
-    groupRowBg: 'bg-cyan-50/70 dark:bg-cyan-950/35',
-    groupBadgeBg: 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border-cyan-500/30',
-    diamondBg: 'bg-cyan-600 dark:bg-cyan-500 border-white dark:border-slate-900 ring-2 ring-cyan-500/40',
-    diamondPill: 'bg-cyan-500/15 dark:bg-cyan-500/20 border-cyan-500/30 text-cyan-950 dark:text-cyan-200',
-    diamondText: 'text-cyan-600 dark:text-cyan-400',
-    guideLine: 'border-cyan-500/60 dark:border-cyan-400/60',
-    guidePill: 'bg-cyan-600 text-white ring-1 ring-cyan-400',
+    barBg: 'bg-[#0C0C09] text-white border border-[#0C0C09] dark:bg-zinc-800 dark:border-zinc-700',
+    fillBg: 'bg-white/20 dark:bg-zinc-600',
+    border: 'border-[#0C0C09] dark:border-zinc-700',
+    text: 'text-white',
+    badge: 'bg-[#0C0C09] text-white',
+    groupRowBg: 'bg-[#F4F4F1] dark:bg-zinc-900 border-b border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-white',
+    groupBadgeBg: 'bg-[#0C0C09] text-white border border-[#0C0C09]',
+    diamondBg: 'bg-[#0C0C09] border border-[#0C0C09]',
+    diamondPill: 'bg-[#0C0C09] text-white border border-[#0C0C09]',
+    diamondText: 'text-[#0C0C09] dark:text-zinc-200',
+    guideLine: 'border-[#0C0C09]',
+    guidePill: 'bg-[#0C0C09] text-white font-mono rounded-[2px]',
   },
 };
 
@@ -2282,7 +2280,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   };
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+    <div className="flex flex-col flex-1 min-h-0 bg-white dark:bg-[#0C0C09] rounded-[8px] border border-[#0C0C09] dark:border-zinc-800 shadow-none overflow-hidden">
       {/* Main Synchronized Split View */}
       <div className="flex flex-1 min-h-0 overflow-hidden relative">
         {/* LEFT PANE: WBS Editable Data Grid */}
@@ -2290,15 +2288,14 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
           <>
             <div
               style={{ width: splitWidth }}
-              className="shrink-0 flex flex-col border-r border-slate-200 dark:border-zinc-800/80 bg-white dark:bg-[#09090b] overflow-hidden select-none"
+              className="shrink-0 flex flex-col border-r border-[#0C0C09] dark:border-zinc-800 bg-white dark:bg-[#0C0C09] overflow-hidden select-none"
             >
               <div className="overflow-x-auto flex-1 flex flex-col">
                 <div className="min-w-full flex-1 flex flex-col">
                   {/* Minimalist Table Header (matches timeline HEADER_HEIGHT = 60px) */}
-                  {/* Minimalist Table Header (matches timeline HEADER_HEIGHT = 60px) */}
                   <div
                     style={{ height: HEADER_HEIGHT, minWidth: tableMinWidth }}
-                    className="flex items-center justify-between px-3 bg-slate-100/90 dark:bg-zinc-900/80 border-b border-slate-200 dark:border-zinc-800/80 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 shrink-0 select-none"
+                    className="flex items-center justify-between px-3 bg-[#F4F4F1] dark:bg-[#18181b] border-b border-[#0C0C09] dark:border-zinc-800 text-[10px] font-mono font-bold uppercase tracking-wider text-[#0C0C09] dark:text-zinc-300 shrink-0 select-none"
                   >
                     <div
                       style={{ minWidth: nameColumnWidth }}
@@ -2311,27 +2308,27 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     {/* Column Titles & Icon-Only Configurator */}
                     <div className="flex items-center shrink-0">
                       {visibleColumns.team && (
-                        <span className="w-28 text-left pl-2 text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-semibold">
+                        <span className="w-28 text-left pl-2 text-[10px] font-mono text-[#6B6B66] dark:text-zinc-400 uppercase font-bold">
                           Equipo
                         </span>
                       )}
                       {visibleColumns.dates && (
-                        <span className="w-44 text-center text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-semibold">
+                        <span className="w-44 text-center text-[10px] font-mono text-[#6B6B66] dark:text-zinc-400 uppercase font-bold">
                           Fechas
                         </span>
                       )}
                       {visibleColumns.dur && (
-                        <span className="w-16 text-center text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-semibold">
+                        <span className="w-16 text-center text-[10px] font-mono text-[#6B6B66] dark:text-zinc-400 uppercase font-bold">
                           Dur.
                         </span>
                       )}
                       {visibleColumns.slack && (
-                        <span className="w-14 text-center text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-semibold">
+                        <span className="w-14 text-center text-[10px] font-mono text-[#6B6B66] dark:text-zinc-400 uppercase font-bold">
                           Slack
                         </span>
                       )}
                       {visibleColumns.deps && (
-                        <span className="w-20 text-center text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-semibold">
+                        <span className="w-20 text-center text-[10px] font-mono text-[#6B6B66] dark:text-zinc-400 uppercase font-bold">
                           Deps
                         </span>
                       )}
@@ -2342,7 +2339,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           <button
                             type="button"
                             onClick={() => setShowColumnsMenu((prev) => !prev)}
-                            className="p-1 rounded-md hover:bg-slate-200 dark:hover:bg-zinc-800 text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white transition cursor-pointer"
+                            className="p-1 rounded-[4px] hover:bg-black/5 dark:hover:bg-white/10 text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09] dark:hover:text-white transition cursor-pointer"
                             aria-label="Configurar columnas"
                             title="Columnas visibles"
                           >
@@ -2350,54 +2347,54 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           </button>
 
                           {showColumnsMenu && (
-                            <div className="absolute right-0 top-8 w-44 p-1.5 bg-white dark:bg-zinc-900/98 border border-slate-200 dark:border-zinc-800 rounded-xl shadow-2xl backdrop-blur-xl z-50 text-xs flex flex-col gap-1">
-                              <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500 border-b border-slate-200 dark:border-zinc-800/80">
+                            <div className="absolute right-0 top-8 w-44 p-1.5 bg-white dark:bg-zinc-900 border border-[#0C0C09] dark:border-zinc-700 rounded-[4px] shadow-xl z-50 text-xs flex flex-col gap-1">
+                              <div className="px-2 py-1 text-[10px] font-mono font-bold uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400 border-b border-[#E2E2DC] dark:border-zinc-800">
                                 Mostrar Columnas
                               </div>
-                              <label className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/60 cursor-pointer">
+                              <label className="flex items-center gap-2 px-2 py-1 rounded-[2px] hover:bg-[#F4F4F1] dark:hover:bg-zinc-800/60 cursor-pointer">
                                 <input
                                   type="checkbox"
                                   checked={visibleColumns.team}
                                   onChange={() => toggleVisibleColumn('team')}
-                                  className="rounded border-slate-300 dark:border-zinc-700 text-indigo-600"
+                                  className="rounded-[2px] border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09]"
                                 />
-                                <span className="text-slate-700 dark:text-zinc-300">Equipo</span>
+                                <span className="text-[#0C0C09] dark:text-zinc-300 font-medium">Equipo</span>
                               </label>
-                              <label className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/60 cursor-pointer">
+                              <label className="flex items-center gap-2 px-2 py-1 rounded-[2px] hover:bg-[#F4F4F1] dark:hover:bg-zinc-800/60 cursor-pointer">
                                 <input
                                   type="checkbox"
                                   checked={visibleColumns.dates}
                                   onChange={() => toggleVisibleColumn('dates')}
-                                  className="rounded border-slate-300 dark:border-zinc-700 text-indigo-600"
+                                  className="rounded-[2px] border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09]"
                                 />
-                                <span className="text-slate-700 dark:text-zinc-300">Fechas</span>
+                                <span className="text-[#0C0C09] dark:text-zinc-300 font-medium">Fechas</span>
                               </label>
-                              <label className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/60 cursor-pointer">
+                              <label className="flex items-center gap-2 px-2 py-1 rounded-[2px] hover:bg-[#F4F4F1] dark:hover:bg-zinc-800/60 cursor-pointer">
                                 <input
                                   type="checkbox"
                                   checked={visibleColumns.dur}
                                   onChange={() => toggleVisibleColumn('dur')}
-                                  className="rounded border-slate-300 dark:border-zinc-700 text-indigo-600"
+                                  className="rounded-[2px] border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09]"
                                 />
-                                <span className="text-slate-700 dark:text-zinc-300">Duración</span>
+                                <span className="text-[#0C0C09] dark:text-zinc-300 font-medium">Duración</span>
                               </label>
-                              <label className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/60 cursor-pointer">
+                              <label className="flex items-center gap-2 px-2 py-1 rounded-[2px] hover:bg-[#F4F4F1] dark:hover:bg-zinc-800/60 cursor-pointer">
                                 <input
                                   type="checkbox"
                                   checked={visibleColumns.slack}
                                   onChange={() => toggleVisibleColumn('slack')}
-                                  className="rounded border-slate-300 dark:border-zinc-700 text-indigo-600"
+                                  className="rounded-[2px] border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09]"
                                 />
-                                <span className="text-slate-700 dark:text-zinc-300">Slack</span>
+                                <span className="text-[#0C0C09] dark:text-zinc-300 font-medium">Slack</span>
                               </label>
-                              <label className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800/60 cursor-pointer">
+                              <label className="flex items-center gap-2 px-2 py-1 rounded-[2px] hover:bg-[#F4F4F1] dark:hover:bg-zinc-800/60 cursor-pointer">
                                 <input
                                   type="checkbox"
                                   checked={visibleColumns.deps}
                                   onChange={() => toggleVisibleColumn('deps')}
-                                  className="rounded border-slate-300 dark:border-zinc-700 text-indigo-600"
+                                  className="rounded-[2px] border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09]"
                                 />
-                                <span className="text-slate-700 dark:text-zinc-300">Dependencias</span>
+                                <span className="text-[#0C0C09] dark:text-zinc-300 font-medium">Dependencias</span>
                               </label>
                             </div>
                           )}
@@ -2407,7 +2404,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   </div>
 
                   {/* Table Body Rows */}
-                  <div className="divide-y divide-slate-100 dark:divide-zinc-800/60">
+                  <div className="divide-y divide-[#E2E2DC] dark:divide-zinc-800/60">
                     {visibleProjectGroups.length === 0 && (
                       <div
                         data-empty-selected-projects="true"
@@ -2613,20 +2610,20 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           onDragOver={(e) => handleDragRowOver(e, item.id)}
                           onDragLeave={handleDragRowLeave}
                           onDrop={(e) => handleDropRow(e, item.id)}
-                          className={`flex items-center justify-between px-3 text-xs transition-colors border-b border-slate-100 dark:border-zinc-800/50 ${
+                          className={`flex items-center justify-between px-3 text-xs transition-colors border-b border-[#E2E2DC] dark:border-zinc-800 ${
                             isDropBefore
-                              ? 'border-t-2 border-t-indigo-600 bg-indigo-50/60 dark:bg-indigo-950/40'
+                              ? 'border-t-2 border-t-[#0C0C09] bg-[#F4F4F1] dark:bg-zinc-800'
                               : isDropAfter
-                              ? 'border-b-2 border-b-indigo-600 bg-indigo-50/60 dark:bg-indigo-950/40'
+                              ? 'border-b-2 border-b-[#0C0C09] bg-[#F4F4F1] dark:bg-zinc-800'
                               : ''
                           } ${
                             isBeingDragged
-                              ? 'opacity-40 bg-slate-100 dark:bg-zinc-800/60'
+                              ? 'opacity-40 bg-[#F4F4F1] dark:bg-zinc-800/60'
                               : isHovered
-                              ? 'bg-indigo-50/70 dark:bg-indigo-950/30'
+                              ? 'bg-[#F4F4F1] dark:bg-zinc-900/60'
                               : isCrit
-                              ? 'bg-rose-50/30 dark:bg-rose-950/10'
-                              : 'hover:bg-slate-50 dark:hover:bg-zinc-900/40'
+                              ? 'bg-[#DC2626]/5 dark:bg-rose-950/10'
+                              : 'bg-white dark:bg-[#0C0C09] hover:bg-[#F4F4F1] dark:hover:bg-zinc-900/40 text-[#0C0C09] dark:text-zinc-100'
                           }`}
                         >
                           {/* WBS + Reorder Controls + Name */}
@@ -2644,7 +2641,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 onDragStart={(e) => handleDragRowStart(e, item.id)}
                                 onDragEnd={handleDragRowEnd}
                                 style={{ WebkitUserDrag: 'element' } as React.CSSProperties}
-                                className="cursor-grab active:cursor-grabbing p-1 text-slate-400 dark:text-zinc-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded"
+                                className="cursor-grab active:cursor-grabbing p-1 text-[#6B6B66] dark:text-zinc-500 hover:text-[#0C0C09] dark:hover:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/10 rounded-[2px]"
                                 title="Arrastra para reordenar la posición de la tarea"
                                 data-row-drag-handle={item.id}
                               >
@@ -2658,8 +2655,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                     e.stopPropagation();
                                     onReorderItem?.(item.id, 'up');
                                   }}
-                                  className={`p-0.5 rounded text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors ${
-                                    isFirstInGroup ? 'opacity-20 cursor-not-allowed hover:bg-transparent hover:text-slate-400' : ''
+                                  className={`p-0.5 rounded-[2px] text-[#6B6B66] hover:text-[#0C0C09] dark:hover:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors ${
+                                    isFirstInGroup ? 'opacity-20 cursor-not-allowed hover:bg-transparent hover:text-[#6B6B66]' : ''
                                   }`}
                                   title="Subir posición (mover tarea arriba)"
                                   data-move-up={item.id}
@@ -2673,8 +2670,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                     e.stopPropagation();
                                     onReorderItem?.(item.id, 'down');
                                   }}
-                                  className={`p-0.5 rounded text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors ${
-                                    isLastInGroup ? 'opacity-20 cursor-not-allowed hover:bg-transparent hover:text-slate-400' : ''
+                                  className={`p-0.5 rounded-[2px] text-[#6B6B66] hover:text-[#0C0C09] dark:hover:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors ${
+                                    isLastInGroup ? 'opacity-20 cursor-not-allowed hover:bg-transparent hover:text-[#6B6B66]' : ''
                                   }`}
                                   title="Bajar posición (mover tarea abajo)"
                                   data-move-down={item.id}
@@ -2685,7 +2682,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             </div>
 
                             <span
-                              className="font-mono text-[10px] w-8 text-center py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 shrink-0 font-semibold"
+                              className="font-mono text-[10px] w-8 text-center py-0.5 rounded-[2px] bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-300 border border-[#E2E2DC] dark:border-zinc-700 shrink-0 font-semibold"
                               title={`Código WBS ${item.wbsCode || item.wbs} (Global #${item.wbs})`}
                             >
                               {groupByProject ? item.wbsCode || `${item.wbs}.` : `${item.wbs}.`}
@@ -2698,8 +2695,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               />
                             ) : (
                               <span
-                                className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                                  COLOR_STYLES[item.color]?.badge || 'bg-indigo-500'
+                                className={`w-2.5 h-2.5 rounded-[2px] shrink-0 ${
+                                  COLOR_STYLES[item.color]?.badge || 'bg-[#0C0C09]'
                                 }`}
                               />
                             )}
@@ -2710,7 +2707,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 onUpdateItem({ ...item, name: e.target.value }, false)
                               }
                               style={{ minWidth: `${Math.max(240, maxNameLength * 8.2)}px` }}
-                              className={`w-full bg-transparent font-medium text-slate-800 dark:text-zinc-100 focus:bg-white dark:focus:bg-zinc-800 focus:px-1.5 focus:py-0.5 rounded outline-none focus:ring-1 focus:ring-indigo-500 ${
+                              className={`w-full bg-transparent font-medium text-[#0C0C09] dark:text-zinc-100 focus:bg-white dark:focus:bg-zinc-800 focus:px-1.5 focus:py-0.5 rounded-[2px] outline-none focus:ring-1 focus:ring-[#0C0C09] ${
                                 draggingRowId ? 'pointer-events-none' : ''
                               }`}
                               title={`${item.name} (${group.project.name})`}
@@ -2719,7 +2716,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             {isCrit && (
                               <span
                                 title="En Ruta Crítica (Slack = 0)"
-                                className="px-1 py-0.5 rounded bg-rose-500/15 text-rose-600 dark:text-rose-400 text-[9px] font-bold shrink-0"
+                                className="px-1 py-0.5 rounded-[2px] bg-[#DC2626]/10 text-[#DC2626] text-[9px] font-mono font-bold shrink-0 border border-[#DC2626]/20"
                               >
                                 CRÍT
                               </span>
@@ -2727,7 +2724,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             {item.hasConflict && (
                               <span
                                 title={item.conflictMessage}
-                                className="text-rose-500 shrink-0"
+                                className="text-[#DC2626] shrink-0"
                               >
                                 <AlertTriangle className="w-3.5 h-3.5" />
                               </span>
@@ -2741,7 +2738,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               <div className="w-28 shrink-0 flex items-center justify-start pl-2">
                                 <span
                                   data-assignee-badge={item.assignee || 'Sin asignar'}
-                                  className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 text-[10px] font-medium truncate max-w-[102px] border border-slate-200/80 dark:border-zinc-700"
+                                  className="px-1.5 py-0.5 rounded-[2px] bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-300 text-[10px] font-mono truncate max-w-[102px] border border-[#E2E2DC] dark:border-zinc-700"
                                   title={`Equipo / Responsable: ${item.assignee || 'Sin asignar'}`}
                                 >
                                   {item.assignee || '—'}
@@ -2771,10 +2768,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                       autoCascade
                                     );
                                   }}
-                                  className="w-[82px] px-1 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-800 dark:text-zinc-200 border border-slate-200/80 dark:border-zinc-700 text-[10px] outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                                  className="w-[82px] px-1 py-0.5 rounded-[2px] bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 border border-[#E2E2DC] dark:border-zinc-700 text-[10px] font-mono outline-none focus:ring-1 focus:ring-[#0C0C09] cursor-pointer"
                                   title="Fecha de inicio (haz clic para editar)"
                                 />
-                                <span className="text-slate-400 text-[9px]">→</span>
+                                <span className="text-[#6B6B66] text-[9px]">→</span>
                                 <input
                                   type="date"
                                   disabled={item.type === 'milestone'}
@@ -2791,10 +2788,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                       autoCascade
                                     );
                                   }}
-                                  className={`w-[82px] px-1 py-0.5 rounded text-[10px] outline-none focus:ring-1 focus:ring-indigo-500 ${
+                                  className={`w-[82px] px-1 py-0.5 rounded-[2px] text-[10px] font-mono outline-none focus:ring-1 focus:ring-[#0C0C09] ${
                                     item.type === 'milestone'
                                       ? 'opacity-40 cursor-not-allowed bg-transparent'
-                                      : 'bg-slate-100 dark:bg-zinc-800 text-slate-800 dark:text-zinc-200 border border-slate-200/80 dark:border-zinc-700 cursor-pointer'
+                                      : 'bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 border border-[#E2E2DC] dark:border-zinc-700 cursor-pointer'
                                   }`}
                                   title={
                                     item.type === 'milestone'
@@ -2809,7 +2806,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             {visibleColumns.dur && (
                               <div className="w-16 shrink-0 flex items-center justify-center">
                                 {item.type === 'milestone' ? (
-                                  <span className="font-mono text-[10px] text-slate-400">0d</span>
+                                  <span className="font-mono text-[10px] text-[#6B6B66]">0d</span>
                                 ) : (
                                   <input
                                     type="number"
@@ -2828,7 +2825,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                         autoCascade
                                       );
                                     }}
-                                    className="w-11 px-1 py-0.5 text-center font-mono text-[10px] rounded bg-slate-100 dark:bg-zinc-800 text-slate-800 dark:text-zinc-200 border border-slate-200/80 dark:border-zinc-700 outline-none focus:ring-1 focus:ring-indigo-500"
+                                    className="w-11 px-1 py-0.5 text-center font-mono text-[10px] rounded-[2px] bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 border border-[#E2E2DC] dark:border-zinc-700 outline-none focus:ring-1 focus:ring-[#0C0C09]"
                                     title="Duración en días (haz clic para editar)"
                                   />
                                 )}
@@ -2839,7 +2836,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             {visibleColumns.slack && (
                               <div className="w-14 shrink-0 flex items-center justify-center font-mono text-[10px]">
                                 {item.type === 'milestone' ? (
-                                  <span className="text-slate-400">—</span>
+                                  <span className="text-[#6B6B66]">—</span>
                                 ) : (
                                   <input
                                     type="number"
@@ -2850,7 +2847,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                       const slack = Math.max(0, parseInt(e.target.value, 10) || 0);
                                       onUpdateItem({ ...item, slack }, autoCascade);
                                     }}
-                                    className="w-11 px-1 py-0.5 text-center font-mono text-[10px] rounded bg-slate-100 dark:bg-zinc-800 text-amber-600 dark:text-amber-400 border border-slate-200/80 dark:border-zinc-700 outline-none focus:ring-1 focus:ring-indigo-500"
+                                    className="w-11 px-1 py-0.5 text-center font-mono text-[10px] rounded-[2px] bg-[#F4F4F1] dark:bg-zinc-800 text-[#312C85] dark:text-indigo-400 font-bold border border-[#E2E2DC] dark:border-zinc-700 outline-none focus:ring-1 focus:ring-[#0C0C09]"
                                     title="Holgura / Slack en días (haz clic para editar)"
                                   />
                                 )}
@@ -2861,7 +2858,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             {visibleColumns.deps && (
                               <div className="w-20 shrink-0 text-center font-mono text-[10px]">
                                 <span
-                                  className="text-indigo-600 dark:text-indigo-400 truncate block px-1"
+                                  className="text-[#0C0C09] dark:text-zinc-300 font-mono text-[10px] truncate block px-1 font-semibold"
                                   title={`Dependencias: ${
                                     item.dependencies.length > 0
                                       ? item.dependencies.map((d) => `#${d}`).join(', ')
@@ -2889,7 +2886,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               <button
                                 type="button"
                                 onClick={() => onEditModal(item)}
-                                className="p-1 rounded hover:bg-slate-200 dark:hover:bg-zinc-800 text-slate-400 hover:text-indigo-500"
+                                className="p-1 rounded-[2px] hover:bg-black/5 dark:hover:bg-white/10 text-[#6B6B66] hover:text-[#0C0C09] dark:hover:text-white transition cursor-pointer"
                                 title="Editar detalles completos en modal"
                               >
                                 <Edit3 className="w-3.5 h-3.5" />
@@ -2897,7 +2894,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               <button
                                 type="button"
                                 onClick={() => onDuplicateItem(item)}
-                                className="p-1 rounded hover:bg-slate-200 dark:hover:bg-zinc-800 text-slate-400 hover:text-indigo-500"
+                                className="p-1 rounded-[2px] hover:bg-black/5 dark:hover:bg-white/10 text-[#6B6B66] hover:text-[#0C0C09] dark:hover:text-white transition cursor-pointer"
                                 title="Duplicar ítem"
                               >
                                 <Copy className="w-3.5 h-3.5" />
@@ -2905,7 +2902,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               <button
                                 type="button"
                                 onClick={() => onDeleteItem(item.id)}
-                                className="p-1 rounded hover:bg-rose-500/20 text-slate-400 hover:text-rose-600"
+                                className="p-1 rounded-[2px] hover:bg-[#DC2626]/10 text-[#6B6B66] hover:text-[#DC2626] transition cursor-pointer"
                                 title="Eliminar ítem"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -3037,10 +3034,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             {/* Resizable Split Handle */}
             <div
               onMouseDown={handleSplitMouseDown}
-              className="w-1.5 cursor-col-resize bg-slate-200/70 dark:bg-slate-800 hover:bg-indigo-500 dark:hover:bg-indigo-500 transition-colors flex items-center justify-center group shrink-0"
+              className="w-1 cursor-col-resize bg-[#0C0C09] dark:bg-zinc-700 hover:bg-[#312C85] dark:hover:bg-[#312C85] transition-colors flex items-center justify-center group shrink-0"
               title="Arrastra para redimensionar la tabla"
             >
-              <GripHorizontal className="w-3 h-3 text-slate-400 group-hover:text-white rotate-90" />
+              <GripHorizontal className="w-3 h-3 text-white rotate-90" />
             </div>
           </>
         )}
@@ -3054,7 +3051,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
           }}
           onMouseMove={handleTimelineMouseMove}
           onMouseLeave={handleTimelineMouseLeave}
-          className="flex-1 overflow-x-auto overflow-y-hidden relative bg-white dark:bg-slate-950 select-none"
+          className="flex-1 overflow-x-auto overflow-y-hidden relative bg-white dark:bg-[#0C0C09] select-none"
         >
           <div
             ref={canvasRef}
@@ -3098,17 +3095,17 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             {/* Minimalist Linear-Style Timeline Header (60px total height) */}
             <div
               style={{ height: HEADER_HEIGHT }}
-              className="sticky top-0 z-20 bg-slate-50/95 dark:bg-[#09090b]/95 backdrop-blur-md border-b border-slate-200 dark:border-zinc-800/80 flex flex-col select-none"
+              className="sticky top-0 z-20 bg-[#F4F4F1] dark:bg-[#18181b] border-b border-[#0C0C09] dark:border-zinc-800 flex flex-col select-none"
             >
               {/* Top Tier: Month names (MAR, ABR, MAY, JUN...) with dashed vertical division */}
-              <div className="flex h-7 border-b border-slate-200/60 dark:border-zinc-800/60">
+              <div className="flex h-7 border-b border-[#E2E2DC] dark:border-zinc-800">
                 {monthGroups.map((group, idx) => {
                   const groupPx = group.count * dayWidth;
                   return (
                     <div
                       key={idx}
                       style={{ width: groupPx }}
-                      className="pl-2.5 flex items-center text-[11px] font-semibold uppercase tracking-widest text-slate-500 dark:text-zinc-400 border-l border-dashed border-slate-300 dark:border-zinc-800/90 first:border-l-0 truncate"
+                      className="pl-2.5 flex items-center text-[11px] font-mono font-bold uppercase tracking-widest text-[#0C0C09] dark:text-zinc-200 border-l border-dashed border-[#0C0C09]/20 dark:border-zinc-800/90 first:border-l-0 truncate"
                       title={group.label}
                     >
                       {groupPx >= 28 ? group.shortLabel : ''}
@@ -3150,10 +3147,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       style={{ width: dayWidth }}
                       className={`relative h-full flex flex-col items-center justify-center text-[10px] font-mono select-none ${
                         isToday
-                          ? 'text-indigo-600 dark:text-indigo-400 font-bold'
+                          ? 'font-bold'
                           : wknd && dayWidth >= 14
-                          ? 'text-slate-400 dark:text-zinc-600'
-                          : 'text-slate-500 dark:text-zinc-400'
+                          ? 'text-[#6B6B66]/60 dark:text-zinc-600'
+                          : 'text-[#6B6B66] dark:text-zinc-400'
                       }`}
                     >
                       {/* Subtle tick notch at the top */}
@@ -3161,8 +3158,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         <div
                           className={`absolute top-0 w-px ${
                             isMonthStart
-                              ? 'h-2 bg-slate-400 dark:bg-zinc-700'
-                              : 'h-1 bg-slate-300/80 dark:bg-zinc-800'
+                              ? 'h-2 bg-[#0C0C09] dark:bg-zinc-600'
+                              : 'h-1 bg-[#E2E2DC] dark:bg-zinc-800'
                           }`}
                         />
                       )}
@@ -3170,12 +3167,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       {/* Day number / weekday label */}
                       {showNumber && (
                         dayWidth >= 34 ? (
-                          <div className="flex items-center gap-0.5 mt-0.5">
+                          <div className={`flex items-center gap-0.5 mt-0.5 ${isToday ? 'px-1 py-0.2 rounded-[2px] bg-[#0C0C09] text-[#F4F4F1] dark:bg-zinc-100 dark:text-[#0C0C09]' : ''}`}>
                             <span className="opacity-60 text-[9px]">{dayLetter}</span>
                             <span className="font-semibold">{dayNum}</span>
                           </div>
                         ) : (
-                          <span className={`mt-0.5 ${isMonthStart ? 'font-bold' : ''}`}>
+                          <span className={`mt-0.5 ${isToday ? 'px-1 py-0.2 rounded-[2px] bg-[#0C0C09] text-[#F4F4F1] dark:bg-zinc-100 dark:text-[#0C0C09] font-bold' : isMonthStart ? 'font-bold' : ''}`}>
                             {dayNum}
                           </span>
                         )
@@ -3202,11 +3199,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       style={{ width: dayWidth }}
                       className={`h-full ${
                         showGridLine
-                          ? 'border-r border-slate-100 dark:border-slate-900/80'
+                          ? 'border-r border-[#E2E2DC]/50 dark:border-zinc-900'
                           : ''
                       } ${
                         wknd && dayWidth >= 8
-                          ? 'bg-slate-100/50 dark:bg-slate-900/40'
+                          ? 'bg-[#F4F4F1]/60 dark:bg-zinc-900/40'
                           : ''
                       }`}
                     />
@@ -3221,7 +3218,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     key={`month-divider-${mIdx}`}
                     data-month-divider={mIdx}
                     style={{ width: group.count * dayWidth }}
-                    className={`h-full shrink-0 border-r border-dashed border-slate-300/80 dark:border-zinc-800/90 ${
+                    className={`h-full shrink-0 border-r border-dashed border-[#0C0C09]/20 dark:border-zinc-800/90 ${
                       mIdx === monthGroups.length - 1 ? 'border-r-transparent' : ''
                     }`}
                   />
@@ -3251,9 +3248,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           left: 0,
                           transform: `translateX(calc(-50% + ${badgeClampOffset}px))`,
                         }}
-                        className={`absolute ${tierTopClass} flex items-center justify-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold shadow-sm whitespace-nowrap z-20 ${
+                        className={`absolute ${tierTopClass} flex items-center justify-center gap-1 px-2 py-0.5 rounded-[2px] text-[9px] font-mono font-bold shadow-none whitespace-nowrap z-20 ${
                           isCrit
-                            ? 'bg-rose-500 text-white ring-1 ring-rose-400'
+                            ? 'bg-[#DC2626] text-white ring-1 ring-rose-400'
                             : mTheme.guidePill
                         }`}
                         title={`Hito: ${m.name} (${formatDateDisplay(m.startDate, 'dd MMM yyyy')})`}
@@ -3277,9 +3274,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   id="gantt-today-marker"
                   data-today-x={todayIndex * dayWidth + dayWidth / 2}
                   style={{ left: todayIndex * dayWidth + dayWidth / 2 }}
-                  className="absolute top-0 bottom-0 w-0.5 bg-indigo-500/80 dark:bg-indigo-400/80 z-10 pointer-events-none"
+                  className="absolute top-0 bottom-0 w-0.5 bg-[#0C0C09] dark:bg-zinc-400 z-10 pointer-events-none"
                 >
-                  <div className="absolute -top-0.5 -translate-x-1/2 px-1.5 py-0.5 rounded-b bg-indigo-600 text-white text-[9px] font-bold tracking-wider shadow">
+                  <div className="absolute -top-0.5 -translate-x-1/2 px-1.5 py-0.5 rounded-[2px] bg-[#0C0C09] text-[#F4F4F1] text-[9px] font-mono font-bold tracking-wider shadow-none">
                     HOY
                   </div>
                 </div>
@@ -3292,7 +3289,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     <div
                       key={`row-bg-${row.rowId}`}
                       style={{ height: ROW_HEIGHT }}
-                      className="border-b border-slate-200/80 dark:border-slate-800 bg-slate-100/60 dark:bg-slate-900/60"
+                      className="border-b border-[#0C0C09] dark:border-zinc-800 bg-[#F4F4F1] dark:bg-zinc-900"
                     />
                   );
                 }
@@ -3303,8 +3300,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     style={{ height: ROW_HEIGHT }}
                     onMouseEnter={() => setHoveredId(row.item.id)}
                     onMouseLeave={() => setHoveredId(null)}
-                    className={`border-b border-slate-100 dark:border-slate-800/70 transition-colors ${
-                      isHovered ? 'bg-indigo-50/40 dark:bg-indigo-950/20' : ''
+                    className={`border-b border-[#E2E2DC] dark:border-zinc-800/70 transition-colors ${
+                      isHovered ? 'bg-[#F4F4F1]/80 dark:bg-zinc-900/40' : 'bg-white dark:bg-[#0C0C09]'
                     }`}
                   />
                 );
@@ -3656,22 +3653,22 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           <span className="truncate">
                             P{group.projectIndex}: {group.project.name} ({group.duration}d)
                           </span>
-                          <span className="font-mono text-indigo-600 dark:text-indigo-400 ml-2 shrink-0">
+                          <span className="font-mono text-[#0C0C09] dark:text-zinc-200 ml-2 shrink-0 font-bold">
                             {group.progress}%
                           </span>
                         </div>
 
                         {/* Classic Gantt Project Summary Bracket Bar */}
-                        <div className="relative h-3.5 rounded-t-sm bg-slate-800/85 dark:bg-slate-200/85 overflow-visible shadow-sm">
+                        <div className="relative h-3 rounded-t-[2px] bg-[#0C0C09] dark:bg-zinc-200 overflow-visible shadow-none">
                           {/* Progress Fill Inside Project Summary Bar */}
                           <div
                             style={{ width: `${group.progress}%` }}
-                            className={`h-full rounded-tl-sm transition-all ${projTheme.fillBg}`}
+                            className={`h-full rounded-tl-[2px] transition-all ${projTheme.fillBg}`}
                           />
                           {/* Left Bracket Downward Cap */}
-                          <div className="absolute -bottom-1.5 left-0 w-2 h-2 bg-slate-800 dark:bg-slate-200 clip-path-bracket-left" />
+                          <div className="absolute -bottom-1.5 left-0 w-2 h-2 bg-[#0C0C09] dark:bg-zinc-200 clip-path-bracket-left" />
                           {/* Right Bracket Downward Cap */}
-                          <div className="absolute -bottom-1.5 right-0 w-2 h-2 bg-slate-800 dark:bg-slate-200 clip-path-bracket-right" />
+                          <div className="absolute -bottom-1.5 right-0 w-2 h-2 bg-[#0C0C09] dark:bg-zinc-200 clip-path-bracket-right" />
                         </div>
                       </div>
                     </div>
@@ -3888,23 +3885,23 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             onClick={(e) => handleBarClick(e, item.id)}
                             onDoubleClick={() => onEditModal(item)}
                             data-timeline-task={item.id}
-                            className={`relative h-8 rounded-lg border overflow-hidden cursor-grab active:cursor-grabbing shadow-sm transition-shadow ${
+                            className={`relative h-7 rounded-[4px] border overflow-hidden cursor-grab active:cursor-grabbing shadow-none transition-shadow ${
                               styleTheme.barBg
                             } ${
                               isDraggingThis
-                                ? 'ring-2 ring-indigo-500 ring-offset-1 dark:ring-offset-slate-950 shadow-xl opacity-95'
+                                ? 'ring-2 ring-[#0C0C09] ring-offset-1 dark:ring-offset-black opacity-95'
                                 : isDepDropTarget
-                                ? 'ring-2 ring-emerald-500 ring-offset-1 dark:ring-offset-slate-950 shadow-md'
+                                ? 'ring-2 ring-emerald-500 ring-offset-1 dark:ring-offset-black'
                                 : isConnectSource
-                                ? 'ring-2 ring-indigo-500 ring-offset-1 dark:ring-offset-slate-950 shadow-md'
+                                ? 'ring-2 ring-[#0C0C09] ring-offset-1 dark:ring-offset-black'
                                 : isSelected
-                                ? 'ring-2 ring-indigo-500 ring-offset-1 dark:ring-offset-slate-950 shadow-md'
+                                ? 'ring-2 ring-[#0C0C09] ring-offset-1 dark:ring-offset-black'
                                 : isCrit
                                 ? 'border-rose-500 ring-2 ring-rose-500/40'
                                 : item.hasConflict
                                 ? 'border-rose-500 ring-2 ring-rose-500/30'
                                 : styleTheme.border
-                            } ${isHovered ? 'shadow-md' : ''}`}
+                            }`}
                           >
                             {/* Progress Fill Layer */}
                             <div
@@ -3917,23 +3914,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             {/* Task Label Inside Bar (only when bar is wide enough) */}
                             {barWidth >= 56 && (
                               <div className="absolute inset-0 px-2.5 flex items-center justify-between text-[11px] font-semibold pointer-events-none">
-                                <span
-                                  className={`truncate ${
-                                    item.progress > 45
-                                      ? 'text-white drop-shadow-sm'
-                                      : styleTheme.text
-                                  }`}
-                                >
+                                <span className="truncate text-white drop-shadow-xs">
                                   {item.name}
                                 </span>
                                 {barWidth >= 70 && (
-                                  <span
-                                    className={`font-mono text-[10px] ml-1 shrink-0 ${
-                                      item.progress > 80
-                                        ? 'text-white/90'
-                                        : 'text-slate-600 dark:text-slate-300'
-                                    }`}
-                                  >
+                                  <span className="font-mono text-[10px] ml-1 shrink-0 text-white/85">
                                     {coords.effectiveDuration}d
                                   </span>
                                 )}
@@ -3944,9 +3929,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             <div
                               onMouseDown={(e) => handleBarMouseDown(e, item, 'resize')}
                               title="Arrastra el borde derecho para cambiar la duración"
-                              className="absolute right-0 top-0 bottom-0 w-2.5 cursor-ew-resize hover:bg-black/20 dark:hover:bg-white/30 flex items-center justify-center"
+                              className="absolute right-0 top-0 bottom-0 w-2.5 cursor-ew-resize hover:bg-white/20 flex items-center justify-center"
                             >
-                              <div className="w-0.5 h-3.5 bg-white/70 rounded" />
+                              <div className="w-0.5 h-3.5 bg-white/70 rounded-[1px]" />
                             </div>
                           </div>
 
@@ -4106,12 +4091,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                 data-selected-dependency={`${predItem.id}->${succItem.id}`}
                 onClick={(e) => e.stopPropagation()}
                 onMouseDown={(e) => e.stopPropagation()}
-                className="absolute top-3 right-3 z-40 w-80 max-w-[calc(100%-24px)] bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-xl border border-indigo-200 dark:border-indigo-800/80 shadow-xl p-3.5 text-xs flex flex-col gap-3 transition-all"
+                className="absolute top-3 right-3 z-40 w-80 max-w-[calc(100%-24px)] bg-white dark:bg-[#0C0C09] rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 shadow-xl p-3.5 text-xs flex flex-col gap-3 transition-all"
               >
                 {/* Header */}
-                <div className="flex items-start justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-start justify-between gap-2 pb-2 border-b border-[#E2E2DC] dark:border-zinc-800">
                   <div className="flex items-center gap-2 min-w-0">
-                    <div className="p-1.5 rounded-lg bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 shrink-0">
+                    <div className="p-1.5 rounded-[4px] bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09] shrink-0">
                       <GitBranch className="w-4 h-4" />
                     </div>
                     <div className="min-w-0">
@@ -4350,10 +4335,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             data-selected-item-id={selectedItem.id}
             onClick={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
-            className="absolute top-3 right-3 z-40 w-80 max-w-[calc(100%-24px)] bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-xl border border-slate-200/90 dark:border-slate-700/90 shadow-xl p-3.5 text-xs flex flex-col gap-2.5 transition-all"
+            className="absolute top-3 right-3 z-40 w-80 max-w-[calc(100%-24px)] bg-white dark:bg-[#0C0C09] rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 shadow-xl p-3.5 text-xs flex flex-col gap-2.5 transition-all"
           >
             {/* Panel Header: WBS Code + Title + Type Badge + Close button */}
-            <div className="flex items-start justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-start justify-between gap-2 pb-2 border-b border-[#E2E2DC] dark:border-zinc-800">
               <div className="flex items-center gap-1.5 min-w-0">
                 {selectedItem.type === 'milestone' ? (
                   <Diamond
