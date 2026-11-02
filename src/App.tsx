@@ -25,6 +25,7 @@ import {
   Plus,
   Redo2,
   Rocket,
+  Rows,
   Save,
   Sparkles,
   Sun,
@@ -670,6 +671,23 @@ export function App({
       localStorage.setItem(GROUPING_MODE_KEY, 'release');
     } catch {}
   }, []);
+
+  // Horizontal task row separation lines visibility (persisted in localStorage)
+  const [showRowSeparators, setShowRowSeparators] = useState<boolean>(() => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const saved = window.localStorage.getItem('ganttflow_show_row_separators');
+        return saved !== null ? saved === 'true' : true;
+      }
+    } catch {}
+    return true;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ganttflow_show_row_separators', String(showRowSeparators));
+    } catch {}
+  }, [showRowSeparators]);
 
   const [scenarioSavedToast, setScenarioSavedToast] = useState<string | null>(null);
 
@@ -1975,6 +1993,31 @@ export function App({
         {/* RIGHT: Iconos Vectoriales Minimalistas con Hints */}
         <div className="flex items-center gap-2 shrink-0">
 
+          {/* Alternar Líneas Horizontales de Separación */}
+          <div className="relative group">
+            <button
+              type="button"
+              data-testid="header-toggle-row-separators-btn"
+              onClick={() => setShowRowSeparators((prev) => !prev)}
+              className={`p-1.5 rounded-[4px] border transition shadow-none cursor-pointer ${
+                showRowSeparators
+                  ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
+                  : 'bg-white dark:bg-zinc-900 border-[#0C0C09] dark:border-zinc-700 text-[#6B6B66] hover:text-[#0C0C09] dark:hover:text-white'
+              }`}
+              aria-label="Líneas Horizontales"
+              title={
+                showRowSeparators
+                  ? 'Ocultar líneas horizontales de separación'
+                  : 'Mostrar líneas horizontales de separación'
+              }
+            >
+              <Rows className="w-4 h-4" />
+            </button>
+            <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute right-0 top-10 px-2 py-1 bg-[#0C0C09] text-[#F4F4F1] text-[11px] font-mono font-medium rounded-[2px] shadow-lg border border-[#E2E2DC] whitespace-nowrap z-50 pointer-events-none">
+              {showRowSeparators ? 'Ocultar líneas horizontales' : 'Mostrar líneas horizontales'}
+            </div>
+          </div>
+
           {/* Ruta Crítica */}
           <div className="relative group">
             <button
@@ -2202,6 +2245,8 @@ export function App({
               scrollContainerRef={scrollContainerRef}
               showTable={showTable}
               onToggleShowTable={() => setShowTable((prev) => !prev)}
+              showRowSeparators={showRowSeparators}
+              onToggleRowSeparators={() => setShowRowSeparators((prev) => !prev)}
             />
           </>
         )}

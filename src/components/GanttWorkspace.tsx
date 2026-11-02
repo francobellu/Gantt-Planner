@@ -124,6 +124,8 @@ interface GanttWorkspaceProps {
   selectedProjectIds?: string[];
   showTable?: boolean;
   onToggleShowTable?: () => void;
+  showRowSeparators?: boolean;
+  onToggleRowSeparators?: () => void;
   onOpenProjectsView?: () => void;
   zoom: ZoomLevel;
   dayWidth?: number;
@@ -487,6 +489,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   scrollContainerRef,
   showTable: showTableProp,
   onToggleShowTable,
+  showRowSeparators: showRowSeparatorsProp,
+  onToggleRowSeparators,
   initialSelectedItemId,
   initialHoveredItemId,
   initialCursorScrubber,
@@ -718,8 +722,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     };
   }, [showColumnsMenu]);
 
-  // Configurable horizontal task row separation lines (persisted in localStorage)
-  const [showRowSeparators, setShowRowSeparators] = useState<boolean>(() => {
+  // Configurable horizontal task row separation lines (controlled via prop or local fallback)
+  const [internalShowRowSeparators, setInternalShowRowSeparators] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem('ganttflow_show_row_separators');
       return saved !== null ? saved === 'true' : true;
@@ -728,11 +732,22 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     }
   });
 
-  useEffect(() => {
-    try {
-      localStorage.setItem('ganttflow_show_row_separators', String(showRowSeparators));
-    } catch {}
-  }, [showRowSeparators]);
+  const showRowSeparators =
+    showRowSeparatorsProp !== undefined ? showRowSeparatorsProp : internalShowRowSeparators;
+
+  const handleToggleRowSeparators = () => {
+    if (onToggleRowSeparators) {
+      onToggleRowSeparators();
+    } else {
+      setInternalShowRowSeparators((prev) => {
+        const next = !prev;
+        try {
+          localStorage.setItem('ganttflow_show_row_separators', String(next));
+        } catch {}
+        return next;
+      });
+    }
+  };
 
   // Track focused task input in the table so full name is editable when focused
   const [focusedTaskInputId, setFocusedTaskInputId] = useState<string | null>(null);
@@ -2926,7 +2941,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         <button
                           type="button"
                           data-testid="toggle-row-separators-btn"
-                          onClick={() => setShowRowSeparators((prev) => !prev)}
+                          onClick={handleToggleRowSeparators}
                           className={`p-1 rounded-[4px] transition cursor-pointer ${
                             showRowSeparators
                               ? 'bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09]'
@@ -3124,7 +3139,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   </div>
 
                   {/* Table Body Rows */}
-                  <div className="divide-y divide-[#E2E2DC] dark:divide-zinc-800/60">
+                  <div className={showRowSeparators ? 'divide-y divide-[#E2E2DC] dark:divide-zinc-800/60' : ''}>
                     {visibleProjectGroups.length === 0 && (
                       <div
                         data-empty-selected-projects="true"
@@ -3177,7 +3192,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             key={row.rowId}
                             data-release-group={rGroup.release.id}
                             style={{ height: ROW_HEIGHT, minWidth: tableMinWidth }}
-                            className="flex items-center justify-start px-3 text-xs font-bold border-y border-[#0C0C09] dark:border-zinc-700 bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09] transition-colors"
+                            className={`flex items-center justify-start px-3 text-xs font-bold ${
+                              showRowSeparators
+                                ? 'border-y border-[#0C0C09] dark:border-zinc-700'
+                                : 'border-y-0'
+                            } bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09] transition-colors`}
                           >
                             {/* Release Title + Code + Manage Button */}
                             <div
@@ -3306,7 +3325,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             onDrop={(e) =>
                               handleDropRow(e, `project:${group.project.id}`)
                             }
-                            className={`flex items-center justify-start px-3 text-xs font-semibold border-y border-slate-200/80 dark:border-zinc-800/80 transition-colors ${
+                            className={`flex items-center justify-start px-3 text-xs font-semibold ${
+                              showRowSeparators
+                                ? 'border-y border-slate-200/80 dark:border-zinc-800/80'
+                                : 'border-y-0'
+                            } transition-colors ${
                               isProjectDragTarget
                                 ? 'ring-2 ring-inset ring-indigo-500 bg-indigo-100/70 dark:bg-indigo-950/60'
                                 : projTheme.groupRowBg
@@ -3555,7 +3578,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           className={`flex items-center justify-start px-3 text-xs transition-colors ${
                             showRowSeparators
                               ? 'border-b border-[#E2E2DC] dark:border-zinc-800'
-                              : 'border-b border-transparent'
+                              : 'border-b-0'
                           } ${
                             isDropBefore
                               ? 'border-t-2 border-t-[#0C0C09] bg-[#F4F4F1] dark:bg-zinc-800'
@@ -4456,7 +4479,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     <div
                       key={`row-bg-${row.rowId}`}
                       style={{ height: ROW_HEIGHT }}
-                      className="border-b border-[#E2E2DC] dark:border-zinc-800 bg-[#F4F4F1]/30 dark:bg-zinc-900/30"
+                      className={`${
+                        showRowSeparators
+                          ? 'border-b border-[#E2E2DC] dark:border-zinc-800'
+                          : 'border-b-0'
+                      } bg-[#F4F4F1]/30 dark:bg-zinc-900/30`}
                     />
                   );
                 }
@@ -4465,7 +4492,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     <div
                       key={`row-bg-${row.rowId}`}
                       style={{ height: ROW_HEIGHT }}
-                      className="border-b border-[#0C0C09] dark:border-zinc-800 bg-[#F4F4F1] dark:bg-zinc-900"
+                      className={`${
+                        showRowSeparators
+                          ? 'border-b border-[#0C0C09] dark:border-zinc-800'
+                          : 'border-b-0'
+                      } bg-[#F4F4F1] dark:bg-zinc-900`}
                     />
                   );
                 }
@@ -4479,7 +4510,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     className={`${
                       showRowSeparators
                         ? 'border-b border-[#E2E2DC] dark:border-zinc-800/70'
-                        : 'border-b border-transparent'
+                        : 'border-b-0'
                     } transition-colors ${
                       isHovered ? 'bg-[#F4F4F1]/80 dark:bg-zinc-900/40' : 'bg-white dark:bg-[#0C0C09]'
                     }`}

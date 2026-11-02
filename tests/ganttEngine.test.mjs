@@ -5126,6 +5126,42 @@ test('Task name positioning, configurable row separators, 37 char truncation, v1
           );
         }
 
+        export function renderWorkspaceWithSeparators(showSeparators: boolean) {
+          const items = [
+            {
+              id: 't-long',
+              projectId: 'p-1',
+              name: 'Tarea Separador Test',
+              type: 'task',
+              startDate: '2026-10-15',
+              endDate: '2026-10-25',
+              duration: 11,
+              slack: 0,
+              dependencies: [],
+              progress: 30,
+              color: 'indigo'
+            }
+          ];
+          const projects = [
+            { id: 'p-1', name: 'Proyecto Prueba', color: 'indigo', releaseId: 'rel-t-26-12-1', collapsed: false }
+          ];
+          return (
+            <GanttWorkspace
+              items={items}
+              projects={projects}
+              releases={DEFAULT_PREDEFINED_RELEASES}
+              showTable={true}
+              showRowSeparators={showSeparators}
+              onUpdateItem={() => {}}
+              onDeleteItem={() => {}}
+              onEditModal={() => {}}
+              onDuplicateItem={() => {}}
+              onQuickAdd={() => {}}
+              scrollContainerRef={{ current: null }}
+            />
+          );
+        }
+
         export function renderAppHeader() {
           return <App />;
         }
@@ -5197,7 +5233,7 @@ test('Task name positioning, configurable row separators, 37 char truncation, v1
     assert.ok(wsHtml.includes('data-timeline-task-name="t-long"'), 'Must render timeline task name label');
     assert.ok(wsHtml.includes('bottom-full mb-[2px]'), 'Task label must be positioned snug to task box with mb-[2px]');
 
-    // 2. Horizontal row separators toggle button
+    // 2. Horizontal row separators toggle button in table header
     assert.ok(wsHtml.includes('data-testid="toggle-row-separators-btn"'), 'Table header must contain toggle-row-separators-btn');
 
     // 3. Task name in table truncated to 37 characters + '…'
@@ -5217,12 +5253,23 @@ test('Task name positioning, configurable row separators, 37 char truncation, v1
     assert.ok(wsHtml.includes('data-release-summary-bar="rel-t-26-12-1"'), 'Must render release summary bar');
     assert.ok(wsHtml.includes('cursor-pointer'), 'Release summary bar must have cursor-pointer to indicate clickability');
 
-    // 7. App Header displays v1.2.0 badge
+    // 7. Verify Horizontal Row Separators ON vs OFF in Table and Timeline:
+    const htmlWithSeparators = renderToString(mod.renderWorkspaceWithSeparators(true));
+    assert.ok(htmlWithSeparators.includes('divide-y divide-[#E2E2DC]'), 'Table body must have divide-y when showRowSeparators is true');
+    assert.ok(htmlWithSeparators.includes('border-b border-[#E2E2DC]'), 'Rows must have border-b when showRowSeparators is true');
+
+    const htmlWithoutSeparators = renderToString(mod.renderWorkspaceWithSeparators(false));
+    assert.ok(!htmlWithoutSeparators.includes('divide-y'), 'Table body must NOT have divide-y when showRowSeparators is false');
+    assert.ok(htmlWithoutSeparators.includes('border-b-0'), 'Rows must have border-b-0 when showRowSeparators is false');
+    assert.ok(htmlWithoutSeparators.includes('border-y-0'), 'Group rows must have border-y-0 when showRowSeparators is false');
+
+    // 8. App Header displays v1.2.0 badge and header-toggle-row-separators-btn
     const appHtml = renderToString(mod.renderAppHeader());
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'Header must contain app-version-badge');
     assert.ok(appHtml.includes('v1.2.0'), 'Header badge must display v1.2.0');
+    assert.ok(appHtml.includes('data-testid="header-toggle-row-separators-btn"'), 'Header must contain header-toggle-row-separators-btn');
 
-    // 8. TaskFormModal has external milestone checkbox
+    // 9. TaskFormModal has external milestone checkbox
     const modalHtml = renderToString(mod.renderTaskFormMilestoneModal());
     assert.ok(modalHtml.includes('data-testid="milestone-is-external-checkbox"'), 'Milestone form modal must have external milestone checkbox');
     assert.ok(modalHtml.includes('Hito externo (no pertenece a la release)'), 'Milestone form modal must describe external milestone');
