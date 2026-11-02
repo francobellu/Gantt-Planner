@@ -4280,7 +4280,8 @@ T_99.1.1;ENERO 2099;01/01/2099;;;;;01/02/2099;10/02/2099;;;;;;;;20/02/2099;`;
     const appHtml = ReactDOMServer.renderToString(mod.renderAppWithReleases());
     assert.ok(appHtml.includes('data-testid="header-releases-btn"'), 'Must render header releases button');
     assert.ok(appHtml.includes('data-testid="releases-counter-badge"'), 'Must render releases count badge');
-    assert.ok(appHtml.includes('data-testid="grouping-mode-toggle"'), 'Must render grouping mode toggle button');
+    assert.ok(appHtml.includes('data-testid="header-import-btn"'), 'Must render header import button');
+    assert.ok(appHtml.includes('data-testid="header-export-btn"'), 'Must render header export button');
     assert.ok(appHtml.includes('data-testid="releases-modal"'), 'Must render Releases Modal when open');
     assert.ok(appHtml.includes('data-testid="release-export-excel-btn"'), 'Releases modal must have Export Excel button');
     assert.ok(appHtml.includes('data-testid="release-import-file-input"'), 'Releases modal must have file import input');
@@ -4294,10 +4295,150 @@ T_99.1.1;ENERO 2099;01/01/2099;;;;;01/02/2099;10/02/2099;;;;;;;;20/02/2099;`;
     assert.ok(wsHtml.includes(`data-testid="toggle-collapse-release-${rel0Id}"`), 'Release group header must have collapse/expand toggle');
     assert.ok(wsHtml.includes('data-testid="project-release-badge-p-test-1"'), 'Project row must display assigned release badge');
     assert.ok(wsHtml.includes('data-testid="task-release-violation-t-test-1"'), 'Task violating release milestone must display violation indicator');
-    assert.ok(wsHtml.includes(`data-testid="release-milestone-guide-${rel0Id}-iop"`), 'Timeline canvas must render vertical guide line for release milestone');
-    assert.ok(wsHtml.includes(`data-testid="release-milestone-diamond-${rel0Id}-iop"`), 'Timeline canvas must render diamond icon for release milestone');
-    assert.ok(wsHtml.includes(`data-testid="release-milestone-line-${rel0Id}-iop"`), 'Timeline canvas must render vertical dashed line for release milestone');
+    assert.ok(wsHtml.includes('data-testid="toggle-milestones-menu-btn"'), 'Table header must have milestones configuration button');
+    assert.ok(wsHtml.includes(`data-testid="release-milestone-guide-${rel0Id}-qg4"`), 'Timeline canvas must render vertical guide line for default milestone QG4');
+    assert.ok(wsHtml.includes(`data-testid="release-milestone-diamond-${rel0Id}-qg4"`), 'Timeline canvas must render diamond icon for default milestone QG4');
+    assert.ok(wsHtml.includes(`data-testid="release-milestone-line-${rel0Id}-qg4"`), 'Timeline canvas must render vertical dashed line for default milestone QG4');
     assert.ok(wsHtml.includes(`data-release-summary-bar="${rel0Id}"`), 'Timeline canvas must render release summary bar');
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
+test('Header import/export buttons, release summary bar bounded to last milestone, and QG4/QG5 milestone filter', async () => {
+  const esbuild = await import('esbuild');
+  const path = await import('path');
+  const fs = await import('fs/promises');
+  const { fileURLToPath } = await import('url');
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+  const relBundle = await esbuild.build({
+    entryPoints: [path.resolve(__dirname, '../src/utils/releaseEngine.ts')],
+    bundle: true,
+    format: 'esm',
+    platform: 'node',
+    packages: 'external',
+    write: false,
+  });
+
+  const tmpRelFile = path.resolve(__dirname, './.tmp-rel-48.mjs');
+  await fs.writeFile(tmpRelFile, relBundle.outputFiles[0].text, 'utf8');
+  let relMod;
+  try {
+    relMod = await import(`${tmpRelFile}?t=${Date.now()}`);
+  } finally {
+    await fs.unlink(tmpRelFile).catch(() => {});
+  }
+
+  const { getPredefinedReleases, DEFAULT_PREDEFINED_RELEASES } = relMod;
+  const releases = getPredefinedReleases ? getPredefinedReleases() : DEFAULT_PREDEFINED_RELEASES;
+  const rel0 = releases[0];
+  const milestoneKeys = rel0.milestones.map((m) => m.key);
+  assert.ok(milestoneKeys.includes('qg4'), 'Release 0 has QG4');
+  assert.ok(milestoneKeys.includes('qg5'), 'Release 0 has QG5');
+  assert.ok(milestoneKeys.includes('iop'), 'Release 0 has IOP');
+
+  const sortedDates = rel0.milestones.map((m) => m.date).filter(Boolean).sort();
+  const lastMilestoneDate = sortedDates[sortedDates.length - 1];
+  assert.ok(lastMilestoneDate, 'Must have a last milestone date');
+
+  const ssrBundle = await esbuild.build({
+    stdin: {
+      contents: `
+        import React from 'react';
+        import { GanttWorkspace } from './src/components/GanttWorkspace';
+        import { DEFAULT_PREDEFINED_RELEASES } from './src/utils/releaseEngine';
+
+        const testItems = [
+          {
+            id: 't-test-1',
+            projectId: 'p-test-1',
+            wbs: 1,
+            name: 'Tarea Test 1',
+            startDate: '2026-11-01',
+            endDate: '2026-12-30',
+            duration: 60,
+            progress: 50,
+            color: 'indigo',
+            type: 'task',
+            dependencies: [],
+          },
+        ];
+
+        const testProjects = [
+          {
+            id: 'p-test-1',
+            name: 'Proyecto Alpha',
+            color: 'indigo',
+            releaseId: DEFAULT_PREDEFINED_RELEASES[0].id,
+            isDemo: false,
+          },
+        ];
+
+        export function renderWorkspaceDefault() {
+          const scrollRef = { current: null };
+          return (
+            <GanttWorkspace
+              items={testItems}
+              projects={testProjects}
+              releases={DEFAULT_PREDEFINED_RELEASES}
+              activeReleaseId={DEFAULT_PREDEFINED_RELEASES[0].id}
+              releaseGuideVisibility="selected"
+              groupingMode="release"
+              scrollContainerRef={scrollRef}
+              showTable={true}
+            />
+          );
+        }
+
+        export function renderWorkspaceWithAllMilestones() {
+          const scrollRef = { current: null };
+          return (
+            <GanttWorkspace
+              items={testItems}
+              projects={testProjects}
+              releases={DEFAULT_PREDEFINED_RELEASES}
+              activeReleaseId={DEFAULT_PREDEFINED_RELEASES[0].id}
+              releaseGuideVisibility="selected"
+              groupingMode="release"
+              scrollContainerRef={scrollRef}
+              showTable={true}
+              initialVisibleMilestoneKeys={['qg4', 'qg5', 'iop']}
+            />
+          );
+        }
+      `,
+      resolveDir: path.resolve(__dirname, '..'),
+      sourcefile: 'ssr-milestone-filter-test.tsx',
+      loader: 'tsx',
+    },
+    bundle: true,
+    format: 'cjs',
+    platform: 'node',
+    external: ['react', 'react-dom', 'xlsx'],
+    packages: 'external',
+    write: false,
+  });
+
+  const tmpFile = path.resolve(__dirname, './.tmp-milestones-test.cjs');
+  await fs.writeFile(tmpFile, ssrBundle.outputFiles[0].text, 'utf8');
+
+  try {
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+    const ReactDOMServer = await import('react-dom/server');
+
+    // Default workspace should only show QG4 and QG5
+    const defaultHtml = ReactDOMServer.renderToString(mod.renderWorkspaceDefault());
+    assert.ok(defaultHtml.includes(`data-testid="release-milestone-guide-${rel0.id}-qg4"`), 'Default renders QG4');
+    assert.ok(defaultHtml.includes(`data-testid="release-milestone-guide-${rel0.id}-qg5"`), 'Default renders QG5');
+    assert.ok(!defaultHtml.includes(`data-testid="release-milestone-guide-${rel0.id}-iop"`), 'Default DOES NOT render IOP');
+    assert.ok(!defaultHtml.includes(`data-testid="release-milestone-guide-${rel0.id}-qg1"`), 'Default DOES NOT render QG1');
+
+    // When configured with IOP, renders IOP
+    const customHtml = ReactDOMServer.renderToString(mod.renderWorkspaceWithAllMilestones());
+    assert.ok(customHtml.includes(`data-testid="release-milestone-guide-${rel0.id}-iop"`), 'Renders IOP when configured');
+    assert.ok(customHtml.includes(`data-release-summary-bar="${rel0.id}"`), 'Renders release summary bar');
+    assert.ok(customHtml.includes(`Acotado hasta su último hito: ${lastMilestoneDate}`), 'Summary bar title shows bounded last milestone date');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }

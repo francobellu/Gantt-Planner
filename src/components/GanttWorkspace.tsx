@@ -82,7 +82,10 @@ import {
   updateDependencyLinkType,
   wouldCreateCycle,
 } from '../utils/ganttEngine';
-import { checkTaskReleaseCompliance } from '../utils/releaseEngine';
+import {
+  checkTaskReleaseCompliance,
+  RELEASE_MILESTONE_DEFINITIONS,
+} from '../utils/releaseEngine';
 
 function computePolylineMidpoint(pts: OrthogonalPoint[]): OrthogonalPoint {
   if (pts.length === 0) return { x: 0, y: 0 };
@@ -156,6 +159,7 @@ interface GanttWorkspaceProps {
   groupingMode?: GroupingMode;
   onToggleGroupingMode?: () => void;
   onOpenReleasesModal?: (releaseId?: string) => void;
+  initialVisibleMilestoneKeys?: string[];
 }
 
 
@@ -487,10 +491,83 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   groupingMode = 'project',
   onToggleGroupingMode,
   onOpenReleasesModal,
+  initialVisibleMilestoneKeys,
 }) => {
-  const [collapsedReleaseIds, setCollapsedReleaseIds] = useState<Set<string>>(
-    new Set()
-  );
+  const [collapsedReleaseIds, setCollapsedReleaseIds] = useState<Set<string>>(() => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const saved = window.localStorage.getItem('ganttflow_collapsed_releases');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) return new Set(parsed);
+        }
+      }
+    } catch {}
+    return new Set();
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        'ganttflow_collapsed_releases',
+        JSON.stringify(Array.from(collapsedReleaseIds))
+      );
+    } catch {}
+  }, [collapsedReleaseIds]);
+
+  const [visibleMilestoneKeys, setVisibleMilestoneKeys] = useState<Set<string>>(() => {
+    if (initialVisibleMilestoneKeys) {
+      return new Set(initialVisibleMilestoneKeys.map((k) => k.toLowerCase()));
+    }
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const saved = window.localStorage.getItem('ganttflow_visible_milestone_keys');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return new Set(parsed.map((k: string) => String(k).toLowerCase()));
+          }
+        }
+      }
+    } catch {}
+    return new Set(['qg4', 'qg5']);
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        'ganttflow_visible_milestone_keys',
+        JSON.stringify(Array.from(visibleMilestoneKeys))
+      );
+    } catch {}
+  }, [visibleMilestoneKeys]);
+
+  const [showMilestonesMenu, setShowMilestonesMenu] = useState<boolean>(false);
+  const milestonesMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showMilestonesMenu) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (
+        milestonesMenuRef.current &&
+        !milestonesMenuRef.current.contains(e.target as Node)
+      ) {
+        setShowMilestonesMenu(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowMilestonesMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showMilestonesMenu]);
+
   const [hiddenReleaseGuideKeys, setHiddenReleaseGuideKeys] = useState<Set<string>>(() => {
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
@@ -2662,6 +2739,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       }> = [];
 
       for (const m of area.release.milestones) {
+        if (!visibleMilestoneKeys.has(m.key.toLowerCase())) continue;
         const mDate = parseDateSafe(m.date);
         const diff = differenceInCalendarDays(mDate, timelineStart);
         const x = diff * dayWidth + dayWidth / 2;
@@ -2706,6 +2784,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     dayWidth,
     totalCanvasWidth,
     totalCanvasHeight,
+    visibleMilestoneKeys,
   ]);
 
   // Track cursor position and exact calendar date over timeline canvas for the date scrubber
@@ -2791,8 +2870,121 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         </span>
                       )}
 
-                      {/* Botón de Columnas: SOLO ICONO VECTORIAL (sin texto) */}
-                      <div className="w-28 flex items-center justify-end pr-1">
+                      {/* Botones de Control: Hitos de Release y Columnas */}
+                      <div className="w-28 flex items-center justify-end pr-1 gap-1">
+                        {/* Botón y Panel de Hitos de Release */}
+                        <div ref={milestonesMenuRef} className="relative" data-dropdown-container="true">
+                          <button
+                            type="button"
+                            data-testid="toggle-milestones-menu-btn"
+                            onClick={() => setShowMilestonesMenu((prev) => !prev)}
+                            className={`p-1 rounded-[4px] transition cursor-pointer ${
+                              showMilestonesMenu
+                                ? 'bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09]'
+                                : 'hover:bg-black/5 dark:hover:bg-white/10 text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09] dark:hover:text-white'
+                            }`}
+                            aria-label="Configurar hitos de release visibles"
+                            title="Hitos de release visibles en cronograma (Por defecto: QG4, QG5)"
+                          >
+                            <Diamond className="w-3.5 h-3.5" />
+                          </button>
+
+                          {showMilestonesMenu && (
+                            <div
+                              data-testid="milestones-visibility-menu"
+                              className="absolute right-0 top-8 w-60 p-2 bg-white dark:bg-zinc-900 border border-[#0C0C09] dark:border-zinc-700 rounded-[4px] shadow-xl z-50 text-xs flex flex-col gap-1.5"
+                            >
+                              <div className="flex items-center justify-between pb-1.5 border-b border-[#E2E2DC] dark:border-zinc-800">
+                                <div className="flex items-center gap-1.5">
+                                  <Diamond className="w-3 h-3 text-amber-500 fill-current" />
+                                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#0C0C09] dark:text-zinc-200">
+                                    Hitos de Release
+                                  </span>
+                                </div>
+                                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-300 font-bold">
+                                  {visibleMilestoneKeys.size}/16
+                                </span>
+                              </div>
+
+                              {/* Presets */}
+                              <div className="grid grid-cols-3 gap-1 pb-1 border-b border-[#E2E2DC] dark:border-zinc-800 text-[10px]">
+                                <button
+                                  type="button"
+                                  data-testid="milestones-preset-default"
+                                  onClick={() => setVisibleMilestoneKeys(new Set(['qg4', 'qg5']))}
+                                  className="px-1 py-0.5 rounded bg-[#F4F4F1] dark:bg-zinc-800 hover:bg-[#0C0C09] hover:text-white dark:hover:bg-zinc-100 dark:hover:text-black font-medium transition cursor-pointer text-center"
+                                  title="Mostrar únicamente QG4 y QG5 (valor por defecto)"
+                                >
+                                  QG4/QG5
+                                </button>
+                                <button
+                                  type="button"
+                                  data-testid="milestones-preset-all"
+                                  onClick={() =>
+                                    setVisibleMilestoneKeys(
+                                      new Set(RELEASE_MILESTONE_DEFINITIONS.map((d) => d.id.toLowerCase()))
+                                    )
+                                  }
+                                  className="px-1 py-0.5 rounded bg-[#F4F4F1] dark:bg-zinc-800 hover:bg-[#0C0C09] hover:text-white dark:hover:bg-zinc-100 dark:hover:text-black font-medium transition cursor-pointer text-center"
+                                  title="Mostrar todos los 16 hitos"
+                                >
+                                  Todos
+                                </button>
+                                <button
+                                  type="button"
+                                  data-testid="milestones-preset-none"
+                                  onClick={() => setVisibleMilestoneKeys(new Set())}
+                                  className="px-1 py-0.5 rounded bg-[#F4F4F1] dark:bg-zinc-800 hover:bg-[#0C0C09] hover:text-white dark:hover:bg-zinc-100 dark:hover:text-black font-medium transition cursor-pointer text-center"
+                                  title="Ocultar todos los hitos"
+                                >
+                                  Ninguno
+                                </button>
+                              </div>
+
+                              {/* Milestone Checklist */}
+                              <div className="max-h-56 overflow-y-auto flex flex-col gap-0.5 pr-0.5">
+                                {RELEASE_MILESTONE_DEFINITIONS.map((def) => {
+                                  const isChecked = visibleMilestoneKeys.has(def.id.toLowerCase());
+                                  return (
+                                    <label
+                                      key={def.id}
+                                      data-testid={`milestone-toggle-${def.id}`}
+                                      className="flex items-center justify-between px-2 py-1 rounded-[2px] hover:bg-[#F4F4F1] dark:hover:bg-zinc-800/60 cursor-pointer select-none"
+                                    >
+                                      <div className="flex items-center gap-2 overflow-hidden">
+                                        <input
+                                          type="checkbox"
+                                          checked={isChecked}
+                                          onChange={() => {
+                                            setVisibleMilestoneKeys((prev) => {
+                                              const next = new Set(prev);
+                                              const k = def.id.toLowerCase();
+                                              if (next.has(k)) next.delete(k);
+                                              else next.add(k);
+                                              return next;
+                                            });
+                                          }}
+                                          className="rounded-[2px] border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] cursor-pointer"
+                                        />
+                                        <span className="font-mono font-bold text-[11px] text-[#0C0C09] dark:text-zinc-200">
+                                          {def.code}
+                                        </span>
+                                      </div>
+                                      <span
+                                        className="text-[10px] text-[#6B6B66] dark:text-zinc-400 truncate max-w-[110px]"
+                                        title={def.name}
+                                      >
+                                        {def.category}
+                                      </span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Botón de Columnas: SOLO ICONO VECTORIAL (sin texto) */}
                         <div ref={columnsMenuRef} className="relative" data-dropdown-container="true">
                           <button
                             type="button"
@@ -3782,7 +3974,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             {/* Minimalist Linear-Style Timeline Header (60px total height) */}
             <div
               style={{ height: HEADER_HEIGHT }}
-              className="sticky top-0 z-20 bg-[#F4F4F1] dark:bg-[#18181b] border-b border-[#0C0C09] dark:border-zinc-800 flex flex-col select-none"
+              className="sticky top-0 z-20 bg-[#F4F4F1] dark:bg-[#18181b] border-b-2 border-[#0C0C09] dark:border-zinc-700 shadow-xs flex flex-col select-none"
             >
               {/* Top Tier: Month names (MAR, ABR, MAY, JUN...) with dashed vertical division */}
               <div className="flex h-7 border-b border-[#E2E2DC] dark:border-zinc-800">
@@ -4080,7 +4272,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     <div
                       key={`row-bg-${row.rowId}`}
                       style={{ height: ROW_HEIGHT }}
-                      className="border-b border-[#0C0C09] dark:border-zinc-700 bg-[#0C0C09]/90 dark:bg-zinc-900/90"
+                      className="border-b border-[#E2E2DC] dark:border-zinc-800 bg-[#F4F4F1]/30 dark:bg-zinc-900/30"
                     />
                   );
                 }
@@ -4415,13 +4607,35 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               {displayRows.map((row, rowIndex) => {
                 if (row.kind === 'release') {
                   const { group: rGroup } = row;
-                  const rStart = parseDateSafe(rGroup.startDate);
+                  const releaseMilestones = rGroup.release.milestones || [];
+                  const validMilestoneDates = releaseMilestones
+                    .map((m) => m.date)
+                    .filter((d): d is string => Boolean(d && typeof d === 'string'))
+                    .sort();
+
+                  const firstMilestoneDate = validMilestoneDates[0];
+                  const lastMilestoneDate =
+                    validMilestoneDates[validMilestoneDates.length - 1];
+
+                  // Bar starts at first milestone (or group startDate) and extends strictly up to last milestone date
+                  const effectiveStartDate =
+                    firstMilestoneDate || rGroup.startDate;
+                  const effectiveEndDate =
+                    lastMilestoneDate || rGroup.endDate;
+
+                  const rStart = parseDateSafe(effectiveStartDate);
+                  const rEnd = parseDateSafe(effectiveEndDate);
+
                   const startOffsetDays = differenceInCalendarDays(
                     rStart,
                     timelineStart
                   );
                   const rStartX = startOffsetDays * dayWidth;
-                  const rWidth = Math.max(dayWidth, rGroup.duration * dayWidth);
+                  const spanDays = Math.max(
+                    1,
+                    differenceInCalendarDays(rEnd, rStart) + 1
+                  );
+                  const rWidth = Math.max(dayWidth, spanDays * dayWidth);
 
                   return (
                     <div
@@ -4435,14 +4649,28 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     >
                       <div
                         style={{ left: rStartX, width: rWidth }}
-                        className="relative flex items-center justify-between pointer-events-auto h-7 rounded-[4px] bg-[#0C0C09] dark:bg-zinc-200 text-white dark:text-[#0C0C09] px-2.5 shadow-sm text-[10px] font-mono font-bold"
-                        title={`${rGroup.release.name}: ${rGroup.startDate} → ${rGroup.endDate} (${rGroup.duration}d)`}
+                        className="relative flex items-center justify-between pointer-events-auto h-7 rounded-[4px] bg-[#0C0C09] dark:bg-zinc-100 text-white dark:text-[#0C0C09] px-2.5 shadow-md border border-[#0C0C09] dark:border-zinc-300 text-[10px] font-mono font-bold transition-all"
+                        title={`${rGroup.release.name}: ${effectiveStartDate} → ${effectiveEndDate} (${spanDays}d · Acotado hasta su último hito: ${effectiveEndDate})`}
                       >
                         <span className="truncate flex items-center gap-1.5">
-                          <Rocket className="w-3.5 h-3.5 text-amber-400 dark:text-indigo-600" />
-                          {rGroup.release.code}
+                          <Rocket className="w-3.5 h-3.5 text-amber-400 dark:text-indigo-600 shrink-0" />
+                          <span className="font-semibold">{rGroup.release.code}</span>
+                          {rWidth >= 220 && rGroup.release.month && (
+                            <span className="opacity-80 text-[9px] uppercase font-normal hidden sm:inline">
+                              {rGroup.release.month}
+                            </span>
+                          )}
                         </span>
-                        <span>{rGroup.progress}%</span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {rWidth >= 170 && (
+                            <span className="text-[9px] opacity-75 font-normal hidden md:inline">
+                              Fin: {effectiveEndDate.split('-').slice(1).reverse().join('/')}
+                            </span>
+                          )}
+                          <span className="px-1.5 py-0.2 rounded bg-white/20 dark:bg-black/10">
+                            {rGroup.progress}%
+                          </span>
+                        </div>
                       </div>
                     </div>
                   );

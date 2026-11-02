@@ -645,7 +645,7 @@ export function App({
         }
       }
     } catch {}
-    return 'project';
+    return 'release';
   });
 
   const [showReleasesModal, setShowReleasesModal] = useState<boolean>(initialReleasesModalOpen || false);
@@ -675,9 +675,11 @@ export function App({
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(initialSettingsOpen);
   const [projectMenuOpen, setProjectMenuOpen] = useState<boolean>(initialProjectMenuOpen);
   const [createMenuOpen, setCreateMenuOpen] = useState<boolean>(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState<boolean>(false);
 
   const projectMenuRef = useRef<HTMLDivElement>(null);
   const createMenuRef = useRef<HTMLDivElement>(null);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
   const settingsModalRef = useRef<HTMLDivElement>(null);
   const metricsDrawerRef = useRef<HTMLDivElement>(null);
   const metricsToggleBtnRef = useRef<HTMLButtonElement>(null);
@@ -690,6 +692,9 @@ export function App({
       }
       if (createMenuRef.current && !createMenuRef.current.contains(target)) {
         setCreateMenuOpen(false);
+      }
+      if (exportMenuRef.current && !exportMenuRef.current.contains(target)) {
+        setExportMenuOpen(false);
       }
       if (showSettingsModal && settingsModalRef.current && !settingsModalRef.current.contains(target)) {
         setShowSettingsModal(false);
@@ -708,6 +713,7 @@ export function App({
       if (e.key === 'Escape') {
         setProjectMenuOpen(false);
         setCreateMenuOpen(false);
+        setExportMenuOpen(false);
         setShowSettingsModal(false);
         setShowMetricsDrawer(false);
         return;
@@ -746,7 +752,7 @@ export function App({
       document.removeEventListener('mousedown', handleGlobalClick);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [showSettingsModal, showMetricsDrawer, handleUndo, handleRedo]);
+  }, [showSettingsModal, showMetricsDrawer, exportMenuOpen, handleUndo, handleRedo]);
 
   // Modal state
   const [modalOpen, setModalOpen] = useState<boolean>(false);
@@ -818,7 +824,7 @@ export function App({
     try {
       localStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({ projectName, projects: effectiveProjects, items })
+        JSON.stringify({ projectName, projects: effectiveProjects, items, releases })
       );
       localStorage.setItem(
         SELECTED_PROJECTS_STORAGE_KEY,
@@ -831,12 +837,14 @@ export function App({
           projectName,
           projects: effectiveProjects,
           items,
+          releases,
           savedScenarios: [
             {
               id: 'scen-user',
               name: projectName,
               projects: effectiveProjects,
               items,
+              releases,
               updatedAt: new Date().toISOString(),
               isDemo: false,
             },
@@ -846,7 +854,7 @@ export function App({
     } catch {
       // ignore quota errors
     }
-  }, [projectName, effectiveProjects, items, selectedProjectIds]);
+  }, [projectName, effectiveProjects, items, selectedProjectIds, releases]);
 
 
   // Enrich computedItems with hierarchical wbsCode (e.g. 1.1, 1.2, 2.1) and resolved projectId
@@ -1860,28 +1868,71 @@ export function App({
             )}
           </button>
 
-          {/* Grouping Mode Toggle (Por Proyecto vs Por Release) */}
+          {/* Botón Importar */}
           <button
             type="button"
-            data-testid="grouping-mode-toggle"
-            onClick={() => setGroupingMode((prev) => (prev === 'release' ? 'project' : 'release'))}
-            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-[4px] border text-xs font-medium transition cursor-pointer shrink-0 ${
-              groupingMode === 'release'
-                ? 'bg-[#312C85] border-[#312C85] text-white dark:bg-indigo-600 dark:border-indigo-500'
-                : 'bg-white dark:bg-zinc-900 border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800'
-            }`}
-            title={
-              groupingMode === 'release'
-                ? 'Agrupado por Release > Proyecto > Tarea (Click para agrupar por Proyecto)'
-                : 'Agrupado por Proyecto (Click para agrupar jerárquicamente por Release)'
-            }
-            aria-label="Conmutar agrupación por Release"
+            data-testid="header-import-btn"
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 text-xs font-medium transition cursor-pointer shrink-0"
+            title="Importar cronograma desde archivo JSON o CSV"
+            aria-label="Importar"
           >
-            <Layers className="w-3.5 h-3.5" />
-            <span className="font-display font-medium hidden md:inline">
-              {groupingMode === 'release' ? 'Vista: Release' : 'Vista: Proyecto'}
-            </span>
+            <Upload className="w-3.5 h-3.5 text-[#312C85] dark:text-indigo-400" />
+            <span className="font-display font-medium hidden sm:inline">Importar</span>
           </button>
+
+          {/* Botón y Dropdown Exportar */}
+          <div ref={exportMenuRef} className="relative shrink-0" data-dropdown-container="true">
+            <button
+              type="button"
+              data-testid="header-export-btn"
+              onClick={() => setExportMenuOpen((prev) => !prev)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 text-xs font-medium transition cursor-pointer shrink-0"
+              title="Exportar datos del cronograma (JSON / CSV)"
+              aria-label="Exportar"
+            >
+              <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span className="font-display font-medium hidden sm:inline">Exportar</span>
+              <ChevronDown className="w-3 h-3 opacity-70" />
+            </button>
+            {exportMenuOpen && (
+              <div
+                data-testid="header-export-dropdown"
+                className="absolute left-0 top-10 w-48 p-1.5 bg-white dark:bg-zinc-900 border border-[#0C0C09] dark:border-zinc-700 rounded-[4px] shadow-xl z-50 text-xs flex flex-col gap-0.5"
+              >
+                <button
+                  type="button"
+                  data-testid="header-export-json-btn"
+                  onClick={() => {
+                    handleExportJSON();
+                    setExportMenuOpen(false);
+                  }}
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-[2px] hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 font-medium transition text-left cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5 text-indigo-500" />
+                  <div className="flex flex-col">
+                    <span className="font-semibold">Exportar JSON</span>
+                    <span className="text-[10px] text-[#6B6B66] dark:text-zinc-400">Workspace completo y releases</span>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  data-testid="header-export-csv-btn"
+                  onClick={() => {
+                    handleExportCSV();
+                    setExportMenuOpen(false);
+                  }}
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-[2px] hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 font-medium transition text-left cursor-pointer"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500" />
+                  <div className="flex flex-col">
+                    <span className="font-semibold">Exportar CSV</span>
+                    <span className="text-[10px] text-[#6B6B66] dark:text-zinc-400">Compatible Excel y MS Project</span>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
 
           {scenarioSavedToast && (
             <span
