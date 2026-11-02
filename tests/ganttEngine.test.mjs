@@ -4920,4 +4920,140 @@ test('Automatically creates a task named DIGI spanning the assigned release when
   }
 });
 
+test('A release is always indicated with its full duration, even if associated projects have smaller tasks', async () => {
+  const fs = await import('node:fs/promises');
+  const relBundle = await build({
+    entryPoints: [path.resolve(__dirname, '../src/utils/releaseEngine.ts')],
+    bundle: true,
+    format: 'esm',
+    platform: 'node',
+    packages: 'external',
+    write: false,
+  });
+
+  const tmpRelFile = path.resolve(__dirname, './.tmp-rel-54.mjs');
+  await fs.writeFile(tmpRelFile, relBundle.outputFiles[0].text, 'utf8');
+  let relMod;
+  try {
+    relMod = await import(`${tmpRelFile}?t=${Date.now()}`);
+  } finally {
+    await fs.unlink(tmpRelFile).catch(() => {});
+  }
+
+  const { DEFAULT_PREDEFINED_RELEASES, getReleaseDateSpan } = relMod;
+  const rel1 = DEFAULT_PREDEFINED_RELEASES[0]; // T_26.12.1 (2026-10-05 to 2026-12-25, 82 days)
+
+  // 1. Engine verification: groupItemsByReleaseAndProject with a project having a small 5-day task
+  const smallProject = sanitizeProject(
+    {
+      id: 'p-small',
+      name: 'Proyecto Ágil Corto',
+      releaseId: rel1.id,
+    },
+    0
+  );
+
+  const smallTask = sanitizeGanttItem({
+    id: 't-small',
+    projectId: 'p-small',
+    name: 'Microtarea de Prueba',
+    type: 'task',
+    startDate: '2026-11-10',
+    endDate: '2026-11-15',
+    duration: 5,
+    progress: 30,
+  });
+
+  const computedSmallItems = computeGanttMetrics([smallTask]);
+  const releaseGroups = groupItemsByReleaseAndProject(
+    computedSmallItems,
+    [smallProject],
+    DEFAULT_PREDEFINED_RELEASES
+  );
+
+  const rg = releaseGroups.find((g) => g.release.id === rel1.id);
+  assert.ok(rg, 'Must find computed release group for T_26.12.1');
+  assert.equal(rg.duration, 82, 'Release duration MUST be 82d (full release duration), not 5d');
+  assert.equal(rg.startDate, '2026-10-05', 'Release startDate must be 2026-10-05');
+  assert.equal(rg.endDate, '2026-12-25', 'Release endDate must be 2026-12-25');
+
+  // 2. SSR Verification: WBS table and timeline summary bar indicate the full duration
+  const { renderToString } = await import('react-dom/server');
+  const bundle = await build({
+    stdin: {
+      contents: `
+        import React from 'react';
+        import { GanttWorkspace } from './src/components/GanttWorkspace.tsx';
+        import { computeGanttMetrics, sanitizeProject, sanitizeGanttItem } from './src/utils/ganttEngine.ts';
+        import { DEFAULT_PREDEFINED_RELEASES } from './src/utils/releaseEngine.ts';
+
+        export function renderWorkspaceSmallTaskInRelease() {
+          const rel = DEFAULT_PREDEFINED_RELEASES[0];
+          const project = sanitizeProject({ id: 'p-small', name: 'Proyecto Ágil Corto', releaseId: rel.id }, 0);
+          const task = sanitizeGanttItem({
+            id: 't-small',
+            projectId: 'p-small',
+            name: 'Microtarea de Prueba',
+            type: 'task',
+            startDate: '2026-11-10',
+            endDate: '2026-11-15',
+            duration: 5,
+            progress: 30,
+          });
+          const items = computeGanttMetrics([task]);
+          return (
+            <GanttWorkspace
+              items={items}
+              projects={[project]}
+              releases={DEFAULT_PREDEFINED_RELEASES}
+              groupByProject={true}
+              groupingMode="release"
+              selectedProjectId="all"
+              zoom="day"
+              dayWidth={20}
+              showCriticalPath={false}
+              showCpmFloat={false}
+              initialVisibleColumns={{ dates: true, dur: true }}
+              onUpdateItem={() => {}}
+              onEditModal={() => {}}
+              onDeleteItem={() => {}}
+              onDuplicateItem={() => {}}
+              onQuickAdd={() => {}}
+              scrollContainerRef={{ current: null }}
+            />
+          );
+        }
+      `,
+      resolveDir: path.resolve(__dirname, '..'),
+      sourcefile: 'ssr-release-full-duration-test.tsx',
+      loader: 'tsx',
+    },
+    bundle: true,
+    format: 'cjs',
+    platform: 'node',
+    external: ['react', 'react-dom'],
+    write: false,
+  });
+
+  const tmpFile = path.resolve(__dirname, './.tmp-ssr-release-duration.cjs');
+  await fs.writeFile(tmpFile, bundle.outputFiles[0].text, 'utf8');
+
+  try {
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+    const html = renderToString(mod.renderWorkspaceSmallTaskInRelease());
+
+    // Verify WBS Table shows full release duration (82d) and dates (05/10 → 25/12)
+    assert.ok(html.includes('data-release-duration-cell="rel-t-26-12-1"'), 'Must render duration cell for release');
+    assert.ok(html.includes('82d'), 'Release row must indicate full 82d duration');
+    assert.ok(html.includes('05/10 → 25/12'), 'Release row must indicate full release dates span');
+
+    // Verify Timeline Summary Bar displays full duration badge
+    assert.ok(html.includes('data-release-summary-bar="rel-t-26-12-1"'), 'Must render release summary bar');
+    assert.ok(html.includes('(82d)'), 'Release summary bar must display (82d) badge');
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
+
 

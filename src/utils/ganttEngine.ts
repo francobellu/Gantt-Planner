@@ -22,7 +22,7 @@ import {
   TaskColor,
   ZoomLevel,
 } from '../types/gantt';
-import { checkTaskReleaseCompliance } from './releaseEngine';
+import { checkTaskReleaseCompliance, getReleaseDateSpan } from './releaseEngine';
 
 export function parseDateSafe(dateInput: unknown): Date {
   if (dateInput == null) {
@@ -1087,8 +1087,12 @@ export function groupItemsByReleaseAndProject(
     const pgs = releaseBuckets.get(rel.id) || [];
     if (pgs.length === 0) continue;
 
-    let minStart = pgs[0].startDate;
-    let maxEnd = pgs[0].endDate;
+    const hasMilestones = Boolean(rel.milestones && rel.milestones.some((m) => Boolean(m.date)));
+    const relSpan = getReleaseDateSpan(rel);
+
+    // A release is always indicated with its full duration, spanning from its first milestone to its last milestone
+    let minStart = hasMilestones ? relSpan.startDate : (pgs[0]?.startDate || relSpan.startDate);
+    let maxEnd = hasMilestones ? relSpan.endDate : (pgs[0]?.endDate || relSpan.endDate);
     let totalItems = 0;
     let totalProgressSum = 0;
     let tasksCount = 0;
@@ -1096,8 +1100,8 @@ export function groupItemsByReleaseAndProject(
     let violationsCount = 0;
 
     for (const pg of pgs) {
-      if (pg.startDate < minStart) minStart = pg.startDate;
-      if (pg.endDate > maxEnd) maxEnd = pg.endDate;
+      if (pg.startDate && pg.startDate < minStart) minStart = pg.startDate;
+      if (pg.endDate && pg.endDate > maxEnd) maxEnd = pg.endDate;
       tasksCount += pg.tasksCount;
       milestonesCount += pg.milestonesCount;
       totalItems += pg.items.length;
@@ -1110,7 +1114,7 @@ export function groupItemsByReleaseAndProject(
     }
 
     const duration = Math.max(
-      1,
+      hasMilestones ? relSpan.duration : 1,
       differenceInCalendarDays(parseDateSafe(maxEnd), parseDateSafe(minStart)) + 1
     );
     const progress = totalItems > 0 ? Math.round(totalProgressSum / totalItems) : 0;
@@ -2079,10 +2083,11 @@ export function computeWheelZoomDayWidth(currentDayWidth: number, deltaY: number
  */
 export function computeTimelineBounds(
   items: Array<GanttItem | ComputedGanttItem>,
-  referenceToday?: Date
+  referenceToday?: Date,
+  extraDates?: Array<string | Date | null | undefined>
 ): { timelineStart: Date; timelineEnd: Date; totalDays: number } {
   const today = startOfDay(referenceToday || new Date());
-  if (!items || items.length === 0) {
+  if ((!items || items.length === 0) && (!extraDates || extraDates.length === 0)) {
     const start = addDays(today, -5);
     const end = addDays(today, 25);
     return {
@@ -2092,27 +2097,40 @@ export function computeTimelineBounds(
     };
   }
 
-  let minDate = parseDateSafe(items[0].startDate);
-  let maxDate = parseDateSafe(
-    ('slackEndDate' in items[0] && items[0].slackEndDate) || items[0].endDate
-  );
+  let minDate = items && items.length > 0 ? parseDateSafe(items[0].startDate) : today;
+  let maxDate = items && items.length > 0
+    ? parseDateSafe(
+        ('slackEndDate' in items[0] && items[0].slackEndDate) || items[0].endDate
+      )
+    : today;
 
-  for (const it of items) {
-    const s = parseDateSafe(it.startDate);
-    const baseEnd = parseDateSafe(it.endDate);
-    const slackEnd =
-      'slackEndDate' in it && it.slackEndDate
-        ? parseDateSafe(it.slackEndDate)
-        : addDays(baseEnd, Math.max(0, Number(it.slack) || 0));
-    const cpmFloat =
-      'cpmTotalFloat' in it && typeof it.cpmTotalFloat === 'number'
-        ? it.cpmTotalFloat
-        : 0;
-    const cpmEnd = addDays(baseEnd, Math.max(0, cpmFloat));
+  if (items && items.length > 0) {
+    for (const it of items) {
+      const s = parseDateSafe(it.startDate);
+      const baseEnd = parseDateSafe(it.endDate);
+      const slackEnd =
+        'slackEndDate' in it && it.slackEndDate
+          ? parseDateSafe(it.slackEndDate)
+          : addDays(baseEnd, Math.max(0, Number(it.slack) || 0));
+      const cpmFloat =
+        'cpmTotalFloat' in it && typeof it.cpmTotalFloat === 'number'
+          ? it.cpmTotalFloat
+          : 0;
+      const cpmEnd = addDays(baseEnd, Math.max(0, cpmFloat));
 
-    if (s < minDate) minDate = s;
-    if (slackEnd > maxDate) maxDate = slackEnd;
-    if (cpmEnd > maxDate) maxDate = cpmEnd;
+      if (s < minDate) minDate = s;
+      if (slackEnd > maxDate) maxDate = slackEnd;
+      if (cpmEnd > maxDate) maxDate = cpmEnd;
+    }
+  }
+
+  if (extraDates && extraDates.length > 0) {
+    for (const d of extraDates) {
+      if (!d) continue;
+      const parsed = typeof d === 'string' ? parseDateSafe(d) : d;
+      if (parsed < minDate) minDate = parsed;
+      if (parsed > maxDate) maxDate = parsed;
+    }
   }
 
   if (today < minDate) minDate = today;
@@ -2137,6 +2155,7 @@ export function computeFitToProjectScale(
     projectId?: string;
     referenceToday?: Date;
     horizontalPaddingPx?: number;
+    extraDates?: Array<string | Date | null | undefined>;
   }
 ): FitToProjectResult {
   const todayStr = formatDateISO(startOfDay(options?.referenceToday || new Date()));
@@ -2170,6 +2189,15 @@ export function computeFitToProjectScale(
     if (withSlack > maxEnd) maxEnd = withSlack;
   }
 
+  if (options?.extraDates && options.extraDates.length > 0) {
+    for (const d of options.extraDates) {
+      if (!d) continue;
+      const parsed = typeof d === 'string' ? parseDateSafe(d) : d;
+      if (parsed < minStart) minStart = parsed;
+      if (parsed > maxEnd) maxEnd = parsed;
+    }
+  }
+
   const spanDays = Math.max(1, differenceInCalendarDays(maxEnd, minStart) + 1);
   const safeViewport = Math.max(240, Number(viewportWidth) || 960);
   const paddingPx =
@@ -2181,7 +2209,11 @@ export function computeFitToProjectScale(
   const rawDayWidth = usableWidth / Math.max(2, spanDays + 2);
   const dayWidth = clampDayWidth(rawDayWidth);
 
-  const { timelineStart } = computeTimelineBounds(items, options?.referenceToday);
+  const { timelineStart } = computeTimelineBounds(
+    items,
+    options?.referenceToday,
+    options?.extraDates
+  );
   const startOffsetDays = differenceInCalendarDays(minStart, timelineStart);
   const targetStartX = startOffsetDays * dayWidth;
   const leftMarginPx = Math.max(16, Math.min(48, dayWidth * 1.5));

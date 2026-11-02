@@ -84,6 +84,7 @@ import {
 } from '../utils/ganttEngine';
 import {
   checkTaskReleaseCompliance,
+  getReleaseDateSpan,
   RELEASE_MILESTONE_DEFINITIONS,
 } from '../utils/releaseEngine';
 
@@ -160,6 +161,13 @@ interface GanttWorkspaceProps {
   onToggleGroupingMode?: () => void;
   onOpenReleasesModal?: (releaseId?: string) => void;
   initialVisibleMilestoneKeys?: string[];
+  initialVisibleColumns?: {
+    team?: boolean;
+    dates?: boolean;
+    dur?: boolean;
+    slack?: boolean;
+    deps?: boolean;
+  };
 }
 
 
@@ -492,6 +500,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   onToggleGroupingMode,
   onOpenReleasesModal,
   initialVisibleMilestoneKeys,
+  initialVisibleColumns,
 }) => {
   const [collapsedReleaseIds, setCollapsedReleaseIds] = useState<Set<string>>(() => {
     try {
@@ -666,6 +675,16 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     slack: boolean;
     deps: boolean;
   }>(() => {
+    if (initialVisibleColumns) {
+      return {
+        team: true,
+        deps: true,
+        dates: false,
+        dur: false,
+        slack: false,
+        ...initialVisibleColumns,
+      };
+    }
     try {
       const saved = localStorage.getItem('ganttflow_visible_cols');
       if (saved) return JSON.parse(saved);
@@ -3117,9 +3136,13 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             key={row.rowId}
                             data-release-group={rGroup.release.id}
                             style={{ height: ROW_HEIGHT, minWidth: tableMinWidth }}
-                            className="flex items-center justify-between px-3 text-xs font-bold border-y border-[#0C0C09] dark:border-zinc-700 bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09] transition-colors"
+                            className="flex items-center justify-start px-3 text-xs font-bold border-y border-[#0C0C09] dark:border-zinc-700 bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09] transition-colors"
                           >
-                            <div className="flex items-center gap-2 overflow-hidden">
+                            {/* Release Title + Code + Manage Button */}
+                            <div
+                              style={{ width: nameColumnWidth }}
+                              className="flex items-center gap-2 pr-2 shrink-0 pl-1 min-w-0 overflow-hidden"
+                            >
                               <button
                                 type="button"
                                 data-testid={`toggle-collapse-release-${rGroup.release.id}`}
@@ -3131,7 +3154,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                     return next;
                                   });
                                 }}
-                                className="p-1 rounded hover:bg-white/10 dark:hover:bg-black/10 transition cursor-pointer"
+                                className="p-1 rounded hover:bg-white/10 dark:hover:bg-black/10 transition cursor-pointer shrink-0"
                               >
                                 {isCollapsed ? (
                                   <ChevronRight className="w-4 h-4" />
@@ -3140,10 +3163,17 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 )}
                               </button>
                               <Rocket className="w-4 h-4 shrink-0 text-amber-400 dark:text-indigo-600" />
-                              <span className="font-mono text-xs px-1.5 py-0.5 rounded bg-white/20 dark:bg-black/10">
+                              <span className="font-mono text-xs px-1.5 py-0.5 rounded bg-white/20 dark:bg-black/10 shrink-0">
                                 {rGroup.release.code}
                               </span>
                               <span className="truncate">{rGroup.release.name}</span>
+                              <span
+                                data-release-duration-badge={rGroup.release.id}
+                                className="px-1.5 py-0.5 rounded font-mono text-[10px] font-bold bg-white/20 dark:bg-black/10 shrink-0"
+                                title={`Duración completa de la release: ${rGroup.duration} días`}
+                              >
+                                {rGroup.duration}d
+                              </span>
                               {onOpenReleasesModal && (
                                 <button
                                   type="button"
@@ -3165,15 +3195,51 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                   <span>{rGroup.violationsCount} desalineaciones</span>
                                 </span>
                               )}
+                              <span
+                                className="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-white/15 dark:bg-black/10 opacity-80 shrink-0"
+                                title={`${rGroup.projectGroups.length} proyectos y ${rGroup.tasksCount} tareas asociadas`}
+                              >
+                                {rGroup.projectGroups.length} proj · {rGroup.tasksCount} tareas
+                              </span>
                             </div>
 
-                            <div className="flex items-center gap-3 text-[11px] font-mono shrink-0">
-                              <span className="opacity-80">
-                                {rGroup.projectGroups.length} proyectos · {rGroup.tasksCount} tareas
-                              </span>
-                              <span className="opacity-90 font-bold">
-                                {rGroup.progress}%
-                              </span>
+                            {/* Aligned Columns matching header (Dates & Full Duration of Release) */}
+                            <div className="flex items-center shrink-0">
+                              {visibleColumns.dates && (
+                                <div
+                                  className="w-44 shrink-0 text-center font-mono text-[10px] opacity-90"
+                                  data-release-dates-cell={rGroup.release.id}
+                                  title={`Fechas de la Release: ${rGroup.startDate} → ${rGroup.endDate} (${rGroup.duration} días)`}
+                                >
+                                  {`${formatDateDisplay(rGroup.startDate, 'dd/MM')} → ${formatDateDisplay(rGroup.endDate, 'dd/MM')}`}
+                                </div>
+                              )}
+
+                              {visibleColumns.dur && (
+                                <div
+                                  className="w-16 shrink-0 text-center"
+                                  data-release-duration-cell={rGroup.release.id}
+                                  title={`Duración completa de la release: ${rGroup.duration} días`}
+                                >
+                                  <span className="px-1.5 py-0.5 rounded bg-white/20 dark:bg-black/15 font-mono text-[10px] font-bold">
+                                    {rGroup.duration}d
+                                  </span>
+                                </div>
+                              )}
+
+                              {visibleColumns.slack && (
+                                <div className="w-14 shrink-0 text-center font-mono text-[10px] opacity-40">—</div>
+                              )}
+
+                              {visibleColumns.deps && (
+                                <div className="w-20 shrink-0 text-center font-mono text-[10px] opacity-40">—</div>
+                              )}
+
+                              <div className="w-28 shrink-0 flex items-center justify-end pr-2 font-mono text-[11px] font-bold">
+                                <span className="px-1.5 py-0.5 rounded bg-white/20 dark:bg-black/15">
+                                  {rGroup.progress}%
+                                </span>
+                              </div>
                             </div>
                           </div>
                         );
@@ -4657,6 +4723,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               {displayRows.map((row, rowIndex) => {
                 if (row.kind === 'release') {
                   const { group: rGroup } = row;
+                  const relSpan = getReleaseDateSpan(rGroup.release);
                   const releaseMilestones = rGroup.release.milestones || [];
                   const validMilestoneDates = releaseMilestones
                     .map((m) => m.date)
@@ -4668,10 +4735,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     validMilestoneDates[validMilestoneDates.length - 1];
 
                   // Bar starts at first milestone (or group startDate) and extends strictly up to last milestone date
+                  // Always indicates the full duration of the release
                   const effectiveStartDate =
-                    firstMilestoneDate || rGroup.startDate;
+                    firstMilestoneDate || rGroup.startDate || relSpan.startDate;
                   const effectiveEndDate =
-                    lastMilestoneDate || rGroup.endDate;
+                    lastMilestoneDate || rGroup.endDate || relSpan.endDate;
 
                   const rStart = parseDateSafe(effectiveStartDate);
                   const rEnd = parseDateSafe(effectiveEndDate);
@@ -4682,7 +4750,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   );
                   const rStartX = startOffsetDays * dayWidth;
                   const spanDays = Math.max(
-                    1,
+                    relSpan.duration,
                     differenceInCalendarDays(rEnd, rStart) + 1
                   );
                   const rWidth = Math.max(dayWidth, spanDays * dayWidth);
@@ -4700,21 +4768,24 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       <div
                         style={{ left: rStartX, width: rWidth }}
                         className="relative flex items-center justify-between pointer-events-auto h-7 rounded-[4px] bg-[#0C0C09] dark:bg-zinc-100 text-white dark:text-[#0C0C09] px-2.5 shadow-md border border-[#0C0C09] dark:border-zinc-300 text-[10px] font-mono font-bold transition-all"
-                        title={`${rGroup.release.name}: ${effectiveStartDate} → ${effectiveEndDate} (${spanDays}d · Acotado hasta su último hito: ${effectiveEndDate})`}
+                        title={`${rGroup.release.name}: ${effectiveStartDate} → ${effectiveEndDate} (${spanDays}d · Duración completa de la release · Acotado hasta su último hito: ${effectiveEndDate})`}
                       >
                         <span className="truncate flex items-center gap-1.5">
                           <Rocket className="w-3.5 h-3.5 text-amber-400 dark:text-indigo-600 shrink-0" />
                           <span className="font-semibold">{rGroup.release.code}</span>
-                          {rWidth >= 220 && rGroup.release.month && (
+                          <span className="px-1 py-0.2 rounded bg-white/20 dark:bg-black/10 font-mono text-[9px] font-bold">
+                            {`(${spanDays}d)`}
+                          </span>
+                          {rWidth >= 260 && rGroup.release.month && (
                             <span className="opacity-80 text-[9px] uppercase font-normal hidden sm:inline">
                               {rGroup.release.month}
                             </span>
                           )}
                         </span>
                         <div className="flex items-center gap-2 shrink-0">
-                          {rWidth >= 170 && (
+                          {rWidth >= 210 && (
                             <span className="text-[9px] opacity-75 font-normal hidden md:inline">
-                              Fin: {effectiveEndDate.split('-').slice(1).reverse().join('/')}
+                              {effectiveStartDate.split('-').slice(1).reverse().join('/')} → {effectiveEndDate.split('-').slice(1).reverse().join('/')}
                             </span>
                           )}
                           <span className="px-1.5 py-0.2 rounded bg-white/20 dark:bg-black/10">
