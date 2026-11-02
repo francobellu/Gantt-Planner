@@ -23,6 +23,7 @@ import {
   Moon,
   Plus,
   Redo2,
+  Rocket,
   Save,
   SlidersHorizontal,
   Sparkles,
@@ -40,10 +41,13 @@ import {
   GanttImportResult,
   GanttItem,
   GanttProject,
+  GroupingMode,
   PROJECT_COLORS,
   ProjectTemplate,
   PlanHistoryActionType,
   PlanHistoryEntry,
+  Release,
+  ReleaseGuideVisibility,
   SavedScenario,
   TaskColor,
   TaskType,
@@ -84,6 +88,11 @@ import {
 import { GanttWorkspace } from './components/GanttWorkspace';
 import { TaskFormModal } from './components/TaskFormModal';
 import { PlanHistoryPage } from './components/PlanHistoryPage';
+import { ReleasesModal } from './components/ReleasesModal';
+import {
+  DEFAULT_PREDEFINED_RELEASES,
+  checkTaskReleaseCompliance,
+} from './utils/releaseEngine';
 
 const STORAGE_KEY = 'ganttflow_pro_state_v2';
 const LEGACY_STORAGE_KEY_V1 = 'ganttflow_pro_state_v1';
@@ -91,6 +100,9 @@ const SCENARIOS_STORAGE_KEY = 'ganttflow_pro_scenarios_v2';
 const SELECTED_PROJECTS_STORAGE_KEY = 'ganttflow_selected_projects_v1';
 const HISTORY_STORAGE_KEY = 'ganttflow_pro_history_v1';
 const HISTORY_INDEX_STORAGE_KEY = 'ganttflow_pro_history_index_v1';
+const RELEASES_STORAGE_KEY = 'ganttflow_pro_releases_v1';
+const RELEASE_GUIDE_VISIBILITY_KEY = 'ganttflow_release_guide_visibility';
+const GROUPING_MODE_KEY = 'ganttflow_grouping_mode';
 
 interface InitialWorkspaceState {
   activeScenarioId: string;
@@ -266,6 +278,9 @@ export function App({
   initialShowTable = true,
   initialProjectMenuOpen = false,
   initialSettingsOpen = false,
+  initialReleasesModalOpen = false,
+  initialGroupingMode = 'project',
+  initialReleaseGuideVisibility = 'selected',
 }: {
   initialScenarioId?: string;
   initialView?: 'gantt' | 'history' | 'projects';
@@ -273,6 +288,9 @@ export function App({
   initialShowTable?: boolean;
   initialProjectMenuOpen?: boolean;
   initialSettingsOpen?: boolean;
+  initialReleasesModalOpen?: boolean;
+  initialGroupingMode?: GroupingMode;
+  initialReleaseGuideVisibility?: ReleaseGuideVisibility;
 } = {}) {
   const templates = useMemo(() => getProjectTemplates(), []);
   const defaultScenarios = useMemo(() => getDefaultSavedScenarios(), []);
@@ -588,6 +606,68 @@ export function App({
     } catch {}
   }, [selectedProjectIds]);
 
+  // Releases state & configurations
+  const [releases, setReleases] = useState<Release[]>(() => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const raw = window.localStorage.getItem(RELEASES_STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed;
+          }
+        }
+      }
+    } catch {}
+    return DEFAULT_PREDEFINED_RELEASES;
+  });
+
+  const [releaseGuideVisibility, setReleaseGuideVisibility] = useState<ReleaseGuideVisibility>(() => {
+    if (initialReleaseGuideVisibility) return initialReleaseGuideVisibility;
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const saved = window.localStorage.getItem(RELEASE_GUIDE_VISIBILITY_KEY);
+        if (saved === 'selected' || saved === 'assigned' || saved === 'all' || saved === 'none') {
+          return saved as ReleaseGuideVisibility;
+        }
+      }
+    } catch {}
+    return 'selected';
+  });
+
+  const [groupingMode, setGroupingMode] = useState<GroupingMode>(() => {
+    if (initialGroupingMode) return initialGroupingMode;
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const saved = window.localStorage.getItem(GROUPING_MODE_KEY);
+        if (saved === 'release' || saved === 'project') {
+          return saved as GroupingMode;
+        }
+      }
+    } catch {}
+    return 'project';
+  });
+
+  const [showReleasesModal, setShowReleasesModal] = useState<boolean>(initialReleasesModalOpen || false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(RELEASES_STORAGE_KEY, JSON.stringify(releases));
+    } catch {}
+  }, [releases]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(RELEASE_GUIDE_VISIBILITY_KEY, releaseGuideVisibility);
+    } catch {}
+  }, [releaseGuideVisibility]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(GROUPING_MODE_KEY, groupingMode);
+    } catch {}
+  }, [groupingMode]);
+
   const [scenarioSavedToast, setScenarioSavedToast] = useState<string | null>(null);
 
   // Minimalist UI toggles and menus
@@ -850,6 +930,23 @@ export function App({
       conflictCount,
     };
   }, [computedItems, projectGroups, selectedProjectIds]);
+
+  // Total count of tasks that violate their assigned release milestones
+  const totalReleaseViolations = useMemo(() => {
+    let count = 0;
+    for (const p of effectiveProjects) {
+      if (!p.releaseId) continue;
+      const rel = releases.find((r) => r.id === p.releaseId);
+      if (!rel) continue;
+      for (const it of computedItems) {
+        if (it.projectId === p.id && it.type === 'task') {
+          const violations = checkTaskReleaseCompliance(it, p, rel);
+          if (violations.length > 0) count++;
+        }
+      }
+    }
+    return count;
+  }, [effectiveProjects, releases, computedItems]);
 
   const handleSaveFromModal = (savedItem: GanttItem, cascade: boolean) => {
     const cleanItem = sanitizeGanttItem({
@@ -1136,6 +1233,25 @@ export function App({
       `Eliminar proyecto '${proj?.name || projectId}'`,
       nextItems,
       remaining
+    );
+  };
+
+  const handleAssignProjectToRelease = (projectId: string, releaseId?: string) => {
+    const nextProjects = effectiveProjects.map((p) =>
+      p.id === projectId ? { ...p, releaseId: releaseId || undefined } : p
+    );
+    setProjects(nextProjects);
+    const proj = effectiveProjects.find((p) => p.id === projectId);
+    const rel = releases.find((r) => r.id === releaseId);
+    recordPlanChange(
+      'edit_project',
+      'Release',
+      releaseId
+        ? `Asignar proyecto '${proj?.name || projectId}' a release '${rel?.code || releaseId}'`
+        : `Desasignar release de proyecto '${proj?.name || projectId}'`,
+      items,
+      nextProjects,
+      projectId
     );
   };
 
@@ -1699,6 +1815,63 @@ export function App({
             </span>
           </button>
 
+          {/* Releases Hub Button */}
+          <button
+            type="button"
+            data-testid="header-releases-btn"
+            onClick={() => setShowReleasesModal(true)}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border text-xs font-medium transition cursor-pointer shrink-0 ${
+              showReleasesModal
+                ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
+                : 'bg-white dark:bg-zinc-900 border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800'
+            }`}
+            title="Gestionar catálogo de Releases e hitos (importar/exportar Excel)"
+            aria-label="Releases"
+          >
+            <Rocket className="w-3.5 h-3.5 text-current" />
+            <span className="font-display font-medium hidden sm:inline">Releases</span>
+            <span
+              data-testid="releases-counter-badge"
+              className={`px-1.5 py-0.2 rounded-[2px] text-[10px] font-mono border ${
+                showReleasesModal
+                  ? 'bg-zinc-800 text-white border-zinc-700 dark:bg-zinc-200 dark:text-[#0C0C09] dark:border-zinc-300'
+                  : 'bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-300 border-[#E2E2DC] dark:border-zinc-700'
+              }`}
+            >
+              {releases.length}
+            </span>
+            {totalReleaseViolations > 0 && (
+              <span
+                data-testid="releases-header-violation-indicator"
+                className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0"
+                title={`${totalReleaseViolations} tarea(s) violan los hitos de su release`}
+              />
+            )}
+          </button>
+
+          {/* Grouping Mode Toggle (Por Proyecto vs Por Release) */}
+          <button
+            type="button"
+            data-testid="grouping-mode-toggle"
+            onClick={() => setGroupingMode((prev) => (prev === 'release' ? 'project' : 'release'))}
+            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-[4px] border text-xs font-medium transition cursor-pointer shrink-0 ${
+              groupingMode === 'release'
+                ? 'bg-[#312C85] border-[#312C85] text-white dark:bg-indigo-600 dark:border-indigo-500'
+                : 'bg-white dark:bg-zinc-900 border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800'
+            }`}
+            title={
+              groupingMode === 'release'
+                ? 'Agrupado por Release > Proyecto > Tarea (Click para agrupar por Proyecto)'
+                : 'Agrupado por Proyecto (Click para agrupar jerárquicamente por Release)'
+            }
+            aria-label="Conmutar agrupación por Release"
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span className="font-display font-medium hidden md:inline">
+              {groupingMode === 'release' ? 'Vista: Release' : 'Vista: Proyecto'}
+            </span>
+          </button>
+
           {scenarioSavedToast && (
             <span
               className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-[11px] font-mono font-semibold text-white shadow-none animate-fade-in ${
@@ -1998,6 +2171,10 @@ export function App({
             <GanttWorkspace
               items={computedItems}
               projects={effectiveProjects}
+              releases={releases}
+              releaseGuideVisibility={releaseGuideVisibility}
+              groupingMode={groupingMode}
+              onToggleGroupingMode={() => setGroupingMode((prev) => (prev === 'release' ? 'project' : 'release'))}
               groupByProject={groupByProject}
               selectedProjectId={selectedProjectId}
               selectedProjectIds={selectedProjectIds}
@@ -2288,6 +2465,19 @@ export function App({
         projects={effectiveProjects}
         onCreateProject={handleCreateProject}
         allItems={computedItems}
+      />
+
+      {/* Releases Management Modal Hub */}
+      <ReleasesModal
+        isOpen={showReleasesModal}
+        onClose={() => setShowReleasesModal(false)}
+        releases={releases}
+        onUpdateReleases={setReleases}
+        projects={effectiveProjects}
+        items={computedItems}
+        onAssignProjectToRelease={handleAssignProjectToRelease}
+        guideVisibility={releaseGuideVisibility}
+        onChangeGuideVisibility={setReleaseGuideVisibility}
       />
 
       {/* Hidden File Input for JSON / CSV Import */}

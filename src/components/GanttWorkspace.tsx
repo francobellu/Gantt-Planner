@@ -32,6 +32,7 @@ import {
   Minus,
   MousePointer,
   Plus,
+  Rocket,
   SlidersHorizontal,
   Trash2,
   User,
@@ -41,10 +42,15 @@ import {
   ArrowVisibility,
   ComputedGanttItem,
   ComputedProjectGroup,
+  ComputedReleaseGroup,
   DependencyType,
   GanttItem,
   GanttProject,
+  GroupingMode,
   PROJECT_COLORS,
+  Release,
+  ReleaseGuideVisibility,
+  ReleaseMilestone,
   TaskColor,
   ZoomLevel,
 } from '../types/gantt';
@@ -65,6 +71,7 @@ import {
   getItemEffectiveColor,
   getTeamColor,
   groupItemsByProject,
+  groupItemsByReleaseAndProject,
   MAX_DAY_WIDTH,
   MIN_DAY_WIDTH,
   moveDependencyLink,
@@ -75,6 +82,7 @@ import {
   updateDependencyLinkType,
   wouldCreateCycle,
 } from '../utils/ganttEngine';
+import { checkTaskReleaseCompliance } from '../utils/releaseEngine';
 
 function computePolylineMidpoint(pts: OrthogonalPoint[]): OrthogonalPoint {
   if (pts.length === 0) return { x: 0, y: 0 };
@@ -142,10 +150,20 @@ interface GanttWorkspaceProps {
   initialHoveredDepKey?: string | null;
   initialConnectModeSource?: { itemId: string; role: 'pred' | 'succ' } | null;
   initialInspectingProjectId?: string;
+  releases?: Release[];
+  activeReleaseId?: string;
+  releaseGuideVisibility?: ReleaseGuideVisibility;
+  groupingMode?: GroupingMode;
+  onToggleGroupingMode?: () => void;
 }
 
 
 type DisplayRow =
+  | {
+      kind: 'release';
+      rowId: string;
+      group: ComputedReleaseGroup;
+    }
   | {
       kind: 'project';
       rowId: string;
@@ -462,7 +480,15 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   initialHoveredDepKey,
   initialConnectModeSource,
   initialInspectingProjectId,
+  releases = [],
+  activeReleaseId,
+  releaseGuideVisibility = 'selected',
+  groupingMode = 'project',
+  onToggleGroupingMode,
 }) => {
+  const [collapsedReleaseIds, setCollapsedReleaseIds] = useState<Set<string>>(
+    new Set()
+  );
   const [hoveredId, setHoveredId] = useState<string | null>(
     initialHoveredItemId || null
   );
@@ -1271,10 +1297,42 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     return list;
   }, [visibleProjectGroups]);
 
-  // Unified row list (Project group headers + Task/Milestone rows) so Left WBS Table and Right Timeline stay 100% aligned
+  // Unified row list (Release headers + Project group headers + Task/Milestone rows) so Left WBS Table and Right Timeline stay 100% aligned
   const displayRows = useMemo<DisplayRow[]>(() => {
     const rows: DisplayRow[] = [];
-    if (groupByProject) {
+    if (groupingMode === 'release' && releases.length > 0) {
+      const releaseGroups = groupItemsByReleaseAndProject(
+        effectiveItems,
+        projects,
+        releases
+      );
+      for (const rg of releaseGroups) {
+        rows.push({
+          kind: 'release',
+          rowId: `release:${rg.release.id}`,
+          group: rg,
+        });
+        if (!collapsedReleaseIds.has(rg.release.id)) {
+          for (const group of rg.projectGroups) {
+            rows.push({
+              kind: 'project',
+              rowId: `proj-${group.project.id}`,
+              group,
+            });
+            if (!group.project.collapsed) {
+              for (const item of group.items) {
+                rows.push({
+                  kind: 'item',
+                  rowId: item.id,
+                  item,
+                  group,
+                });
+              }
+            }
+          }
+        }
+      }
+    } else if (groupByProject) {
       for (const group of visibleProjectGroups) {
         rows.push({
           kind: 'project',
@@ -1305,7 +1363,15 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       }
     }
     return rows;
-  }, [groupByProject, visibleProjectGroups]);
+  }, [
+    groupingMode,
+    releases,
+    collapsedReleaseIds,
+    groupByProject,
+    visibleProjectGroups,
+    effectiveItems,
+    projects,
+  ]);
 
   const timelineScopedItems = useMemo(() => {
     if (
@@ -2424,6 +2490,83 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     });
   }, [visibleMilestones, itemRowMap, timelineStart, dayWidth, totalCanvasWidth]);
 
+  // Compute release milestone guides for full-canvas vertical alignment
+  const releaseMilestoneGuides = useMemo(() => {
+    if (releaseGuideVisibility === 'none' || !releases || releases.length === 0) {
+      return [];
+    }
+
+    let targetReleases: Release[] = [];
+    if (releaseGuideVisibility === 'all') {
+      targetReleases = releases;
+    } else if (releaseGuideVisibility === 'assigned') {
+      targetReleases = releases.filter((r) =>
+        projects.some((p) => p.releaseId === r.id)
+      );
+    } else {
+      // 'selected' (default)
+      if (activeReleaseId) {
+        targetReleases = releases.filter((r) => r.id === activeReleaseId);
+      } else {
+        const visibleRelIds = new Set(
+          visibleProjectGroups
+            .map((g) => g.project.releaseId)
+            .filter(Boolean) as string[]
+        );
+        if (visibleRelIds.size > 0) {
+          targetReleases = releases.filter((r) => visibleRelIds.has(r.id));
+        } else {
+          const firstWithProj = releases.find((r) =>
+            projects.some((p) => p.releaseId === r.id)
+          );
+          targetReleases = [firstWithProj || releases[0]];
+        }
+      }
+    }
+
+    const list: Array<{
+      release: Release;
+      milestone: ReleaseMilestone;
+      x: number;
+      tier: number;
+    }> = [];
+
+    for (const rel of targetReleases) {
+      for (const m of rel.milestones) {
+        const mDate = parseDateSafe(m.date);
+        const diff = differenceInCalendarDays(mDate, timelineStart);
+        const x = diff * dayWidth + dayWidth / 2;
+        if (x >= -40 && x <= totalCanvasWidth + 40) {
+          list.push({ release: rel, milestone: m, x, tier: 0 });
+        }
+      }
+    }
+
+    list.sort((a, b) => a.x - b.x);
+    let lastX = -9999;
+    let tier = 0;
+    for (const item of list) {
+      if (Math.abs(item.x - lastX) < 65) {
+        tier = (tier + 1) % 2;
+      } else {
+        tier = 0;
+      }
+      item.tier = tier;
+      lastX = item.x;
+    }
+
+    return list;
+  }, [
+    releases,
+    releaseGuideVisibility,
+    activeReleaseId,
+    projects,
+    visibleProjectGroups,
+    timelineStart,
+    dayWidth,
+    totalCanvasWidth,
+  ]);
+
   // Track cursor position and exact calendar date over timeline canvas for the date scrubber
   const handleTimelineMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (dragState || depDragState || isResizingSplitRef.current) {
@@ -2604,6 +2747,64 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       </div>
                     )}
                     {displayRows.map((row, rowIndex) => {
+                      if (row.kind === 'release') {
+                        const { group: rGroup } = row;
+                        const isCollapsed = collapsedReleaseIds.has(rGroup.release.id);
+                        return (
+                          <div
+                            key={row.rowId}
+                            data-release-group={rGroup.release.id}
+                            style={{ height: ROW_HEIGHT, minWidth: tableMinWidth }}
+                            className="flex items-center justify-between px-3 text-xs font-bold border-y border-[#0C0C09] dark:border-zinc-700 bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09] transition-colors"
+                          >
+                            <div className="flex items-center gap-2 overflow-hidden">
+                              <button
+                                type="button"
+                                data-testid={`toggle-collapse-release-${rGroup.release.id}`}
+                                onClick={() => {
+                                  setCollapsedReleaseIds((prev) => {
+                                    const next = new Set(prev);
+                                    if (next.has(rGroup.release.id)) next.delete(rGroup.release.id);
+                                    else next.add(rGroup.release.id);
+                                    return next;
+                                  });
+                                }}
+                                className="p-1 rounded hover:bg-white/10 dark:hover:bg-black/10 transition cursor-pointer"
+                              >
+                                {isCollapsed ? (
+                                  <ChevronRight className="w-4 h-4" />
+                                ) : (
+                                  <ChevronDown className="w-4 h-4" />
+                                )}
+                              </button>
+                              <Rocket className="w-4 h-4 shrink-0 text-amber-400 dark:text-indigo-600" />
+                              <span className="font-mono text-xs px-1.5 py-0.5 rounded bg-white/20 dark:bg-black/10">
+                                {rGroup.release.code}
+                              </span>
+                              <span className="truncate">{rGroup.release.name}</span>
+                              {rGroup.violationsCount > 0 && (
+                                <span
+                                  data-testid={`release-violations-badge-${rGroup.release.code}`}
+                                  className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500 text-black text-[10px] font-mono font-bold shrink-0"
+                                >
+                                  <AlertTriangle className="w-3 h-3" />
+                                  <span>{rGroup.violationsCount} desalineaciones</span>
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-3 text-[11px] font-mono shrink-0">
+                              <span className="opacity-80">
+                                {rGroup.projectGroups.length} proyectos · {rGroup.tasksCount} tareas
+                              </span>
+                              <span className="opacity-90 font-bold">
+                                {rGroup.progress}%
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      }
+
                       if (row.kind === 'project') {
                         const { group } = row;
                         const projTheme =
@@ -2704,6 +2905,16 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 >
                                   <FileText className="w-3 h-3" />
                                 </button>
+                              )}
+
+                              {group.project.releaseId && (
+                                <span
+                                  data-testid={`project-release-badge-${group.project.id}`}
+                                  className="px-1.5 py-0.5 rounded-[2px] bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09] text-[10px] font-mono font-bold shrink-0"
+                                  title={`Release asignada: ${releases?.find((r) => r.id === group.project.releaseId)?.name || group.project.releaseId}`}
+                                >
+                                  {releases?.find((r) => r.id === group.project.releaseId)?.code || group.project.releaseId}
+                                </span>
                               )}
 
                               <span
@@ -2813,6 +3024,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       const isBeingDragged = draggingRowId === item.id;
                       const isDropBefore = dragOverRow?.id === item.id && dragOverRow.position === 'before';
                       const isDropAfter = dragOverRow?.id === item.id && dragOverRow.position === 'after';
+                      const itemRelease = group.project.releaseId
+                        ? releases?.find((r) => r.id === group.project.releaseId)
+                        : undefined;
+                      const releaseViolations = itemRelease
+                        ? checkTaskReleaseCompliance(item, group.project, itemRelease)
+                        : [];
 
                       return (
                         <div
@@ -2983,6 +3200,18 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 className="text-[#DC2626] shrink-0"
                               >
                                 <AlertTriangle className="w-3.5 h-3.5" />
+                              </span>
+                            )}
+                            {releaseViolations.length > 0 && (
+                              <span
+                                data-testid={`task-release-violation-${item.id}`}
+                                title={`Excede hito de ${itemRelease?.code}: ${releaseViolations
+                                  .map((v) => `${v.milestoneCode} (+${v.daysLate}d)`)
+                                  .join(', ')}`}
+                                className="px-1.5 py-0.5 rounded-[2px] bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700 text-[9px] font-mono font-bold flex items-center gap-1 shrink-0"
+                              >
+                                <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />
+                                <span>+{releaseViolations[0].daysLate}d {releaseViolations[0].milestoneCode}</span>
                               </span>
                             )}
                           </div>
@@ -3558,6 +3787,30 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                 }
               )}
 
+              {/* Release Milestone Vertical Alignment Guides */}
+              {releaseMilestoneGuides.map(({ release: rel, milestone: m, x, tier }, idx) => (
+                <div
+                  key={`rel-guide-${rel.id}-${m.id}-${idx}`}
+                  data-testid={`release-milestone-guide-${rel.id}-${m.key}`}
+                  style={{ left: x }}
+                  className="absolute top-0 bottom-0 pointer-events-none z-10 w-0"
+                >
+                  <div
+                    style={{
+                      left: 0,
+                      transform: 'translateX(-50%)',
+                      top: tier === 1 ? '22px' : '2px',
+                    }}
+                    className="absolute flex items-center justify-center gap-1 px-1.5 py-0.5 rounded-[2px] text-[9px] font-mono font-bold bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09] shadow-sm whitespace-nowrap z-20 cursor-help pointer-events-auto"
+                    title={`${rel.name} · ${m.code}: ${m.name} (${formatScrubberDate(m.date)})`}
+                  >
+                    <span className="text-[8px] leading-none text-amber-400 dark:text-indigo-600">🚀</span>
+                    <span>{m.code}</span>
+                  </div>
+                  <div className="absolute top-0 bottom-0 left-0 w-0 -translate-x-1/2 border-l-2 border-dashed border-indigo-600/70 dark:border-indigo-400/60" />
+                </div>
+              ))}
+
               {/* Today ("HOY") Vertical Line Marker */}
               {todayIndex >= 0 && (
                 <div
@@ -3574,6 +3827,15 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
               {/* Horizontal Row Guides */}
               {displayRows.map((row) => {
+                if (row.kind === 'release') {
+                  return (
+                    <div
+                      key={`row-bg-${row.rowId}`}
+                      style={{ height: ROW_HEIGHT }}
+                      className="border-b border-[#0C0C09] dark:border-zinc-700 bg-[#0C0C09]/90 dark:bg-zinc-900/90"
+                    />
+                  );
+                }
                 if (row.kind === 'project') {
                   return (
                     <div
@@ -3903,6 +4165,41 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
               {/* Foreground Project Rollup Summary Bars, Task Bars, Slack Ghost Bars & Milestones */}
               {displayRows.map((row, rowIndex) => {
+                if (row.kind === 'release') {
+                  const { group: rGroup } = row;
+                  const rStart = parseDateSafe(rGroup.startDate);
+                  const startOffsetDays = differenceInCalendarDays(
+                    rStart,
+                    timelineStart
+                  );
+                  const rStartX = startOffsetDays * dayWidth;
+                  const rWidth = Math.max(dayWidth, rGroup.duration * dayWidth);
+
+                  return (
+                    <div
+                      key={`release-summary-bar-${rGroup.release.id}`}
+                      data-release-summary-bar={rGroup.release.id}
+                      style={{
+                        top: rowIndex * ROW_HEIGHT,
+                        height: ROW_HEIGHT,
+                      }}
+                      className="absolute left-0 right-0 flex items-center pointer-events-none"
+                    >
+                      <div
+                        style={{ left: rStartX, width: rWidth }}
+                        className="relative flex items-center justify-between pointer-events-auto h-7 rounded-[4px] bg-[#0C0C09] dark:bg-zinc-200 text-white dark:text-[#0C0C09] px-2.5 shadow-sm text-[10px] font-mono font-bold"
+                        title={`${rGroup.release.name}: ${rGroup.startDate} → ${rGroup.endDate} (${rGroup.duration}d)`}
+                      >
+                        <span className="truncate flex items-center gap-1.5">
+                          <Rocket className="w-3.5 h-3.5 text-amber-400 dark:text-indigo-600" />
+                          {rGroup.release.code}
+                        </span>
+                        <span>{rGroup.progress}%</span>
+                      </div>
+                    </div>
+                  );
+                }
+
                 if (row.kind === 'project') {
                   const { group } = row;
                   if (group.items.length === 0) return null;
@@ -4883,6 +5180,30 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       </button>
                     ))}
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-mono font-bold uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400 mb-1">
+                    Release Asociada
+                  </label>
+                  <select
+                    data-testid="project-modal-release-select"
+                    value={inspectingProject.releaseId || ''}
+                    onChange={(e) =>
+                      setInspectingProject({
+                        ...inspectingProject,
+                        releaseId: e.target.value || undefined,
+                      })
+                    }
+                    className="w-full px-2.5 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs text-[#0C0C09] dark:text-zinc-200 outline-none focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="">Ninguna (Sin Release asignada)</option>
+                    {releases?.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.code} {r.name ? `— ${r.name}` : ''}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>

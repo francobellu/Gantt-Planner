@@ -60,6 +60,7 @@ const {
   removeDependencyLink,
   updateDependencyLinkType,
   moveDependencyLink,
+  groupItemsByReleaseAndProject,
   getTeamColor,
   getItemEffectiveColor,
   TEAM_COLOR_PALETTE,
@@ -4071,6 +4072,231 @@ test('App version in settings, inline task name editing, custom colors, and proj
   }
 });
 
+test('Release calendar, excel extraction, milestone guides, and hierarchical grouping', async () => {
+  // 1. Bundle and test releaseEngine
+  const relBundle = await build({
+    entryPoints: [path.resolve(__dirname, '../src/utils/releaseEngine.ts')],
+    bundle: true,
+    format: 'esm',
+    platform: 'node',
+    packages: 'external',
+    write: false,
+  });
 
+  const fs = await import('node:fs/promises');
+  const tmpRelFile = path.resolve(__dirname, './.tmp-rel-bundle.mjs');
+  await fs.writeFile(tmpRelFile, relBundle.outputFiles[0].text, 'utf8');
 
+  let relMod;
+  try {
+    relMod = await import(`${tmpRelFile}?t=${Date.now()}`);
+  } finally {
+    await fs.unlink(tmpRelFile).catch(() => {});
+  }
 
+  const {
+    getPredefinedReleases,
+    parseExcelReleases,
+    exportReleasesToWorkbook,
+    checkTaskReleaseCompliance,
+    RELEASE_MILESTONE_DEFINITIONS,
+  } = relMod;
+
+  // 1.1 Verify Predefined Releases catalogue
+  const releases = getPredefinedReleases();
+  assert.equal(releases.length, 14, 'Must extract all 14 releases from table');
+  assert.equal(RELEASE_MILESTONE_DEFINITIONS.length, 16, 'Must define 16 milestone columns');
+
+  // Verify first release T_26.12.1 DICIEMBRE 2026
+  const rDec26 = releases.find((r) => r.code === 'T_26.12.1');
+  assert.ok(rDec26, 'T_26.12.1 must exist in catalog');
+  assert.equal(rDec26.name, 'T_26.12.1 DICIEMBRE 2026');
+  assert.equal(rDec26.year, 2026);
+  assert.equal(rDec26.milestones.length, 16, 'T_26.12.1 has all 16 milestone dates');
+  assert.equal(rDec26.milestones.find((m) => m.key === 'qg1')?.date, '2026-10-05');
+  assert.equal(rDec26.milestones.find((m) => m.key === 'rc_fin')?.date, '2026-11-19');
+  assert.equal(rDec26.milestones.find((m) => m.key === 'prod_1l')?.date, '2026-12-06');
+  assert.equal(rDec26.milestones.find((m) => m.key === 'iop')?.date, '2026-12-12');
+  assert.equal(rDec26.milestones.find((m) => m.key === 'qg9')?.date, '2026-12-25');
+
+  // Verify empty August release T_27.8.1 AGOSTO 2027
+  const rAug27 = releases.find((r) => r.code === 'T_27.8.1');
+  assert.ok(rAug27, 'T_27.8.1 must exist');
+  assert.equal(rAug27.name, 'T_27.8.1 AGOSTO 2027');
+  assert.equal(rAug27.milestones.length, 0, 'August row is empty summer pause');
+
+  // Verify last release T_28.1.1 ENERO 2028
+  const rJan28 = releases.find((r) => r.code === 'T_28.1.1');
+  assert.ok(rJan28, 'T_28.1.1 must exist');
+  assert.equal(rJan28.name, 'T_28.1.1 ENERO +1 2028');
+  assert.equal(rJan28.milestones.find((m) => m.key === 'rc_fin')?.date, '2027-12-22');
+  assert.equal(rJan28.milestones.find((m) => m.key === 'iop')?.date, '2028-01-15');
+
+  // 1.2 Excel export & parse roundtrip
+  const wb = exportReleasesToWorkbook(releases);
+  assert.ok(wb.Sheets['Calendario Releases'] || wb.Sheets['Releases'], 'Workbook must contain Calendario Releases sheet');
+  const XLSX = await import('xlsx');
+  const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  const { releases: parsedFromExcel } = parseExcelReleases(buffer);
+  assert.ok(parsedFromExcel.length >= 13, 'Parsed releases from exported Excel must recover active releases');
+  const parsedDec26 = parsedFromExcel.find((r) => r.code === 'T_26.12.1');
+  assert.ok(parsedDec26, 'Parsed T_26.12.1 from Excel');
+  assert.equal(parsedDec26.milestones.find((m) => m.key === 'rc_fin')?.date, '2026-11-19');
+  assert.equal(parsedDec26.milestones.find((m) => m.key === 'iop')?.date, '2026-12-12');
+
+  // 1.3 CSV parse check
+  const csvContent = `RELEASE;FECHA;QG1;QG2;QG3;QG4;QG5;RC INI;RC FIN;UAT INI;QG5.1,6;PREPRO INI;PREPRO FIN;QG7;1L;QG8;IOP;QG9
+T_99.1.1;ENERO 2099;01/01/2099;;;;;01/02/2099;10/02/2099;;;;;;;;20/02/2099;`;
+  const { releases: parsedFromCsv } = parseExcelReleases(csvContent);
+  assert.equal(parsedFromCsv.length, 1);
+  assert.equal(parsedFromCsv[0].code, 'T_99.1.1');
+  assert.equal(parsedFromCsv[0].name, 'T_99.1.1 ENERO 2099');
+  assert.equal(parsedFromCsv[0].milestones.find((m) => m.key === 'qg1')?.date, '2099-01-01');
+  assert.equal(parsedFromCsv[0].milestones.find((m) => m.key === 'rc_fin')?.date, '2099-02-10');
+
+  // 1.4 Hierarchical grouping groupItemsByReleaseAndProject
+  const mockProjects = [
+    { id: 'p-1', name: 'Canales Digitales', color: 'indigo', releaseId: rDec26.id },
+    { id: 'p-2', name: 'Medios de Pago', color: 'emerald', releaseId: rDec26.id },
+    { id: 'p-3', name: 'Backoffice General', color: 'slate' },
+  ];
+  const mockItems = [
+    { id: 't-1', projectId: 'p-1', name: 'Frontend Web', startDate: '2026-10-01', endDate: '2026-11-15', duration: 46, progress: 50, type: 'task', dependencies: [] },
+    { id: 't-2', projectId: 'p-2', name: 'API Pasarela', startDate: '2026-10-15', endDate: '2026-12-30', duration: 77, progress: 20, type: 'task', dependencies: [] },
+    { id: 't-3', projectId: 'p-3', name: 'Migración DB', startDate: '2026-10-05', endDate: '2026-10-25', duration: 21, progress: 100, type: 'task', dependencies: [] },
+  ];
+  const computedMockItems = computeGanttMetrics(mockItems);
+  const releaseGroups = groupItemsByReleaseAndProject(computedMockItems, mockProjects, releases);
+  assert.ok(releaseGroups.length >= 2, 'Must produce release groups');
+  const decGroup = releaseGroups.find((g) => g.release?.id === rDec26.id);
+  assert.ok(decGroup, 'Must have group for T_26.12.1');
+  assert.equal(decGroup.projectGroups.length, 2, 'T_26.12.1 has 2 assigned projects');
+  assert.equal(decGroup.tasksCount, 2, 'T_26.12.1 has 2 items');
+  assert.equal(decGroup.startDate, '2026-10-01');
+  assert.equal(decGroup.endDate, '2026-12-30');
+
+  const unassignedGroup = releaseGroups.find((g) => g.release.id === '__unassigned__');
+  assert.ok(unassignedGroup, 'Must have group for projects with no release');
+  assert.equal(unassignedGroup.projectGroups[0].project.name, 'Backoffice General');
+
+  // 1.5 Milestone compliance violations
+  // t-2 ends on 2026-12-30 which exceeds T_26.12.1 rc_fin (2026-11-19) and iop (2026-12-12)
+  const violationsT2 = checkTaskReleaseCompliance(mockItems[1], mockProjects[1], rDec26);
+  assert.ok(violationsT2.length > 0, 't-2 must have compliance violations');
+  const iopViolation = violationsT2.find((v) => v.milestoneKey === 'iop');
+  assert.ok(iopViolation, 'Violates IOP milestone');
+  assert.equal(iopViolation.daysLate, 18, '2026-12-30 is 18 days after 2026-12-12');
+
+  // t-1 ends on 2026-11-15 which is before rc_fin (2026-11-19) and iop (2026-12-12)
+  const violationsT1 = checkTaskReleaseCompliance(mockItems[0], mockProjects[0], rDec26);
+  assert.equal(violationsT1.length, 0, 't-1 is compliant and on schedule');
+
+  // 2. SSR React Verification
+  const esbuild = await import('esbuild');
+  const ssrBundle = await esbuild.build({
+    stdin: {
+      contents: `
+        import React from 'react';
+        import { App } from './src/App';
+        import { GanttWorkspace } from './src/components/GanttWorkspace';
+        import { DEFAULT_PREDEFINED_RELEASES } from './src/utils/releaseEngine';
+
+        export function renderAppWithReleases() {
+          return (
+            <App
+              initialReleasesModalOpen={true}
+              initialGroupingMode="release"
+            />
+          );
+        }
+
+        export function renderReleaseWorkspace() {
+          const rel0 = DEFAULT_PREDEFINED_RELEASES[0];
+          const rel1 = DEFAULT_PREDEFINED_RELEASES[1];
+          const testProjects = [
+            { id: 'p-test-1', name: 'Banca Móvil', color: 'indigo', releaseId: rel0.id },
+            { id: 'p-test-2', name: 'Plataforma Web', color: 'emerald', releaseId: rel1.id }
+          ];
+          const testItems = [
+            {
+              id: 't-test-1',
+              projectId: 'p-test-1',
+              name: 'Autenticación Biométrica',
+              startDate: '2026-11-01',
+              endDate: '2026-12-30',
+              duration: 60,
+              progress: 40,
+              type: 'task',
+              dependencies: [],
+            },
+            {
+              id: 't-test-2',
+              projectId: 'p-test-2',
+              name: 'Dashboard Clientes',
+              startDate: '2027-01-01',
+              endDate: '2027-01-20',
+              duration: 20,
+              progress: 90,
+              type: 'task',
+              dependencies: [],
+            }
+          ];
+          const scrollRef = { current: null };
+          return (
+            <GanttWorkspace
+              items={testItems}
+              projects={testProjects}
+              releases={DEFAULT_PREDEFINED_RELEASES}
+              activeReleaseId={rel0.id}
+              releaseGuideVisibility="selected"
+              groupingMode="release"
+              scrollContainerRef={scrollRef}
+              showTable={true}
+              onToggleShowTable={() => {}}
+            />
+          );
+        }
+      `,
+      resolveDir: path.resolve(__dirname, '..'),
+      sourcefile: 'ssr-releases-test.tsx',
+      loader: 'tsx',
+    },
+    bundle: true,
+    format: 'cjs',
+    platform: 'node',
+    external: ['react', 'react-dom', 'xlsx'],
+    packages: 'external',
+    write: false,
+  });
+
+  const tmpFile = path.resolve(__dirname, './.tmp-releases-test.cjs');
+  await fs.writeFile(tmpFile, ssrBundle.outputFiles[0].text, 'utf8');
+
+  try {
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+    const ReactDOMServer = await import('react-dom/server');
+
+    // 2.1 Test App SSR with Releases Modal open
+    const appHtml = ReactDOMServer.renderToString(mod.renderAppWithReleases());
+    assert.ok(appHtml.includes('data-testid="header-releases-btn"'), 'Must render header releases button');
+    assert.ok(appHtml.includes('data-testid="releases-counter-badge"'), 'Must render releases count badge');
+    assert.ok(appHtml.includes('data-testid="grouping-mode-toggle"'), 'Must render grouping mode toggle button');
+    assert.ok(appHtml.includes('data-testid="releases-modal"'), 'Must render Releases Modal when open');
+    assert.ok(appHtml.includes('data-testid="release-export-excel-btn"'), 'Releases modal must have Export Excel button');
+    assert.ok(appHtml.includes('data-testid="release-import-file-input"'), 'Releases modal must have file import input');
+    assert.ok(appHtml.includes('data-testid="release-restore-defaults-btn"'), 'Releases modal must have restore catalog button');
+    assert.ok(appHtml.includes('data-testid="guide-vis-selected"'), 'Releases modal must have guide lines visibility controls');
+
+    // 2.2 Test Workspace SSR with groupingMode="release"
+    const wsHtml = ReactDOMServer.renderToString(mod.renderReleaseWorkspace());
+    const rel0Id = releases[0].id;
+    assert.ok(wsHtml.includes(`data-release-group="${rel0Id}"`), `Workspace must render release group header for ${rel0Id}`);
+    assert.ok(wsHtml.includes(`data-testid="toggle-collapse-release-${rel0Id}"`), 'Release group header must have collapse/expand toggle');
+    assert.ok(wsHtml.includes('data-testid="project-release-badge-p-test-1"'), 'Project row must display assigned release badge');
+    assert.ok(wsHtml.includes('data-testid="task-release-violation-t-test-1"'), 'Task violating release milestone must display violation indicator');
+    assert.ok(wsHtml.includes(`data-testid="release-milestone-guide-${rel0Id}-iop"`), 'Timeline canvas must render vertical guide line for release milestone');
+    assert.ok(wsHtml.includes(`data-release-summary-bar="${rel0Id}"`), 'Timeline canvas must render release summary bar');
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});

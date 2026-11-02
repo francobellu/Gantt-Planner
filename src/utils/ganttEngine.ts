@@ -10,16 +10,19 @@ import { es } from 'date-fns/locale';
 import {
   ComputedGanttItem,
   ComputedProjectGroup,
+  ComputedReleaseGroup,
   DependencyType,
   FitToProjectResult,
   GanttImportResult,
   GanttItem,
   GanttProject,
   ProjectTemplate,
+  Release,
   SavedScenario,
   TaskColor,
   ZoomLevel,
 } from '../types/gantt';
+import { checkTaskReleaseCompliance } from './releaseEngine';
 
 export function parseDateSafe(dateInput: unknown): Date {
   if (dateInput == null) {
@@ -286,6 +289,7 @@ export function sanitizeProject(
     name: rawName || `Proyecto ${fallbackIndex + 1}`,
     color,
     description: raw.description != null ? String(raw.description).trim() : undefined,
+    releaseId: raw.releaseId != null ? String(raw.releaseId).trim() || undefined : undefined,
     collapsed: Boolean(raw.collapsed),
     isDemo: isDemoProject({ ...raw, id }),
   };
@@ -1047,6 +1051,132 @@ export function groupItemsByProject(
     };
   });
 }
+
+/**
+ * Groups projects and items hierarchically by Release (Release > Project > Tasks).
+ */
+export function groupItemsByReleaseAndProject(
+  items: ComputedGanttItem[],
+  projects: GanttProject[] = [],
+  releases: Release[] = []
+): ComputedReleaseGroup[] {
+  const projectGroups = groupItemsByProject(items, projects);
+  const releaseMap = new Map<string, Release>();
+  for (const r of releases) {
+    releaseMap.set(r.id, r);
+  }
+
+  const releaseBuckets = new Map<string, ComputedProjectGroup[]>();
+  for (const rel of releases) {
+    releaseBuckets.set(rel.id, []);
+  }
+  const unassignedKey = '__unassigned__';
+  releaseBuckets.set(unassignedKey, []);
+
+  for (const pg of projectGroups) {
+    const relId =
+      pg.project.releaseId && releaseMap.has(pg.project.releaseId)
+        ? pg.project.releaseId
+        : unassignedKey;
+    releaseBuckets.get(relId)!.push(pg);
+  }
+
+  const result: ComputedReleaseGroup[] = [];
+
+  for (const rel of releases) {
+    const pgs = releaseBuckets.get(rel.id) || [];
+    if (pgs.length === 0) continue;
+
+    let minStart = pgs[0].startDate;
+    let maxEnd = pgs[0].endDate;
+    let totalItems = 0;
+    let totalProgressSum = 0;
+    let tasksCount = 0;
+    let milestonesCount = 0;
+    let violationsCount = 0;
+
+    for (const pg of pgs) {
+      if (pg.startDate < minStart) minStart = pg.startDate;
+      if (pg.endDate > maxEnd) maxEnd = pg.endDate;
+      tasksCount += pg.tasksCount;
+      milestonesCount += pg.milestonesCount;
+      totalItems += pg.items.length;
+      totalProgressSum += pg.progress * (pg.items.length || 1);
+
+      for (const it of pg.items) {
+        const violations = checkTaskReleaseCompliance(it, pg.project, rel);
+        if (violations.length > 0) violationsCount++;
+      }
+    }
+
+    const duration = Math.max(
+      1,
+      differenceInCalendarDays(parseDateSafe(maxEnd), parseDateSafe(minStart)) + 1
+    );
+    const progress = totalItems > 0 ? Math.round(totalProgressSum / totalItems) : 0;
+
+    result.push({
+      release: rel,
+      projectGroups: pgs,
+      startDate: minStart,
+      endDate: maxEnd,
+      duration,
+      progress,
+      tasksCount,
+      milestonesCount,
+      violationsCount,
+    });
+  }
+
+  const unassignedPgs = releaseBuckets.get(unassignedKey) || [];
+  if (unassignedPgs.length > 0) {
+    let minStart = unassignedPgs[0].startDate;
+    let maxEnd = unassignedPgs[0].endDate;
+    let totalItems = 0;
+    let totalProgressSum = 0;
+    let tasksCount = 0;
+    let milestonesCount = 0;
+
+    for (const pg of unassignedPgs) {
+      if (pg.startDate < minStart) minStart = pg.startDate;
+      if (pg.endDate > maxEnd) maxEnd = pg.endDate;
+      tasksCount += pg.tasksCount;
+      milestonesCount += pg.milestonesCount;
+      totalItems += pg.items.length;
+      totalProgressSum += pg.progress * (pg.items.length || 1);
+    }
+
+    const duration = Math.max(
+      1,
+      differenceInCalendarDays(parseDateSafe(maxEnd), parseDateSafe(minStart)) + 1
+    );
+    const progress = totalItems > 0 ? Math.round(totalProgressSum / totalItems) : 0;
+
+    const unassignedRelease: Release = {
+      id: unassignedKey,
+      code: 'SIN RELEASE',
+      name: 'Proyectos sin Release asignada',
+      color: 'slate',
+      milestones: [],
+      projectIds: unassignedPgs.map((pg) => pg.project.id),
+    };
+
+    result.push({
+      release: unassignedRelease,
+      projectGroups: unassignedPgs,
+      startDate: minStart,
+      endDate: maxEnd,
+      duration,
+      progress,
+      tasksCount,
+      milestonesCount,
+      violationsCount: 0,
+    });
+  }
+
+  return result;
+}
+
 
 /**
  * Generates default realistic project templates shifted around the current date

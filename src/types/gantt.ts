@@ -51,6 +51,7 @@ export interface GanttProject {
   name: string;
   color: TaskColor;
   description?: string;
+  releaseId?: string;
   collapsed?: boolean;
   isDemo?: boolean;
 }
@@ -157,4 +158,50 @@ export interface PlanHistoryEntry {
     projects: GanttProject[];
   };
 }
+
+export interface ReleaseMilestoneDefinition {
+  id: string;
+  code: string;
+  name: string;
+  category: string;
+  color: TaskColor;
+}
+
+export interface ReleaseMilestone {
+  id: string;
+  key: string;
+  code: string;
+  name: string;
+  category: string;
+  date: string; // YYYY-MM-DD
+  color?: TaskColor;
+}
+
+export interface Release {
+  id: string;
+  code: string; // e.g. 'T_26.12.1'
+  name: string; // e.g. 'T_26.12.1 DICIEMBRE 2026'
+  month?: string;
+  year?: number;
+  color: TaskColor;
+  milestones: ReleaseMilestone[];
+  projectIds?: string[];
+  notes?: string;
+}
+
+export type ReleaseGuideVisibility = 'all' | 'assigned' | 'selected' | 'none';
+export type GroupingMode = 'project' | 'release' | 'none';
+
+export interface ComputedReleaseGroup {
+  release: Release;
+  projectGroups: ComputedProjectGroup[];
+  startDate: string;
+  endDate: string;
+  duration: number;
+  progress: number;
+  tasksCount: number;
+  milestonesCount: number;
+  violationsCount: number;
+}
+
 
