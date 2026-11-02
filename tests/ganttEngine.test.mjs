@@ -4622,3 +4622,108 @@ test('Help page, version control v1.1.0, release selection on project creation, 
     await fs.unlink(tmpFile).catch(() => {});
   }
 });
+
+test('Preservation of all projects on page refresh without purging and history auto-recovery', async () => {
+  const { renderToString } = await import('react-dom/server');
+  const appBundle = await build({
+    stdin: {
+      contents: `
+        import React from 'react';
+        import { renderToString } from 'react-dom/server';
+        import { App } from './src/App.tsx';
+
+        export function renderAppWithStorage(mockStorage) {
+          const originalWindow = global.window;
+          const originalLocalStorage = global.localStorage;
+
+          try {
+            global.window = {
+              localStorage: {
+                getItem: (k) => mockStorage[k] || null,
+                setItem: (k, v) => { mockStorage[k] = v; },
+                removeItem: (k) => { delete mockStorage[k]; },
+              },
+            };
+            global.localStorage = global.window.localStorage;
+
+            return renderToString(<App />);
+          } finally {
+            global.window = originalWindow;
+            global.localStorage = originalLocalStorage;
+          }
+        }
+      `,
+      resolveDir: path.resolve(__dirname, '..'),
+      sourcefile: 'ssr-persistence-test.tsx',
+      loader: 'tsx',
+    },
+    bundle: true,
+    format: 'cjs',
+    platform: 'node',
+    external: ['react', 'react-dom'],
+    write: false,
+  });
+
+  const fs = await import('node:fs/promises');
+  const tmpFile = path.resolve(__dirname, './.tmp-ssr-persistence.cjs');
+  await fs.writeFile(tmpFile, appBundle.outputFiles[0].text, 'utf8');
+
+  try {
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+
+    // 1. Verify that real user projects like "HDEV-747747: Xcode 27" and "Biocatch" tasks are NOT purged
+    const mockStorage = {
+      'ganttflow_pro_state_v2': JSON.stringify({
+        projectName: 'Mi Empresa',
+        projects: [
+          { id: 'p-1', name: 'Proyecto Alpha', color: 'indigo', collapsed: false, isDemo: false, releaseId: 'rel-1' },
+          { id: 'p-2', name: 'HDEV-747747: Xcode 27', color: 'emerald', collapsed: false, isDemo: false, releaseId: 'rel-1' },
+        ],
+        items: [
+          { id: 't-1', name: 'Setup', projectId: 'p-1', startDate: '2026-11-01', duration: 2, type: 'task' },
+          { id: 't-2', name: 'Documentación Biocatch v2.7.2', projectId: 'p-2', startDate: '2026-11-03', duration: 4, type: 'task' },
+        ],
+      }),
+    };
+
+    const html = mod.renderAppWithStorage(mockStorage);
+    assert.ok(html.includes('HDEV-747747: Xcode 27'), 'Must preserve HDEV-747747: Xcode 27 project on page refresh');
+    assert.ok(html.includes('Documentación Biocatch v2.7.2'), 'Must preserve Documentación Biocatch v2.7.2 task on page refresh');
+    assert.ok(html.includes('Proyecto Alpha'), 'Must preserve Proyecto Alpha');
+
+    // 2. Verify auto-recovery from plan history if a project was dropped in rawWorkspace
+    const mockStorageWithHistory = {
+      'ganttflow_pro_state_v2': JSON.stringify({
+        projectName: 'Mi Empresa',
+        projects: [
+          { id: 'p-1', name: 'Proyecto Alpha', color: 'indigo', collapsed: false, isDemo: false, releaseId: 'rel-1' },
+        ],
+        items: [
+          { id: 't-1', name: 'Setup', projectId: 'p-1', startDate: '2026-11-01', duration: 2, type: 'task' },
+        ],
+      }),
+      'ganttflow_pro_history_v1': JSON.stringify([
+        {
+          id: 'hist-1',
+          snapshot: {
+            projects: [
+              { id: 'p-1', name: 'Proyecto Alpha', color: 'indigo', collapsed: false, isDemo: false, releaseId: 'rel-1' },
+              { id: 'p-recovered', name: 'Proyecto Recuperado Xcode 27', color: 'rose', collapsed: false, isDemo: false, releaseId: 'rel-1' },
+            ],
+            items: [
+              { id: 't-1', name: 'Setup', projectId: 'p-1', startDate: '2026-11-01', duration: 2, type: 'task' },
+              { id: 't-rec', name: 'Tarea Recuperada Biocatch', projectId: 'p-recovered', startDate: '2026-11-02', duration: 3, type: 'task' },
+            ],
+          },
+        },
+      ]),
+    };
+
+    const recoveredHtml = mod.renderAppWithStorage(mockStorageWithHistory);
+    assert.ok(recoveredHtml.includes('Proyecto Recuperado Xcode 27'), 'Must auto-recover missing project from plan history');
+    assert.ok(recoveredHtml.includes('Tarea Recuperada Biocatch'), 'Must auto-recover missing task from plan history');
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+

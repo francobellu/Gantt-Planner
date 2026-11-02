@@ -113,42 +113,6 @@ interface InitialWorkspaceState {
   savedScenarios: SavedScenario[];
 }
 
-function isXcode27Project(p: Partial<GanttProject>): boolean {
-  if (p.id === 'proj-xcode27') return true;
-  if (typeof p.name === 'string' && /xcode\s*27/i.test(p.name)) return true;
-  return false;
-}
-
-function isXcode27Task(it: Partial<GanttItem>): boolean {
-  if (it.projectId === 'proj-xcode27') return true;
-  if (typeof it.id === 'string' && it.id.startsWith('xc-')) return true;
-  const name = (it.name || '').toLowerCase();
-  if (name.includes('xcode') || name.includes('biocatch')) return true;
-  return false;
-}
-
-function purgeXcodeScenario(s: SavedScenario): SavedScenario | null {
-  if (s.id === 'scen-xcode27') return null;
-  const name = (s.name || '').toLowerCase();
-  if (name.includes('xcode 27') || name.includes('xcode27')) return null;
-
-  const projects = (s.projects || []).filter((p) => !isXcode27Project(p));
-  const items = (s.items || []).filter((it) => !isXcode27Task(it));
-
-  return {
-    ...s,
-    projects,
-    items,
-  };
-}
-
-function isDemoOrTemplateProject(raw?: Partial<GanttProject> | null): boolean {
-  if (!raw) return false;
-  if (raw.isDemo === true) return true;
-  const id = (raw.id || '').toLowerCase();
-  return id === 'proj-xcode27';
-}
-
 const CLEAN_DEFAULT_PROJECT: GanttProject = {
   id: 'proj-1',
   name: 'Mi Proyecto',
@@ -169,11 +133,11 @@ function loadInitialWorkspaceState(
     return {
       activeScenarioId: target.id,
       projectName: target.name,
-      projects: target.projects.filter((p) => !isXcode27Project(p)).map((p) => ({
+      projects: target.projects.map((p) => ({
         ...p,
         releaseId: p.releaseId || DEFAULT_PREDEFINED_RELEASES[0].id,
       })),
-      items: target.items.filter((it) => !isXcode27Task(it)),
+      items: target.items,
       savedScenarios: defaultScenarios,
     };
   }
@@ -187,22 +151,62 @@ function loadInitialWorkspaceState(
         const rawProjects: Partial<GanttProject>[] = Array.isArray(parsed.projects) ? parsed.projects : [];
         const rawItems: Partial<GanttItem>[] = Array.isArray(parsed.items) ? parsed.items : [];
 
-        const cleanProjects = rawProjects
-          .filter((p) => !isXcode27Project(p))
-          .map((p, i) =>
-            sanitizeProject(
-              {
-                ...p,
-                releaseId: p.releaseId || DEFAULT_PREDEFINED_RELEASES[0].id,
-                isDemo: false,
-              },
-              i
-            )
-          );
+        const cleanProjects = rawProjects.map((p, i) =>
+          sanitizeProject(
+            {
+              ...p,
+              releaseId: p.releaseId || DEFAULT_PREDEFINED_RELEASES[0].id,
+              isDemo: false,
+            },
+            i
+          )
+        );
 
         const cleanItems = rawItems
-          .filter((it) => !isXcode27Task(it) && cleanProjects.some((p) => p.id === it.projectId))
+          .filter((it) => cleanProjects.some((p) => p.id === it.projectId))
           .map((it, i) => sanitizeGanttItem(it, i));
+
+        // Auto-recover any projects/tasks that might have been dropped in a previous session but exist in plan history
+        try {
+          const rawHistory = window.localStorage.getItem(HISTORY_STORAGE_KEY);
+          if (rawHistory) {
+            const parsedHist = JSON.parse(rawHistory);
+            if (Array.isArray(parsedHist) && parsedHist.length > 0) {
+              for (let i = parsedHist.length - 1; i >= 0; i--) {
+                const snap = parsedHist[i]?.snapshot;
+                if (snap && Array.isArray(snap.projects) && snap.projects.length > 0) {
+                  for (const p of snap.projects) {
+                    if (p && p.id && !cleanProjects.some((cp) => cp.id === p.id)) {
+                      cleanProjects.push(
+                        sanitizeProject(
+                          {
+                            ...p,
+                            releaseId: p.releaseId || DEFAULT_PREDEFINED_RELEASES[0].id,
+                            isDemo: false,
+                          },
+                          cleanProjects.length
+                        )
+                      );
+                    }
+                  }
+                  if (Array.isArray(snap.items) && snap.items.length > 0) {
+                    for (const it of snap.items) {
+                      if (
+                        it &&
+                        it.id &&
+                        !cleanItems.some((ci) => ci.id === it.id) &&
+                        cleanProjects.some((cp) => cp.id === it.projectId)
+                      ) {
+                        cleanItems.push(sanitizeGanttItem(it, cleanItems.length));
+                      }
+                    }
+                  }
+                  break;
+                }
+              }
+            }
+          }
+        } catch {}
 
         if (cleanProjects.length > 0) {
           const rawName = (parsed.projectName || '').trim();
@@ -226,20 +230,18 @@ function loadInitialWorkspaceState(
             if (!s || s.isDemo) continue;
             const rawProjects: Partial<GanttProject>[] = Array.isArray(s.projects) ? s.projects : [];
             const rawItems: Partial<GanttItem>[] = Array.isArray(s.items) ? s.items : [];
-            const cleanProjects = rawProjects
-              .filter((p) => !isXcode27Project(p))
-              .map((p, i) =>
-                sanitizeProject(
-                  {
-                    ...p,
-                    releaseId: p.releaseId || DEFAULT_PREDEFINED_RELEASES[0].id,
-                    isDemo: false,
-                  },
-                  i
-                )
-              );
+            const cleanProjects = rawProjects.map((p, i) =>
+              sanitizeProject(
+                {
+                  ...p,
+                  releaseId: p.releaseId || DEFAULT_PREDEFINED_RELEASES[0].id,
+                  isDemo: false,
+                },
+                i
+              )
+            );
             const cleanItems = rawItems
-              .filter((it) => !isXcode27Task(it) && cleanProjects.some((p) => p.id === it.projectId))
+              .filter((it) => cleanProjects.some((p) => p.id === it.projectId))
               .map((it, i) => sanitizeGanttItem(it, i));
 
             if (cleanProjects.length > 0) {
@@ -553,8 +555,16 @@ export function App({
             const validIds = parsed.filter((id) =>
               initialState.projects.some((p) => p.id === id)
             );
-            if (validIds.length > 0) {
+            const allKnown = initialState.projects.every((p) => parsed.includes(p.id));
+            if (allKnown && validIds.length > 0) {
               return validIds;
+            }
+            const unrecorded = initialState.projects
+              .filter((p) => !parsed.includes(p.id))
+              .map((p) => p.id);
+            const combined = [...validIds, ...unrecorded];
+            if (combined.length > 0) {
+              return combined;
             }
           }
         }
