@@ -845,37 +845,36 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     setDragOverRow(null);
   };
 
-  // Calculate longest name across items and projects to guarantee NO text is ever clipped
-  const maxNameLength = useMemo(() => {
-    let maxLen = 32;
+  // Calculate longest task name to size the column snugly without artificial gaps
+  const maxTaskNameLength = useMemo(() => {
+    let maxLen = 4;
     for (const it of items) {
       if (it.name && it.name.length > maxLen) {
         maxLen = it.name.length;
       }
     }
-    if (projects) {
-      for (const p of projects) {
-        if (p.name && p.name.length > maxLen) {
-          maxLen = p.name.length;
-        }
-      }
-    }
     return maxLen;
-  }, [items, projects]);
+  }, [items]);
 
-  // Allocate sufficient width for name column so that all project and task names fit without cuts
+  const hasAnyCritical = useMemo(() => {
+    return items.some((it) => it.isCritical);
+  }, [items]);
+
+  // Allocate exact snug width for name column so that all task names fit without truncation and without empty gaps
   const nameColumnWidth = useMemo(() => {
-    return Math.max(340, Math.ceil(maxNameLength * 9) + 140);
-  }, [maxNameLength]);
+    const basePadding = hasAnyCritical ? 150 : 105;
+    return Math.max(140, Math.ceil(maxTaskNameLength * 8.5) + basePadding);
+  }, [maxTaskNameLength, hasAnyCritical]);
 
   // Calculates exact minimum content width to guarantee columns NEVER overlap or clip
   const tableMinWidth = useMemo(() => {
-    let w = nameColumnWidth + 216; // Grip & Move (44px) + WBS (40px) + Name Column + Badges (48px) + Actions (84px)
-    if (visibleColumns.team) w += 112;
-    if (visibleColumns.dates) w += 176;
-    if (visibleColumns.dur) w += 64;
-    if (visibleColumns.slack) w += 56;
-    if (visibleColumns.deps) w += 80;
+    let w = nameColumnWidth + 24; // Name column + table px-3 padding
+    if (visibleColumns.team) w += 112; // w-28 = 112px
+    if (visibleColumns.dates) w += 176; // w-44 = 176px
+    if (visibleColumns.dur) w += 64; // w-16 = 64px
+    if (visibleColumns.slack) w += 56; // w-14 = 56px
+    if (visibleColumns.deps) w += 80; // w-20 = 80px
+    w += 80; // Action/config buttons column w-20 = 80px
     return w;
   }, [nameColumnWidth, visibleColumns]);
 
@@ -2334,11 +2333,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   {/* Minimalist Table Header (matches timeline HEADER_HEIGHT = 60px) */}
                   <div
                     style={{ height: HEADER_HEIGHT, minWidth: tableMinWidth }}
-                    className="flex items-center justify-between px-3 bg-[#F4F4F1] dark:bg-[#18181b] border-b border-[#0C0C09] dark:border-zinc-800 text-[10px] font-mono font-bold uppercase tracking-wider text-[#0C0C09] dark:text-zinc-300 shrink-0 select-none"
+                    className="flex items-center justify-start px-3 bg-[#F4F4F1] dark:bg-[#18181b] border-b border-[#0C0C09] dark:border-zinc-800 text-[10px] font-mono font-bold uppercase tracking-wider text-[#0C0C09] dark:text-zinc-300 shrink-0 select-none"
                   >
                     <div
-                      style={{ minWidth: nameColumnWidth }}
-                      className="flex items-center gap-2 flex-1"
+                      style={{ width: nameColumnWidth }}
+                      className="flex items-center gap-2 shrink-0"
                     >
                       <span className="w-16 font-mono text-center shrink-0"># / Orden</span>
                       <span className="font-semibold">Nombre</span>
@@ -2489,7 +2488,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             onDrop={(e) =>
                               handleDropRow(e, `project:${group.project.id}`)
                             }
-                            className={`flex items-center justify-between px-3 text-xs font-semibold border-y border-slate-200/80 dark:border-zinc-800/80 transition-colors ${
+                            className={`flex items-center justify-start px-3 text-xs font-semibold border-y border-slate-200/80 dark:border-zinc-800/80 transition-colors ${
                               isProjectDragTarget
                                 ? 'ring-2 ring-inset ring-indigo-500 bg-indigo-100/70 dark:bg-indigo-950/60'
                                 : projTheme.groupRowBg
@@ -2498,7 +2497,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             {/* Project Header Title + Collapse Toggle */}
                             <div
                               style={{ minWidth: nameColumnWidth }}
-                              className="flex items-center gap-2 pr-2 flex-1 pl-1 min-w-0"
+                              className="flex items-center gap-2 pr-2 shrink-0 pl-1 min-w-0"
                             >
                               <button
                                 type="button"
@@ -2651,7 +2650,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           onDragOver={(e) => handleDragRowOver(e, item.id)}
                           onDragLeave={handleDragRowLeave}
                           onDrop={(e) => handleDropRow(e, item.id)}
-                          className={`flex items-center justify-between px-3 text-xs transition-colors border-b border-[#E2E2DC] dark:border-zinc-800 ${
+                          className={`flex items-center justify-start px-3 text-xs transition-colors border-b border-[#E2E2DC] dark:border-zinc-800 ${
                             isDropBefore
                               ? 'border-t-2 border-t-[#0C0C09] bg-[#F4F4F1] dark:bg-zinc-800'
                               : isDropAfter
@@ -2669,8 +2668,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         >
                           {/* WBS + Reorder Controls + Name */}
                           <div
-                            style={{ minWidth: nameColumnWidth }}
-                            className={`flex items-center gap-1.5 pr-2 flex-1 ${
+                            style={{ width: nameColumnWidth }}
+                            className={`flex items-center gap-1.5 pr-2 shrink-0 ${
                               groupByProject ? 'pl-2' : ''
                             }`}
                           >
@@ -2747,8 +2746,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               onChange={(e) =>
                                 onUpdateItem({ ...item, name: e.target.value }, false)
                               }
-                              style={{ minWidth: `${Math.max(240, maxNameLength * 8.2)}px` }}
-                              className={`w-full bg-transparent font-medium text-[#0C0C09] dark:text-zinc-100 focus:bg-white dark:focus:bg-zinc-800 focus:px-1.5 focus:py-0.5 rounded-[2px] outline-none focus:ring-1 focus:ring-[#0C0C09] ${
+                              style={{
+                                width: `${Math.max(4, (item.name || '').length + 1)}ch`,
+                                minWidth: `${Math.max(24, Math.ceil((item.name || '').length * 8.2))}px`,
+                              }}
+                              className={`shrink-0 max-w-full bg-transparent font-medium text-[#0C0C09] dark:text-zinc-100 focus:bg-white dark:focus:bg-zinc-800 focus:px-1.5 focus:py-0.5 rounded-[2px] outline-none focus:ring-1 focus:ring-[#0C0C09] ${
                                 draggingRowId ? 'pointer-events-none' : ''
                               }`}
                               title={`${item.name} (${group.project.name})`}
@@ -4396,13 +4398,13 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             onMouseDown={(e) => e.stopPropagation()}
             className="absolute top-3 right-3 z-40 w-80 max-w-[calc(100%-24px)] bg-white dark:bg-[#0C0C09] rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 shadow-xl p-3.5 text-xs flex flex-col gap-2.5 transition-all"
           >
-            {/* Panel Header: WBS Code + Title + Type Badge + Close button */}
+            {/* Panel Header: ID, Tipo, Crítica, Cerrar y Nombre */}
             {(() => {
               const selectedEffectiveColor = getItemEffectiveColor(selectedItem);
               return (
                 <>
                   <div className="flex items-start justify-between gap-2 pb-2 border-b border-[#E2E2DC] dark:border-zinc-800">
-                    <div className="flex items-center gap-1.5 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0">
                       {selectedItem.type === 'milestone' ? (
                         <Diamond
                           className={`w-4 h-4 ${
@@ -4411,34 +4413,34 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         />
                       ) : (
                         <span
-                          className={`w-3 h-3 rounded-full shrink-0 ${
+                          className={`w-3 h-3 rounded-[2px] shrink-0 ${
                             COLOR_STYLES[selectedEffectiveColor]?.badge || 'bg-indigo-500'
                           }`}
                         />
                       )}
                       <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-mono text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-mono text-[11px] font-bold text-slate-500 dark:text-zinc-400">
                             #{selectedItem.wbsCode || selectedItem.wbs}
                           </span>
                           <span
-                            className={`text-[10px] font-semibold px-1.5 py-0.2 rounded border ${
+                            className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-[2px] border ${
                               selectedItem.type === 'milestone'
                                 ? (COLOR_STYLES[selectedEffectiveColor] || COLOR_STYLES.amber).diamondPill
-                                : 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-500/30'
+                                : 'bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 border-slate-200 dark:border-zinc-700'
                             }`}
                           >
                             {selectedItem.type === 'milestone' ? 'Hito' : 'Tarea'}
                           </span>
                           {selectedItem.isCritical && (
-                            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center gap-0.5">
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-[2px] bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center gap-0.5 border border-rose-500/20">
                               <Flame className="w-3 h-3 fill-current" />
                               Crítica
                             </span>
                           )}
                         </div>
                         <h4
-                          className="font-bold text-slate-900 dark:text-slate-100 truncate mt-0.5 text-sm"
+                          className="font-bold text-[#0C0C09] dark:text-zinc-100 truncate mt-1 text-sm leading-tight"
                           title={selectedItem.name}
                         >
                           {selectedItem.name}
@@ -4449,203 +4451,173 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       type="button"
                       data-close-inspection-panel="true"
                       onClick={() => setSelectedItemId(null)}
-                      className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition shrink-0 cursor-pointer"
-                      title="Cerrar panel de inspección"
+                      className="p-1 rounded-[2px] hover:bg-black/5 dark:hover:bg-white/10 text-slate-400 hover:text-[#0C0C09] dark:hover:text-white transition shrink-0 cursor-pointer"
+                      title="Cerrar panel de detalles"
                     >
                       <X className="w-4 h-4" />
                     </button>
                   </div>
 
-                  {/* Project & Assignee metadata */}
-                  <div className="grid grid-cols-2 gap-2 text-[11px]">
-                    <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300 truncate">
+                  {/* Equipo y Proyecto */}
+                  <div className="flex items-center justify-between gap-2 text-[11px]">
+                    <div className="flex items-center gap-1.5 text-slate-600 dark:text-zinc-300 min-w-0">
                       <FolderKanban className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                       <span className="truncate" title={selectedGroup?.project.name}>
                         {selectedGroup?.project.name || 'Sin Proyecto'}
                       </span>
                     </div>
                     {selectedItem.assignee ? (
-                      <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300 truncate">
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[2px] font-mono text-[10px] font-medium border shrink-0 ${
+                          (TEAM_BADGE_STYLES[selectedEffectiveColor] || TEAM_BADGE_STYLES.indigo).container
+                        }`}
+                        title={`Equipo: ${selectedItem.assignee}`}
+                      >
                         <span
-                          className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[2px] font-mono text-[10px] font-medium border truncate ${
-                            (TEAM_BADGE_STYLES[selectedEffectiveColor] || TEAM_BADGE_STYLES.indigo).container
+                          className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                            (TEAM_BADGE_STYLES[selectedEffectiveColor] || TEAM_BADGE_STYLES.indigo).dot
                           }`}
-                          title={`Equipo: ${selectedItem.assignee}`}
-                        >
-                          <span
-                            className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                              (TEAM_BADGE_STYLES[selectedEffectiveColor] || TEAM_BADGE_STYLES.indigo).dot
-                            }`}
-                          />
-                          <span className="truncate">{selectedItem.assignee}</span>
-                        </span>
-                      </div>
+                        />
+                        <span className="truncate">{selectedItem.assignee}</span>
+                      </span>
                     ) : (
-                      <div className="text-slate-400 italic">Sin asignar</div>
+                      <span className="text-slate-400 dark:text-zinc-500 italic text-[10px] shrink-0">
+                        Sin equipo
+                      </span>
                     )}
                   </div>
                 </>
               );
             })()}
 
-            {/* Schedule & Progress grid */}
-            <div className="grid grid-cols-2 gap-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 font-mono text-[11px]">
+            {/* Fechas, Duración y Progreso */}
+            <div className="grid grid-cols-2 gap-2 p-2.5 rounded-[4px] bg-[#F4F4F1] dark:bg-zinc-900 border border-[#E2E2DC] dark:border-zinc-800 font-mono text-[11px]">
               <div>
-                <span className="text-slate-400 text-[10px] uppercase block">Inicio</span>
-                <span className="font-semibold text-slate-700 dark:text-slate-200">
+                <span className="text-[#6B6B66] dark:text-zinc-400 text-[10px] uppercase font-bold tracking-wider block">
+                  Inicio
+                </span>
+                <span className="font-semibold text-[#0C0C09] dark:text-zinc-200">
                   {formatDateDisplay(selectedItem.startDate, 'dd MMM yyyy')}
                 </span>
               </div>
               <div>
-                <span className="text-slate-400 text-[10px] uppercase block">Fin</span>
-                <span className="font-semibold text-slate-700 dark:text-slate-200">
+                <span className="text-[#6B6B66] dark:text-zinc-400 text-[10px] uppercase font-bold tracking-wider block">
+                  Fin
+                </span>
+                <span className="font-semibold text-[#0C0C09] dark:text-zinc-200">
                   {selectedItem.type === 'milestone'
                     ? '-'
                     : formatDateDisplay(selectedItem.endDate, 'dd MMM yyyy')}
                 </span>
               </div>
               <div>
-                <span className="text-slate-400 text-[10px] uppercase block">Duración / Slack</span>
-                <span className="font-semibold text-slate-700 dark:text-slate-200">
-                  {selectedItem.duration}d{' '}
-                  {selectedItem.slack > 0 ? `(+${selectedItem.slack}d)` : ''}
+                <span className="text-[#6B6B66] dark:text-zinc-400 text-[10px] uppercase font-bold tracking-wider block">
+                  Duración
+                </span>
+                <span className="font-semibold text-[#0C0C09] dark:text-zinc-200">
+                  {selectedItem.duration}d{selectedItem.slack > 0 ? ` (+${selectedItem.slack}d)` : ''}
                 </span>
               </div>
               <div>
-                <span className="text-slate-400 text-[10px] uppercase block">Progreso</span>
+                <span className="text-[#6B6B66] dark:text-zinc-400 text-[10px] uppercase font-bold tracking-wider block">
+                  Progreso
+                </span>
                 <span className="font-semibold text-indigo-600 dark:text-indigo-400">
                   {selectedItem.progress}%
                 </span>
               </div>
             </div>
 
-            {/* Dependencies relations (Predecessors & Successors + Direct Add/Remove/Connect) */}
-            <div className="flex flex-col gap-1.5 text-[11px]">
-              {selectedPredecessors.length > 0 && (
-                <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300 flex-wrap">
-                  <span className="text-slate-400 font-medium">Predecesoras:</span>
-                  {selectedPredecessors.map((p) => (
-                    <span
-                      key={p.id}
-                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-mono border border-slate-200/80 dark:border-slate-700"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => setSelectedItemId(p.id)}
-                        className="hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer truncate max-w-[160px]"
-                      >
-                        #{p.wbsCode || p.wbs} {p.name}
-                      </button>
-                      <button
-                        type="button"
-                        data-inspect-remove-pred={p.id}
-                        onClick={() => commitRemoveDependency(p.id, selectedItem.id)}
-                        title={`Quitar dependencia con #${p.wbsCode || p.wbs}`}
-                        className="text-slate-400 hover:text-rose-500 transition cursor-pointer"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
-              {selectedSuccessors.length > 0 && (
-                <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300 flex-wrap">
-                  <span className="text-slate-400 font-medium">Sucesoras:</span>
-                  {selectedSuccessors.map((s) => (
-                    <span
-                      key={s.id}
-                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-mono border border-slate-200/80 dark:border-slate-700"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => setSelectedItemId(s.id)}
-                        className="hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer truncate max-w-[160px]"
-                      >
-                        #{s.wbsCode || s.wbs} {s.name}
-                      </button>
-                      <button
-                        type="button"
-                        data-inspect-remove-succ={s.id}
-                        onClick={() => commitRemoveDependency(selectedItem.id, s.id)}
-                        title={`Quitar dependencia hacia #${s.wbsCode || s.wbs}`}
-                        className="text-slate-400 hover:text-rose-500 transition cursor-pointer"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              {/* Quick Dependency Creator directly inside Inspection Panel */}
-              <div className="flex items-center gap-1.5 pt-1">
-                <select
-                  data-inspect-add-pred-select="true"
-                  value=""
-                  onChange={(e) => {
-                    const predId = e.target.value;
-                    if (predId) {
-                      commitAddDependency(predId, selectedItem.id, 'FS');
-                    }
-                  }}
-                  className="flex-1 min-w-0 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
-                >
-                  <option value="">+ Añadir predecesora...</option>
-                  {items
-                    .filter(
-                      (it) =>
-                        it.id !== selectedItem.id &&
-                        !selectedItem.dependencies.includes(it.id) &&
-                        !wouldCreateCycle(items, selectedItem.id, it.id)
-                    )
-                    .map((candidate) => {
-                      const enriched = enrichedItemById.get(candidate.id) || candidate;
-                      return (
-                        <option key={candidate.id} value={candidate.id}>
-                          #{enriched.wbsCode || enriched.wbs} {enriched.name}
-                        </option>
-                      );
-                    })}
-                </select>
-                <button
-                  type="button"
-                  data-inspect-start-connect="true"
-                  onClick={() => {
-                    setConnectModeSource({
-                      itemId: selectedItem.id,
-                      role: 'pred',
-                    });
-                    setSelectedItemId(null);
-                  }}
-                  className="px-2 py-1 rounded-lg border border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-semibold text-[10px] flex items-center gap-1 shrink-0 transition cursor-pointer"
-                  title="Haz clic aquí y luego en otra tarea del diagrama para conectarlas"
-                >
-                  <GitBranch className="w-3 h-3" />
-                  <span>Conectar</span>
-                </button>
-              </div>
+            {/* Descripción / Notas */}
+            <div className="flex flex-col gap-1 p-2.5 rounded-[4px] bg-[#F4F4F1]/60 dark:bg-zinc-900/60 border border-[#E2E2DC] dark:border-zinc-800 text-[11px]">
+              <span className="text-[10px] font-mono uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400 font-bold">
+                Descripción / Notas
+              </span>
+              <p
+                className={`text-xs ${
+                  selectedItem.notes?.trim()
+                    ? 'text-[#0C0C09] dark:text-zinc-200 whitespace-pre-wrap'
+                    : 'text-[#6B6B66]/80 dark:text-zinc-500 italic'
+                }`}
+              >
+                {selectedItem.notes?.trim() || 'Sin descripción ni notas registradas.'}
+              </p>
             </div>
 
-            {/* Notes if present */}
-            {selectedItem.notes && (
-              <div className="text-[11px] text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-800/40 p-2 rounded border border-slate-100 dark:border-slate-800">
-                <p className="line-clamp-2 italic">“{selectedItem.notes}”</p>
+            {/* Predecesoras & Sucesoras (resumen compacto si existen) */}
+            {(selectedPredecessors.length > 0 || selectedSuccessors.length > 0) && (
+              <div className="flex flex-col gap-1.5 text-[11px] pt-1 border-t border-[#E2E2DC] dark:border-zinc-800">
+                {selectedPredecessors.length > 0 && (
+                  <div className="flex items-center gap-1 text-slate-600 dark:text-zinc-300 flex-wrap">
+                    <span className="text-slate-400 font-medium">Predecesoras:</span>
+                    {selectedPredecessors.map((p) => (
+                      <span
+                        key={p.id}
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] bg-slate-100 dark:bg-zinc-800 text-[10px] font-mono border border-slate-200/80 dark:border-zinc-700"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setSelectedItemId(p.id)}
+                          className="hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer truncate max-w-[160px]"
+                        >
+                          #{p.wbsCode || p.wbs} {p.name}
+                        </button>
+                        <button
+                          type="button"
+                          data-inspect-remove-pred={p.id}
+                          onClick={() => commitRemoveDependency(p.id, selectedItem.id)}
+                          title={`Quitar dependencia con #${p.wbsCode || p.wbs}`}
+                          className="text-slate-400 hover:text-rose-500 transition cursor-pointer"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {selectedSuccessors.length > 0 && (
+                  <div className="flex items-center gap-1 text-slate-600 dark:text-zinc-300 flex-wrap">
+                    <span className="text-slate-400 font-medium">Sucesoras:</span>
+                    {selectedSuccessors.map((s) => (
+                      <span
+                        key={s.id}
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] bg-slate-100 dark:bg-zinc-800 text-[10px] font-mono border border-slate-200/80 dark:border-zinc-700"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setSelectedItemId(s.id)}
+                          className="hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer truncate max-w-[160px]"
+                        >
+                          #{s.wbsCode || s.wbs} {s.name}
+                        </button>
+                        <button
+                          type="button"
+                          data-inspect-remove-succ={s.id}
+                          onClick={() => commitRemoveDependency(selectedItem.id, s.id)}
+                          title={`Quitar dependencia hacia #${s.wbsCode || s.wbs}`}
+                          className="text-slate-400 hover:text-rose-500 transition cursor-pointer"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
             {/* Actions: Edit button */}
-            <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
+            <div className="flex items-center justify-end gap-2 pt-1 border-t border-[#E2E2DC] dark:border-zinc-800">
               <button
                 type="button"
                 onClick={() => {
                   onEditModal(selectedItem);
                   setSelectedItemId(null);
                 }}
-                className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center gap-1 transition cursor-pointer shadow-2xs"
+                className="px-2.5 py-1 rounded-[4px] bg-[#0C0C09] hover:bg-black/80 dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-[#0C0C09] font-medium text-xs flex items-center gap-1.5 transition cursor-pointer"
               >
                 <Edit3 className="w-3.5 h-3.5" />
-                Editar Ítem
+                <span>Editar Ítem</span>
               </button>
             </div>
           </aside>

@@ -3255,4 +3255,112 @@ test('Default team colors, table team badges, and non-cutting project name sizin
   }
 });
 
+test('Elimination of gap between task name & team badge, and simplified task details panel', async () => {
+  const { renderToString } = await import('react-dom/server');
+
+  const bundle = await build({
+    stdin: {
+      contents: `
+        import React from 'react';
+        import { GanttWorkspace } from './src/components/GanttWorkspace.tsx';
+        import { computeGanttMetrics, sanitizeProject, sanitizeGanttItem } from './src/utils/ganttEngine.ts';
+
+        export function renderSnugAndDetailsWorkspace(selectedId = null) {
+          const project = sanitizeProject({ id: 'p-1', name: 'Escenario Importado' }, 0);
+          const rawTasks = [
+            sanitizeGanttItem({
+              id: 't-1',
+              name: 'task1',
+              type: 'task',
+              projectId: 'p-1',
+              startDate: '2026-11-01',
+              endDate: '2026-11-04',
+              assignee: 'qa',
+              notes: 'Verificación de casos de prueba y cobertura',
+              progress: 25,
+            }),
+            sanitizeGanttItem({
+              id: 't-2',
+              name: 'Task 2',
+              type: 'task',
+              projectId: 'p-1',
+              startDate: '2026-11-04',
+              endDate: '2026-11-08',
+              assignee: 'FrontEnd',
+              progress: 0,
+            }),
+          ];
+          const items = computeGanttMetrics(rawTasks);
+          return (
+            <GanttWorkspace
+              items={items}
+              projects={[project]}
+              groupByProject={true}
+              selectedProjectId="all"
+              zoom="day"
+              showCriticalPath={false}
+              showCpmFloat={false}
+              autoCascade={true}
+              initialSelectedItemId={selectedId}
+              onUpdateItem={() => {}}
+              onEditModal={() => {}}
+              onDeleteItem={() => {}}
+              onDuplicateItem={() => {}}
+              onQuickAdd={() => {}}
+              scrollContainerRef={{ current: null }}
+            />
+          );
+        }
+      `,
+      resolveDir: path.resolve(__dirname, '..'),
+      sourcefile: 'ssr-snug-details-test.tsx',
+      loader: 'tsx',
+    },
+    bundle: true,
+    format: 'cjs',
+    platform: 'node',
+    external: ['react', 'react-dom'],
+    write: false,
+  });
+
+  const fsNode = await import('node:fs/promises');
+  const tmpFile = path.resolve(__dirname, './.tmp-snug-details-bundle.cjs');
+  await fsNode.writeFile(tmpFile, bundle.outputFiles[0].text, 'utf8');
+
+  try {
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+
+    // 1. Verify gap elimination: rows use justify-start and task name input is snug
+    const htmlTable = renderToString(mod.renderSnugAndDetailsWorkspace(null));
+
+    // Rows use justify-start so columns are snug without 600px artificial gaps
+    assert.ok(htmlTable.includes('justify-start'), 'Table rows must use justify-start to eliminate artificial gaps');
+    assert.ok(htmlTable.includes('data-task-name-input="t-1"'), 'Must render data-task-name-input="t-1"');
+    assert.ok(htmlTable.includes('width:6ch') || htmlTable.includes('width: 6ch'), 'Task1 input must size snugly to 6ch');
+
+    // 2. Verify simplified inspection panel: renders clean ID, nombre, equipo, notas, inicio, fin, duración, progreso
+    const htmlDetails = renderToString(mod.renderSnugAndDetailsWorkspace('t-1'));
+    assert.ok(htmlDetails.includes('id="gantt-inspection-panel"'), 'Must render inspection panel');
+    assert.ok(htmlDetails.includes('data-selected-item-id="t-1"'), 'Must inspect task t-1');
+    assert.ok(htmlDetails.includes('#1'), 'Must display item ID / WBS');
+    assert.ok(htmlDetails.includes('task1'), 'Must display task name');
+    assert.ok(htmlDetails.includes('qa'), 'Must display team name');
+    assert.ok(htmlDetails.includes('Descripción / Notas') || htmlDetails.includes('Descripci&oacute;n / Notas'), 'Must have Descripción / Notas header');
+    assert.ok(htmlDetails.includes('Verificación de casos de prueba y cobertura') || htmlDetails.includes('Verificaci&oacute;n'), 'Must display task notes content');
+    assert.ok(htmlDetails.includes('Inicio'), 'Must display Inicio header');
+    assert.ok(htmlDetails.includes('Fin'), 'Must display Fin header');
+    assert.ok(htmlDetails.includes('Duración') || htmlDetails.includes('Duraci&oacute;n'), 'Must display Duración');
+    assert.ok(htmlDetails.includes('Progreso'), 'Must display Progreso header');
+    assert.ok(htmlDetails.includes('25%'), 'Must display progress percentage');
+    assert.ok(htmlDetails.includes('Editar Ítem') || htmlDetails.includes('Editar &Iacute;tem'), 'Must display Editar Ítem button');
+
+    // Cluttered add-predecessor dropdown & connect button must NOT be in the simplified inspection panel
+    assert.equal(htmlDetails.includes('data-inspect-add-pred-select'), false, 'Cluttered add-pred select must be removed from inspection panel');
+    assert.equal(htmlDetails.includes('data-inspect-start-connect'), false, 'Cluttered connect button must be removed from inspection panel');
+  } finally {
+    await fsNode.unlink(tmpFile).catch(() => {});
+  }
+});
+
+
 
