@@ -1285,7 +1285,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             startDate: newStart,
             endDate: newEnd,
           },
-          autoCascade
+          false
         );
       } else if (mode === 'resize' && item.type === 'task') {
         const newDur = Math.max(1, origDuration + deltaDays);
@@ -1296,7 +1296,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             duration: newDur,
             endDate: newEnd,
           },
-          autoCascade
+          false
         );
       }
     };

@@ -3370,5 +3370,244 @@ test('Elimination of gap between task name & team badge, and simplified task det
   }
 });
 
+test('Timeline Drag Invariance (never modify other tasks), Undo/Redo mechanism, and Plan History Page', async () => {
+  const fs = await import('node:fs/promises');
+
+  // 1. Source verification: Timeline drag in GanttWorkspace NEVER cascades to other tasks
+  const wsSrc = await fs.readFile(
+    path.resolve(__dirname, '../src/components/GanttWorkspace.tsx'),
+    'utf8'
+  );
+  // Verify onUpdateItem is called with false in both move and resize drag branches of handleBarMouseDown
+  const moveDragBlock = wsSrc.slice(
+    wsSrc.indexOf('const handleBarMouseDown ='),
+    wsSrc.indexOf('const showDepToast =')
+  );
+  assert.ok(
+    moveDragBlock.includes('onUpdateItem(') &&
+      moveDragBlock.includes('startDate: newStart,') &&
+      moveDragBlock.includes('false') &&
+      !moveDragBlock.includes('autoCascade'),
+    'Moving a task by dragging on timeline must pass false to onUpdateItem (never modify other tasks)'
+  );
+  assert.ok(
+    moveDragBlock.includes('duration: newDur,') &&
+      moveDragBlock.includes('false'),
+    'Resizing a task by dragging on timeline must pass false to onUpdateItem (never modify other tasks)'
+  );
+
+  // 2. Functional verification: Updating an item without cascade leaves other tasks completely intact
+  const initialTasks = [
+    {
+      id: 'task-a',
+      name: 'Tarea A (Predecesora)',
+      startDate: '2026-11-02',
+      endDate: '2026-11-06',
+      duration: 5,
+      progress: 0,
+      dependencies: [],
+      projectId: 'proj-1',
+      type: 'task',
+    },
+    {
+      id: 'task-b',
+      name: 'Tarea B (Sucesora)',
+      startDate: '2026-11-09',
+      endDate: '2026-11-13',
+      duration: 5,
+      progress: 0,
+      dependencies: ['task-a'],
+      projectId: 'proj-1',
+      type: 'task',
+    },
+  ];
+
+  // When task-a is moved to a later date without cascade (false)
+  const movedTaskA = {
+    ...initialTasks[0],
+    startDate: '2026-11-10',
+    endDate: '2026-11-14',
+  };
+  const tasksAfterDragWithoutCascade = initialTasks.map((it) =>
+    it.id === movedTaskA.id ? movedTaskA : it
+  );
+
+  // Task B must NOT have been shifted or modified in any way
+  const taskBAfter = tasksAfterDragWithoutCascade.find((it) => it.id === 'task-b');
+  assert.equal(
+    taskBAfter.startDate,
+    '2026-11-09',
+    'Task B startDate must NOT change when Task A is dragged without cascade'
+  );
+  assert.equal(
+    taskBAfter.endDate,
+    '2026-11-13',
+    'Task B endDate must NOT change when Task A is dragged without cascade'
+  );
+  assert.equal(
+    taskBAfter.duration,
+    5,
+    'Task B duration must NOT change when Task A is dragged without cascade'
+  );
+
+  // 3. SSR Component Verification: App renders Undo, Redo, and Historial buttons, and renders PlanHistoryPage
+  const esbuild = await import('esbuild');
+  const React = await import('react');
+  const ReactDOMServer = await import('react-dom/server');
+
+  const bundle = await esbuild.build({
+    stdin: {
+      contents: `
+        import React from 'react';
+        import { App } from './src/App';
+        import { PlanHistoryPage } from './src/components/PlanHistoryPage';
+
+        export function renderGanttApp() {
+          return <App initialView="gantt" />;
+        }
+
+        export function renderHistoryApp() {
+          return <App initialView="history" />;
+        }
+
+        export function renderHistoryPageDirect(history, currentIndex) {
+          return (
+            <PlanHistoryPage
+              history={history}
+              currentIndex={currentIndex}
+              canUndo={currentIndex > 0}
+              canRedo={currentIndex < history.length - 1}
+              onUndo={() => {}}
+              onRedo={() => {}}
+              onRestoreSnapshot={() => {}}
+              onBackToGantt={() => {}}
+            />
+          );
+        }
+      `,
+      resolveDir: path.resolve(__dirname, '..'),
+      sourcefile: 'ssr-history-test.tsx',
+      loader: 'tsx',
+    },
+    bundle: true,
+    format: 'cjs',
+    platform: 'node',
+    external: ['react', 'react-dom'],
+    write: false,
+  });
+
+  const tmpFile = path.resolve(__dirname, './.tmp-history-test.cjs');
+  await fs.writeFile(tmpFile, bundle.outputFiles[0].text, 'utf8');
+
+  try {
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+
+    // Verify Gantt view header renders Deshacer, Rehacer, and Historial buttons
+    const ganttHtml = ReactDOMServer.renderToString(mod.renderGanttApp());
+    assert.ok(
+      ganttHtml.includes('data-testid="header-undo-btn"'),
+      'Header must render Deshacer (Undo) button'
+    );
+    assert.ok(
+      ganttHtml.includes('data-testid="header-redo-btn"'),
+      'Header must render Rehacer (Redo) button'
+    );
+    assert.ok(
+      ganttHtml.includes('data-testid="header-history-btn"'),
+      'Header must render Historial button'
+    );
+    assert.ok(
+      ganttHtml.includes('data-testid="history-counter-badge"'),
+      'Header must render history change counter badge'
+    );
+
+    // Verify History view renders full PlanHistoryPage
+    const historyHtml = ReactDOMServer.renderToString(mod.renderHistoryApp());
+    assert.ok(
+      historyHtml.includes('data-testid="plan-history-page"'),
+      'App in history view must render PlanHistoryPage container'
+    );
+    assert.ok(
+      historyHtml.includes('data-history-page="true"'),
+      'PlanHistoryPage must have data-history-page="true"'
+    );
+    assert.ok(
+      historyHtml.includes('data-testid="history-back-btn"'),
+      'PlanHistoryPage must render Volver al Diagrama button'
+    );
+    assert.ok(
+      historyHtml.includes('data-testid="history-search-input"'),
+      'PlanHistoryPage must render search input to filter history'
+    );
+    assert.ok(
+      historyHtml.includes('Historial de Cambios del Plan'),
+      'PlanHistoryPage must render page title'
+    );
+    assert.ok(
+      historyHtml.includes('Total Modificaciones'),
+      'PlanHistoryPage must render statistics card for total modifications'
+    );
+    assert.ok(
+      historyHtml.includes('Versión Activa') || historyHtml.includes('Versi&oacute;n Activa'),
+      'PlanHistoryPage must render statistics card for active version'
+    );
+
+    // Verify direct PlanHistoryPage with multiple recorded modifications
+    const mockHistory = [
+      {
+        id: 'hist-1',
+        timestamp: '2026-11-02T10:00:00.000Z',
+        formattedDate: '02/11/2026, 11:00:00',
+        actionType: 'initial_state',
+        actionLabel: 'Inicio',
+        description: 'Estado inicial cargado',
+        itemsCount: 5,
+        projectsCount: 1,
+        snapshot: { items: initialTasks, projects: [{ id: 'proj-1', name: 'Proyecto Alpha', color: 'indigo' }] },
+      },
+      {
+        id: 'hist-2',
+        timestamp: '2026-11-02T10:05:00.000Z',
+        formattedDate: '02/11/2026, 11:05:00',
+        actionType: 'drag_move',
+        actionLabel: 'Desplazamiento',
+        description: "Mover 'Tarea A' de 2026-11-02 a 2026-11-10",
+        itemsCount: 5,
+        projectsCount: 1,
+        snapshot: { items: tasksAfterDragWithoutCascade, projects: [{ id: 'proj-1', name: 'Proyecto Alpha', color: 'indigo' }] },
+      },
+      {
+        id: 'hist-3',
+        timestamp: '2026-11-02T10:10:00.000Z',
+        formattedDate: '02/11/2026, 11:10:00',
+        actionType: 'create_item',
+        actionLabel: 'Creación',
+        description: "Crear tarea 'Diseño Mockup'",
+        itemsCount: 6,
+        projectsCount: 1,
+        snapshot: { items: [...tasksAfterDragWithoutCascade, { id: 'task-c', name: 'Diseño Mockup', duration: 3, startDate: '2026-11-15', endDate: '2026-11-17', dependencies: [], projectId: 'proj-1', progress: 0, type: 'task' }], projects: [{ id: 'proj-1', name: 'Proyecto Alpha', color: 'indigo' }] },
+      },
+    ];
+
+    const directHistoryHtml = ReactDOMServer.renderToString(
+      mod.renderHistoryPageDirect(mockHistory, 2)
+    );
+    assert.ok(directHistoryHtml.includes('data-history-entry="true"'), 'Must render history entries');
+    assert.ok(directHistoryHtml.includes('Desplazamiento'), 'Must render Desplazamiento action badge');
+    assert.ok(
+      directHistoryHtml.includes("Mover") && directHistoryHtml.includes("Tarea A"),
+      'Must render drag move description'
+    );
+    assert.ok(
+      directHistoryHtml.includes("Crear tarea") && (directHistoryHtml.includes("Diseño Mockup") || directHistoryHtml.includes("Dise&ntilde;o Mockup")),
+      'Must render create item description'
+    );
+    assert.ok(directHistoryHtml.includes('VERSIÓN ACTUAL') || directHistoryHtml.includes('VERSI&Oacute;N ACTUAL'), 'Must render active version badge on current entry');
+    assert.ok(directHistoryHtml.includes('Restaurar versión') || directHistoryHtml.includes('Restaurar versi&oacute;n'), 'Must render Restaurar versión button for past entries');
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
 
 

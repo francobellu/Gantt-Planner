@@ -111,3 +111,34 @@ export interface GanttImportResult {
   allScenarios?: SavedScenario[];
 }
 
+export type PlanHistoryActionType =
+  | 'create_item'
+  | 'edit_item'
+  | 'drag_move'
+  | 'drag_resize'
+  | 'delete_item'
+  | 'duplicate_item'
+  | 'reorder_item'
+  | 'create_project'
+  | 'edit_project'
+  | 'delete_project'
+  | 'dependency_change'
+  | 'resolve_conflicts'
+  | 'restore_snapshot'
+  | 'initial_state';
+
+export interface PlanHistoryEntry {
+  id: string;
+  timestamp: string;
+  formattedDate: string;
+  actionType: PlanHistoryActionType;
+  actionLabel: string;
+  description: string;
+  itemsCount: number;
+  projectsCount: number;
+  snapshot: {
+    items: GanttItem[];
+    projects: GanttProject[];
+  };
+}
+

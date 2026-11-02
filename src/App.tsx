@@ -17,15 +17,18 @@ import {
   Flame,
   FolderKanban,
   GitBranch,
+  History,
   Layers,
   Maximize2,
   Moon,
   Plus,
+  Redo2,
   Save,
   SlidersHorizontal,
   Sparkles,
   Sun,
   Trash2,
+  Undo2,
   Upload,
   X,
   ZoomIn,
@@ -38,6 +41,8 @@ import {
   GanttProject,
   PROJECT_COLORS,
   ProjectTemplate,
+  PlanHistoryActionType,
+  PlanHistoryEntry,
   SavedScenario,
   TaskColor,
   TaskType,
@@ -77,11 +82,14 @@ import {
 } from './utils/ganttEngine';
 import { GanttWorkspace } from './components/GanttWorkspace';
 import { TaskFormModal } from './components/TaskFormModal';
+import { PlanHistoryPage } from './components/PlanHistoryPage';
 
 const STORAGE_KEY = 'ganttflow_pro_state_v2';
 const LEGACY_STORAGE_KEY_V1 = 'ganttflow_pro_state_v1';
 const SCENARIOS_STORAGE_KEY = 'ganttflow_pro_scenarios_v2';
 const SELECTED_PROJECTS_STORAGE_KEY = 'ganttflow_selected_projects_v1';
+const HISTORY_STORAGE_KEY = 'ganttflow_pro_history_v1';
+const HISTORY_INDEX_STORAGE_KEY = 'ganttflow_pro_history_index_v1';
 
 interface InitialWorkspaceState {
   activeScenarioId: string;
@@ -257,7 +265,7 @@ export function App({
   initialShowTable = true,
 }: {
   initialScenarioId?: string;
-  initialView?: 'gantt' | 'projects';
+  initialView?: 'gantt' | 'history' | 'projects';
   initialSelectedProjectIds?: string[];
   initialShowTable?: boolean;
 } = {}) {
@@ -269,6 +277,9 @@ export function App({
     [templates, defaultScenarios, initialScenarioId]
   );
 
+  const [currentView, setCurrentView] = useState<'gantt' | 'history' | 'projects'>(
+    initialView || 'gantt'
+  );
   const [projectName, setProjectName] = useState<string>(
     () => initialState.projectName
   );
@@ -276,6 +287,214 @@ export function App({
     () => initialState.projects
   );
   const [items, setItems] = useState<GanttItem[]>(() => initialState.items);
+
+  const [history, setHistory] = useState<PlanHistoryEntry[]>(() => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const raw = window.localStorage.getItem(HISTORY_STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed;
+          }
+        }
+      }
+    } catch {}
+    const now = new Date();
+    return [
+      {
+        id: 'hist-init',
+        timestamp: now.toISOString(),
+        formattedDate: now.toLocaleString('es-ES', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        }),
+        actionType: 'initial_state',
+        actionLabel: 'Inicio',
+        description: 'Estado inicial cargado',
+        itemsCount: initialState.items.length,
+        projectsCount: initialState.projects.length,
+        snapshot: {
+          items: initialState.items,
+          projects: initialState.projects,
+        },
+      },
+    ];
+  });
+
+  const [historyIndex, setHistoryIndex] = useState<number>(() => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const raw = window.localStorage.getItem(HISTORY_INDEX_STORAGE_KEY);
+        if (raw !== null) {
+          const idx = parseInt(raw, 10);
+          if (!isNaN(idx) && idx >= 0) return idx;
+        }
+      }
+    } catch {}
+    return 0;
+  });
+
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const slice = history.slice(-80);
+        window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(slice));
+        window.localStorage.setItem(
+          HISTORY_INDEX_STORAGE_KEY,
+          String(Math.min(historyIndex, slice.length - 1))
+        );
+      }
+    } catch {}
+  }, [history, historyIndex]);
+
+  const lastEditRef = useRef<{ id: string; time: number; type: string } | null>(null);
+
+  const recordPlanChange = (
+    actionType: PlanHistoryActionType,
+    actionLabel: string,
+    description: string,
+    nextItems: GanttItem[],
+    nextProjects: GanttProject[],
+    targetId?: string
+  ) => {
+    const now = Date.now();
+    const nowDate = new Date(now);
+    const formattedDate = nowDate.toLocaleString('es-ES', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+
+    if (
+      targetId &&
+      actionType === 'edit_item' &&
+      lastEditRef.current &&
+      lastEditRef.current.id === targetId &&
+      now - lastEditRef.current.time < 800
+    ) {
+      lastEditRef.current.time = now;
+      setHistory((prev) => {
+        const copy = [...prev];
+        const cur = copy[historyIndex];
+        if (cur) {
+          copy[historyIndex] = {
+            ...cur,
+            description,
+            timestamp: nowDate.toISOString(),
+            formattedDate,
+            snapshot: {
+              items: nextItems.map(sanitizeGanttItem),
+              projects: nextProjects.map((p) => ({ ...p })),
+            },
+          };
+        }
+        return copy;
+      });
+      return;
+    }
+
+    if (targetId) {
+      lastEditRef.current = { id: targetId, time: now, type: actionType };
+    } else {
+      lastEditRef.current = null;
+    }
+
+    const newEntry: PlanHistoryEntry = {
+      id: `hist-${now}-${Math.random().toString(36).substring(2, 6)}`,
+      timestamp: nowDate.toISOString(),
+      formattedDate,
+      actionType,
+      actionLabel,
+      description,
+      itemsCount: nextItems.length,
+      projectsCount: nextProjects.length,
+      snapshot: {
+        items: nextItems.map(sanitizeGanttItem),
+        projects: nextProjects.map((p) => ({ ...p })),
+      },
+    };
+
+    setHistory((prev) => {
+      const base = prev.slice(0, historyIndex + 1);
+      const next = [...base, newEntry];
+      if (next.length > 80) {
+        return next.slice(next.length - 80);
+      }
+      return next;
+    });
+    setHistoryIndex((prev) => Math.min(prev + 1, 79));
+  };
+
+  const canUndo = historyIndex > 0;
+  const canRedo = historyIndex < history.length - 1;
+
+  const handleUndo = () => {
+    if (historyIndex <= 0) return;
+    const targetIndex = historyIndex - 1;
+    const target = history[targetIndex];
+    if (!target) return;
+
+    setItems(target.snapshot.items.map(sanitizeGanttItem));
+    setProjects(target.snapshot.projects.map((p) => ({ ...p })));
+    setHistoryIndex(targetIndex);
+    const currentDesc = history[historyIndex]?.description || 'Modificación';
+    showToast(`Deshecho: ${currentDesc}`);
+  };
+
+  const handleRedo = () => {
+    if (historyIndex >= history.length - 1) return;
+    const targetIndex = historyIndex + 1;
+    const target = history[targetIndex];
+    if (!target) return;
+
+    setItems(target.snapshot.items.map(sanitizeGanttItem));
+    setProjects(target.snapshot.projects.map((p) => ({ ...p })));
+    setHistoryIndex(targetIndex);
+    showToast(`Rehecho: ${target.description}`);
+  };
+
+  const handleRestoreSnapshot = (entry: PlanHistoryEntry, index: number) => {
+    setItems(entry.snapshot.items.map(sanitizeGanttItem));
+    setProjects(entry.snapshot.projects.map((p) => ({ ...p })));
+    setHistoryIndex(index);
+    showToast(`Plan restaurado a la versión #${index + 1} (${entry.formattedDate})`);
+  };
+
+  const handleClearHistory = () => {
+    const now = new Date();
+    const resetEntry: PlanHistoryEntry = {
+      id: `hist-reset-${Date.now()}`,
+      timestamp: now.toISOString(),
+      formattedDate: now.toLocaleString('es-ES', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }),
+      actionType: 'initial_state',
+      actionLabel: 'Reinicio',
+      description: 'Historial reiniciado al estado actual',
+      itemsCount: items.length,
+      projectsCount: effectiveProjects.length,
+      snapshot: {
+        items: items.map(sanitizeGanttItem),
+        projects: effectiveProjects.map((p) => ({ ...p })),
+      },
+    };
+    setHistory([resetEntry]);
+    setHistoryIndex(0);
+    showToast('Historial reiniciado correctamente');
+  };
 
   const [showTable, setShowTable] = useState<boolean>(() => {
     if (initialShowTable !== undefined) {
@@ -406,6 +625,34 @@ export function App({
         setCreateMenuOpen(false);
         setShowSettingsModal(false);
         setShowMetricsDrawer(false);
+        return;
+      }
+
+      const target = e.target as HTMLElement | null;
+      const isTextInput =
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable);
+
+      if (!isTextInput) {
+        const isMac =
+          typeof navigator !== 'undefined' &&
+          /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+        const isCmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
+
+        if (isCmdOrCtrl && e.key.toLowerCase() === 'z') {
+          if (e.shiftKey) {
+            e.preventDefault();
+            handleRedo();
+          } else {
+            e.preventDefault();
+            handleUndo();
+          }
+        } else if (isCmdOrCtrl && e.key.toLowerCase() === 'y') {
+          e.preventDefault();
+          handleRedo();
+        }
       }
     };
     document.addEventListener('mousedown', handleGlobalClick);
@@ -414,7 +661,7 @@ export function App({
       document.removeEventListener('mousedown', handleGlobalClick);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [showSettingsModal, showMetricsDrawer]);
+  }, [showSettingsModal, showMetricsDrawer, handleUndo, handleRedo]);
 
   // Modal state
   const [modalOpen, setModalOpen] = useState<boolean>(false);
@@ -602,38 +849,98 @@ export function App({
   const handleSaveFromModal = (savedItem: GanttItem, cascade: boolean) => {
     const cleanItem = sanitizeGanttItem({
       ...savedItem,
-      projectId: savedItem.projectId || projects[0]?.id,
+      projectId: savedItem.projectId || effectiveProjects[0]?.id,
     });
-    setItems((prev) => {
-      const exists = prev.some((it) => it.id === cleanItem.id);
-      const next = exists
-        ? prev.map((it) => (it.id === cleanItem.id ? cleanItem : it))
-        : [...prev, cleanItem];
-      return cascade ? cascadeDependencies(next) : next;
-    });
+    const exists = items.some((it) => it.id === cleanItem.id);
+    const nextRaw = exists
+      ? items.map((it) => (it.id === cleanItem.id ? cleanItem : it))
+      : [...items, cleanItem];
+    const next = cascade ? cascadeDependencies(nextRaw) : nextRaw;
+    setItems(next);
+    const isM = cleanItem.type === 'milestone';
+    const actionType: PlanHistoryActionType = exists ? 'edit_item' : 'create_item';
+    const actionLabel = exists ? 'Edición' : 'Creación';
+    const desc = exists
+      ? `Editar ${isM ? 'hito' : 'tarea'} '${cleanItem.name}'`
+      : `Crear ${isM ? 'hito' : 'tarea'} '${cleanItem.name}'`;
+    recordPlanChange(actionType, actionLabel, desc, next, effectiveProjects);
   };
 
   const handleUpdateInline = (updatedItem: GanttItem, cascade: boolean) => {
     const cleanItem = sanitizeGanttItem(updatedItem);
-    setItems((prev) => {
-      const next = prev.map((it) => (it.id === cleanItem.id ? cleanItem : it));
-      return cascade ? cascadeDependencies(next) : next;
-    });
+    const prevItem = items.find((it) => it.id === cleanItem.id);
+    const nextRaw = items.map((it) => (it.id === cleanItem.id ? cleanItem : it));
+    const next = cascade ? cascadeDependencies(nextRaw) : nextRaw;
+    setItems(next);
+
+    let actionType: PlanHistoryActionType = 'edit_item';
+    let actionLabel = 'Edición';
+    let desc = `Actualizar '${cleanItem.name}'`;
+
+    if (prevItem) {
+      if (prevItem.startDate !== cleanItem.startDate) {
+        actionType = 'drag_move';
+        actionLabel = 'Desplazamiento';
+        desc = `Mover '${cleanItem.name}' de ${prevItem.startDate} a ${cleanItem.startDate}`;
+      } else if (prevItem.duration !== cleanItem.duration) {
+        actionType = 'drag_resize';
+        actionLabel = 'Redimensión';
+        desc = `Cambiar duración de '${cleanItem.name}' a ${cleanItem.duration}d`;
+      } else if (prevItem.name !== cleanItem.name) {
+        actionType = 'edit_item';
+        actionLabel = 'Edición';
+        desc = `Renombrar a '${cleanItem.name}'`;
+      } else if (prevItem.progress !== cleanItem.progress) {
+        actionType = 'edit_item';
+        actionLabel = 'Edición';
+        desc = `Progreso de '${cleanItem.name}' al ${cleanItem.progress}%`;
+      } else if (prevItem.assignee !== cleanItem.assignee) {
+        actionType = 'edit_item';
+        actionLabel = 'Edición';
+        desc = `Asignar '${cleanItem.name}' a ${cleanItem.assignee || 'sin asignar'}`;
+      } else if (prevItem.color !== cleanItem.color) {
+        actionType = 'edit_item';
+        actionLabel = 'Edición';
+        desc = `Cambiar color de '${cleanItem.name}'`;
+      }
+    }
+
+    recordPlanChange(
+      actionType,
+      actionLabel,
+      desc,
+      next,
+      effectiveProjects,
+      actionType === 'edit_item' ? cleanItem.id : undefined
+    );
   };
 
   const handleUpdateItems = (nextItems: GanttItem[]) => {
-    setItems(nextItems.map(sanitizeGanttItem));
+    const clean = nextItems.map(sanitizeGanttItem);
+    setItems(clean);
+    recordPlanChange(
+      'dependency_change',
+      'Dependencia',
+      'Actualizar dependencias en el diagrama',
+      clean,
+      effectiveProjects
+    );
   };
 
   const handleDeleteItem = (id: string) => {
-    setItems((prev) =>
-      prev
-        .filter((it) => it.id !== id)
-        .map((it) => ({
-          ...it,
-          dependencies: it.dependencies.filter((depId) => depId !== id),
-        }))
-    );
+    const itemToDelete = items.find((it) => it.id === id);
+    const next = items
+      .filter((it) => it.id !== id)
+      .map((it) => ({
+        ...it,
+        dependencies: it.dependencies.filter((depId) => depId !== id),
+      }));
+    setItems(next);
+    const isM = itemToDelete?.type === 'milestone';
+    const desc = itemToDelete
+      ? `Eliminar ${isM ? 'hito' : 'tarea'} '${itemToDelete.name}'`
+      : `Eliminar ítem '${id}'`;
+    recordPlanChange('delete_item', 'Eliminación', desc, next, effectiveProjects);
   };
 
   const handleDuplicateItem = (item: ComputedGanttItem) => {
@@ -642,17 +949,23 @@ export function App({
       id: `${item.type === 'milestone' ? 'm' : 't'}-${Date.now()}`,
       name: `${item.name} (Copia)`,
     });
-    setItems((prev) => {
-      const idx = prev.findIndex((x) => x.id === item.id);
-      const next = [...prev];
-      next.splice(idx + 1, 0, copy);
-      return next;
-    });
+    const idx = items.findIndex((x) => x.id === item.id);
+    const next = [...items];
+    next.splice(idx + 1, 0, copy);
+    setItems(next);
+    recordPlanChange('duplicate_item', 'Duplicación', `Duplicar '${item.name}'`, next, effectiveProjects);
   };
 
   const handleReorderItem = (itemId: string, direction: 'up' | 'down') => {
-    setItems((prev) =>
-      reorderTaskItem(prev, itemId, direction, groupByProject, effectiveProjects)
+    const it = items.find((x) => x.id === itemId);
+    const next = reorderTaskItem(items, itemId, direction, groupByProject, effectiveProjects);
+    setItems(next);
+    recordPlanChange(
+      'reorder_item',
+      'Reordenación',
+      `Mover '${it?.name || itemId}' hacia ${direction === 'up' ? 'arriba' : 'abajo'}`,
+      next,
+      effectiveProjects
     );
   };
 
@@ -661,17 +974,24 @@ export function App({
     targetId: string,
     position: 'before' | 'after'
   ) => {
-    setItems((prev) =>
-      moveTaskItem(prev, sourceId, targetId, position, effectiveProjects)
-    );
+    const it = items.find((x) => x.id === sourceId);
+    const next = moveTaskItem(items, sourceId, targetId, position, effectiveProjects);
+    let nextProjects = effectiveProjects;
     if (targetId.startsWith('project:')) {
       const targetProjId = targetId.slice('project:'.length);
-      setProjects(() =>
-        effectiveProjects.map((p) =>
-          p.id === targetProjId && p.collapsed ? { ...p, collapsed: false } : p
-        )
+      nextProjects = effectiveProjects.map((p) =>
+        p.id === targetProjId && p.collapsed ? { ...p, collapsed: false } : p
       );
+      setProjects(nextProjects);
     }
+    setItems(next);
+    recordPlanChange(
+      'reorder_item',
+      'Reordenación',
+      `Mover posición de '${it?.name || sourceId}'`,
+      next,
+      nextProjects
+    );
   };
 
   const handleToggleSelectProject = (projectId: string) => {
@@ -739,17 +1059,34 @@ export function App({
       ),
       isDemo: false,
     };
-    setProjects((prev) => [...prev, clean]);
+    const nextProjects = [...projects, clean];
+    setProjects(nextProjects);
     setSelectedProjectIds((prev) =>
       prev.includes(clean.id) ? prev : [...prev, clean.id]
     );
     setGroupByProject(true);
     setSelectedProjectId('all');
+    recordPlanChange(
+      'create_project',
+      'Nuevo Proyecto',
+      `Crear proyecto '${clean.name}'`,
+      items,
+      nextProjects
+    );
   };
 
   const handleUpdateProject = (updatedProj: GanttProject) => {
-    setProjects(() =>
-      effectiveProjects.map((p) => (p.id === updatedProj.id ? updatedProj : p))
+    const nextProjects = effectiveProjects.map((p) =>
+      p.id === updatedProj.id ? updatedProj : p
+    );
+    setProjects(nextProjects);
+    recordPlanChange(
+      'edit_project',
+      'Edición Proyecto',
+      `Actualizar proyecto '${updatedProj.name}'`,
+      items,
+      nextProjects,
+      updatedProj.id
     );
   };
 
@@ -767,14 +1104,14 @@ export function App({
 
   const handleDeleteProject = (projectId: string) => {
     if (effectiveProjects.length <= 1) return;
+    const proj = effectiveProjects.find((p) => p.id === projectId);
     const remaining = effectiveProjects.filter((p) => p.id !== projectId);
     const fallbackId = remaining[0].id;
-    setProjects(remaining);
-    setItems((prev) =>
-      prev.map((it) =>
-        it.projectId === projectId ? { ...it, projectId: fallbackId } : it
-      )
+    const nextItems = items.map((it) =>
+      it.projectId === projectId ? { ...it, projectId: fallbackId } : it
     );
+    setProjects(remaining);
+    setItems(nextItems);
     setSelectedProjectIds((prev) => {
       const next = prev.filter((id) => id !== projectId);
       return next.length > 0 ? next : remaining.map((p) => p.id);
@@ -782,6 +1119,13 @@ export function App({
     if (selectedProjectId === projectId) {
       setSelectedProjectId('all');
     }
+    recordPlanChange(
+      'delete_project',
+      'Eliminar Proyecto',
+      `Eliminar proyecto '${proj?.name || projectId}'`,
+      nextItems,
+      remaining
+    );
   };
 
   const showToast = (msg: string) => {
@@ -791,10 +1135,16 @@ export function App({
     }, 2800);
   };
 
-
-
   const handleResolveAllConflicts = () => {
-    setItems((prev) => cascadeDependencies(prev));
+    const next = cascadeDependencies(items);
+    setItems(next);
+    recordPlanChange(
+      'resolve_conflicts',
+      'Cascada',
+      'Reprogramar dependencias en cascada automáticamente',
+      next,
+      effectiveProjects
+    );
   };
 
   const handleSelectZoomPreset = (preset: ZoomLevel) => {
@@ -1034,6 +1384,14 @@ export function App({
         setProjectMenuOpen(false);
         setCreateMenuOpen(false);
 
+        recordPlanChange(
+          'create_item',
+          'Importación',
+          `Importar ${file.name} (+${merged.addedItemsCount} tareas)`,
+          merged.items,
+          merged.projects
+        );
+
         const fit = computeFitToProjectScale(merged.items, 980);
         if (fit.spanDays > 0) {
           setDayWidth(fit.dayWidth);
@@ -1237,6 +1595,71 @@ export function App({
               </div>
             )}
           </div>
+
+          {/* Deshacer / Rehacer */}
+          <div className="flex items-center border border-[#0C0C09] dark:border-zinc-700 rounded-[4px] bg-white dark:bg-zinc-900 overflow-hidden shrink-0">
+            <button
+              type="button"
+              data-testid="header-undo-btn"
+              data-undo-btn="true"
+              disabled={!canUndo}
+              onClick={handleUndo}
+              className={`p-1.5 transition flex items-center justify-center ${
+                canUndo
+                  ? 'text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 cursor-pointer'
+                  : 'text-[#0C0C09]/25 dark:text-zinc-600 cursor-not-allowed'
+              }`}
+              title="Deshacer (Ctrl+Z / ⌘Z)"
+              aria-label="Deshacer"
+            >
+              <Undo2 className="w-3.5 h-3.5" />
+            </button>
+            <div className="w-px h-3.5 bg-[#E2E2DC] dark:bg-zinc-800" />
+            <button
+              type="button"
+              data-testid="header-redo-btn"
+              data-redo-btn="true"
+              disabled={!canRedo}
+              onClick={handleRedo}
+              className={`p-1.5 transition flex items-center justify-center ${
+                canRedo
+                  ? 'text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 cursor-pointer'
+                  : 'text-[#0C0C09]/25 dark:text-zinc-600 cursor-not-allowed'
+              }`}
+              title="Rehacer (Ctrl+Shift+Z / ⌘⇧Z)"
+              aria-label="Rehacer"
+            >
+              <Redo2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Historial Button */}
+          <button
+            type="button"
+            data-testid="header-history-btn"
+            data-history-btn="true"
+            onClick={() => setCurrentView((prev) => (prev === 'history' ? 'gantt' : 'history'))}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border text-xs font-medium transition cursor-pointer shrink-0 ${
+              currentView === 'history'
+                ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
+                : 'bg-white dark:bg-zinc-900 border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800'
+            }`}
+            title="Consultar historial de cambios del plan"
+            aria-label="Historial"
+          >
+            <History className="w-3.5 h-3.5 text-current" />
+            <span className="font-display font-medium hidden sm:inline">Historial</span>
+            <span
+              data-testid="history-counter-badge"
+              className={`px-1.5 py-0.2 rounded-[2px] text-[10px] font-mono border ${
+                currentView === 'history'
+                  ? 'bg-zinc-800 text-white border-zinc-700 dark:bg-zinc-200 dark:text-[#0C0C09] dark:border-zinc-300'
+                  : 'bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-300 border-[#E2E2DC] dark:border-zinc-700'
+              }`}
+            >
+              {history.length}
+            </span>
+          </button>
 
           {scenarioSavedToast && (
             <span
@@ -1498,62 +1921,76 @@ export function App({
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col max-w-[1920px] w-full mx-auto px-2 sm:px-4 py-2 sm:py-3 gap-2 min-h-0">
-
-
-        {/* Conflict Banner if any task violates predecessor dependencies */}
-        {metrics.conflictCount > 0 && (
-          <div className="flex items-center justify-between gap-4 px-4 py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-800 dark:text-rose-200 text-xs">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
-              <span>
-                Detectamos <strong>{metrics.conflictCount}</strong> tarea(s) cuya fecha inicial
-                es anterior a la fecha final de sus tareas predecesoras.
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={handleResolveAllConflicts}
-              className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold flex items-center gap-1.5 shrink-0"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              Reprogramar en cascada automáticamente
-            </button>
-          </div>
-        )}
-
-          /* Interactive Split-Pane Gantt Chart & WBS Table with Project Grouping */
-          <GanttWorkspace
-            items={computedItems}
-            projects={effectiveProjects}
-            groupByProject={groupByProject}
-            selectedProjectId={selectedProjectId}
-            selectedProjectIds={selectedProjectIds}
-            zoom={zoom}
-            dayWidth={dayWidth}
-            onChangeDayWidth={handleChangeDayWidth}
-            onFitToProject={(pid) => handleFitToProject(pid)}
-            showCriticalPath={showCriticalPath}
-            showCpmFloat={showCpmFloat}
-            autoCascade={autoCascade}
-            arrowVisibility={arrowVisibility}
-            onChangeArrowVisibility={setArrowVisibility}
-            onUpdateItem={handleUpdateInline}
-            onUpdateItems={handleUpdateItems}
-            onReorderItem={handleReorderItem}
-            onMoveItem={handleMoveItem}
-            onEditModal={handleOpenEditModal}
-            onDeleteItem={handleDeleteItem}
-            onDuplicateItem={handleDuplicateItem}
-            onQuickAdd={handleOpenCreateModal}
-            onToggleGroupByProject={() => setGroupByProject((prev) => !prev)}
-            onToggleProjectCollapse={handleToggleProjectCollapse}
-            onUpdateProject={handleUpdateProject}
-            onDeleteProject={handleDeleteProject}
-            onCreateProject={handleCreateProject}
-            scrollContainerRef={scrollContainerRef}
-          showTable={showTable}
-          onToggleShowTable={() => setShowTable((prev) => !prev)}
+        {currentView === 'history' ? (
+          <PlanHistoryPage
+            history={history}
+            currentIndex={historyIndex}
+            canUndo={canUndo}
+            canRedo={canRedo}
+            onUndo={handleUndo}
+            onRedo={handleRedo}
+            onRestoreSnapshot={handleRestoreSnapshot}
+            onBackToGantt={() => setCurrentView('gantt')}
+            onClearHistory={handleClearHistory}
           />
+        ) : (
+          <>
+            {/* Conflict Banner if any task violates predecessor dependencies */}
+            {metrics.conflictCount > 0 && (
+              <div className="flex items-center justify-between gap-4 px-4 py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-800 dark:text-rose-200 text-xs">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
+                  <span>
+                    Detectamos <strong>{metrics.conflictCount}</strong> tarea(s) cuya fecha inicial
+                    es anterior a la fecha final de sus tareas predecesoras.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleResolveAllConflicts}
+                  className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold flex items-center gap-1.5 shrink-0"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Reprogramar en cascada automáticamente
+                </button>
+              </div>
+            )}
+
+            {/* Interactive Split-Pane Gantt Chart & WBS Table with Project Grouping */}
+            <GanttWorkspace
+              items={computedItems}
+              projects={effectiveProjects}
+              groupByProject={groupByProject}
+              selectedProjectId={selectedProjectId}
+              selectedProjectIds={selectedProjectIds}
+              zoom={zoom}
+              dayWidth={dayWidth}
+              onChangeDayWidth={handleChangeDayWidth}
+              onFitToProject={(pid) => handleFitToProject(pid)}
+              showCriticalPath={showCriticalPath}
+              showCpmFloat={showCpmFloat}
+              autoCascade={autoCascade}
+              arrowVisibility={arrowVisibility}
+              onChangeArrowVisibility={setArrowVisibility}
+              onUpdateItem={handleUpdateInline}
+              onUpdateItems={handleUpdateItems}
+              onReorderItem={handleReorderItem}
+              onMoveItem={handleMoveItem}
+              onEditModal={handleOpenEditModal}
+              onDeleteItem={handleDeleteItem}
+              onDuplicateItem={handleDuplicateItem}
+              onQuickAdd={handleOpenCreateModal}
+              onToggleGroupByProject={() => setGroupByProject((prev) => !prev)}
+              onToggleProjectCollapse={handleToggleProjectCollapse}
+              onUpdateProject={handleUpdateProject}
+              onDeleteProject={handleDeleteProject}
+              onCreateProject={handleCreateProject}
+              scrollContainerRef={scrollContainerRef}
+              showTable={showTable}
+              onToggleShowTable={() => setShowTable((prev) => !prev)}
+            />
+          </>
+        )}
       </main>
 
       {/* Settings Modal (Flechas, auto-cascada, tema, zoom, exportar/importar) */}
@@ -1757,11 +2194,35 @@ export function App({
             </div>
           </div>
 
+          {/* Acceso directo a Página de Historial */}
+          <div className="border-t border-[#E2E2DC] dark:border-zinc-800 pt-3 flex items-center justify-between text-xs">
+            <div>
+              <div className="font-semibold text-[#0C0C09] dark:text-zinc-200">
+                Historial del Plan
+              </div>
+              <div className="text-[11px] text-[#6B6B66] dark:text-zinc-400">
+                {history.length} cambios registrados
+              </div>
+            </div>
+            <button
+              type="button"
+              data-testid="settings-history-btn"
+              onClick={() => {
+                setShowSettingsModal(false);
+                setCurrentView('history');
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#0C0C09] hover:text-white dark:hover:bg-zinc-100 dark:hover:text-[#0C0C09] font-medium transition cursor-pointer"
+            >
+              <History className="w-3.5 h-3.5" />
+              <span>Ver Historial</span>
+            </button>
+          </div>
+
           <div className="pt-2 flex justify-end">
             <button
               type="button"
               onClick={() => setShowSettingsModal(false)}
-              className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs transition"
+              className="px-4 py-1.5 rounded-[4px] bg-[#0C0C09] hover:bg-[#312C85] dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-[#0C0C09] font-display font-semibold text-xs transition cursor-pointer"
             >
               Cerrar
             </button>
