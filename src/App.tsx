@@ -1663,10 +1663,11 @@ export function App({
         <div className="flex items-center gap-2.5 min-w-0">
           <span
             data-testid="app-version-badge"
-            className="hidden lg:inline-block px-1.5 py-0.5 rounded-[2px] bg-white dark:bg-zinc-900 text-[#6B6B66] dark:text-zinc-400 text-[10px] font-mono font-bold border border-[#E2E2DC] dark:border-zinc-700 shrink-0"
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[3px] bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09] text-[10px] font-mono font-bold tracking-tight shrink-0 shadow-xs"
             title={`GanttFlow v${APP_VERSION}`}
           >
-            {`GanttFlow v${APP_VERSION}`}
+            <span className="hidden sm:inline opacity-80 font-normal">GanttFlow</span>
+            <span>{`v${APP_VERSION}`}</span>
           </span>
 
           {/* Botón posicionado en el icono para esconder la tabla y enseñar solo el diagrama */}

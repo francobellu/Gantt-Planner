@@ -807,6 +807,10 @@ export function checkTaskReleaseCompliance(
   project: GanttProject | undefined,
   release: Release | undefined
 ): ReleaseComplianceViolation[] {
+  if (item.isExternal) {
+    return [];
+  }
+
   if (!project || !release || !release.milestones || release.milestones.length === 0) {
     return [];
   }

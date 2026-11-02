@@ -33,6 +33,7 @@ import {
   MousePointer,
   Plus,
   Rocket,
+  Rows,
   SlidersHorizontal,
   Trash2,
   User,
@@ -717,6 +718,25 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     };
   }, [showColumnsMenu]);
 
+  // Configurable horizontal task row separation lines (persisted in localStorage)
+  const [showRowSeparators, setShowRowSeparators] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('ganttflow_show_row_separators');
+      return saved !== null ? saved === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ganttflow_show_row_separators', String(showRowSeparators));
+    } catch {}
+  }, [showRowSeparators]);
+
+  // Track focused task input in the table so full name is editable when focused
+  const [focusedTaskInputId, setFocusedTaskInputId] = useState<string | null>(null);
+
   // Inline Project Creation state
   const [isCreatingProject, setIsCreatingProject] = useState<boolean>(false);
   const [newProjectName, setNewProjectName] = useState<string>('');
@@ -1125,6 +1145,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   };
 
   // Calculate longest task name to size the column snugly without artificial gaps
+  // Capped at 37 characters per user specification
   const maxTaskNameLength = useMemo(() => {
     let maxLen = 4;
     for (const it of items) {
@@ -1132,7 +1153,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         maxLen = it.name.length;
       }
     }
-    return maxLen;
+    return Math.min(37, maxLen);
   }, [items]);
 
   const maxProjectNameLength = useMemo(() => {
@@ -2899,8 +2920,28 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         </span>
                       )}
 
-                      {/* Botones de Control: Hitos de Release y Columnas */}
+                      {/* Botones de Control: Líneas Separadoras, Hitos de Release y Columnas */}
                       <div className="w-28 flex items-center justify-end pr-1 gap-1">
+                        {/* Botón para alternar líneas horizontales de separación */}
+                        <button
+                          type="button"
+                          data-testid="toggle-row-separators-btn"
+                          onClick={() => setShowRowSeparators((prev) => !prev)}
+                          className={`p-1 rounded-[4px] transition cursor-pointer ${
+                            showRowSeparators
+                              ? 'bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09]'
+                              : 'hover:bg-black/5 dark:hover:bg-white/10 text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09] dark:hover:text-white'
+                          }`}
+                          aria-label="Alternar líneas horizontales de separación"
+                          title={
+                            showRowSeparators
+                              ? 'Ocultar líneas horizontales de separación entre tareas'
+                              : 'Mostrar líneas horizontales de separación entre tareas'
+                          }
+                        >
+                          <Rows className="w-3.5 h-3.5" />
+                        </button>
+
                         {/* Botón y Panel de Hitos de Release */}
                         <div ref={milestonesMenuRef} className="relative" data-dropdown-container="true">
                           <button
@@ -3511,7 +3552,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           onDragOver={(e) => handleDragRowOver(e, item.id)}
                           onDragLeave={handleDragRowLeave}
                           onDrop={(e) => handleDropRow(e, item.id)}
-                          className={`flex items-center justify-start px-3 text-xs transition-colors border-b border-[#E2E2DC] dark:border-zinc-800 ${
+                          className={`flex items-center justify-start px-3 text-xs transition-colors ${
+                            showRowSeparators
+                              ? 'border-b border-[#E2E2DC] dark:border-zinc-800'
+                              : 'border-b border-transparent'
+                          } ${
                             isDropBefore
                               ? 'border-t-2 border-t-[#0C0C09] bg-[#F4F4F1] dark:bg-zinc-800'
                               : isDropAfter
@@ -3591,11 +3636,22 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               {groupByProject ? item.wbsCode || `${item.wbs}.` : `${item.wbs}.`}
                             </span>
                             {item.type === 'milestone' ? (
-                              <Diamond
-                                className={`w-3.5 h-3.5 ${
-                                  (COLOR_STYLES[itemEffectiveColor] || COLOR_STYLES.amber).diamondText
-                                } fill-current shrink-0`}
-                              />
+                              <div className="flex items-center gap-1 shrink-0">
+                                <Diamond
+                                  className={`w-3.5 h-3.5 ${
+                                    (COLOR_STYLES[itemEffectiveColor] || COLOR_STYLES.amber).diamondText
+                                  } fill-current shrink-0`}
+                                />
+                                {item.isExternal && (
+                                  <span
+                                    data-testid={`milestone-external-badge-${item.id}`}
+                                    title="Hito externo (no pertenece a la release)"
+                                    className="px-1 py-0.2 rounded text-[8.5px] font-mono font-bold bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 shrink-0"
+                                  >
+                                    EXT
+                                  </span>
+                                )}
+                              </div>
                             ) : (
                               <span
                                 className={`w-2.5 h-2.5 rounded-[2px] shrink-0 ${
@@ -3608,15 +3664,27 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 aria-hidden="true"
                                 className="invisible col-start-1 row-start-1 font-medium text-xs px-1.5 py-0.5 whitespace-pre pointer-events-none select-none"
                               >
-                                {item.name || 'Tarea'}
+                                {focusedTaskInputId === item.id
+                                  ? item.name || 'Tarea'
+                                  : (item.name && item.name.length > 37
+                                      ? item.name.slice(0, 37) + '…'
+                                      : item.name) || 'Tarea'}
                               </span>
                               <input
                                 type="text"
-                                value={item.name}
+                                value={
+                                  focusedTaskInputId === item.id
+                                    ? item.name
+                                    : item.name && item.name.length > 37
+                                    ? item.name.slice(0, 37) + '…'
+                                    : item.name
+                                }
+                                onFocus={() => setFocusedTaskInputId(item.id)}
                                 onChange={(e) =>
                                   onUpdateItem({ ...item, name: e.target.value }, false)
                                 }
                                 onBlur={(e) => {
+                                  setFocusedTaskInputId(null);
                                   const trimmed = e.target.value.trim();
                                   if (!trimmed) {
                                     onUpdateItem(
@@ -4080,9 +4148,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   >
                     <span>{formatScrubberDate(cursorScrubber.date)}</span>
                   </div>
-                  {/* Glowing vertical white tracking line with top notch */}
-                  <div className="absolute top-0 bottom-0 left-0 w-px -translate-x-1/2 bg-white/70 dark:bg-white/80 shadow-[0_0_6px_rgba(255,255,255,0.4)]" />
-                  <div className="absolute top-0 left-0 w-1.5 h-1 bg-white rounded-xs -translate-x-1/2" />
+                  {/* High-contrast vertical tracking line with top notch */}
+                  <div className="absolute top-0 bottom-0 left-0 w-[1.5px] -translate-x-1/2 bg-[#0C0C09] dark:bg-white/90 shadow-[0_0_4px_rgba(12,12,9,0.35)] dark:shadow-[0_0_6px_rgba(255,255,255,0.4)]" />
+                  <div className="absolute top-0 left-0 w-1.5 h-1 bg-[#0C0C09] dark:bg-white rounded-xs -translate-x-1/2" />
                 </div>
               );
             })()}
@@ -4408,7 +4476,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     style={{ height: ROW_HEIGHT }}
                     onMouseEnter={() => setHoveredId(row.item.id)}
                     onMouseLeave={() => setHoveredId(null)}
-                    className={`border-b border-[#E2E2DC] dark:border-zinc-800/70 transition-colors ${
+                    className={`${
+                      showRowSeparators
+                        ? 'border-b border-[#E2E2DC] dark:border-zinc-800/70'
+                        : 'border-b border-transparent'
+                    } transition-colors ${
                       isHovered ? 'bg-[#F4F4F1]/80 dark:bg-zinc-900/40' : 'bg-white dark:bg-[#0C0C09]'
                     }`}
                   />
@@ -4767,7 +4839,18 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     >
                       <div
                         style={{ left: rStartX, width: rWidth }}
-                        className="relative flex items-center justify-between pointer-events-auto h-7 rounded-[4px] bg-[#0C0C09] dark:bg-zinc-100 text-white dark:text-[#0C0C09] px-2.5 shadow-md border border-[#0C0C09] dark:border-zinc-300 text-[10px] font-mono font-bold transition-all"
+                        onClick={() => {
+                          setCollapsedReleaseIds((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(rGroup.release.id)) {
+                              next.delete(rGroup.release.id);
+                            } else {
+                              next.add(rGroup.release.id);
+                            }
+                            return next;
+                          });
+                        }}
+                        className="relative flex items-center justify-between pointer-events-auto h-7 rounded-[4px] bg-[#0C0C09] dark:bg-zinc-100 text-white dark:text-[#0C0C09] px-2.5 shadow-md border border-[#0C0C09] dark:border-zinc-300 text-[10px] font-mono font-bold transition-all cursor-pointer hover:opacity-90 active:scale-[0.99] select-none group"
                         title={`${rGroup.release.name}: ${effectiveStartDate} → ${effectiveEndDate} (${spanDays}d · Duración completa de la release · Acotado hasta su último hito: ${effectiveEndDate})`}
                       >
                         <span className="truncate flex items-center gap-1.5">
@@ -5011,13 +5094,17 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           } ${
                             isCrit
                               ? 'bg-rose-500 border-white dark:border-slate-900 ring-2 ring-rose-500'
+                              : item.isExternal
+                              ? 'bg-amber-500/90 border-dashed border-2 border-[#0C0C09] dark:border-white'
                               : styleTheme.diamondBg
                           }`}
                         />
                         <div
-                          className={`ml-4 px-2 py-0.5 rounded-md border text-[11px] font-semibold whitespace-nowrap shadow-sm ${styleTheme.diamondPill}`}
+                          className={`ml-4 px-2 py-0.5 rounded-md border text-[11px] font-semibold whitespace-nowrap shadow-sm ${styleTheme.diamondPill} ${
+                            item.isExternal ? 'border-amber-400 ring-1 ring-amber-400/50' : ''
+                          }`}
                         >
-                          ◆ {item.name}{' '}
+                          {`◆ ${item.isExternal ? '[EXT] ' : ''}${item.name} `}
                           <span className="font-mono text-[10px] opacity-75">
                             ({formatDateDisplay(coords.effectiveStartStr, 'dd MMM')})
                           </span>
@@ -5039,15 +5126,15 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
                         {/* Wrapper for Task Bar + Left/Right Dependency Connector Ports */}
                         <div className="relative flex items-center">
-                          {/* Top Label above Task Bar: always completely visible, even for short boxes with long names */}
+                          {/* Top Label above Task Bar: positioned snug to its own task box */}
                           <div
                             data-timeline-task-name={item.id}
-                            className="absolute bottom-full mb-1 left-0 flex items-center gap-1.5 pointer-events-none select-none z-10 whitespace-nowrap"
+                            className="absolute bottom-full mb-[2px] left-0 flex items-center gap-1.5 pointer-events-none select-none z-10 whitespace-nowrap"
                           >
-                            <span className="text-[11px] font-semibold text-[#0C0C09] dark:text-zinc-100 drop-shadow-xs">
+                            <span className="text-[10.5px] font-semibold text-[#0C0C09] dark:text-zinc-100 drop-shadow-xs leading-none">
                               {item.name}
                             </span>
-                            <span className="text-[10px] font-mono text-[#6B6B66] dark:text-zinc-400 font-medium">
+                            <span className="text-[9.5px] font-mono text-[#6B6B66] dark:text-zinc-400 font-medium leading-none">
                               {`(${coords.effectiveDuration}d)`}
                             </span>
                           </div>

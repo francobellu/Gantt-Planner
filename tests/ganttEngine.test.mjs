@@ -4515,7 +4515,7 @@ test('Configuration panel is removed and projects including the last one can be 
   }
 });
 
-test('Help page, version control v1.1.0, release selection on project creation, no CSV export, and project deletion confirmation', async () => {
+test('Help page, version control v1.2.0, release selection on project creation, no CSV export, and project deletion confirmation', async () => {
   const fs = await import('node:fs/promises');
   const path = await import('node:path');
   const { fileURLToPath } = await import('node:url');
@@ -4526,7 +4526,7 @@ test('Help page, version control v1.1.0, release selection on project creation, 
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version control consistency
-  assert.equal(pkg.version, '1.1.0', 'package.json version must be 1.1.0');
+  assert.equal(pkg.version, '1.2.0', 'package.json version must be 1.2.0');
   assert.ok(pkg.scripts['version:patch'], 'package.json must contain version:patch script');
   assert.ok(pkg.scripts['version:minor'], 'package.json must contain version:minor script');
   assert.ok(pkg.scripts['release:patch'], 'package.json must contain release:patch script');
@@ -5054,6 +5054,183 @@ test('A release is always indicated with its full duration, even if associated p
     await fs.unlink(tmpFile).catch(() => {});
   }
 });
+
+test('Task name positioning, configurable row separators, 37 char truncation, v1.2.0 badge, high-contrast scrubber, external milestones, and release bar collapse', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const { fileURLToPath } = await import('node:url');
+  const { build } = await import('esbuild');
+  const { renderToString } = await import('react-dom/server');
+
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+  // 2. SSR Verification of Task Names, Table Truncation, Separators, Scrubber, Badges, and Release Bar
+  const bundle = await build({
+    stdin: {
+      contents: `
+        import React from 'react';
+        import { GanttWorkspace } from './src/components/GanttWorkspace.tsx';
+        import { App } from './src/App.tsx';
+        import { TaskFormModal } from './src/components/TaskFormModal.tsx';
+        import { DEFAULT_PREDEFINED_RELEASES, checkTaskReleaseCompliance } from './src/utils/releaseEngine.ts';
+
+        export { DEFAULT_PREDEFINED_RELEASES, checkTaskReleaseCompliance };
+
+        export function renderWorkspaceWithLongTaskAndExternalMilestone() {
+          const items = [
+            {
+              id: 't-long',
+              projectId: 'p-1',
+              name: 'Esta es una tarea con un nombre extremadamente largo que supera ampliamente los treinta y siete caracteres',
+              type: 'task',
+              startDate: '2026-10-15',
+              endDate: '2026-10-25',
+              duration: 11,
+              slack: 0,
+              dependencies: [],
+              progress: 30,
+              color: 'indigo'
+            },
+            {
+              id: 'm-ext',
+              projectId: 'p-1',
+              name: 'Auditoría Externa',
+              type: 'milestone',
+              startDate: '2026-10-28',
+              endDate: '2026-10-28',
+              duration: 0,
+              slack: 0,
+              dependencies: [],
+              progress: 0,
+              color: 'amber',
+              isExternal: true
+            }
+          ];
+          const projects = [
+            { id: 'p-1', name: 'Proyecto Prueba', color: 'indigo', releaseId: 'rel-t-26-12-1', collapsed: false }
+          ];
+          return (
+            <GanttWorkspace
+              items={items}
+              projects={projects}
+              releases={DEFAULT_PREDEFINED_RELEASES}
+              showTable={true}
+              onUpdateItem={() => {}}
+              onDeleteItem={() => {}}
+              onEditModal={() => {}}
+              onDuplicateItem={() => {}}
+              onQuickAdd={() => {}}
+              scrollContainerRef={{ current: null }}
+              initialCursorScrubber={{ x: 250, date: new Date('2026-10-20T12:00:00Z') }}
+            />
+          );
+        }
+
+        export function renderAppHeader() {
+          return <App />;
+        }
+
+        export function renderTaskFormMilestoneModal() {
+          return (
+            <TaskFormModal
+              isOpen={true}
+              onClose={() => {}}
+              onSave={() => {}}
+              defaultType="milestone"
+              allItems={[]}
+            />
+          );
+        }
+      `,
+      resolveDir: path.resolve(__dirname, '..'),
+      sourcefile: 'ssr-v120-features-test.tsx',
+      loader: 'tsx',
+    },
+    bundle: true,
+    format: 'cjs',
+    platform: 'node',
+    external: ['react', 'react-dom'],
+    write: false,
+  });
+
+  const tmpFile = path.resolve(__dirname, './.tmp-ssr-v120-test.cjs');
+  await fs.writeFile(tmpFile, bundle.outputFiles[0].text, 'utf8');
+
+  try {
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+
+    // 1. External Milestone Compliance Check: External milestones ignore release deadlines
+    const sampleRelease = mod.DEFAULT_PREDEFINED_RELEASES[0]; // T_26.12.1 (ends Dec 2026)
+    const dummyProject = { id: 'p-ext', name: 'Project Ext', color: 'indigo', releaseId: sampleRelease.id };
+
+    // An ordinary milestone far beyond release deadline violates release compliance
+    const regularMilestone = {
+      id: 'm-late',
+      projectId: dummyProject.id,
+      name: 'Late Milestone',
+      type: 'milestone',
+      startDate: '2028-01-01',
+      endDate: '2028-01-01',
+      duration: 0,
+      slack: 0,
+      dependencies: [],
+      progress: 0,
+      color: 'amber',
+      isExternal: false,
+    };
+    const regularViolations = mod.checkTaskReleaseCompliance(regularMilestone, dummyProject, sampleRelease);
+    assert.ok(regularViolations.length > 0, 'Regular milestone after release end should produce compliance violations');
+
+    // An external milestone must produce zero violations
+    const externalMilestone = {
+      ...regularMilestone,
+      id: 'm-ext-1',
+      name: 'External Audit Milestone',
+      isExternal: true,
+    };
+    const extViolations = mod.checkTaskReleaseCompliance(externalMilestone, dummyProject, sampleRelease);
+    assert.strictEqual(extViolations.length, 0, 'External milestone (isExternal=true) must NOT produce release compliance violations');
+
+    const wsHtml = renderToString(mod.renderWorkspaceWithLongTaskAndExternalMilestone());
+
+    // 1. Task name positioned snug to own box: mb-[2px]
+    assert.ok(wsHtml.includes('data-timeline-task-name="t-long"'), 'Must render timeline task name label');
+    assert.ok(wsHtml.includes('bottom-full mb-[2px]'), 'Task label must be positioned snug to task box with mb-[2px]');
+
+    // 2. Horizontal row separators toggle button
+    assert.ok(wsHtml.includes('data-testid="toggle-row-separators-btn"'), 'Table header must contain toggle-row-separators-btn');
+
+    // 3. Task name in table truncated to 37 characters + '…'
+    const expectedTruncated = 'Esta es una tarea con un nombre extre…';
+    assert.ok(wsHtml.includes(expectedTruncated), 'Task name in table must be truncated to 37 characters + ellipsis');
+    assert.ok(wsHtml.includes('data-task-name-input="t-long"'), 'Task input must exist for editing');
+
+    // 4. Scrubber vertical tracking line in light mode has high-contrast styling
+    assert.ok(wsHtml.includes('id="timeline-cursor-scrubber"'), 'Must render cursor scrubber');
+    assert.ok(wsHtml.includes('bg-[#0C0C09]'), 'Scrubber tracking line must use solid ink dark color in light mode for high contrast');
+
+    // 5. External milestone badges in table and timeline
+    assert.ok(wsHtml.includes('data-testid="milestone-external-badge-m-ext"'), 'External milestone must render EXT badge in WBS table');
+    assert.ok(wsHtml.includes('[EXT] Auditoría Externa'), 'External milestone must render [EXT] indicator in timeline diamond pill');
+
+    // 6. Release summary bar is clickable to collapse
+    assert.ok(wsHtml.includes('data-release-summary-bar="rel-t-26-12-1"'), 'Must render release summary bar');
+    assert.ok(wsHtml.includes('cursor-pointer'), 'Release summary bar must have cursor-pointer to indicate clickability');
+
+    // 7. App Header displays v1.2.0 badge
+    const appHtml = renderToString(mod.renderAppHeader());
+    assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'Header must contain app-version-badge');
+    assert.ok(appHtml.includes('v1.2.0'), 'Header badge must display v1.2.0');
+
+    // 8. TaskFormModal has external milestone checkbox
+    const modalHtml = renderToString(mod.renderTaskFormMilestoneModal());
+    assert.ok(modalHtml.includes('data-testid="milestone-is-external-checkbox"'), 'Milestone form modal must have external milestone checkbox');
+    assert.ok(modalHtml.includes('Hito externo (no pertenece a la release)'), 'Milestone form modal must describe external milestone');
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
 
 
 

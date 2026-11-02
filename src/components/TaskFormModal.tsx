@@ -146,6 +146,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
   const [assignee, setAssignee] = useState(initialItem?.assignee || '');
   const [notes, setNotes] = useState(initialItem?.notes || '');
   const [hidden, setHidden] = useState(Boolean(initialItem?.hidden));
+  const [isExternal, setIsExternal] = useState(Boolean(initialItem?.isExternal));
   const [autoCascade, setAutoCascade] = useState(true);
   const [dateInputMode, setDateInputMode] = useState<'duration' | 'endDate'>('duration');
 
@@ -180,6 +181,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
       );
       setNotes(initialItem.notes || '');
       setHidden(Boolean(initialItem.hidden));
+      setIsExternal(Boolean(initialItem.isExternal));
     } else {
       const targetPid = fallbackPid;
       const projectItems = targetPid
@@ -210,6 +212,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
       setAssignee('');
       setNotes('');
       setHidden(false);
+      setIsExternal(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, initialItem, defaultType, defaultProjectId, todayStr]);
@@ -441,6 +444,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
       assignee: assignee.trim() || undefined,
       notes: notes.trim() || undefined,
       hidden: Boolean(hidden),
+      isExternal: type === 'milestone' ? Boolean(isExternal) : false,
     };
     onSave(newItem, autoCascade);
     onClose();
@@ -1050,8 +1054,27 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
             />
           </div>
 
-          {/* Visibility and Auto-cascade toggles */}
+          {/* Visibility, External Milestone, and Auto-cascade toggles */}
           <div className="flex flex-col gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+            {type === 'milestone' && (
+              <label className="flex items-start gap-2 text-xs text-slate-600 dark:text-slate-400 cursor-pointer p-2 rounded-[4px] bg-amber-500/5 dark:bg-amber-500/10 border border-amber-500/20">
+                <input
+                  type="checkbox"
+                  data-testid="milestone-is-external-checkbox"
+                  checked={isExternal}
+                  onChange={(e) => setIsExternal(e.target.checked)}
+                  className="mt-0.5 rounded border-amber-400 text-amber-600 focus:ring-0 cursor-pointer"
+                />
+                <div className="flex flex-col">
+                  <span className="font-semibold text-[#0C0C09] dark:text-zinc-200">
+                    Hito externo (no pertenece a la release)
+                  </span>
+                  <span className="text-[11px] text-[#6B6B66] dark:text-zinc-400">
+                    Marca este hito si es un evento externo independiente no sujeto a los plazos o requisitos de la release asignada.
+                  </span>
+                </div>
+              </label>
+            )}
             <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 cursor-pointer">
               <input
                 type="checkbox"

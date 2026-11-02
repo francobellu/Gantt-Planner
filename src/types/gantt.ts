@@ -1,4 +1,4 @@
-export const APP_VERSION = '1.1.0';
+export const APP_VERSION = '1.2.0';
 
 export type TaskType = 'task' | 'milestone';
 
@@ -73,6 +73,7 @@ export interface GanttItem {
   assignee?: string;
   notes?: string;
   hidden?: boolean;
+  isExternal?: boolean; // When true, milestone/task is external (does not belong to or get constrained by the release)
 }
 
 export interface ComputedGanttItem extends GanttItem {
