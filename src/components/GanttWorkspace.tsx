@@ -856,15 +856,30 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     return maxLen;
   }, [items]);
 
+  const maxProjectNameLength = useMemo(() => {
+    let maxLen = 4;
+    if (projects) {
+      for (const p of projects) {
+        if (p.name && p.name.length > maxLen) {
+          maxLen = p.name.length;
+        }
+      }
+    }
+    return maxLen;
+  }, [projects]);
+
   const hasAnyCritical = useMemo(() => {
     return items.some((it) => it.isCritical);
   }, [items]);
 
-  // Allocate exact snug width for name column so that all task names fit without truncation and without empty gaps
+  // Allocate exact snug width for name column matching real proportional character widths (~6.8px/char)
   const nameColumnWidth = useMemo(() => {
-    const basePadding = hasAnyCritical ? 150 : 105;
-    return Math.max(140, Math.ceil(maxTaskNameLength * 8.5) + basePadding);
-  }, [maxTaskNameLength, hasAnyCritical]);
+    // 1. Task column needs: grip + arrows (32px), WBS (30px), dot (10px), indent (8px), gaps (12px) = 92px. Plus CRÍT (36px) if critical. Plus text (~6.8px/char) + 8px padding.
+    const taskColWidth = 92 + (hasAnyCritical ? 36 : 0) + Math.ceil(maxTaskNameLength * 6.8) + 8;
+    // 2. Project row needs: toggle button (20px), P-badge (24px), items badge (50px), gaps (12px) = 106px. Plus text (~6.8px/char) + 8px padding.
+    const projColWidth = 106 + Math.ceil(maxProjectNameLength * 6.8) + 8;
+    return Math.max(120, Math.max(taskColWidth, projColWidth));
+  }, [maxTaskNameLength, maxProjectNameLength, hasAnyCritical]);
 
   // Calculates exact minimum content width to guarantee columns NEVER overlap or clip
   const tableMinWidth = useMemo(() => {
@@ -2496,7 +2511,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           >
                             {/* Project Header Title + Collapse Toggle */}
                             <div
-                              style={{ minWidth: nameColumnWidth }}
+                              style={{ width: nameColumnWidth }}
                               className="flex items-center gap-2 pr-2 shrink-0 pl-1 min-w-0"
                             >
                               <button
@@ -2520,22 +2535,29 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 P{group.projectIndex}
                               </span>
 
-                              <input
-                                type="text"
-                                value={group.project.name}
-                                onChange={(e) =>
-                                  onUpdateProject?.({
-                                    ...group.project,
-                                    name: e.target.value,
-                                  })
-                                }
-                                style={{ width: `${Math.max(4, (group.project.name || '').length + 1)}ch` }}
-                                className={`shrink-0 bg-transparent font-bold text-[#0C0C09] dark:text-white focus:bg-white dark:focus:bg-zinc-800 focus:px-1.5 focus:py-0.5 rounded-[2px] outline-none focus:ring-1 focus:ring-indigo-500 transition-all ${
-                                  draggingRowId ? 'pointer-events-none' : ''
-                                }`}
-                                title="Haz clic para renombrar este proyecto"
-                                data-project-name-input={group.project.id}
-                              />
+                              <div className="inline-grid items-center shrink-0 max-w-full">
+                                <span
+                                  aria-hidden="true"
+                                  className="invisible col-start-1 row-start-1 font-bold text-xs px-1.5 py-0.5 whitespace-pre pointer-events-none select-none"
+                                >
+                                  {group.project.name || 'Proyecto'}
+                                </span>
+                                <input
+                                  type="text"
+                                  value={group.project.name}
+                                  onChange={(e) =>
+                                    onUpdateProject?.({
+                                      ...group.project,
+                                      name: e.target.value,
+                                    })
+                                  }
+                                  className={`col-start-1 row-start-1 w-full min-w-[24px] bg-transparent font-bold text-[#0C0C09] dark:text-white focus:bg-white dark:focus:bg-zinc-800 px-1.5 py-0.5 rounded-[2px] outline-none focus:ring-1 focus:ring-indigo-500 transition-all ${
+                                    draggingRowId ? 'pointer-events-none' : ''
+                                  }`}
+                                  title="Haz clic para renombrar este proyecto"
+                                  data-project-name-input={group.project.id}
+                                />
+                              </div>
 
                               <span
                                 className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono border shrink-0 ${projTheme.groupBadgeBg}`}
@@ -2740,22 +2762,29 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 }`}
                               />
                             )}
-                            <input
-                              type="text"
-                              value={item.name}
-                              onChange={(e) =>
-                                onUpdateItem({ ...item, name: e.target.value }, false)
-                              }
-                              style={{
-                                width: `${Math.max(4, (item.name || '').length + 1)}ch`,
-                                minWidth: `${Math.max(24, Math.ceil((item.name || '').length * 8.2))}px`,
-                              }}
-                              className={`shrink-0 max-w-full bg-transparent font-medium text-[#0C0C09] dark:text-zinc-100 focus:bg-white dark:focus:bg-zinc-800 focus:px-1.5 focus:py-0.5 rounded-[2px] outline-none focus:ring-1 focus:ring-[#0C0C09] ${
-                                draggingRowId ? 'pointer-events-none' : ''
-                              }`}
-                              title={`${item.name} (${group.project.name})`}
-                              data-task-name-input={item.id}
-                            />
+                            <div className="inline-grid items-center shrink-0 max-w-full">
+                              <span
+                                aria-hidden="true"
+                                className="invisible col-start-1 row-start-1 font-medium text-xs px-1.5 py-0.5 whitespace-pre pointer-events-none select-none"
+                              >
+                                {item.name || 'Tarea'}
+                              </span>
+                              <input
+                                type="text"
+                                value={item.name}
+                                onChange={(e) =>
+                                  onUpdateItem({ ...item, name: e.target.value }, false)
+                                }
+                                style={{
+                                  minWidth: `${Math.max(24, Math.ceil((item.name || '').length * 8.2))}px`,
+                                }}
+                                className={`col-start-1 row-start-1 w-full bg-transparent font-medium text-[#0C0C09] dark:text-zinc-100 focus:bg-white dark:focus:bg-zinc-800 px-1.5 py-0.5 rounded-[2px] outline-none focus:ring-1 focus:ring-[#0C0C09] ${
+                                  draggingRowId ? 'pointer-events-none' : ''
+                                }`}
+                                title={`${item.name} (${group.project.name})`}
+                                data-task-name-input={item.id}
+                              />
+                            </div>
                             {isCrit && (
                               <span
                                 title="En Ruta Crítica (Slack = 0)"
@@ -4398,97 +4427,97 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             onMouseDown={(e) => e.stopPropagation()}
             className="absolute top-3 right-3 z-40 w-80 max-w-[calc(100%-24px)] bg-white dark:bg-[#0C0C09] rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 shadow-xl p-3.5 text-xs flex flex-col gap-2.5 transition-all"
           >
-            {/* Panel Header: ID, Tipo, Crítica, Cerrar y Nombre */}
+            {/* Panel Header: ID, Tipo, Crítica, EQUIPO, Cerrar y Nombre */}
             {(() => {
               const selectedEffectiveColor = getItemEffectiveColor(selectedItem);
               return (
-                <>
-                  <div className="flex items-start justify-between gap-2 pb-2 border-b border-[#E2E2DC] dark:border-zinc-800">
-                    <div className="flex items-center gap-2 min-w-0">
-                      {selectedItem.type === 'milestone' ? (
-                        <Diamond
-                          className={`w-4 h-4 ${
-                            (COLOR_STYLES[selectedEffectiveColor] || COLOR_STYLES.amber).diamondText
-                          } fill-current shrink-0`}
-                        />
-                      ) : (
-                        <span
-                          className={`w-3 h-3 rounded-[2px] shrink-0 ${
-                            COLOR_STYLES[selectedEffectiveColor]?.badge || 'bg-indigo-500'
-                          }`}
-                        />
-                      )}
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-mono text-[11px] font-bold text-slate-500 dark:text-zinc-400">
-                            #{selectedItem.wbsCode || selectedItem.wbs}
-                          </span>
-                          <span
-                            className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-[2px] border ${
-                              selectedItem.type === 'milestone'
-                                ? (COLOR_STYLES[selectedEffectiveColor] || COLOR_STYLES.amber).diamondPill
-                                : 'bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 border-slate-200 dark:border-zinc-700'
-                            }`}
-                          >
-                            {selectedItem.type === 'milestone' ? 'Hito' : 'Tarea'}
-                          </span>
-                          {selectedItem.isCritical && (
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-[2px] bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center gap-0.5 border border-rose-500/20">
-                              <Flame className="w-3 h-3 fill-current" />
-                              Crítica
-                            </span>
-                          )}
-                        </div>
-                        <h4
-                          className="font-bold text-[#0C0C09] dark:text-zinc-100 truncate mt-1 text-sm leading-tight"
-                          title={selectedItem.name}
-                        >
-                          {selectedItem.name}
-                        </h4>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      data-close-inspection-panel="true"
-                      onClick={() => setSelectedItemId(null)}
-                      className="p-1 rounded-[2px] hover:bg-black/5 dark:hover:bg-white/10 text-slate-400 hover:text-[#0C0C09] dark:hover:text-white transition shrink-0 cursor-pointer"
-                      title="Cerrar panel de detalles"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  {/* Equipo y Proyecto */}
-                  <div className="flex items-center justify-between gap-2 text-[11px]">
-                    <div className="flex items-center gap-1.5 text-slate-600 dark:text-zinc-300 min-w-0">
-                      <FolderKanban className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span className="truncate" title={selectedGroup?.project.name}>
-                        {selectedGroup?.project.name || 'Sin Proyecto'}
-                      </span>
-                    </div>
-                    {selectedItem.assignee ? (
-                      <span
-                        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[2px] font-mono text-[10px] font-medium border shrink-0 ${
-                          (TEAM_BADGE_STYLES[selectedEffectiveColor] || TEAM_BADGE_STYLES.indigo).container
-                        }`}
-                        title={`Equipo: ${selectedItem.assignee}`}
-                      >
-                        <span
-                          className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                            (TEAM_BADGE_STYLES[selectedEffectiveColor] || TEAM_BADGE_STYLES.indigo).dot
-                          }`}
-                        />
-                        <span className="truncate">{selectedItem.assignee}</span>
-                      </span>
+                <div className="flex items-start justify-between gap-2 pb-2 border-b border-[#E2E2DC] dark:border-zinc-800">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {selectedItem.type === 'milestone' ? (
+                      <Diamond
+                        className={`w-4 h-4 ${
+                          (COLOR_STYLES[selectedEffectiveColor] || COLOR_STYLES.amber).diamondText
+                        } fill-current shrink-0`}
+                      />
                     ) : (
-                      <span className="text-slate-400 dark:text-zinc-500 italic text-[10px] shrink-0">
-                        Sin equipo
-                      </span>
+                      <span
+                        className={`w-3 h-3 rounded-[2px] shrink-0 ${
+                          COLOR_STYLES[selectedEffectiveColor]?.badge || 'bg-indigo-500'
+                        }`}
+                      />
                     )}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-mono text-[11px] font-bold text-slate-500 dark:text-zinc-400">
+                          #{selectedItem.wbsCode || selectedItem.wbs}
+                        </span>
+                        <span
+                          className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-[2px] border ${
+                            selectedItem.type === 'milestone'
+                              ? (COLOR_STYLES[selectedEffectiveColor] || COLOR_STYLES.amber).diamondPill
+                              : 'bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 border-slate-200 dark:border-zinc-700'
+                          }`}
+                        >
+                          {selectedItem.type === 'milestone' ? 'Hito' : 'Tarea'}
+                        </span>
+                        {selectedItem.isCritical && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-[2px] bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center gap-0.5 border border-rose-500/20">
+                            <Flame className="w-3 h-3 fill-current" />
+                            Crítica
+                          </span>
+                        )}
+                        {selectedItem.assignee && (
+                          <span
+                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] font-mono text-[10px] font-medium border shrink-0 ${
+                              (TEAM_BADGE_STYLES[selectedEffectiveColor] || TEAM_BADGE_STYLES.indigo).container
+                            }`}
+                            title={`Equipo: ${selectedItem.assignee}`}
+                          >
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                (TEAM_BADGE_STYLES[selectedEffectiveColor] || TEAM_BADGE_STYLES.indigo).dot
+                              }`}
+                            />
+                            <span className="truncate">{selectedItem.assignee}</span>
+                          </span>
+                        )}
+                      </div>
+                      <h4
+                        className="font-bold text-[#0C0C09] dark:text-zinc-100 mt-1 text-sm leading-tight break-words"
+                        title={selectedItem.name}
+                      >
+                        {selectedItem.name}
+                      </h4>
+                    </div>
                   </div>
-                </>
+                  <button
+                    type="button"
+                    data-close-inspection-panel="true"
+                    onClick={() => setSelectedItemId(null)}
+                    className="p-1 rounded-[2px] hover:bg-black/5 dark:hover:bg-white/10 text-slate-400 hover:text-[#0C0C09] dark:hover:text-white transition shrink-0 cursor-pointer"
+                    title="Cerrar panel de detalles"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               );
             })()}
+
+            {/* Descripción / Notas (Inmediatamente después del nombre) */}
+            <div className="flex flex-col gap-1 p-2.5 rounded-[4px] bg-[#F4F4F1]/60 dark:bg-zinc-900/60 border border-[#E2E2DC] dark:border-zinc-800 text-[11px]">
+              <span className="text-[10px] font-mono uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400 font-bold">
+                Descripción / Notas
+              </span>
+              <p
+                className={`text-xs ${
+                  selectedItem.notes?.trim()
+                    ? 'text-[#0C0C09] dark:text-zinc-200 whitespace-pre-wrap'
+                    : 'text-[#6B6B66]/80 dark:text-zinc-500 italic'
+                }`}
+              >
+                {selectedItem.notes?.trim() || 'Sin descripción ni notas registradas.'}
+              </p>
+            </div>
 
             {/* Fechas, Duración y Progreso */}
             <div className="grid grid-cols-2 gap-2 p-2.5 rounded-[4px] bg-[#F4F4F1] dark:bg-zinc-900 border border-[#E2E2DC] dark:border-zinc-800 font-mono text-[11px]">
@@ -4527,84 +4556,6 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                 </span>
               </div>
             </div>
-
-            {/* Descripción / Notas */}
-            <div className="flex flex-col gap-1 p-2.5 rounded-[4px] bg-[#F4F4F1]/60 dark:bg-zinc-900/60 border border-[#E2E2DC] dark:border-zinc-800 text-[11px]">
-              <span className="text-[10px] font-mono uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400 font-bold">
-                Descripción / Notas
-              </span>
-              <p
-                className={`text-xs ${
-                  selectedItem.notes?.trim()
-                    ? 'text-[#0C0C09] dark:text-zinc-200 whitespace-pre-wrap'
-                    : 'text-[#6B6B66]/80 dark:text-zinc-500 italic'
-                }`}
-              >
-                {selectedItem.notes?.trim() || 'Sin descripción ni notas registradas.'}
-              </p>
-            </div>
-
-            {/* Predecesoras & Sucesoras (resumen compacto si existen) */}
-            {(selectedPredecessors.length > 0 || selectedSuccessors.length > 0) && (
-              <div className="flex flex-col gap-1.5 text-[11px] pt-1 border-t border-[#E2E2DC] dark:border-zinc-800">
-                {selectedPredecessors.length > 0 && (
-                  <div className="flex items-center gap-1 text-slate-600 dark:text-zinc-300 flex-wrap">
-                    <span className="text-slate-400 font-medium">Predecesoras:</span>
-                    {selectedPredecessors.map((p) => (
-                      <span
-                        key={p.id}
-                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] bg-slate-100 dark:bg-zinc-800 text-[10px] font-mono border border-slate-200/80 dark:border-zinc-700"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => setSelectedItemId(p.id)}
-                          className="hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer truncate max-w-[160px]"
-                        >
-                          #{p.wbsCode || p.wbs} {p.name}
-                        </button>
-                        <button
-                          type="button"
-                          data-inspect-remove-pred={p.id}
-                          onClick={() => commitRemoveDependency(p.id, selectedItem.id)}
-                          title={`Quitar dependencia con #${p.wbsCode || p.wbs}`}
-                          className="text-slate-400 hover:text-rose-500 transition cursor-pointer"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-                {selectedSuccessors.length > 0 && (
-                  <div className="flex items-center gap-1 text-slate-600 dark:text-zinc-300 flex-wrap">
-                    <span className="text-slate-400 font-medium">Sucesoras:</span>
-                    {selectedSuccessors.map((s) => (
-                      <span
-                        key={s.id}
-                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] bg-slate-100 dark:bg-zinc-800 text-[10px] font-mono border border-slate-200/80 dark:border-zinc-700"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => setSelectedItemId(s.id)}
-                          className="hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer truncate max-w-[160px]"
-                        >
-                          #{s.wbsCode || s.wbs} {s.name}
-                        </button>
-                        <button
-                          type="button"
-                          data-inspect-remove-succ={s.id}
-                          onClick={() => commitRemoveDependency(selectedItem.id, s.id)}
-                          title={`Quitar dependencia hacia #${s.wbsCode || s.wbs}`}
-                          className="text-slate-400 hover:text-rose-500 transition cursor-pointer"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
 
             {/* Actions: Edit button */}
             <div className="flex items-center justify-end gap-2 pt-1 border-t border-[#E2E2DC] dark:border-zinc-800">

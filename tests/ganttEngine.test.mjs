@@ -726,11 +726,9 @@ test('App and GanttWorkspace render complete WBS table, project groups, summary 
     assert.ok(inspectedHtml.includes('data-selected-item-id="t-2"'));
     assert.ok(inspectedHtml.includes('1.2'));
     assert.ok(inspectedHtml.includes('Diseño de Sistema UI/UX &amp; Prototipo Figma'));
-    assert.ok(inspectedHtml.includes('Discovery &amp; Diseño de Producto'));
-    assert.ok(inspectedHtml.includes('Predecesoras:'));
-    assert.ok(inspectedHtml.includes('Investigación de Usuarios &amp; Alcance Técnico'));
-    assert.ok(inspectedHtml.includes('Sucesoras:'));
-    assert.ok(inspectedHtml.includes('Hito: Congelación de Diseño &amp; Esquema API'));
+    assert.ok(inspectedHtml.includes('Descripción / Notas') || inspectedHtml.includes('Descripci&oacute;n / Notas'));
+    assert.equal(inspectedHtml.includes('Predecesoras:'), false, 'Simplified panel excludes predecessors');
+    assert.equal(inspectedHtml.includes('Sucesoras:'), false, 'Simplified panel excludes successors');
     assert.ok(inspectedHtml.includes('data-close-inspection-panel="true"'));
     assert.ok(inspectedHtml.includes('Editar Ítem'));
     // Floating dark hover tooltip has been eliminated
@@ -3242,9 +3240,10 @@ test('Default team colors, table team badges, and non-cutting project name sizin
     assert.ok(html.includes('text-violet-800'), 'Team badge for FrontEnd must have violet text');
     assert.ok(html.includes('bg-[#7C3AED]'), 'Team badge for FrontEnd must have violet indicator dot');
 
-    // Verify project name input occupies exact space needed with dynamic ch width
+    // Verify project name input occupies exact space needed with auto-measuring grid without margin growth
     assert.ok(html.includes('data-project-name-input="p-1"'), 'Must render data-project-name-input="p-1"');
-    assert.ok(html.includes('width:20ch') || html.includes('width: 20ch'), 'Project name input must size to text length with ch unit');
+    assert.ok(html.includes('Escenario Importado'), 'Must render project name Escenario Importado');
+    assert.ok(html.includes('col-start-1 row-start-1'), 'Project name input must use auto-measuring grid to eliminate margin growth');
     assert.ok(html.includes('ítems') || html.includes('&iacute;tems'), 'Project row must display items badge directly beside name');
 
     // Verify timeline task bars render with their distinct team colors
@@ -3336,9 +3335,10 @@ test('Elimination of gap between task name & team badge, and simplified task det
     // Rows use justify-start so columns are snug without 600px artificial gaps
     assert.ok(htmlTable.includes('justify-start'), 'Table rows must use justify-start to eliminate artificial gaps');
     assert.ok(htmlTable.includes('data-task-name-input="t-1"'), 'Must render data-task-name-input="t-1"');
-    assert.ok(htmlTable.includes('width:6ch') || htmlTable.includes('width: 6ch'), 'Task1 input must size snugly to 6ch');
+    assert.ok(htmlTable.includes('task1'), 'Must render task name task1');
+    assert.ok(htmlTable.includes('col-start-1 row-start-1'), 'Task name input must use auto-measuring grid to eliminate margin growth');
 
-    // 2. Verify simplified inspection panel: renders clean ID, nombre, equipo, notas, inicio, fin, duración, progreso
+    // 2. Verify simplified inspection panel: renders clean ID, nombre, equipo, notas immediately after name, inicio, fin, duración, progreso
     const htmlDetails = renderToString(mod.renderSnugAndDetailsWorkspace('t-1'));
     assert.ok(htmlDetails.includes('id="gantt-inspection-panel"'), 'Must render inspection panel');
     assert.ok(htmlDetails.includes('data-selected-item-id="t-1"'), 'Must inspect task t-1');
@@ -3353,6 +3353,14 @@ test('Elimination of gap between task name & team badge, and simplified task det
     assert.ok(htmlDetails.includes('Progreso'), 'Must display Progreso header');
     assert.ok(htmlDetails.includes('25%'), 'Must display progress percentage');
     assert.ok(htmlDetails.includes('Editar Ítem') || htmlDetails.includes('Editar &Iacute;tem'), 'Must display Editar Ítem button');
+
+    // Project name and successors must NOT be rendered in the task details panel
+    const panelMatch = htmlDetails.match(/<aside[^>]*id="gantt-inspection-panel"[^>]*>([\s\S]*?)<\/aside>/);
+    assert.ok(panelMatch, 'Must render inspection panel');
+    const panelHtml = panelMatch[1];
+    assert.equal(panelHtml.includes('Escenario Importado'), false, 'Inspection panel must not include project name');
+    assert.equal(panelHtml.includes('Sucesoras:'), false, 'Inspection panel must not include successors');
+    assert.equal(panelHtml.includes('Predecesoras:'), false, 'Inspection panel must not include predecessors');
 
     // Cluttered add-predecessor dropdown & connect button must NOT be in the simplified inspection panel
     assert.equal(htmlDetails.includes('data-inspect-add-pred-select'), false, 'Cluttered add-pred select must be removed from inspection panel');
