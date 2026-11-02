@@ -2142,14 +2142,9 @@ test('Task position reordering and non-clipping name column width in project tab
     assert.ok(html.includes('data-task-name-input="t-1"'), 'Must have data-task-name-input="t-1"');
     assert.ok(html.includes('data-task-name-input="t-2"'), 'Must have data-task-name-input="t-2"');
 
-    // Long task name (89 chars) should produce min-width >= 700px on the input so text is NEVER cut off
-    const inputStyleMatch = html.match(/data-task-name-input="t-2"[^>]*style="([^"]*)"/) ||
-                            html.match(/style="([^"]*)"[^>]*data-task-name-input="t-2"/);
-    assert.ok(inputStyleMatch, 'Task name input must have inline style');
-    assert.ok(inputStyleMatch[1].includes('min-width'), 'Task name input must specify min-width style');
-
-    const minWidthVal = parseFloat(inputStyleMatch[1].match(/min-width:\s*([0-9.]+)px/)?.[1] || '0');
-    assert.ok(minWidthVal >= 700, `Task name input min-width (${minWidthVal}px) must be >= 700px to prevent clipping long names`);
+    // Long task name (89 chars) uses auto-measuring grid and name column allocates sufficient width so text is NEVER cut off
+    assert.ok(html.includes('col-start-1 row-start-1'), 'Task name input must use auto-measuring grid to prevent margin growth and clipping');
+    assert.ok(html.includes('Desarrollo e Implementación de la Infraestructura'), 'Must render full task name in auto-measuring grid span and input');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }

@@ -1132,19 +1132,21 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     return items.some((it) => it.isCritical);
   }, [items]);
 
-  // Allocate exact snug width for name column matching real proportional character widths (~6.8px/char)
+  // Allocate exact snug width for name + team column matching real character widths (~6.2px/char)
   const nameColumnWidth = useMemo(() => {
-    // 1. Task column needs: grip + arrows (32px), WBS (30px), dot (10px), indent (8px), gaps (12px) = 92px. Plus CRÍT (36px) if critical. Plus text (~6.8px/char) + 8px padding.
-    const taskColWidth = 92 + (hasAnyCritical ? 36 : 0) + Math.ceil(maxTaskNameLength * 6.8) + 8;
-    // 2. Project row needs: toggle button (20px), P-badge (24px), items badge (50px), gaps (12px) = 106px. Plus text (~6.8px/char) + 8px padding.
-    const projColWidth = 106 + Math.ceil(maxProjectNameLength * 6.8) + 8;
+    // 1. Task column needs: grip + arrows (32px), WBS (30px), dot (10px), indent (8px), gaps (12px) = 92px.
+    // Plus text (~6.2px/char) + CRÍT badge (36px if critical) + team badge (~75px if visible) + 8px padding.
+    const maxTeamLength = items.reduce((acc, it) => Math.max(acc, (it.assignee || '').length), 0);
+    const teamBadgeWidth = visibleColumns.team && maxTeamLength > 0 ? Math.ceil(maxTeamLength * 6.2) + 24 : 0;
+    const taskColWidth = 92 + (hasAnyCritical ? 36 : 0) + Math.ceil(maxTaskNameLength * 6.2) + teamBadgeWidth + 8;
+    // 2. Project row needs: toggle button (20px), P-badge (24px), items badge (50px), gaps (12px) = 106px. Plus text (~6.2px/char) + 8px padding.
+    const projColWidth = 106 + Math.ceil(maxProjectNameLength * 6.2) + 8;
     return Math.max(120, Math.max(taskColWidth, projColWidth));
-  }, [maxTaskNameLength, maxProjectNameLength, hasAnyCritical]);
+  }, [maxTaskNameLength, maxProjectNameLength, hasAnyCritical, visibleColumns.team, items]);
 
   // Calculates exact minimum content width to guarantee columns NEVER overlap or clip
   const tableMinWidth = useMemo(() => {
     let w = nameColumnWidth + 24; // Name column + table px-3 padding
-    if (visibleColumns.team) w += 112; // w-28 = 112px
     if (visibleColumns.dates) w += 176; // w-44 = 176px
     if (visibleColumns.dur) w += 64; // w-16 = 64px
     if (visibleColumns.slack) w += 56; // w-14 = 56px
@@ -2850,16 +2852,13 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       className="flex items-center gap-2 shrink-0"
                     >
                       <span className="w-16 font-mono text-center shrink-0"># / Orden</span>
-                      <span className="font-semibold">Nombre</span>
+                      <span className="font-semibold">
+                        Nombre{visibleColumns.team ? ' / Equipo' : ''}
+                      </span>
                     </div>
 
                     {/* Column Titles & Icon-Only Configurator */}
                     <div className="flex items-center shrink-0">
-                      {visibleColumns.team && (
-                        <span className="w-28 text-left pl-2 text-[10px] font-mono text-[#6B6B66] dark:text-zinc-400 uppercase font-bold">
-                          Equipo
-                        </span>
-                      )}
                       {visibleColumns.dates && (
                         <span className="w-44 text-center text-[10px] font-mono text-[#6B6B66] dark:text-zinc-400 uppercase font-bold">
                           Fechas
@@ -3328,9 +3327,6 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
                             {/* Aligned Columns matching header */}
                             <div className="flex items-center shrink-0">
-                              {visibleColumns.team && (
-                                <div className="w-28 shrink-0 text-slate-400 text-center text-[10px]">—</div>
-                              )}
 
                               {visibleColumns.dates && (
                                 <div className="w-44 shrink-0 text-center font-mono text-[10px] text-slate-600 dark:text-zinc-400">
@@ -3571,10 +3567,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                     onUpdateItem({ ...item, name: trimmed }, false);
                                   }
                                 }}
-                                style={{
-                                  minWidth: `${Math.max(24, Math.ceil((item.name || '').length * 8.2))}px`,
-                                }}
-                                className={`col-start-1 row-start-1 w-full bg-transparent font-medium text-[#0C0C09] dark:text-zinc-100 focus:bg-white dark:focus:bg-zinc-800 px-1.5 py-0.5 rounded-[2px] outline-none focus:ring-1 focus:ring-[#0C0C09] ${
+                                className={`col-start-1 row-start-1 w-full min-w-[24px] bg-transparent text-xs font-medium text-[#0C0C09] dark:text-zinc-100 focus:bg-white dark:focus:bg-zinc-800 px-1.5 py-0.5 rounded-[2px] outline-none focus:ring-1 focus:ring-[#0C0C09] ${
                                   draggingRowId ? 'pointer-events-none' : ''
                                 }`}
                                 title={`${item.name} (${group.project.name})`}
@@ -3618,41 +3611,39 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 <span>+{releaseViolations[0].daysLate}d {releaseViolations[0].milestoneCode}</span>
                               </span>
                             )}
+
+                            {/* Equipo Badge: INLINE inmediatamente después del nombre con espacio mínimo */}
+                            {visibleColumns.team && (
+                              item.assignee ? (
+                                <span
+                                  data-assignee-badge={item.assignee}
+                                  className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[2px] text-[10px] font-mono font-medium truncate max-w-[120px] shrink-0 border ${
+                                    (TEAM_BADGE_STYLES[itemEffectiveColor] || TEAM_BADGE_STYLES.indigo).container
+                                  }`}
+                                  title={`Equipo / Responsable: ${item.assignee}`}
+                                >
+                                  <span
+                                    className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                      (TEAM_BADGE_STYLES[itemEffectiveColor] || TEAM_BADGE_STYLES.indigo).dot
+                                    }`}
+                                  />
+                                  <span className="truncate">{item.assignee}</span>
+                                </span>
+                              ) : (
+                                <span
+                                  data-assignee-badge="Sin asignar"
+                                  className="px-1.5 py-0.5 rounded-[2px] bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09]/60 dark:text-zinc-400 text-[10px] font-mono shrink-0 border border-[#E2E2DC] dark:border-zinc-700"
+                                  title="Sin asignar"
+                                >
+                                  —
+                                </span>
+                              )
+                            )}
                           </div>
 
                           {/* Aligned Columns */}
                           <div className={`flex items-center shrink-0 ${draggingRowId ? 'pointer-events-none' : ''}`}>
-                            {/* 1. Equipo Column */}
-                            {visibleColumns.team && (
-                              <div className="w-28 shrink-0 flex items-center justify-start pl-2">
-                                {item.assignee ? (
-                                  <span
-                                    data-assignee-badge={item.assignee}
-                                    className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[2px] text-[10px] font-mono font-medium truncate max-w-[102px] border ${
-                                      (TEAM_BADGE_STYLES[itemEffectiveColor] || TEAM_BADGE_STYLES.indigo).container
-                                    }`}
-                                    title={`Equipo / Responsable: ${item.assignee}`}
-                                  >
-                                    <span
-                                      className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                                        (TEAM_BADGE_STYLES[itemEffectiveColor] || TEAM_BADGE_STYLES.indigo).dot
-                                      }`}
-                                    />
-                                    <span className="truncate">{item.assignee}</span>
-                                  </span>
-                                ) : (
-                                  <span
-                                    data-assignee-badge="Sin asignar"
-                                    className="px-1.5 py-0.5 rounded-[2px] bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09]/60 dark:text-zinc-400 text-[10px] font-mono truncate max-w-[102px] border border-[#E2E2DC] dark:border-zinc-700"
-                                    title="Sin asignar"
-                                  >
-                                    —
-                                  </span>
-                                )}
-                              </div>
-                            )}
-
-                            {/* 2. Fechas Column: EDITABLES DIRECTAMENTE */}
+                            {/* Fechas Column: EDITABLES DIRECTAMENTE */}
                             {visibleColumns.dates && (
                               <div className="w-44 shrink-0 flex items-center justify-center gap-1 font-mono text-[10px]">
                                 <input
