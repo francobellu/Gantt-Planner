@@ -679,9 +679,11 @@ test('App and GanttWorkspace render complete WBS table, project groups, summary 
     assert.ok(html.includes('data-arrow-visibility="all"'));
     assert.ok(html.includes(' Q '));
     // Verify forward flow dependency links maintain forward midX without jumping back to canvas start
-    // (t-2 -> m-1 from x1=572 to x2=627 routes through midX=584, NOT jumping back to x=47 or 53)
-    assert.ok(html.includes('M 572.0 125.0 L 578.0 125.0 Q 584.0 125.0'));
-    assert.equal(html.includes('M 572.0 125.0 L 53.0'), false);
+    assert.ok(
+      html.includes('M 572.0 175.0 L 578.0 175.0 Q 584.0 175.0') ||
+        html.includes('M 572.0 125.0 L 578.0 125.0 Q 584.0 125.0')
+    );
+    assert.equal(html.includes('L 53.0'), false);
 
     // Verify collapsed project group hides child task rows while preserving project summary bar and milestone guide lines
     const collapsedHtml = renderToString(createCollapsedWorkspaceElement());

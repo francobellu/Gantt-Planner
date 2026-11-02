@@ -488,7 +488,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   releases = [],
   activeReleaseId,
   releaseGuideVisibility = 'selected',
-  groupingMode = 'project',
+  groupingMode = 'release',
   onToggleGroupingMode,
   onOpenReleasesModal,
   initialVisibleMilestoneKeys,
@@ -1413,9 +1413,17 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   const displayRows = useMemo<DisplayRow[]>(() => {
     const rows: DisplayRow[] = [];
     if (groupingMode === 'release' && releases.length > 0) {
+      const visibleProjects = visibleProjectGroups.map((g) => g.project);
+      if (visibleProjects.length === 0) {
+        return [];
+      }
+      const allowedProjIds = new Set(visibleProjects.map((p) => p.id));
+      const visibleItems = effectiveItems.filter(
+        (it) => it.projectId && allowedProjIds.has(it.projectId)
+      );
       const releaseGroups = groupItemsByReleaseAndProject(
-        effectiveItems,
-        projects,
+        visibleItems,
+        visibleProjects,
         releases
       );
       for (const rg of releaseGroups) {
@@ -3265,15 +3273,26 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 <FileText className="w-3.5 h-3.5" />
                               </button>
 
-                              {group.project.releaseId && (
+                              {group.project.releaseId ? (
                                 <button
                                   type="button"
                                   onClick={() => setInspectingProject(group.project)}
                                   data-testid={`project-release-badge-${group.project.id}`}
-                                  className="px-1.5 py-0.5 rounded-[2px] bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09] text-[10px] font-mono font-bold shrink-0 hover:opacity-85 transition cursor-pointer"
+                                  className="px-1.5 py-0.5 rounded-[2px] bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09] text-[10px] font-mono font-bold shrink-0 hover:opacity-85 transition cursor-pointer flex items-center gap-1"
                                   title={`Release asignada: ${releases?.find((r) => r.id === group.project.releaseId)?.name || group.project.releaseId} (Clic para cambiar)`}
                                 >
-                                  {releases?.find((r) => r.id === group.project.releaseId)?.code || group.project.releaseId}
+                                  <span>🚀</span>
+                                  <span>{releases?.find((r) => r.id === group.project.releaseId)?.code || group.project.releaseId}</span>
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setInspectingProject(group.project)}
+                                  data-testid={`project-assign-release-btn-${group.project.id}`}
+                                  className="px-1.5 py-0.5 rounded-[2px] border border-dashed border-indigo-400 text-indigo-600 dark:text-indigo-400 bg-indigo-50/50 dark:bg-indigo-950/30 text-[10px] font-mono shrink-0 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition cursor-pointer flex items-center gap-1"
+                                  title="Asignar este proyecto a una Release predefinida"
+                                >
+                                  <span>🚀 + Asignar Release</span>
                                 </button>
                               )}
 

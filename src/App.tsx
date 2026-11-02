@@ -177,6 +177,7 @@ const CLEAN_DEFAULT_PROJECT: GanttProject = {
   color: 'indigo',
   collapsed: false,
   isDemo: false,
+  releaseId: DEFAULT_PREDEFINED_RELEASES[0].id,
 };
 
 function loadInitialWorkspaceState(
@@ -190,7 +191,10 @@ function loadInitialWorkspaceState(
     return {
       activeScenarioId: target.id,
       projectName: target.name,
-      projects: target.projects.filter((p) => !isXcode27Project(p)),
+      projects: target.projects.filter((p) => !isXcode27Project(p)).map((p) => ({
+        ...p,
+        releaseId: p.releaseId || DEFAULT_PREDEFINED_RELEASES[0].id,
+      })),
       items: target.items.filter((it) => !isXcode27Task(it)),
       savedScenarios: defaultScenarios,
     };
@@ -207,7 +211,16 @@ function loadInitialWorkspaceState(
 
         const cleanProjects = rawProjects
           .filter((p) => !isDemoOrTemplateProject(p) && !isXcode27Project(p))
-          .map((p, i) => sanitizeProject({ ...p, isDemo: false }, i));
+          .map((p, i) =>
+            sanitizeProject(
+              {
+                ...p,
+                releaseId: p.releaseId || DEFAULT_PREDEFINED_RELEASES[0].id,
+                isDemo: false,
+              },
+              i
+            )
+          );
 
         const cleanItems = rawItems
           .filter((it) => !isXcode27Task(it) && cleanProjects.some((p) => p.id === it.projectId))
@@ -237,7 +250,16 @@ function loadInitialWorkspaceState(
             const rawItems: Partial<GanttItem>[] = Array.isArray(s.items) ? s.items : [];
             const cleanProjects = rawProjects
               .filter((p) => !isDemoOrTemplateProject(p) && !isXcode27Project(p))
-              .map((p, i) => sanitizeProject({ ...p, isDemo: false }, i));
+              .map((p, i) =>
+                sanitizeProject(
+                  {
+                    ...p,
+                    releaseId: p.releaseId || DEFAULT_PREDEFINED_RELEASES[0].id,
+                    isDemo: false,
+                  },
+                  i
+                )
+              );
             const cleanItems = rawItems
               .filter((it) => !isXcode27Task(it) && cleanProjects.some((p) => p.id === it.projectId))
               .map((it, i) => sanitizeGanttItem(it, i));
@@ -279,7 +301,7 @@ export function App({
   initialProjectMenuOpen = false,
   initialSettingsOpen = false,
   initialReleasesModalOpen = false,
-  initialGroupingMode = 'project',
+  initialGroupingMode = 'release',
   initialReleaseGuideVisibility = 'selected',
 }: {
   initialScenarioId?: string;
@@ -636,15 +658,7 @@ export function App({
   });
 
   const [groupingMode, setGroupingMode] = useState<GroupingMode>(() => {
-    if (initialGroupingMode) return initialGroupingMode;
-    try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const saved = window.localStorage.getItem(GROUPING_MODE_KEY);
-        if (saved === 'release' || saved === 'project') {
-          return saved as GroupingMode;
-        }
-      }
-    } catch {}
+    if (initialGroupingMode && initialGroupingMode !== 'project') return initialGroupingMode;
     return 'release';
   });
 
@@ -664,9 +678,9 @@ export function App({
 
   useEffect(() => {
     try {
-      localStorage.setItem(GROUPING_MODE_KEY, groupingMode);
+      localStorage.setItem(GROUPING_MODE_KEY, 'release');
     } catch {}
-  }, [groupingMode]);
+  }, []);
 
   const [scenarioSavedToast, setScenarioSavedToast] = useState<string | null>(null);
 
@@ -815,8 +829,12 @@ export function App({
 
   // Synchronized list of projects (including any auto-recovered orphan project groups)
   const effectiveProjects = useMemo(
-    () => projectGroups.map((g) => g.project),
-    [projectGroups]
+    () =>
+      projectGroups.map((g) => ({
+        ...g.project,
+        releaseId: g.project.releaseId || releases[0]?.id || 'rel-t-26-12-1',
+      })),
+    [projectGroups, releases]
   );
 
   // Keep active workspace automatically synced in localStorage
@@ -1168,6 +1186,7 @@ export function App({
           id: `proj-${Date.now()}`,
           name: newProj?.name || `Proyecto ${projects.length + 1}`,
           color: newProj?.color || 'indigo',
+          releaseId: newProj?.releaseId || releases[0]?.id || 'rel-t-26-12-1',
           ...newProj,
           isDemo: false,
         },

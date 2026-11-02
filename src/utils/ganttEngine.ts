@@ -1202,6 +1202,7 @@ export function getProjectTemplates(): ProjectTemplate[] {
           description: 'Investigación UX, diseño de interfaz y congelación de alcance.',
           collapsed: false,
           isDemo: true,
+          releaseId: 'rel-t-26-12-1',
         },
         {
           id: 'proj-core',
@@ -1210,6 +1211,7 @@ export function getProjectTemplates(): ProjectTemplate[] {
           description: 'Arquitectura backend, motor Gantt interactivo e integración Stripe.',
           collapsed: false,
           isDemo: true,
+          releaseId: 'rel-t-26-12-1',
         },
         {
           id: 'proj-release',
@@ -1218,6 +1220,7 @@ export function getProjectTemplates(): ProjectTemplate[] {
           description: 'Pruebas automatizadas, pipeline GitHub Actions + Vercel y salida a producción.',
           collapsed: false,
           isDemo: true,
+          releaseId: 'rel-t-27-01-1',
         },
       ],
       items: [
@@ -1372,6 +1375,7 @@ export function getProjectTemplates(): ProjectTemplate[] {
           description: 'Preparación de clústeres, Terraform y replicación de datos.',
           collapsed: false,
           isDemo: true,
+          releaseId: 'rel-t-27-02-1',
         },
         {
           id: 'proj-cloud-cutover',
@@ -1380,6 +1384,7 @@ export function getProjectTemplates(): ProjectTemplate[] {
           description: 'Cambio de tráfico en vivo y cierre de servidores antiguos.',
           collapsed: false,
           isDemo: true,
+          releaseId: 'rel-t-27-02-1',
         },
       ],
       items: [
