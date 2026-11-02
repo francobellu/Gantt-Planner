@@ -17,6 +17,7 @@ import {
   Flame,
   FolderKanban,
   GitBranch,
+  HelpCircle,
   History,
   Layers,
   Maximize2,
@@ -87,6 +88,7 @@ import {
 import { GanttWorkspace } from './components/GanttWorkspace';
 import { TaskFormModal } from './components/TaskFormModal';
 import { PlanHistoryPage } from './components/PlanHistoryPage';
+import { HelpPage } from './components/HelpPage';
 import { ReleasesModal } from './components/ReleasesModal';
 import {
   DEFAULT_PREDEFINED_RELEASES,
@@ -298,7 +300,7 @@ export function App({
     [templates, defaultScenarios, initialScenarioId]
   );
 
-  const [currentView, setCurrentView] = useState<'gantt' | 'history' | 'projects'>(
+  const [currentView, setCurrentView] = useState<'gantt' | 'history' | 'projects' | 'help'>(
     initialView || 'gantt'
   );
   const [projectName, setProjectName] = useState<string>(
@@ -663,12 +665,12 @@ export function App({
   // Minimalist UI toggles and menus
   const [showMetricsDrawer, setShowMetricsDrawer] = useState<boolean>(false);
   const [projectMenuOpen, setProjectMenuOpen] = useState<boolean>(initialProjectMenuOpen);
-  const [createMenuOpen, setCreateMenuOpen] = useState<boolean>(false);
-  const [exportMenuOpen, setExportMenuOpen] = useState<boolean>(false);
+  const [createProjectModalOpen, setCreateProjectModalOpen] = useState<boolean>(false);
+  const [newProjectFormName, setNewProjectFormName] = useState<string>('');
+  const [newProjectFormReleaseId, setNewProjectFormReleaseId] = useState<string>('');
+  const [newProjectFormColor, setNewProjectFormColor] = useState<string>('indigo');
 
   const projectMenuRef = useRef<HTMLDivElement>(null);
-  const createMenuRef = useRef<HTMLDivElement>(null);
-  const exportMenuRef = useRef<HTMLDivElement>(null);
   const metricsDrawerRef = useRef<HTMLDivElement>(null);
   const metricsToggleBtnRef = useRef<HTMLButtonElement>(null);
 
@@ -677,12 +679,6 @@ export function App({
       const target = e.target as Node;
       if (projectMenuRef.current && !projectMenuRef.current.contains(target)) {
         setProjectMenuOpen(false);
-      }
-      if (createMenuRef.current && !createMenuRef.current.contains(target)) {
-        setCreateMenuOpen(false);
-      }
-      if (exportMenuRef.current && !exportMenuRef.current.contains(target)) {
-        setExportMenuOpen(false);
       }
       if (
         showMetricsDrawer &&
@@ -697,8 +693,7 @@ export function App({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setProjectMenuOpen(false);
-        setCreateMenuOpen(false);
-        setExportMenuOpen(false);
+        setCreateProjectModalOpen(false);
         setShowMetricsDrawer(false);
         return;
       }
@@ -736,7 +731,7 @@ export function App({
       document.removeEventListener('mousedown', handleGlobalClick);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [showMetricsDrawer, exportMenuOpen, handleUndo, handleRedo]);
+  }, [showMetricsDrawer, handleUndo, handleRedo]);
 
   // Modal state
   const [modalOpen, setModalOpen] = useState<boolean>(false);
@@ -1207,8 +1202,18 @@ export function App({
     setProjects(() => effectiveProjects.map((p) => ({ ...p, collapsed })));
   };
 
-  const handleDeleteProject = (projectId: string) => {
+  const handleDeleteProject = (projectId: string, skipConfirm = false) => {
     const proj = effectiveProjects.find((p) => p.id === projectId);
+    const projectName = proj?.name || 'este proyecto';
+    const taskCount = items.filter((it) => it.projectId === projectId).length;
+    if (!skipConfirm && typeof window !== 'undefined' && window.confirm) {
+      const confirmed = window.confirm(
+        `¿Eliminar el proyecto "${projectName}" y todas sus tareas asociadas (${taskCount} elementos)? Esta acción no se puede deshacer.`
+      );
+      if (!confirmed) {
+        return;
+      }
+    }
     const remaining = effectiveProjects.filter((p) => p.id !== projectId);
     const nextItems = items.filter((it) => it.projectId !== projectId);
     setProjects(remaining);
@@ -1512,7 +1517,6 @@ export function App({
         });
         setSelectedProjectId('all');
         setProjectMenuOpen(false);
-        setCreateMenuOpen(false);
 
         recordPlanChange(
           'create_item',
@@ -1637,7 +1641,6 @@ export function App({
               data-project-selector-btn="true"
               onClick={() => {
                 setProjectMenuOpen((prev) => !prev);
-                setCreateMenuOpen(false);
               }}
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] bg-white dark:bg-zinc-900 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 border border-[#0C0C09] dark:border-zinc-700 text-xs font-medium text-[#0C0C09] dark:text-zinc-200 transition shadow-none cursor-pointer"
               title="Seleccionar proyectos visibles en el Gantt"
@@ -1721,15 +1724,6 @@ export function App({
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            if (
-                              typeof window !== 'undefined' &&
-                              window.confirm &&
-                              !window.confirm(
-                                `¿Eliminar el proyecto "${group.project.name}" y todas sus tareas?`
-                              )
-                            ) {
-                              return;
-                            }
                             handleDeleteProject(group.project.id);
                           }}
                           className="p-1 rounded-[2px] text-[#6B6B66] hover:text-[#DC2626] hover:bg-rose-500/10 transition cursor-pointer"
@@ -1747,7 +1741,10 @@ export function App({
                   type="button"
                   data-add-project-dropdown-btn="true"
                   onClick={() => {
-                    handleCreateProject();
+                    setNewProjectFormName(`Proyecto ${projects.length + 1}`);
+                    setNewProjectFormReleaseId(releases[0]?.id || 'rel-t-26-12-1');
+                    setNewProjectFormColor('indigo');
+                    setCreateProjectModalOpen(true);
                     setProjectMenuOpen(false);
                   }}
                   className="w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-[4px] bg-[#0C0C09] hover:bg-[#312C85] dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-[#0C0C09] font-display font-semibold transition cursor-pointer"
@@ -1858,6 +1855,23 @@ export function App({
             )}
           </button>
 
+          {/* Ayuda Button */}
+          <button
+            type="button"
+            data-testid="header-help-btn"
+            onClick={() => setCurrentView((prev) => (prev === 'help' ? 'gantt' : 'help'))}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border text-xs font-medium transition cursor-pointer shrink-0 ${
+              currentView === 'help'
+                ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
+                : 'bg-white dark:bg-zinc-900 border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800'
+            }`}
+            title="Guía de uso y documentación de funcionalidades"
+            aria-label="Ayuda"
+          >
+            <HelpCircle className="w-3.5 h-3.5 text-current" />
+            <span className="font-display font-medium hidden sm:inline">Ayuda</span>
+          </button>
+
           {/* Botón Importar */}
           <button
             type="button"
@@ -1871,58 +1885,18 @@ export function App({
             <span className="font-display font-medium hidden sm:inline">Importar</span>
           </button>
 
-          {/* Botón y Dropdown Exportar */}
-          <div ref={exportMenuRef} className="relative shrink-0" data-dropdown-container="true">
-            <button
-              type="button"
-              data-testid="header-export-btn"
-              onClick={() => setExportMenuOpen((prev) => !prev)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 text-xs font-medium transition cursor-pointer shrink-0"
-              title="Exportar datos del cronograma (JSON / CSV)"
-              aria-label="Exportar"
-            >
-              <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span className="font-display font-medium hidden sm:inline">Exportar</span>
-              <ChevronDown className="w-3 h-3 opacity-70" />
-            </button>
-            {exportMenuOpen && (
-              <div
-                data-testid="header-export-dropdown"
-                className="absolute left-0 top-10 w-48 p-1.5 bg-white dark:bg-zinc-900 border border-[#0C0C09] dark:border-zinc-700 rounded-[4px] shadow-xl z-50 text-xs flex flex-col gap-0.5"
-              >
-                <button
-                  type="button"
-                  data-testid="header-export-json-btn"
-                  onClick={() => {
-                    handleExportJSON();
-                    setExportMenuOpen(false);
-                  }}
-                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-[2px] hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 font-medium transition text-left cursor-pointer"
-                >
-                  <Download className="w-3.5 h-3.5 text-indigo-500" />
-                  <div className="flex flex-col">
-                    <span className="font-semibold">Exportar JSON</span>
-                    <span className="text-[10px] text-[#6B6B66] dark:text-zinc-400">Workspace completo y releases</span>
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  data-testid="header-export-csv-btn"
-                  onClick={() => {
-                    handleExportCSV();
-                    setExportMenuOpen(false);
-                  }}
-                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-[2px] hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 font-medium transition text-left cursor-pointer"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500" />
-                  <div className="flex flex-col">
-                    <span className="font-semibold">Exportar CSV</span>
-                    <span className="text-[10px] text-[#6B6B66] dark:text-zinc-400">Compatible Excel y MS Project</span>
-                  </div>
-                </button>
-              </div>
-            )}
-          </div>
+          {/* Botón Exportar Directo (JSON) */}
+          <button
+            type="button"
+            data-testid="header-export-btn"
+            onClick={handleExportJSON}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 text-xs font-medium transition cursor-pointer shrink-0"
+            title="Exportar cronograma en formato JSON"
+            aria-label="Exportar"
+          >
+            <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            <span className="font-display font-medium hidden sm:inline">Exportar</span>
+          </button>
 
           {scenarioSavedToast && (
             <span
@@ -1942,79 +1916,8 @@ export function App({
           )}
         </div>
 
-        {/* RIGHT: Botón Único "+ Crear ▾" + Iconos Vectoriales Minimalistas con Hints */}
+        {/* RIGHT: Iconos Vectoriales Minimalistas con Hints */}
         <div className="flex items-center gap-2 shrink-0">
-
-          {/* Botón "+ Crear ▾" */}
-          <div ref={createMenuRef} className="relative mr-1" data-dropdown-container="true">
-            <button
-              type="button"
-              onClick={() => {
-                setCreateMenuOpen((prev) => !prev);
-                setProjectMenuOpen(false);
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] bg-[#0C0C09] hover:bg-[#312C85] dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-[#0C0C09] text-xs font-display font-semibold shadow-none transition cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Crear</span>
-              <ChevronDown className="w-3 h-3 opacity-80" />
-            </button>
-
-            {createMenuOpen && (
-              <div className="absolute right-0 top-10 w-48 p-1.5 bg-white dark:bg-zinc-900 border border-[#0C0C09] dark:border-zinc-700 rounded-[4px] shadow-xl z-50 text-xs flex flex-col gap-0.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleOpenCreateModal('task');
-                    setCreateMenuOpen(false);
-                  }}
-                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-[2px] hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 font-medium transition text-left cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5 text-[#0C0C09] dark:text-zinc-200" />
-                  <span>Nueva Tarea</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleOpenCreateModal('milestone');
-                    setCreateMenuOpen(false);
-                  }}
-                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-[2px] hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 font-medium transition text-left cursor-pointer"
-                >
-                  <Diamond className="w-3.5 h-3.5 text-[#D97706] fill-current" />
-                  <span>Nuevo Hito</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleCreateProject();
-                    setCreateMenuOpen(false);
-                  }}
-                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-[2px] hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 font-medium transition text-left cursor-pointer"
-                >
-                  <FolderKanban className="w-3.5 h-3.5 text-[#16A34A]" />
-                  <span>Nuevo Proyecto</span>
-                </button>
-                <div className="border-t border-[#E2E2DC] dark:border-zinc-800 my-0.5" />
-                <button
-                  type="button"
-                  onClick={() => {
-                    fileInputRef.current?.click();
-                    setCreateMenuOpen(false);
-                  }}
-                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-[2px] hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 font-medium transition text-left cursor-pointer"
-                  title="Importar datos desde JSON o CSV"
-                >
-                  <Upload className="w-3.5 h-3.5 text-[#312C85]" />
-                  <span>Importar Datos</span>
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div className="h-4 w-px bg-[#0C0C09] dark:bg-zinc-700 hidden sm:block" />
-
-          {/* Iconos Vectoriales SVG Minimalistas con Tooltip Hints */}
 
           {/* Ruta Crítica */}
           <div className="relative group">
@@ -2169,7 +2072,9 @@ export function App({
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col max-w-[1920px] w-full mx-auto px-2 sm:px-4 py-2 sm:py-3 gap-2 min-h-0">
-        {currentView === 'history' ? (
+        {currentView === 'help' ? (
+          <HelpPage onBackToGantt={() => setCurrentView('gantt')} />
+        ) : currentView === 'history' ? (
           <PlanHistoryPage
             history={history}
             currentIndex={historyIndex}
@@ -2245,6 +2150,132 @@ export function App({
           </>
         )}
       </main>
+
+      {/* Modal de Creación de Proyecto con Selección de Release */}
+      {createProjectModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          data-testid="create-project-modal"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in"
+          onClick={() => setCreateProjectModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-md bg-white dark:bg-zinc-900 border border-[#0C0C09] dark:border-zinc-700 rounded-[6px] shadow-2xl p-5 text-[#0C0C09] dark:text-zinc-100"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-[#E2E2DC] dark:border-zinc-800">
+              <div className="flex items-center gap-2">
+                <FolderKanban className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                <h3 className="font-display font-bold text-sm tracking-tight">Crear Nuevo Proyecto</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCreateProjectModalOpen(false)}
+                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 transition"
+                aria-label="Cerrar modal de creación de proyecto"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const trimmed = newProjectFormName.trim();
+                if (!trimmed) return;
+                handleCreateProject({
+                  name: trimmed,
+                  color: newProjectFormColor as any,
+                  releaseId: newProjectFormReleaseId || releases[0]?.id || 'rel-t-26-12-1',
+                });
+                setCreateProjectModalOpen(false);
+              }}
+              className="mt-4 space-y-4"
+            >
+              <div>
+                <label className="block text-xs font-semibold text-[#0C0C09] dark:text-zinc-300 mb-1">
+                  Nombre del Proyecto
+                </label>
+                <input
+                  type="text"
+                  autoFocus
+                  required
+                  data-testid="create-project-name-input"
+                  value={newProjectFormName}
+                  onChange={(e) => setNewProjectFormName(e.target.value)}
+                  placeholder="ej. Sistema de Facturación..."
+                  className="w-full px-3 py-2 text-xs rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-100 outline-none focus:ring-1 focus:ring-indigo-500 font-sans"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#0C0C09] dark:text-zinc-300 mb-1">
+                  Release Asociada
+                </label>
+                <select
+                  data-testid="create-project-modal-release-select"
+                  value={newProjectFormReleaseId}
+                  onChange={(e) => setNewProjectFormReleaseId(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-100 outline-none focus:ring-1 focus:ring-indigo-500 font-mono"
+                >
+                  {releases.map((rel) => (
+                    <option key={rel.id} value={rel.id}>
+                      {rel.code} ({rel.name})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-[#6B6B66] dark:text-zinc-400 mt-1">
+                  El proyecto y sus tareas se agruparán bajo esta Release en el cronograma Gantt.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#0C0C09] dark:text-zinc-300 mb-1.5">
+                  Color Identificador
+                </label>
+                <div className="flex items-center gap-2">
+                  {PROJECT_COLORS.map((c) => (
+                    <button
+                      key={c.value}
+                      type="button"
+                      onClick={() => setNewProjectFormColor(c.value)}
+                      className={`w-5 h-5 rounded-full ${c.bg} flex items-center justify-center transition-transform ${
+                        newProjectFormColor === c.value
+                          ? 'ring-2 ring-offset-2 ring-indigo-600 scale-110'
+                          : 'opacity-70 hover:opacity-100'
+                      }`}
+                      title={c.value}
+                    >
+                      {newProjectFormColor === c.value && (
+                        <Check className="w-3 h-3 text-white" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-[#E2E2DC] dark:border-zinc-800 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCreateProjectModalOpen(false)}
+                  className="px-3 py-1.5 text-xs rounded-[4px] border border-[#E2E2DC] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={!newProjectFormName.trim()}
+                  data-testid="create-project-submit-btn"
+                  className="px-4 py-1.5 text-xs font-semibold rounded-[4px] bg-[#0C0C09] hover:bg-[#312C85] dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-[#0C0C09] transition disabled:opacity-40 cursor-pointer"
+                >
+                  Crear Proyecto
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
 
       {/* Task / Milestone Modal Editor */}

@@ -702,6 +702,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   const [isCreatingProject, setIsCreatingProject] = useState<boolean>(false);
   const [newProjectName, setNewProjectName] = useState<string>('');
   const [newProjectColor, setNewProjectColor] = useState<TaskColor>('indigo');
+  const [newProjectReleaseId, setNewProjectReleaseId] = useState<string>(
+    () => releases[0]?.id || 'rel-t-26-12-1'
+  );
   const newProjectFormRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -3396,15 +3399,6 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                     type="button"
                                     data-testid={`delete-project-row-btn-${group.project.id}`}
                                     onClick={() => {
-                                      if (
-                                        typeof window !== 'undefined' &&
-                                        window.confirm &&
-                                        !window.confirm(
-                                          `¿Eliminar el proyecto "${group.project.name}" y todas sus tareas?`
-                                        )
-                                      ) {
-                                        return;
-                                      }
                                       onDeleteProject(group.project.id);
                                     }}
                                     className="p-1 rounded hover:bg-rose-500/20 text-slate-400 hover:text-rose-600 transition cursor-pointer"
@@ -3875,6 +3869,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             setIsCreatingProject(true);
                             setNewProjectName('');
                             setNewProjectColor('indigo');
+                            setNewProjectReleaseId(releases[0]?.id || 'rel-t-26-12-1');
                           }}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 dark:text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition cursor-pointer"
                           title="Crear nuevo proyecto"
@@ -3892,6 +3887,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               id: `proj-${Date.now()}`,
                               name: trimmed,
                               color: newProjectColor,
+                              releaseId: newProjectReleaseId,
                               collapsed: false,
                               isDemo: false,
                             });
@@ -3914,6 +3910,19 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             placeholder="Nombre del nuevo proyecto..."
                             className="flex-1 min-w-[140px] px-2.5 py-1 text-xs rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 outline-none focus:ring-1 focus:ring-indigo-500"
                           />
+                          <select
+                            data-testid="create-project-release-select"
+                            value={newProjectReleaseId}
+                            onChange={(e) => setNewProjectReleaseId(e.target.value)}
+                            className="px-2 py-1 text-xs rounded border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-800 dark:text-zinc-200 outline-none focus:ring-1 focus:ring-indigo-500 font-mono"
+                            title="Release asociada"
+                          >
+                            {releases.map((rel) => (
+                              <option key={rel.id} value={rel.id}>
+                                {rel.code} ({rel.name})
+                              </option>
+                            ))}
+                          </select>
                           <div className="flex items-center gap-1.5">
                             {PROJECT_COLORS.map((c) => (
                               <button

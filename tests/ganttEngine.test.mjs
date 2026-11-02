@@ -3908,7 +3908,7 @@ test('App version in settings, inline task name editing, custom colors, and proj
         import { App } from './src/App.tsx';
         import { GanttWorkspace } from './src/components/GanttWorkspace.tsx';
         import { TaskFormModal } from './src/components/TaskFormModal.tsx';
-        import { APP_VERSION } from './src/types/gantt.ts';
+        export { APP_VERSION } from './src/types/gantt.ts';
 
         export function renderAppWithSettingsOpen() {
           return <App initialSettingsOpen={true} />;
@@ -4009,12 +4009,12 @@ test('App version in settings, inline task name editing, custom colors, and proj
       'Settings modal header must render app version badge'
     );
     assert.ok(
-      appHtml.includes('v1.0.0'),
-      'Settings modal must display version v1.0.0'
+      appHtml.includes(`v${mod.APP_VERSION}`),
+      `Header must display version v${mod.APP_VERSION}`
     );
     assert.ok(
-      appHtml.includes('GanttFlow v1.0.0'),
-      'Settings modal footer must display GanttFlow v1.0.0'
+      appHtml.includes(`GanttFlow v${mod.APP_VERSION}`),
+      `Header must display GanttFlow v${mod.APP_VERSION}`
     );
 
     // Test Workspace with project description indicator badge and info button
@@ -4515,6 +4515,114 @@ test('Configuration panel is removed and projects including the last one can be 
     // Verify single project in GanttWorkspace table row has delete button
     const wsHtml = ReactDOMServer.renderToString(mod.renderSingleProjectWorkspace());
     assert.ok(wsHtml.includes('data-testid="delete-project-row-btn-p-single"'), 'Single project row has delete button in table');
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
+test('Help page, version control v1.1.0, release selection on project creation, no CSV export, and project deletion confirmation', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const { fileURLToPath } = await import('node:url');
+  const { build } = await import('esbuild');
+  const ReactDOMServer = await import('react-dom/server');
+
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
+
+  // 1. Version control consistency
+  assert.equal(pkg.version, '1.1.0', 'package.json version must be 1.1.0');
+  assert.ok(pkg.scripts['version:patch'], 'package.json must contain version:patch script');
+  assert.ok(pkg.scripts['version:minor'], 'package.json must contain version:minor script');
+  assert.ok(pkg.scripts['release:patch'], 'package.json must contain release:patch script');
+
+  const ssrBundle = await build({
+    stdin: {
+      contents: `
+        import React from 'react';
+        import { App } from './src/App.tsx';
+        import { HelpPage } from './src/components/HelpPage.tsx';
+        import { GanttWorkspace } from './src/components/GanttWorkspace.tsx';
+        import { APP_VERSION } from './src/types/gantt.ts';
+        import { DEFAULT_PREDEFINED_RELEASES } from './src/utils/releaseEngine.ts';
+
+        export { APP_VERSION };
+
+        export function renderDefaultApp() {
+          return <App />;
+        }
+
+        export function renderHelpView() {
+          return <App initialView="help" />;
+        }
+
+        export function renderStandaloneHelp() {
+          return <HelpPage onBackToGantt={() => {}} />;
+        }
+
+        export function renderWorkspaceWithReleases() {
+          return (
+            <GanttWorkspace
+              items={[]}
+              projects={[{ id: 'p1', name: 'Alpha', color: 'indigo', releaseId: 'rel-t-26-12-1' }]}
+              releases={DEFAULT_PREDEFINED_RELEASES}
+              scrollContainerRef={{ current: null }}
+              showTable={true}
+              onToggleShowTable={() => {}}
+            />
+          );
+        }
+      `,
+      resolveDir: path.resolve(__dirname, '..'),
+      sourcefile: 'ssr-help-version-test.tsx',
+      loader: 'tsx',
+    },
+    bundle: true,
+    format: 'cjs',
+    platform: 'node',
+    external: ['react', 'react-dom', 'xlsx'],
+    packages: 'external',
+    write: false,
+  });
+
+  const tmpFile = path.resolve(__dirname, './.tmp-help-version-test.cjs');
+  await fs.writeFile(tmpFile, ssrBundle.outputFiles[0].text, 'utf8');
+
+  try {
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+
+    // Verify APP_VERSION in gantt.ts matches package.json
+    assert.equal(mod.APP_VERSION, pkg.version, 'src/types/gantt.ts APP_VERSION must equal package.json version');
+
+    // 2. Default App Header
+    const appHtml = ReactDOMServer.renderToString(mod.renderDefaultApp());
+    // Help button in header
+    assert.ok(appHtml.includes('data-testid="header-help-btn"'), 'Header must contain Ayuda button');
+    // Export button directly exports JSON without CSV dropdown
+    assert.ok(appHtml.includes('data-testid="header-export-btn"'), 'Header must contain direct Export button');
+    assert.ok(!appHtml.includes('data-testid="header-export-csv-btn"'), 'Header must NOT contain CSV export option');
+    assert.ok(!appHtml.includes('Exportar CSV'), 'Header must NOT have Exportar CSV text');
+    // No "+ Crear ▾" dropdown button
+    assert.ok(!appHtml.includes('<span>Crear</span>'), 'Header must NOT contain the old "+ Crear ▾" button');
+
+    // 3. Help Page SSR
+    const helpHtml = ReactDOMServer.renderToString(mod.renderStandaloneHelp());
+    assert.ok(helpHtml.includes('data-testid="help-back-to-gantt-btn"'), 'Help page must have Volver al Diagrama button');
+    assert.ok(helpHtml.includes('Guía de Ayuda y Funcionalidades'), 'Help page title must be rendered');
+    assert.ok(helpHtml.includes(`v${mod.APP_VERSION}`), 'Help page must display current app version');
+    assert.ok(helpHtml.includes('Estructura Jerárquica y Gestión de Releases'), 'Help page must explain Releases');
+    assert.ok(helpHtml.includes('Hitos de Release (Quality Gates) y Líneas Guía'), 'Help page must explain Milestones / QG');
+    assert.ok(helpHtml.includes('Ruta Crítica (CPM), Holguras y Métricas'), 'Help page must explain CPM / Critical Path');
+    assert.ok(helpHtml.includes('Historial de Cambios, Deshacer y Rehacer'), 'Help page must explain Undo/Redo & History');
+    assert.ok(helpHtml.includes('Persistencia y Exportación / Importación JSON'), 'Help page must explain JSON persistence');
+
+    // 4. App when initialView="help" renders HelpPage
+    const appHelpHtml = ReactDOMServer.renderToString(mod.renderHelpView());
+    assert.ok(appHelpHtml.includes('data-testid="help-page-container"'), 'App must render HelpPage when currentView is help');
+
+    // 5. Project creation with Release selector
+    const wsHtml = ReactDOMServer.renderToString(mod.renderWorkspaceWithReleases());
+    assert.ok(wsHtml.includes('data-create-project-btn="true"'), 'Workspace must have project creation trigger');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }

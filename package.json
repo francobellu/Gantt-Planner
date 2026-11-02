@@ -1,12 +1,18 @@
 {
   "name": "gantt-planner",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "test": "node --test tests/ganttEngine.test.mjs",
+    "version:patch": "node scripts/bump-version.mjs patch",
+    "version:minor": "node scripts/bump-version.mjs minor",
+    "version:major": "node scripts/bump-version.mjs major",
+    "release:patch": "npm run version:patch && npm test && npm run build",
+    "release:minor": "npm run version:minor && npm test && npm run build",
+    "release:major": "npm run version:major && npm test && npm run build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
