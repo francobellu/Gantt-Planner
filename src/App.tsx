@@ -25,7 +25,6 @@ import {
   Redo2,
   Rocket,
   Save,
-  SlidersHorizontal,
   Sparkles,
   Sun,
   Trash2,
@@ -145,30 +144,7 @@ function isDemoOrTemplateProject(raw?: Partial<GanttProject> | null): boolean {
   if (!raw) return false;
   if (raw.isDemo === true) return true;
   const id = (raw.id || '').toLowerCase();
-  const name = (raw.name || '').toLowerCase();
-  if (
-    id.includes('demo') ||
-    id.includes('saas') ||
-    id.includes('cloud') ||
-    id.includes('discovery') ||
-    id.includes('release') ||
-    id === 'proj-core' ||
-    id === 'proj-xcode27'
-  ) {
-    return true;
-  }
-  if (
-    name.includes('descubrimiento') ||
-    name.includes('lanzamiento') ||
-    name.includes('saas') ||
-    name.includes('cloud') ||
-    name.includes('plantilla') ||
-    name.includes('demo') ||
-    name.includes('xcode')
-  ) {
-    return true;
-  }
-  return false;
+  return id === 'proj-xcode27';
 }
 
 const CLEAN_DEFAULT_PROJECT: GanttProject = {
@@ -210,7 +186,7 @@ function loadInitialWorkspaceState(
         const rawItems: Partial<GanttItem>[] = Array.isArray(parsed.items) ? parsed.items : [];
 
         const cleanProjects = rawProjects
-          .filter((p) => !isDemoOrTemplateProject(p) && !isXcode27Project(p))
+          .filter((p) => !isXcode27Project(p))
           .map((p, i) =>
             sanitizeProject(
               {
@@ -249,7 +225,7 @@ function loadInitialWorkspaceState(
             const rawProjects: Partial<GanttProject>[] = Array.isArray(s.projects) ? s.projects : [];
             const rawItems: Partial<GanttItem>[] = Array.isArray(s.items) ? s.items : [];
             const cleanProjects = rawProjects
-              .filter((p) => !isDemoOrTemplateProject(p) && !isXcode27Project(p))
+              .filter((p) => !isXcode27Project(p))
               .map((p, i) =>
                 sanitizeProject(
                   {
@@ -686,7 +662,6 @@ export function App({
 
   // Minimalist UI toggles and menus
   const [showMetricsDrawer, setShowMetricsDrawer] = useState<boolean>(false);
-  const [showSettingsModal, setShowSettingsModal] = useState<boolean>(initialSettingsOpen);
   const [projectMenuOpen, setProjectMenuOpen] = useState<boolean>(initialProjectMenuOpen);
   const [createMenuOpen, setCreateMenuOpen] = useState<boolean>(false);
   const [exportMenuOpen, setExportMenuOpen] = useState<boolean>(false);
@@ -694,7 +669,6 @@ export function App({
   const projectMenuRef = useRef<HTMLDivElement>(null);
   const createMenuRef = useRef<HTMLDivElement>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
-  const settingsModalRef = useRef<HTMLDivElement>(null);
   const metricsDrawerRef = useRef<HTMLDivElement>(null);
   const metricsToggleBtnRef = useRef<HTMLButtonElement>(null);
 
@@ -709,9 +683,6 @@ export function App({
       }
       if (exportMenuRef.current && !exportMenuRef.current.contains(target)) {
         setExportMenuOpen(false);
-      }
-      if (showSettingsModal && settingsModalRef.current && !settingsModalRef.current.contains(target)) {
-        setShowSettingsModal(false);
       }
       if (
         showMetricsDrawer &&
@@ -728,7 +699,6 @@ export function App({
         setProjectMenuOpen(false);
         setCreateMenuOpen(false);
         setExportMenuOpen(false);
-        setShowSettingsModal(false);
         setShowMetricsDrawer(false);
         return;
       }
@@ -766,7 +736,7 @@ export function App({
       document.removeEventListener('mousedown', handleGlobalClick);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [showSettingsModal, showMetricsDrawer, exportMenuOpen, handleUndo, handleRedo]);
+  }, [showMetricsDrawer, exportMenuOpen, handleUndo, handleRedo]);
 
   // Modal state
   const [modalOpen, setModalOpen] = useState<boolean>(false);
@@ -1238,13 +1208,9 @@ export function App({
   };
 
   const handleDeleteProject = (projectId: string) => {
-    if (effectiveProjects.length <= 1) return;
     const proj = effectiveProjects.find((p) => p.id === projectId);
     const remaining = effectiveProjects.filter((p) => p.id !== projectId);
-    const fallbackId = remaining[0].id;
-    const nextItems = items.map((it) =>
-      it.projectId === projectId ? { ...it, projectId: fallbackId } : it
-    );
+    const nextItems = items.filter((it) => it.projectId !== projectId);
     setProjects(remaining);
     setItems(nextItems);
     setSelectedProjectIds((prev) => {
@@ -1545,7 +1511,6 @@ export function App({
           return Array.from(next);
         });
         setSelectedProjectId('all');
-        setShowSettingsModal(false);
         setProjectMenuOpen(false);
         setCreateMenuOpen(false);
 
@@ -1637,6 +1602,14 @@ export function App({
         
         {/* LEFT: Toggle Table Button + "Proyectos" Multi-Select Dropdown */}
         <div className="flex items-center gap-2.5 min-w-0">
+          <span
+            data-testid="app-version-badge"
+            className="hidden lg:inline-block px-1.5 py-0.5 rounded-[2px] bg-white dark:bg-zinc-900 text-[#6B6B66] dark:text-zinc-400 text-[10px] font-mono font-bold border border-[#E2E2DC] dark:border-zinc-700 shrink-0"
+            title={`GanttFlow v${APP_VERSION}`}
+          >
+            {`GanttFlow v${APP_VERSION}`}
+          </span>
+
           {/* Botón posicionado en el icono para esconder la tabla y enseñar solo el diagrama */}
           <button
             type="button"
@@ -1741,31 +1714,29 @@ export function App({
                         <span className="text-[10px] font-mono opacity-80">
                           {group.items.length}t
                         </span>
-                        {effectiveProjects.length > 1 && (
-                          <button
-                            type="button"
-                            data-testid={`delete-project-menu-btn-${group.project.id}`}
-                            data-delete-project-btn={group.project.id}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              if (
-                                typeof window !== 'undefined' &&
-                                window.confirm &&
-                                !window.confirm(
-                                  `¿Eliminar el proyecto "${group.project.name}"? Sus tareas se reasignarán al proyecto principal.`
-                                )
-                              ) {
-                                return;
-                              }
-                              handleDeleteProject(group.project.id);
-                            }}
-                            className="p-1 rounded-[2px] text-[#6B6B66] hover:text-[#DC2626] hover:bg-rose-500/10 transition cursor-pointer"
-                            title={`Eliminar proyecto ${group.project.name}`}
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          data-testid={`delete-project-menu-btn-${group.project.id}`}
+                          data-delete-project-btn={group.project.id}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (
+                              typeof window !== 'undefined' &&
+                              window.confirm &&
+                              !window.confirm(
+                                `¿Eliminar el proyecto "${group.project.name}" y todas sus tareas?`
+                              )
+                            ) {
+                              return;
+                            }
+                            handleDeleteProject(group.project.id);
+                          }}
+                          className="p-1 rounded-[2px] text-[#6B6B66] hover:text-[#DC2626] hover:bg-rose-500/10 transition cursor-pointer"
+                          title={`Eliminar proyecto ${group.project.name}`}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
                       </div>
                     </div>
                   );
@@ -2138,21 +2109,6 @@ export function App({
             </div>
           </div>
 
-          {/* Configuración */}
-          <div className="relative group">
-            <button
-              type="button"
-              onClick={() => setShowSettingsModal(true)}
-              className="p-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 transition shadow-none cursor-pointer"
-              aria-label="Configuración"
-            >
-              <SlidersHorizontal className="w-4 h-4" />
-            </button>
-            <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute right-0 top-10 px-2 py-1 bg-[#0C0C09] text-[#F4F4F1] text-[11px] font-mono font-medium rounded-[2px] shadow-lg border border-[#E2E2DC] whitespace-nowrap z-50 pointer-events-none">
-              Configuración (Flechas, datos, tema)
-            </div>
-          </div>
-
         </div>
       </header>
 
@@ -2290,251 +2246,6 @@ export function App({
         )}
       </main>
 
-      {/* Settings Modal (Flechas, auto-cascada, tema, zoom, exportar/importar) */}
-      <div
-        onClick={(e) => {
-          if (e.target === e.currentTarget) {
-            setShowSettingsModal(false);
-          }
-        }}
-        className={`${showSettingsModal ? 'fixed' : 'hidden'} inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4`}
-      >
-        <div
-          ref={settingsModalRef}
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-md bg-white dark:bg-[#0C0C09] border border-[#0C0C09] dark:border-zinc-700 rounded-[8px] shadow-2xl overflow-hidden p-5 space-y-4"
-        >
-          <div className="flex items-center justify-between border-b border-[#0C0C09] dark:border-zinc-800 pb-3">
-            <div className="flex items-center gap-2">
-              <SlidersHorizontal className="w-4 h-4 text-[#0C0C09] dark:text-zinc-400" />
-              <h2 className="text-sm font-bold text-[#0C0C09] dark:text-white">
-                Configuración del Cronograma
-              </h2>
-              <span
-                data-testid="app-version-badge"
-                className="px-1.5 py-0.5 rounded-[2px] bg-[#F4F4F1] dark:bg-zinc-800 text-[#6B6B66] dark:text-zinc-400 text-[10px] font-mono font-bold border border-[#E2E2DC] dark:border-zinc-700"
-              >
-                {`v${APP_VERSION}`}
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowSettingsModal(false)}
-              className="text-[#6B6B66] hover:text-[#0C0C09] dark:hover:text-white text-xs cursor-pointer"
-            >
-              ✕
-            </button>
-          </div>
-
-          {/* Configuración de Flechas de Dependencia */}
-          <div className="space-y-2">
-            <label className="block text-xs font-mono font-bold uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400">
-              Flechas de Dependencia (Por defecto: Visibles)
-            </label>
-            <div
-              data-arrow-visibility-selector="true"
-              data-current-visibility={arrowVisibility}
-              className="grid grid-cols-2 gap-2 text-xs"
-            >
-              {(
-                [
-                  { id: 'all', label: 'Siempre Visibles' },
-                  { id: 'hover', label: 'Al pasar cursor' },
-                  { id: 'critical', label: 'Solo Ruta Crítica' },
-                  { id: 'none', label: 'Ocultar' },
-                ] as const
-              ).map((opt) => (
-                <label
-                  key={opt.id}
-                  data-arrow-visibility-option={opt.id}
-                  className={`p-2.5 rounded-[4px] border flex items-center gap-2 cursor-pointer transition ${
-                    arrowVisibility === opt.id
-                      ? 'border-[#0C0C09] bg-[#0C0C09] text-white dark:border-zinc-200 dark:bg-zinc-100 dark:text-[#0C0C09] font-bold'
-                      : 'border-[#E2E2DC] dark:border-zinc-800 bg-[#F4F4F1] dark:bg-zinc-950 text-[#0C0C09] dark:text-zinc-300'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="arrow-visibility"
-                    checked={arrowVisibility === opt.id}
-                    onChange={() => setArrowVisibility(opt.id)}
-                    className="text-[#0C0C09]"
-                  />
-                  <span>{opt.label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Opciones adicionales */}
-          <div className="space-y-2.5 border-t border-slate-200 dark:border-zinc-800/80 pt-3 text-xs">
-            <label className="flex items-center justify-between cursor-pointer">
-              <span className="text-slate-700 dark:text-zinc-300 font-medium">
-                Auto-cascada de fechas al mover tareas
-              </span>
-              <input
-                type="checkbox"
-                checked={autoCascade}
-                onChange={(e) => setAutoCascade(e.target.checked)}
-                className="rounded border-slate-300 dark:border-zinc-700 text-indigo-600"
-              />
-            </label>
-
-            <label className="flex items-center justify-between cursor-pointer">
-              <span className="text-slate-700 dark:text-zinc-300 font-medium">
-                Incluir Float libre CPM en holguras
-              </span>
-              <input
-                type="checkbox"
-                checked={showCpmFloat}
-                onChange={(e) => setShowCpmFloat(e.target.checked)}
-                className="rounded border-slate-300 dark:border-zinc-700 text-indigo-600"
-              />
-            </label>
-
-            <label className="flex items-center justify-between cursor-pointer">
-              <span className="text-slate-700 dark:text-zinc-300 font-medium">
-                Zoom táctil con rueda del ratón
-              </span>
-              <input
-                type="checkbox"
-                data-wheel-zoom-toggle="true"
-                defaultChecked={true}
-                className="rounded border-slate-300 dark:border-zinc-700 text-indigo-600"
-              />
-            </label>
-
-            {/* Slider de Escala de Zoom (disponible en configuración) */}
-            <div className="space-y-1.5 pt-1">
-              <div className="flex items-center justify-between text-slate-700 dark:text-zinc-300">
-                <span className="font-medium">Escala manual ({dayWidth.toFixed(1)} px/día)</span>
-                <span className="text-[10px] text-slate-400">O usa rueda del ratón</span>
-              </div>
-              <input
-                type="range"
-                min={3}
-                max={80}
-                step={0.5}
-                value={dayWidth}
-                onChange={(e) => handleChangeDayWidth(parseFloat(e.target.value))}
-                data-zoom-slider="true"
-                className="w-full accent-indigo-600 cursor-pointer h-1.5"
-              />
-              <div className="grid grid-cols-4 gap-1.5 pt-1">
-                {(
-                  [
-                    { id: 'day', label: 'Día', val: 44 },
-                    { id: 'week', label: 'Semana', val: 24 },
-                    { id: 'month', label: 'Mes', val: 12 },
-                    { id: 'quarter', label: 'Trimestre', val: 5 },
-                  ] as const
-                ).map((preset) => (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    onClick={() => handleChangeDayWidth(preset.val)}
-                    className="px-2 py-1 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:bg-[#F4F4F1] dark:hover:bg-zinc-700 text-[#0C0C09] dark:text-zinc-200 text-center font-mono text-xs cursor-pointer"
-                  >
-                    {preset.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between pt-1">
-              <span className="text-[#0C0C09] dark:text-zinc-300 font-medium">Tema visual</span>
-              <button
-                type="button"
-                onClick={() => setDarkMode((prev) => !prev)}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-medium text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] cursor-pointer"
-              >
-                {darkMode ? (
-                  <>
-                    <Sun className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Modo Oscuro</span>
-                  </>
-                ) : (
-                  <>
-                    <Moon className="w-3.5 h-3.5 text-[#0C0C09]" />
-                    <span>Modo Claro</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* Exportar e Importar */}
-          <div className="border-t border-slate-200 dark:border-zinc-800/80 pt-3 text-xs space-y-2">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500">
-              Exportar / Importar Datos
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleExportCSV}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 font-medium transition"
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500" />
-                <span>CSV</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleExportJSON}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 font-medium transition"
-              >
-                <Download className="w-3.5 h-3.5 text-indigo-500" />
-                <span>JSON</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 font-medium transition"
-              >
-                <Upload className="w-3.5 h-3.5 text-violet-500" />
-                <span>Importar</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Acceso directo a Página de Historial */}
-          <div className="border-t border-[#E2E2DC] dark:border-zinc-800 pt-3 flex items-center justify-between text-xs">
-            <div>
-              <div className="font-semibold text-[#0C0C09] dark:text-zinc-200">
-                Historial del Plan
-              </div>
-              <div className="text-[11px] text-[#6B6B66] dark:text-zinc-400">
-                {history.length} cambios registrados
-              </div>
-            </div>
-            <button
-              type="button"
-              data-testid="settings-history-btn"
-              onClick={() => {
-                setShowSettingsModal(false);
-                setCurrentView('history');
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#0C0C09] hover:text-white dark:hover:bg-zinc-100 dark:hover:text-[#0C0C09] font-medium transition cursor-pointer"
-            >
-              <History className="w-3.5 h-3.5" />
-              <span>Ver Historial</span>
-            </button>
-          </div>
-
-          <div className="pt-2 border-t border-[#E2E2DC] dark:border-zinc-800 flex items-center justify-between">
-            <span className="text-[11px] font-mono text-[#6B6B66] dark:text-zinc-400">
-              {`GanttFlow v${APP_VERSION}`}
-            </span>
-            <button
-              type="button"
-              onClick={() => setShowSettingsModal(false)}
-              className="px-4 py-1.5 rounded-[4px] bg-[#0C0C09] hover:bg-[#312C85] dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-[#0C0C09] font-display font-semibold text-xs transition cursor-pointer"
-            >
-              Cerrar
-            </button>
-          </div>
-        </div>
-      </div>
 
       {/* Task / Milestone Modal Editor */}
       <TaskFormModal

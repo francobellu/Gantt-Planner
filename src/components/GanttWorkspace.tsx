@@ -3076,7 +3076,26 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1 max-w-md">
                           Abre la vista de Lista de Proyectos y marca al menos un proyecto para visualizar su cronograma aquí.
                         </p>
-                        {onOpenProjectsView && (
+                        {onCreateProject ? (
+                          <button
+                            type="button"
+                            data-testid="empty-state-create-project-btn"
+                            onClick={() =>
+                              onCreateProject({
+                                id: `proj-${Date.now()}`,
+                                name: 'Nuevo Proyecto',
+                                color: 'indigo',
+                                collapsed: false,
+                                isDemo: false,
+                                releaseId: releases[0]?.id || 'rel-t-26-12-1',
+                              })
+                            }
+                            className="mt-3 px-3.5 py-1.5 rounded-[4px] bg-[#0C0C09] hover:bg-[#312C85] dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-[#0C0C09] text-xs font-semibold shadow-sm transition cursor-pointer flex items-center gap-1.5"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Crear Proyecto</span>
+                          </button>
+                        ) : onOpenProjectsView ? (
                           <button
                             type="button"
                             onClick={onOpenProjectsView}
@@ -3084,7 +3103,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           >
                             Ir a Lista de Proyectos
                           </button>
-                        )}
+                        ) : null}
                       </div>
                     )}
                     {displayRows.map((row, rowIndex) => {
@@ -3372,11 +3391,23 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 >
                                   <Diamond className="w-3 h-3" />
                                 </button>
-                                {allProjectGroups.length > 1 && onDeleteProject && (
+                                {onDeleteProject && (
                                   <button
                                     type="button"
-                                    onClick={() => onDeleteProject(group.project.id)}
-                                    className="p-1 rounded hover:bg-rose-500/20 text-slate-400 hover:text-rose-600"
+                                    data-testid={`delete-project-row-btn-${group.project.id}`}
+                                    onClick={() => {
+                                      if (
+                                        typeof window !== 'undefined' &&
+                                        window.confirm &&
+                                        !window.confirm(
+                                          `¿Eliminar el proyecto "${group.project.name}" y todas sus tareas?`
+                                        )
+                                      ) {
+                                        return;
+                                      }
+                                      onDeleteProject(group.project.id);
+                                    }}
+                                    className="p-1 rounded hover:bg-rose-500/20 text-slate-400 hover:text-rose-600 transition cursor-pointer"
                                     title={`Eliminar proyecto ${group.project.name}`}
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />

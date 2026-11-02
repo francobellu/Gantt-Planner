@@ -951,18 +951,10 @@ test('App renders default clean workspace, toggle-table button, and + Nuevo Proy
     assert.ok(!html.includes('+ Nuevo Proyecto'));
 
     // Verify flexible zoom & fit-to-project UI controls render
-    assert.ok(html.includes('data-zoom-slider="true"'));
     assert.ok(html.includes('data-fit-timeline-btn="true"'));
-    assert.ok(html.includes('data-wheel-zoom-toggle="true"'));
-    assert.ok(html.includes('Trimestre'));
     assert.ok(html.includes('Ajustar a Proyecto'));
-
-    // Verify dependency arrow visibility selector renders in toolbar
-    assert.ok(html.includes('data-arrow-visibility-selector="true"'));
-    assert.ok(html.includes('data-arrow-visibility-option="all"'));
-    assert.ok(html.includes('data-arrow-visibility-option="hover"'));
-    assert.ok(html.includes('data-arrow-visibility-option="critical"'));
-    assert.ok(html.includes('data-arrow-visibility-option="none"'));
+    assert.ok(html.includes('data-testid="header-import-btn"'));
+    assert.ok(html.includes('data-testid="header-export-btn"'));
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -1783,9 +1775,9 @@ test('App SSR renders hidden file-import-input, Crear dropdown Import button, an
     assert.ok(html.includes('type="file"'));
     assert.ok(html.includes('.json,application/json,.csv,text/csv'));
 
-    // 2. Settings modal has Export / Import section and Import file input
-    assert.ok(html.includes('Exportar / Importar Datos'));
-    assert.ok(html.includes('aria-label="Importar archivo JSON o CSV"'));
+    // 2. Header has Export / Import buttons and Import file input
+    assert.ok(html.includes('data-testid="header-import-btn"'));
+    assert.ok(html.includes('data-testid="header-export-btn"'));
 
     // 3. Import label is present
     assert.ok(html.includes('Importar'));
@@ -3066,13 +3058,11 @@ test('Milestone labels in calendar bar are centered, Nueva Tarea button renders 
         modalSrc.includes('onClose()'),
       'TaskFormModal must close on outside click and Escape key'
     );
-    // App settings and metrics drawer have outside click and Escape handlers
+    // App metrics drawer has outside click and Escape handlers
     assert.ok(
-      appSrc.includes('setShowSettingsModal(false)') &&
-        appSrc.includes('settingsModalRef.current') &&
-        appSrc.includes('metricsDrawerRef.current') &&
+      appSrc.includes('metricsDrawerRef.current') &&
         appSrc.includes('setShowMetricsDrawer(false)'),
-      'App must dismiss settings modal and metrics drawer on outside click and Escape key'
+      'App must dismiss metrics drawer on outside click and Escape key'
     );
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
@@ -4441,6 +4431,90 @@ test('Header import/export buttons, release summary bar bounded to last mileston
     assert.ok(customHtml.includes(`data-testid="release-milestone-guide-${rel0.id}-iop"`), 'Renders IOP when configured');
     assert.ok(customHtml.includes(`data-release-summary-bar="${rel0.id}"`), 'Renders release summary bar');
     assert.ok(customHtml.includes(`Acotado hasta su último hito: ${lastMilestoneDate}`), 'Summary bar title shows bounded last milestone date');
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
+test('Configuration panel is removed and projects including the last one can be deleted', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('path');
+  const { fileURLToPath } = await import('url');
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const esbuild = await import('esbuild');
+  const ReactDOMServer = await import('react-dom/server');
+
+  // 1. Verify App.tsx source code does not contain Settings modal or isDemoOrTemplateProject filtering on load
+  const appSrc = await fs.readFile(path.resolve(__dirname, '../src/App.tsx'), 'utf8');
+  assert.ok(!appSrc.includes('Configuración del Cronograma'), 'Settings modal must be removed');
+  assert.ok(!appSrc.includes('aria-label="Configuración"'), 'Settings button must be removed');
+  assert.ok(!appSrc.includes('.filter((p) => !isDemoOrTemplateProject(p)'), 'Loading from storage must not discard projects');
+
+  // 2. SSR bundle test for single project deletion and configuration panel absence
+  const ssrBundle = await esbuild.build({
+    stdin: {
+      contents: `
+        import React from 'react';
+        import { App } from './src/App';
+        import { GanttWorkspace } from './src/components/GanttWorkspace';
+
+        export function renderDefaultApp() {
+          return <App initialProjectMenuOpen={true} />;
+        }
+
+        export function renderSingleProjectWorkspace() {
+          const singleProject = [{ id: 'p-single', name: 'Mi Único Proyecto', color: 'indigo' }];
+          const singleItem = [{
+            id: 't-single',
+            projectId: 'p-single',
+            name: 'Tarea Única',
+            startDate: '2026-11-01',
+            endDate: '2026-11-05',
+            duration: 5,
+            progress: 0,
+            type: 'task',
+            dependencies: [],
+          }];
+          return (
+            <GanttWorkspace
+              items={singleItem}
+              projects={singleProject}
+              onDeleteProject={() => {}}
+              scrollContainerRef={{ current: null }}
+              showTable={true}
+              onToggleShowTable={() => {}}
+            />
+          );
+        }
+      `,
+      resolveDir: path.resolve(__dirname, '..'),
+      sourcefile: 'ssr-config-deletion-test.tsx',
+      loader: 'tsx',
+    },
+    bundle: true,
+    format: 'cjs',
+    platform: 'node',
+    external: ['react', 'react-dom', 'xlsx'],
+    packages: 'external',
+    write: false,
+  });
+
+  const tmpFile = path.resolve(__dirname, './.tmp-config-del-test.cjs');
+  await fs.writeFile(tmpFile, ssrBundle.outputFiles[0].text, 'utf8');
+
+  try {
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+
+    // Verify App header does NOT render Settings button
+    const appHtml = ReactDOMServer.renderToString(mod.renderDefaultApp());
+    assert.ok(!appHtml.includes('aria-label="Configuración"'), 'Header must not have Settings button');
+    assert.ok(!appHtml.includes('Configuración del Cronograma'), 'DOM must not have Settings Modal');
+    // Verify single project in App dropdown menu has delete button
+    assert.ok(appHtml.includes('data-testid="delete-project-menu-btn-proj-1"'), 'Single default project has delete button in dropdown');
+
+    // Verify single project in GanttWorkspace table row has delete button
+    const wsHtml = ReactDOMServer.renderToString(mod.renderSingleProjectWorkspace());
+    assert.ok(wsHtml.includes('data-testid="delete-project-row-btn-p-single"'), 'Single project row has delete button in table');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
