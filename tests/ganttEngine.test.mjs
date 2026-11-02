@@ -4727,3 +4727,86 @@ test('Preservation of all projects on page refresh without purging and history a
   }
 });
 
+test('Task names rendered above timeline task bars without clipping for short boxes with long names', async () => {
+  const { renderToString } = await import('react-dom/server');
+  const wsBundle = await build({
+    stdin: {
+      contents: `
+        import React from 'react';
+        import { GanttWorkspace } from './src/components/GanttWorkspace.tsx';
+        import { computeGanttMetrics, sanitizeProject, sanitizeGanttItem } from './src/utils/ganttEngine.ts';
+
+        export function renderTimelineTaskLabelsWorkspace() {
+          const project = sanitizeProject({ id: 'p-1', name: 'Proyecto Alpha' }, 0);
+          const rawTasks = [
+            sanitizeGanttItem({
+              id: 't-short',
+              name: 'Tarea Corta con Nombre Extremadamente Largo de Arquitectura',
+              type: 'task',
+              projectId: 'p-1',
+              startDate: '2026-11-01',
+              endDate: '2026-11-01',
+              duration: 1,
+              progress: 0,
+            }),
+          ];
+          const items = computeGanttMetrics(rawTasks);
+          return (
+            <GanttWorkspace
+              items={items}
+              projects={[project]}
+              groupByProject={true}
+              selectedProjectId="all"
+              zoom="day"
+              dayWidth={14}
+              showCriticalPath={false}
+              showCpmFloat={false}
+              autoCascade={true}
+              onUpdateItem={() => {}}
+              onEditModal={() => {}}
+              onDeleteItem={() => {}}
+              onDuplicateItem={() => {}}
+              onQuickAdd={() => {}}
+              scrollContainerRef={{ current: null }}
+            />
+          );
+        }
+      `,
+      resolveDir: path.resolve(__dirname, '..'),
+      sourcefile: 'ssr-task-label-above-bar-test.tsx',
+      loader: 'tsx',
+    },
+    bundle: true,
+    format: 'cjs',
+    platform: 'node',
+    external: ['react', 'react-dom'],
+    write: false,
+  });
+
+  const fs = await import('node:fs/promises');
+  const tmpFile = path.resolve(__dirname, './.tmp-ssr-task-labels.cjs');
+  await fs.writeFile(tmpFile, wsBundle.outputFiles[0].text, 'utf8');
+
+  try {
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+    const html = renderToString(mod.renderTimelineTaskLabelsWorkspace());
+
+    // 1. Verify task name label is placed above the task bar with data-timeline-task-name
+    assert.ok(html.includes('data-timeline-task-name="t-short"'), 'Timeline must render data-timeline-task-name="t-short"');
+
+    // 2. Verify label has bottom-full and mb-1 positioning it directly above the bar starting at left-0
+    assert.ok(html.includes('bottom-full'), 'Task label must use bottom-full to position directly above the task bar');
+    assert.ok(html.includes('left-0'), 'Task label must align to left-0 of the task bar');
+
+    // 3. Verify complete, non-truncated name is rendered above the bar even with dayWidth=14 (short box)
+    assert.ok(
+      html.includes('Tarea Corta con Nombre Extremadamente Largo de Arquitectura'),
+      'Must render complete task name above short 1-day bar without clipping'
+    );
+    assert.ok(html.includes('(1d)'), 'Must render duration next to name above the bar');
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
+

@@ -4968,6 +4968,19 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
                         {/* Wrapper for Task Bar + Left/Right Dependency Connector Ports */}
                         <div className="relative flex items-center">
+                          {/* Top Label above Task Bar: always completely visible, even for short boxes with long names */}
+                          <div
+                            data-timeline-task-name={item.id}
+                            className="absolute bottom-full mb-1 left-0 flex items-center gap-1.5 pointer-events-none select-none z-10 whitespace-nowrap"
+                          >
+                            <span className="text-[11px] font-semibold text-[#0C0C09] dark:text-zinc-100 drop-shadow-xs">
+                              {item.name}
+                            </span>
+                            <span className="text-[10px] font-mono text-[#6B6B66] dark:text-zinc-400 font-medium">
+                              {`(${coords.effectiveDuration}d)`}
+                            </span>
+                          </div>
+
                           {/* Left Input Dependency Connector Port (Sucesora) */}
                           <button
                             type="button"
@@ -5026,17 +5039,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               }`}
                             />
 
-                            {/* Task Label Inside Bar (only when bar is wide enough) */}
-                            {barWidth >= 56 && (
-                              <div className="absolute inset-0 px-2.5 flex items-center justify-between text-[11px] font-semibold pointer-events-none">
-                                <span className="truncate text-white drop-shadow-xs">
-                                  {item.name}
-                                </span>
-                                {barWidth >= 70 && (
-                                  <span className="font-mono text-[10px] ml-1 shrink-0 text-white/85">
-                                    {coords.effectiveDuration}d
-                                  </span>
-                                )}
+                            {/* Inside Bar: Progress percentage when progress > 0 and bar is wide enough */}
+                            {item.progress > 0 && barWidth >= 40 && (
+                              <div className="absolute inset-0 px-2 flex items-center justify-center text-[9px] font-mono font-bold text-white/90 drop-shadow-xs pointer-events-none select-none">
+                                {item.progress}%
                               </div>
                             )}
 
@@ -5095,13 +5101,6 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               +{totalSlackDays}d slack
                             </span>
                           </div>
-                        )}
-
-                        {/* Outside Label when bar is narrow */}
-                        {barWidth < 56 && (
-                          <span className="ml-3 text-[11px] font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap pointer-events-none">
-                            {item.name} ({coords.effectiveDuration}d)
-                          </span>
                         )}
                       </div>
                     )}
