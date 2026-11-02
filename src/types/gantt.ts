@@ -1,3 +1,5 @@
+export const APP_VERSION = '1.0.0';
+
 export type TaskType = 'task' | 'milestone';
 
 export type DependencyType = 'FS' | 'SS' | 'FF' | 'SF';
@@ -9,16 +11,28 @@ export type TaskColor =
   | 'amber'
   | 'rose'
   | 'violet'
-  | 'cyan';
+  | 'cyan'
+  | 'teal'
+  | 'orange'
+  | 'pink'
+  | 'slate'
+  | 'sky'
+  | 'lime';
 
 export const PROJECT_COLORS: { value: TaskColor; bg: string }[] = [
   { value: 'indigo', bg: 'bg-indigo-500' },
   { value: 'violet', bg: 'bg-violet-500' },
   { value: 'emerald', bg: 'bg-emerald-500' },
   { value: 'blue', bg: 'bg-blue-500' },
+  { value: 'teal', bg: 'bg-teal-500' },
   { value: 'amber', bg: 'bg-amber-500' },
+  { value: 'orange', bg: 'bg-orange-500' },
   { value: 'rose', bg: 'bg-rose-500' },
+  { value: 'pink', bg: 'bg-pink-500' },
   { value: 'cyan', bg: 'bg-cyan-500' },
+  { value: 'sky', bg: 'bg-sky-500' },
+  { value: 'lime', bg: 'bg-lime-500' },
+  { value: 'slate', bg: 'bg-slate-500' },
 ];
 
 export type ZoomLevel = 'day' | 'week' | 'month' | 'quarter';
@@ -54,6 +68,7 @@ export interface GanttItem {
   dependencyTypes?: Record<string, DependencyType>;
   progress: number;  // 0 - 100
   color: TaskColor;
+  customColor?: boolean;
   assignee?: string;
   notes?: string;
   hidden?: boolean;

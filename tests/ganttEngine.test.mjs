@@ -3816,5 +3816,261 @@ test('Project deletion controls and hiding tasks from diagram (visibility toggle
   }
 });
 
+test('App version in settings, inline task name editing, custom colors, and project descriptions', async () => {
+  const fs = await import('node:fs/promises');
+  const ReactDOMServer = await import('react-dom/server');
+
+  // 1. Verify sanitizeGanttItem preserves trailing spaces and empty strings without forcing default name on keystroke
+  const itemWithTrailingSpace = sanitizeGanttItem({
+    id: 't-space',
+    name: 'Desarrollo Backend ',
+    type: 'task',
+    startDate: '2026-11-01',
+    duration: 3,
+  });
+  assert.equal(
+    itemWithTrailingSpace.name,
+    'Desarrollo Backend ',
+    'sanitizeGanttItem must preserve trailing spaces during inline editing'
+  );
+
+  const itemEmptyName = sanitizeGanttItem({
+    id: 't-empty',
+    name: '',
+    type: 'task',
+    startDate: '2026-11-01',
+    duration: 3,
+  });
+  assert.equal(
+    itemEmptyName.name,
+    '',
+    'sanitizeGanttItem must allow empty string while user is clearing the input'
+  );
+
+  // 2. Verify customColor allows setting any color (including indigo, teal, orange, etc.) even when an assignee is present
+  const assignedItemDefault = sanitizeGanttItem({
+    id: 't-assigned-1',
+    name: 'Tarea Equipo',
+    type: 'task',
+    startDate: '2026-11-01',
+    duration: 3,
+    assignee: 'Frontend',
+  });
+  // Without customColor, team color takes precedence (Frontend -> violet)
+  assert.equal(getItemEffectiveColor(assignedItemDefault), 'violet');
+
+  const assignedItemCustomIndigo = sanitizeGanttItem({
+    id: 't-assigned-2',
+    name: 'Tarea Custom Indigo',
+    type: 'task',
+    startDate: '2026-11-01',
+    duration: 3,
+    assignee: 'Frontend',
+    color: 'indigo',
+    customColor: true,
+  });
+  assert.equal(assignedItemCustomIndigo.color, 'indigo');
+  assert.equal(assignedItemCustomIndigo.customColor, true);
+  assert.equal(
+    getItemEffectiveColor(assignedItemCustomIndigo),
+    'indigo',
+    'Explicit customColor: true must preserve indigo even if assignee is present'
+  );
+
+  // Expanded colors (teal, orange, pink, slate, sky, lime)
+  const expandedColors = ['teal', 'orange', 'pink', 'slate', 'sky', 'lime'];
+  for (const c of expandedColors) {
+    const itemWithNewColor = sanitizeGanttItem({
+      id: `t-${c}`,
+      name: `Tarea ${c}`,
+      type: 'task',
+      startDate: '2026-11-01',
+      duration: 2,
+      assignee: 'Frontend',
+      color: c,
+      customColor: true,
+    });
+    assert.equal(
+      getItemEffectiveColor(itemWithNewColor),
+      c,
+      `New palette color ${c} must be effective when customColor: true`
+    );
+  }
+
+  // 3. Verify sanitizeProject preserves project description
+  const projWithDesc = sanitizeProject({
+    id: 'p-desc',
+    name: 'Proyecto Con Notas',
+    description: 'Documentación del alcance y requerimientos clave del proyecto.',
+    color: 'teal',
+  });
+  assert.equal(projWithDesc.description, 'Documentación del alcance y requerimientos clave del proyecto.');
+  assert.equal(projWithDesc.color, 'teal');
+
+  // 4. SSR verification of Settings Modal (app version) and GanttWorkspace (project description & details modal)
+  const bundle = await build({
+    stdin: {
+      contents: `
+        import React from 'react';
+        import { App } from './src/App.tsx';
+        import { GanttWorkspace } from './src/components/GanttWorkspace.tsx';
+        import { TaskFormModal } from './src/components/TaskFormModal.tsx';
+        import { APP_VERSION } from './src/types/gantt.ts';
+
+        export function renderAppWithSettingsOpen() {
+          return <App initialSettingsOpen={true} />;
+        }
+
+        export function renderWorkspaceWithProjectDesc(inspectProject) {
+          const project = {
+            id: 'proj-desc-1',
+            name: 'Proyecto Alpha',
+            color: 'teal',
+            collapsed: false,
+            description: 'Alcance detallado del MVP versión 1.',
+          };
+          const item = {
+            id: 't-1',
+            name: 'Tarea 1',
+            type: 'task',
+            projectId: 'proj-desc-1',
+            startDate: '2026-11-01',
+            endDate: '2026-11-04',
+            duration: 4,
+            slack: 0,
+            dependencies: [],
+            progress: 50,
+            color: 'teal',
+            customColor: true,
+          };
+          return (
+            <GanttWorkspace
+              items={[item]}
+              projects={[project]}
+              groupByProject={true}
+              selectedProjectId="all"
+              zoom="day"
+              dayWidth={44}
+              showCriticalPath={false}
+              showCpmFloat={false}
+              autoCascade={true}
+              initialInspectingProjectId={inspectProject ? 'proj-desc-1' : undefined}
+              onUpdateItem={() => {}}
+              onEditModal={() => {}}
+              onDeleteItem={() => {}}
+              onDuplicateItem={() => {}}
+              onQuickAdd={() => {}}
+              onUpdateProject={() => {}}
+              scrollContainerRef={{ current: null }}
+            />
+          );
+        }
+
+        export function renderTaskFormModal() {
+          const item = {
+            id: 't-form-test',
+            name: 'Tarea Modal',
+            type: 'task',
+            projectId: 'proj-desc-1',
+            startDate: '2026-11-01',
+            endDate: '2026-11-04',
+            duration: 4,
+            slack: 0,
+            dependencies: [],
+            progress: 0,
+            color: 'teal',
+            assignee: 'Frontend',
+          };
+          return (
+            <TaskFormModal
+              isOpen={true}
+              onClose={() => {}}
+              onSave={() => {}}
+              initialItem={item}
+              allItems={[item]}
+            />
+          );
+        }
+      `,
+      resolveDir: path.resolve(__dirname, '..'),
+      sourcefile: 'ssr-version-and-project-desc-test.tsx',
+      loader: 'tsx',
+    },
+    bundle: true,
+    format: 'cjs',
+    platform: 'node',
+    external: ['react', 'react-dom'],
+    write: false,
+  });
+
+  const tmpFile = path.resolve(__dirname, './.tmp-version-and-project-desc-test.cjs');
+  await fs.writeFile(tmpFile, bundle.outputFiles[0].text, 'utf8');
+
+  try {
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+
+    // Test App Settings modal rendering version
+    const appHtml = ReactDOMServer.renderToString(mod.renderAppWithSettingsOpen());
+    assert.ok(
+      appHtml.includes('data-testid="app-version-badge"'),
+      'Settings modal header must render app version badge'
+    );
+    assert.ok(
+      appHtml.includes('v1.0.0'),
+      'Settings modal must display version v1.0.0'
+    );
+    assert.ok(
+      appHtml.includes('GanttFlow v1.0.0'),
+      'Settings modal footer must display GanttFlow v1.0.0'
+    );
+
+    // Test Workspace with project description indicator badge and info button
+    const wsHtml = ReactDOMServer.renderToString(mod.renderWorkspaceWithProjectDesc(false));
+    assert.ok(
+      wsHtml.includes('data-testid="project-info-btn-proj-desc-1"'),
+      'Workspace must render project info / edit button'
+    );
+    assert.ok(
+      wsHtml.includes('data-testid="project-has-description-proj-desc-1"'),
+      'Workspace must render project description indicator badge when description exists'
+    );
+
+    // Test Workspace with project details modal open
+    const wsModalHtml = ReactDOMServer.renderToString(mod.renderWorkspaceWithProjectDesc(true));
+    assert.ok(
+      wsModalHtml.includes('data-testid="project-details-modal"'),
+      'Workspace must render project details modal when inspecting a project'
+    );
+    assert.ok(
+      wsModalHtml.includes('data-testid="project-modal-name-input"'),
+      'Project details modal must render project name input'
+    );
+    assert.ok(
+      wsModalHtml.includes('data-testid="project-modal-description-input"'),
+      'Project details modal must render project description textarea'
+    );
+    assert.ok(
+      wsModalHtml.includes('Alcance detallado del MVP versión 1.'),
+      'Project details modal must display existing project description'
+    );
+    assert.ok(
+      wsModalHtml.includes('data-testid="save-project-details-btn"'),
+      'Project details modal must render save button'
+    );
+
+    // Test TaskFormModal color palette
+    const modalHtml = ReactDOMServer.renderToString(mod.renderTaskFormModal());
+    assert.ok(modalHtml.includes('data-color="teal"'), 'Task modal must render teal color option');
+    assert.ok(modalHtml.includes('data-color="orange"'), 'Task modal must render orange color option');
+    assert.ok(modalHtml.includes('data-color="slate"'), 'Task modal must render slate color option');
+    assert.ok(modalHtml.includes('data-color="pink"'), 'Task modal must render pink color option');
+    assert.ok(modalHtml.includes('data-color="sky"'), 'Task modal must render sky color option');
+    assert.ok(modalHtml.includes('data-color="lime"'), 'Task modal must render lime color option');
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
+
 
 

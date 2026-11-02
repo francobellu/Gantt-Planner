@@ -34,6 +34,7 @@ import {
   ZoomIn,
 } from 'lucide-react';
 import {
+  APP_VERSION,
   ArrowVisibility,
   ComputedGanttItem,
   GanttImportResult,
@@ -264,12 +265,14 @@ export function App({
   initialSelectedProjectIds,
   initialShowTable = true,
   initialProjectMenuOpen = false,
+  initialSettingsOpen = false,
 }: {
   initialScenarioId?: string;
   initialView?: 'gantt' | 'history' | 'projects';
   initialSelectedProjectIds?: string[];
   initialShowTable?: boolean;
   initialProjectMenuOpen?: boolean;
+  initialSettingsOpen?: boolean;
 } = {}) {
   const templates = useMemo(() => getProjectTemplates(), []);
   const defaultScenarios = useMemo(() => getDefaultSavedScenarios(), []);
@@ -589,7 +592,7 @@ export function App({
 
   // Minimalist UI toggles and menus
   const [showMetricsDrawer, setShowMetricsDrawer] = useState<boolean>(false);
-  const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
+  const [showSettingsModal, setShowSettingsModal] = useState<boolean>(initialSettingsOpen);
   const [projectMenuOpen, setProjectMenuOpen] = useState<boolean>(initialProjectMenuOpen);
   const [createMenuOpen, setCreateMenuOpen] = useState<boolean>(false);
 
@@ -2049,6 +2052,12 @@ export function App({
               <h2 className="text-sm font-bold text-[#0C0C09] dark:text-white">
                 Configuración del Cronograma
               </h2>
+              <span
+                data-testid="app-version-badge"
+                className="px-1.5 py-0.5 rounded-[2px] bg-[#F4F4F1] dark:bg-zinc-800 text-[#6B6B66] dark:text-zinc-400 text-[10px] font-mono font-bold border border-[#E2E2DC] dark:border-zinc-700"
+              >
+                {`v${APP_VERSION}`}
+              </span>
             </div>
             <button
               type="button"
@@ -2253,7 +2262,10 @@ export function App({
             </button>
           </div>
 
-          <div className="pt-2 flex justify-end">
+          <div className="pt-2 border-t border-[#E2E2DC] dark:border-zinc-800 flex items-center justify-between">
+            <span className="text-[11px] font-mono text-[#6B6B66] dark:text-zinc-400">
+              {`GanttFlow v${APP_VERSION}`}
+            </span>
             <button
               type="button"
               onClick={() => setShowSettingsModal(false)}

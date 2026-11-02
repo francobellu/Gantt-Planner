@@ -22,6 +22,7 @@ import {
   Edit3,
   Eye,
   EyeOff,
+  FileText,
   Flame,
   FolderKanban,
   GitBranch,
@@ -140,6 +141,7 @@ interface GanttWorkspaceProps {
   initialSelectedDepLink?: { predId: string; succId: string } | null;
   initialHoveredDepKey?: string | null;
   initialConnectModeSource?: { itemId: string; role: 'pred' | 'succ' } | null;
+  initialInspectingProjectId?: string;
 }
 
 
@@ -274,6 +276,90 @@ const COLOR_STYLES: Record<
     guideLine: 'border-[#0891B2]',
     guidePill: 'bg-[#0891B2] text-white font-mono rounded-[2px]',
   },
+  teal: {
+    barBg: 'bg-[#0D9488] text-white border border-[#0F766E] dark:bg-[#14B8A6] dark:border-[#0D9488]',
+    fillBg: 'bg-white/25 dark:bg-black/25',
+    border: 'border-[#0F766E] dark:border-[#0D9488]',
+    text: 'text-white',
+    badge: 'bg-[#0D9488] text-white',
+    groupRowBg: 'bg-[#F4F4F1] dark:bg-zinc-900 border-b border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-white',
+    groupBadgeBg: 'bg-[#0D9488] text-white border border-[#0F766E]',
+    diamondBg: 'bg-[#0D9488] text-white border border-[#0F766E]',
+    diamondPill: 'bg-[#0D9488] text-white border border-[#0F766E]',
+    diamondText: 'text-[#0D9488] dark:text-[#2DD4BF]',
+    guideLine: 'border-[#0D9488]',
+    guidePill: 'bg-[#0D9488] text-white font-mono rounded-[2px]',
+  },
+  orange: {
+    barBg: 'bg-[#EA580C] text-white border border-[#C2410C] dark:bg-[#F97316] dark:border-[#EA580C]',
+    fillBg: 'bg-white/25 dark:bg-black/25',
+    border: 'border-[#C2410C] dark:border-[#EA580C]',
+    text: 'text-white',
+    badge: 'bg-[#EA580C] text-white',
+    groupRowBg: 'bg-[#F4F4F1] dark:bg-zinc-900 border-b border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-white',
+    groupBadgeBg: 'bg-[#EA580C] text-white border border-[#C2410C]',
+    diamondBg: 'bg-[#EA580C] text-white border border-[#C2410C]',
+    diamondPill: 'bg-[#EA580C] text-white border border-[#C2410C]',
+    diamondText: 'text-[#EA580C] dark:text-[#FB923C]',
+    guideLine: 'border-[#EA580C]',
+    guidePill: 'bg-[#EA580C] text-white font-mono rounded-[2px]',
+  },
+  pink: {
+    barBg: 'bg-[#DB2777] text-white border border-[#BE185D] dark:bg-[#EC4899] dark:border-[#DB2777]',
+    fillBg: 'bg-white/25 dark:bg-black/25',
+    border: 'border-[#BE185D] dark:border-[#DB2777]',
+    text: 'text-white',
+    badge: 'bg-[#DB2777] text-white',
+    groupRowBg: 'bg-[#F4F4F1] dark:bg-zinc-900 border-b border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-white',
+    groupBadgeBg: 'bg-[#DB2777] text-white border border-[#BE185D]',
+    diamondBg: 'bg-[#DB2777] text-white border border-[#BE185D]',
+    diamondPill: 'bg-[#DB2777] text-white border border-[#BE185D]',
+    diamondText: 'text-[#DB2777] dark:text-[#F472B6]',
+    guideLine: 'border-[#DB2777]',
+    guidePill: 'bg-[#DB2777] text-white font-mono rounded-[2px]',
+  },
+  slate: {
+    barBg: 'bg-[#475569] text-white border border-[#334155] dark:bg-[#64748B] dark:border-[#475569]',
+    fillBg: 'bg-white/25 dark:bg-black/25',
+    border: 'border-[#334155] dark:border-[#475569]',
+    text: 'text-white',
+    badge: 'bg-[#475569] text-white',
+    groupRowBg: 'bg-[#F4F4F1] dark:bg-zinc-900 border-b border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-white',
+    groupBadgeBg: 'bg-[#475569] text-white border border-[#334155]',
+    diamondBg: 'bg-[#475569] text-white border border-[#334155]',
+    diamondPill: 'bg-[#475569] text-white border border-[#334155]',
+    diamondText: 'text-[#475569] dark:text-[#94A3B8]',
+    guideLine: 'border-[#475569]',
+    guidePill: 'bg-[#475569] text-white font-mono rounded-[2px]',
+  },
+  sky: {
+    barBg: 'bg-[#0284C7] text-white border border-[#0369A1] dark:bg-[#38BDF8] dark:border-[#0284C7] dark:text-[#0C0C09]',
+    fillBg: 'bg-white/25 dark:bg-black/25',
+    border: 'border-[#0369A1] dark:border-[#0284C7]',
+    text: 'text-white',
+    badge: 'bg-[#0284C7] text-white dark:bg-[#38BDF8] dark:text-[#0C0C09]',
+    groupRowBg: 'bg-[#F4F4F1] dark:bg-zinc-900 border-b border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-white',
+    groupBadgeBg: 'bg-[#0284C7] text-white border border-[#0369A1]',
+    diamondBg: 'bg-[#0284C7] text-white border border-[#0369A1]',
+    diamondPill: 'bg-[#0284C7] text-white border border-[#0369A1]',
+    diamondText: 'text-[#0284C7] dark:text-[#38BDF8]',
+    guideLine: 'border-[#0284C7]',
+    guidePill: 'bg-[#0284C7] text-white font-mono rounded-[2px]',
+  },
+  lime: {
+    barBg: 'bg-[#65A30D] text-white border border-[#4D7C0F] dark:bg-[#84CC16] dark:border-[#65A30D] dark:text-[#0C0C09]',
+    fillBg: 'bg-white/25 dark:bg-black/25',
+    border: 'border-[#4D7C0F] dark:border-[#65A30D]',
+    text: 'text-white',
+    badge: 'bg-[#65A30D] text-white dark:bg-[#84CC16] dark:text-[#0C0C09]',
+    groupRowBg: 'bg-[#F4F4F1] dark:bg-zinc-900 border-b border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-white',
+    groupBadgeBg: 'bg-[#65A30D] text-white border border-[#4D7C0F]',
+    diamondBg: 'bg-[#65A30D] text-white border border-[#4D7C0F]',
+    diamondPill: 'bg-[#65A30D] text-white border border-[#4D7C0F]',
+    diamondText: 'text-[#65A30D] dark:text-[#A3E635]',
+    guideLine: 'border-[#65A30D]',
+    guidePill: 'bg-[#65A30D] text-white font-mono rounded-[2px]',
+  },
 };
 
 export const TEAM_BADGE_STYLES: Record<
@@ -287,6 +373,14 @@ export const TEAM_BADGE_STYLES: Record<
     container: 'bg-cyan-50 dark:bg-cyan-950/60 border-cyan-400/80 dark:border-cyan-700 text-cyan-800 dark:text-cyan-200',
     dot: 'bg-[#0891B2] dark:bg-[#06B6D4]',
   },
+  teal: {
+    container: 'bg-teal-50 dark:bg-teal-950/60 border-teal-400/80 dark:border-teal-700 text-teal-800 dark:text-teal-200',
+    dot: 'bg-[#0D9488] dark:bg-[#14B8A6]',
+  },
+  sky: {
+    container: 'bg-sky-50 dark:bg-sky-950/60 border-sky-400/80 dark:border-sky-700 text-sky-800 dark:text-sky-200',
+    dot: 'bg-[#0284C7] dark:bg-[#38BDF8]',
+  },
   violet: {
     container: 'bg-violet-50 dark:bg-violet-950/60 border-violet-400/80 dark:border-violet-700 text-violet-800 dark:text-violet-200',
     dot: 'bg-[#7C3AED] dark:bg-[#8B5CF6]',
@@ -299,17 +393,33 @@ export const TEAM_BADGE_STYLES: Record<
     container: 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-400/80 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200',
     dot: 'bg-[#16A34A] dark:bg-[#22C55E]',
   },
+  lime: {
+    container: 'bg-lime-50 dark:bg-lime-950/60 border-lime-400/80 dark:border-lime-700 text-lime-800 dark:text-lime-200',
+    dot: 'bg-[#65A30D] dark:bg-[#84CC16]',
+  },
   amber: {
     container: 'bg-amber-50 dark:bg-amber-950/60 border-amber-400/80 dark:border-amber-700 text-amber-800 dark:text-amber-200',
     dot: 'bg-[#D97706] dark:bg-[#F59E0B]',
+  },
+  orange: {
+    container: 'bg-orange-50 dark:bg-orange-950/60 border-orange-400/80 dark:border-orange-700 text-orange-800 dark:text-orange-200',
+    dot: 'bg-[#EA580C] dark:bg-[#F97316]',
   },
   rose: {
     container: 'bg-rose-50 dark:bg-rose-950/60 border-rose-400/80 dark:border-rose-700 text-rose-800 dark:text-rose-200',
     dot: 'bg-[#DC2626] dark:bg-[#EF4444]',
   },
+  pink: {
+    container: 'bg-pink-50 dark:bg-pink-950/60 border-pink-400/80 dark:border-pink-700 text-pink-800 dark:text-pink-200',
+    dot: 'bg-[#DB2777] dark:bg-[#EC4899]',
+  },
   indigo: {
     container: 'bg-indigo-50 dark:bg-indigo-950/60 border-indigo-400/80 dark:border-indigo-700 text-indigo-800 dark:text-indigo-200',
     dot: 'bg-[#4F46E5] dark:bg-[#6366F1]',
+  },
+  slate: {
+    container: 'bg-slate-100 dark:bg-slate-900/60 border-slate-400/80 dark:border-slate-700 text-slate-800 dark:text-slate-200',
+    dot: 'bg-[#475569] dark:bg-[#64748B]',
   },
 };
 
@@ -351,6 +461,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   initialSelectedDepLink,
   initialHoveredDepKey,
   initialConnectModeSource,
+  initialInspectingProjectId,
 }) => {
   const [hoveredId, setHoveredId] = useState<string | null>(
     initialHoveredItemId || null
@@ -358,6 +469,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   const [selectedItemId, setSelectedItemId] = useState<string | null>(
     initialSelectedItemId || null
   );
+  const [inspectingProject, setInspectingProject] = useState<GanttProject | null>(() => {
+    if (initialInspectingProjectId && projects.length > 0) {
+      return projects.find((p) => p.id === initialInspectingProjectId) || null;
+    }
+    return null;
+  });
   const [selectedDepLink, setSelectedDepLink] = useState<{
     predId: string;
     succId: string;
@@ -891,7 +1008,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     if (visibleColumns.dur) w += 64; // w-16 = 64px
     if (visibleColumns.slack) w += 56; // w-14 = 56px
     if (visibleColumns.deps) w += 80; // w-20 = 80px
-    w += 96; // Action/config buttons column w-24 = 96px
+    w += 112; // Action/config buttons column w-28 = 112px
     return w;
   }, [nameColumnWidth, visibleColumns]);
 
@@ -2391,7 +2508,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       )}
 
                       {/* Botón de Columnas: SOLO ICONO VECTORIAL (sin texto) */}
-                      <div className="w-24 flex items-center justify-end pr-1">
+                      <div className="w-28 flex items-center justify-end pr-1">
                         <div ref={columnsMenuRef} className="relative" data-dropdown-container="true">
                           <button
                             type="button"
@@ -2555,6 +2672,20 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                       name: e.target.value,
                                     })
                                   }
+                                  onBlur={(e) => {
+                                    const trimmed = e.target.value.trim();
+                                    if (!trimmed) {
+                                      onUpdateProject?.({
+                                        ...group.project,
+                                        name: `Proyecto ${group.projectIndex}`,
+                                      });
+                                    } else if (trimmed !== group.project.name) {
+                                      onUpdateProject?.({
+                                        ...group.project,
+                                        name: trimmed,
+                                      });
+                                    }
+                                  }}
                                   className={`col-start-1 row-start-1 w-full min-w-[24px] bg-transparent font-bold text-[#0C0C09] dark:text-white focus:bg-white dark:focus:bg-zinc-800 px-1.5 py-0.5 rounded-[2px] outline-none focus:ring-1 focus:ring-indigo-500 transition-all ${
                                     draggingRowId ? 'pointer-events-none' : ''
                                   }`}
@@ -2562,6 +2693,18 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                   data-project-name-input={group.project.id}
                                 />
                               </div>
+
+                              {group.project.description?.trim() && (
+                                <button
+                                  type="button"
+                                  data-testid={`project-has-description-${group.project.id}`}
+                                  onClick={() => setInspectingProject(group.project)}
+                                  className="p-1 rounded-[2px] text-[#312C85] dark:text-indigo-400 hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer shrink-0"
+                                  title={`Información: ${group.project.description}`}
+                                >
+                                  <FileText className="w-3 h-3" />
+                                </button>
+                              )}
 
                               <span
                                 className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono border shrink-0 ${projTheme.groupBadgeBg}`}
@@ -2604,7 +2747,16 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               )}
 
                               {/* Project Quick Actions */}
-                              <div className="w-24 shrink-0 flex items-center justify-end gap-0.5 pr-1">
+                              <div className="w-28 shrink-0 flex items-center justify-end gap-0.5 pr-1">
+                                <button
+                                  type="button"
+                                  data-testid={`project-info-btn-${group.project.id}`}
+                                  onClick={() => setInspectingProject(group.project)}
+                                  className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 text-slate-500 hover:text-[#0C0C09] dark:hover:text-white transition cursor-pointer"
+                                  title={`Ver y editar información / notas de ${group.project.name}`}
+                                >
+                                  <FileText className="w-3.5 h-3.5" />
+                                </button>
                                 <button
                                   type="button"
                                   data-fit-project-row={group.project.id}
@@ -2781,6 +2933,23 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 onChange={(e) =>
                                   onUpdateItem({ ...item, name: e.target.value }, false)
                                 }
+                                onBlur={(e) => {
+                                  const trimmed = e.target.value.trim();
+                                  if (!trimmed) {
+                                    onUpdateItem(
+                                      {
+                                        ...item,
+                                        name:
+                                          item.type === 'milestone'
+                                            ? 'Nuevo Hito'
+                                            : 'Nueva Tarea',
+                                      },
+                                      false
+                                    );
+                                  } else if (trimmed !== item.name) {
+                                    onUpdateItem({ ...item, name: trimmed }, false);
+                                  }
+                                }}
                                 style={{
                                   minWidth: `${Math.max(24, Math.ceil((item.name || '').length * 8.2))}px`,
                                 }}
@@ -2986,7 +3155,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             )}
 
                             {/* 6. Acciones Column */}
-                            <div className="w-24 shrink-0 flex items-center justify-end gap-0.5 pr-1">
+                            <div className="w-28 shrink-0 flex items-center justify-end gap-0.5 pr-1">
                               <button
                                 type="button"
                                 data-testid={`toggle-task-visibility-${item.id}`}
@@ -4629,6 +4798,172 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               </button>
             </div>
           </aside>
+        )}
+
+        {/* Project Information & Description Modal */}
+        {inspectingProject && (
+          <div
+            data-testid="project-details-modal"
+            onClick={() => setInspectingProject(null)}
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-lg bg-white dark:bg-[#0C0C09] border border-[#0C0C09] dark:border-zinc-700 rounded-[8px] shadow-2xl p-5 space-y-4"
+            >
+              <div className="flex items-center justify-between border-b border-[#E2E2DC] dark:border-zinc-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold text-white shrink-0 ${
+                      COLOR_STYLES[inspectingProject.color]?.badge || 'bg-indigo-500'
+                    }`}
+                  >
+                    Proyecto
+                  </span>
+                  <h3 className="text-sm font-bold text-[#0C0C09] dark:text-white truncate">
+                    {inspectingProject.name}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  data-testid="close-project-modal-btn"
+                  onClick={() => setInspectingProject(null)}
+                  className="p-1 rounded-[4px] hover:bg-black/5 dark:hover:bg-white/10 text-slate-400 hover:text-[#0C0C09] dark:hover:text-white transition cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Editable Name & Color */}
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-[11px] font-mono font-bold uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400 mb-1">
+                    Nombre del Proyecto
+                  </label>
+                  <input
+                    type="text"
+                    data-testid="project-modal-name-input"
+                    value={inspectingProject.name}
+                    onChange={(e) =>
+                      setInspectingProject({
+                        ...inspectingProject,
+                        name: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-bold text-[#0C0C09] dark:text-zinc-100 outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-mono font-bold uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400 mb-1.5">
+                    Color del Proyecto
+                  </label>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {PROJECT_COLORS.map((c) => (
+                      <button
+                        key={c.value}
+                        type="button"
+                        onClick={() =>
+                          setInspectingProject({
+                            ...inspectingProject,
+                            color: c.value,
+                          })
+                        }
+                        data-testid={`project-color-opt-${c.value}`}
+                        title={c.value}
+                        className={`w-6 h-6 rounded-full ${c.bg} flex items-center justify-center transition cursor-pointer ${
+                          inspectingProject.color === c.value
+                            ? 'ring-2 ring-offset-2 ring-[#0C0C09] dark:ring-white scale-110'
+                            : 'opacity-70 hover:opacity-100'
+                        }`}
+                      >
+                        {inspectingProject.color === c.value && (
+                          <Check className="w-3 h-3 text-white" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-mono font-bold uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400 mb-1">
+                    Información / Descripción del Proyecto
+                  </label>
+                  <textarea
+                    rows={4}
+                    data-testid="project-modal-description-input"
+                    value={inspectingProject.description || ''}
+                    onChange={(e) =>
+                      setInspectingProject({
+                        ...inspectingProject,
+                        description: e.target.value,
+                      })
+                    }
+                    placeholder="Describe los objetivos del proyecto, alcance, entregables clave, notas o enlaces de documentación..."
+                    className="w-full px-3 py-2 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs text-[#0C0C09] dark:text-zinc-200 outline-none focus:ring-1 focus:ring-indigo-500 resize-none"
+                  />
+                </div>
+              </div>
+
+              {/* Project stats overview */}
+              {(() => {
+                const grp = allProjectGroups.find((g) => g.project.id === inspectingProject.id);
+                if (!grp) return null;
+                return (
+                  <div className="grid grid-cols-3 gap-2 p-2.5 rounded-[4px] bg-[#F4F4F1] dark:bg-zinc-900 border border-[#E2E2DC] dark:border-zinc-800 text-[11px] font-mono">
+                    <div>
+                      <span className="text-[#6B6B66] dark:text-zinc-400 block text-[10px] uppercase font-bold">
+                        Fechas
+                      </span>
+                      <span className="font-semibold text-[#0C0C09] dark:text-zinc-200">
+                        {grp.items.length > 0
+                          ? `${formatDateDisplay(grp.startDate, 'dd/MM/yy')} → ${formatDateDisplay(grp.endDate, 'dd/MM/yy')}`
+                          : '—'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[#6B6B66] dark:text-zinc-400 block text-[10px] uppercase font-bold">
+                        Duración
+                      </span>
+                      <span className="font-semibold text-[#0C0C09] dark:text-zinc-200">
+                        {grp.duration}d ({grp.items.length} ítems)
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[#6B6B66] dark:text-zinc-400 block text-[10px] uppercase font-bold">
+                        Progreso
+                      </span>
+                      <span className="font-semibold text-indigo-600 dark:text-indigo-400">
+                        {grp.progress}%
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Actions Footer */}
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#E2E2DC] dark:border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => setInspectingProject(null)}
+                  className="px-3 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-medium text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  data-testid="save-project-details-btn"
+                  onClick={() => {
+                    onUpdateProject?.(inspectingProject);
+                    setInspectingProject(null);
+                  }}
+                  className="px-4 py-1.5 rounded-[4px] bg-[#0C0C09] hover:bg-[#312C85] dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-[#0C0C09] font-medium text-xs transition cursor-pointer"
+                >
+                  Guardar Información
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

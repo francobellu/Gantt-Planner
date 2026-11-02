@@ -144,6 +144,12 @@ const VALID_COLORS = new Set<TaskColor>([
   'rose',
   'violet',
   'cyan',
+  'teal',
+  'orange',
+  'pink',
+  'slate',
+  'sky',
+  'lime',
 ]);
 
 export const TEAM_COLOR_PALETTE: TaskColor[] = [
@@ -203,9 +209,13 @@ export function getItemEffectiveColor(item: {
   type?: 'task' | 'milestone';
   color?: TaskColor;
   assignee?: string;
+  customColor?: boolean;
 }): TaskColor {
   if (item.type === 'milestone') {
     return item.color || 'amber';
+  }
+  if (item.customColor && item.color && VALID_COLORS.has(item.color)) {
+    return item.color;
   }
   if (item.color && item.color !== 'indigo' && VALID_COLORS.has(item.color)) {
     return item.color;
@@ -336,10 +346,13 @@ export function sanitizeGanttItem(
 
   const rawColor = raw.color && VALID_COLORS.has(raw.color) ? raw.color : undefined;
   const rawAssignee = raw.assignee != null ? String(raw.assignee).trim() : undefined;
+  const isCustomColor = Boolean(raw.customColor);
 
   let color: TaskColor;
   if (type === 'milestone') {
     color = rawColor || 'amber';
+  } else if (isCustomColor && rawColor) {
+    color = rawColor;
   } else if (rawColor && rawColor !== 'indigo') {
     // Custom non-default color explicitly chosen
     color = rawColor;
@@ -375,7 +388,12 @@ export function sanitizeGanttItem(
 
   const result: GanttItem = {
     id,
-    name: (raw.name != null ? String(raw.name) : '').trim() || `Elemento ${fallbackIndex + 1}`,
+    name:
+      raw.name != null
+        ? String(raw.name)
+        : fallbackIndex >= 0
+        ? `Elemento ${fallbackIndex + 1}`
+        : 'Tarea',
     type,
     startDate,
     endDate,
@@ -388,6 +406,7 @@ export function sanitizeGanttItem(
         : undefined,
     progress,
     color,
+    ...(isCustomColor ? { customColor: true } : {}),
     assignee: raw.assignee != null ? String(raw.assignee).trim() : undefined,
     notes: raw.notes != null ? String(raw.notes).trim() : undefined,
     hidden: Boolean(raw.hidden),
