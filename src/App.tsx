@@ -2175,6 +2175,7 @@ export function App({
               releaseGuideVisibility={releaseGuideVisibility}
               groupingMode={groupingMode}
               onToggleGroupingMode={() => setGroupingMode((prev) => (prev === 'release' ? 'project' : 'release'))}
+              onOpenReleasesModal={() => setShowReleasesModal(true)}
               groupByProject={groupByProject}
               selectedProjectId={selectedProjectId}
               selectedProjectIds={selectedProjectIds}

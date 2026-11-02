@@ -155,6 +155,7 @@ interface GanttWorkspaceProps {
   releaseGuideVisibility?: ReleaseGuideVisibility;
   groupingMode?: GroupingMode;
   onToggleGroupingMode?: () => void;
+  onOpenReleasesModal?: (releaseId?: string) => void;
 }
 
 
@@ -485,6 +486,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   releaseGuideVisibility = 'selected',
   groupingMode = 'project',
   onToggleGroupingMode,
+  onOpenReleasesModal,
 }) => {
   const [collapsedReleaseIds, setCollapsedReleaseIds] = useState<Set<string>>(
     new Set()
@@ -2782,6 +2784,18 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 {rGroup.release.code}
                               </span>
                               <span className="truncate">{rGroup.release.name}</span>
+                              {onOpenReleasesModal && (
+                                <button
+                                  type="button"
+                                  data-testid={`release-manage-btn-${rGroup.release.code}`}
+                                  onClick={() => onOpenReleasesModal(rGroup.release.id)}
+                                  className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-sans font-medium bg-white/20 hover:bg-white/30 text-white dark:bg-black/10 dark:hover:bg-black/20 dark:text-black transition cursor-pointer shrink-0"
+                                  title={`Abrir gestión de la release ${rGroup.release.code} (asignar proyectos, editar hitos)`}
+                                >
+                                  <SlidersHorizontal className="w-3 h-3" />
+                                  <span>Gestionar</span>
+                                </button>
+                              )}
                               {rGroup.violationsCount > 0 && (
                                 <span
                                   data-testid={`release-violations-badge-${rGroup.release.code}`}
@@ -2851,11 +2865,14 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 )}
                               </button>
 
-                              <span
-                                className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold text-white shrink-0 ${projTheme.badge}`}
+                              <button
+                                type="button"
+                                onClick={() => setInspectingProject(group.project)}
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold text-white shrink-0 hover:opacity-85 transition cursor-pointer ${projTheme.badge}`}
+                                title={`Configuración de ${group.project.name} (Release, descripción, color)`}
                               >
                                 P{group.projectIndex}
-                              </span>
+                              </button>
 
                               <div className="inline-grid items-center shrink-0 max-w-full">
                                 <span
@@ -2895,26 +2912,38 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 />
                               </div>
 
-                              {group.project.description?.trim() && (
-                                <button
-                                  type="button"
-                                  data-testid={`project-has-description-${group.project.id}`}
-                                  onClick={() => setInspectingProject(group.project)}
-                                  className="p-1 rounded-[2px] text-[#312C85] dark:text-indigo-400 hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer shrink-0"
-                                  title={`Información: ${group.project.description}`}
-                                >
-                                  <FileText className="w-3 h-3" />
-                                </button>
-                              )}
+                              <button
+                                type="button"
+                                data-testid={
+                                  group.project.description?.trim()
+                                    ? `project-has-description-${group.project.id}`
+                                    : `project-info-inline-${group.project.id}`
+                                }
+                                onClick={() => setInspectingProject(group.project)}
+                                className={`p-1 rounded-[2px] transition cursor-pointer shrink-0 ${
+                                  group.project.description?.trim()
+                                    ? 'text-[#312C85] dark:text-indigo-400 hover:bg-black/5 dark:hover:bg-white/10'
+                                    : 'text-slate-400 hover:text-[#0C0C09] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10'
+                                }`}
+                                title={
+                                  group.project.description?.trim()
+                                    ? `Información y configuración: ${group.project.description}`
+                                    : `Detalle y configuración de ${group.project.name} (asociar release, notas, color)`
+                                }
+                              >
+                                <FileText className="w-3.5 h-3.5" />
+                              </button>
 
                               {group.project.releaseId && (
-                                <span
+                                <button
+                                  type="button"
+                                  onClick={() => setInspectingProject(group.project)}
                                   data-testid={`project-release-badge-${group.project.id}`}
-                                  className="px-1.5 py-0.5 rounded-[2px] bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09] text-[10px] font-mono font-bold shrink-0"
-                                  title={`Release asignada: ${releases?.find((r) => r.id === group.project.releaseId)?.name || group.project.releaseId}`}
+                                  className="px-1.5 py-0.5 rounded-[2px] bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09] text-[10px] font-mono font-bold shrink-0 hover:opacity-85 transition cursor-pointer"
+                                  title={`Release asignada: ${releases?.find((r) => r.id === group.project.releaseId)?.name || group.project.releaseId} (Clic para cambiar)`}
                                 >
                                   {releases?.find((r) => r.id === group.project.releaseId)?.code || group.project.releaseId}
-                                </span>
+                                </button>
                               )}
 
                               <span
