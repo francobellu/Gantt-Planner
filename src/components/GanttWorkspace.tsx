@@ -20,6 +20,8 @@ import {
   Copy,
   Diamond,
   Edit3,
+  Eye,
+  EyeOff,
   Flame,
   FolderKanban,
   GitBranch,
@@ -889,7 +891,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     if (visibleColumns.dur) w += 64; // w-16 = 64px
     if (visibleColumns.slack) w += 56; // w-14 = 56px
     if (visibleColumns.deps) w += 80; // w-20 = 80px
-    w += 80; // Action/config buttons column w-20 = 80px
+    w += 96; // Action/config buttons column w-24 = 96px
     return w;
   }, [nameColumnWidth, visibleColumns]);
 
@@ -1901,13 +1903,14 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     const outgoingMap = new Map<string, string[]>();
 
     for (const succ of items) {
+      if (succ.hidden) continue;
       if (!succ.dependencies || succ.dependencies.length === 0) continue;
       const succCoords = itemRowMap.get(succ.id);
       if (!succCoords) continue;
 
       for (const predId of succ.dependencies) {
         const predCoords = itemRowMap.get(predId);
-        if (!predCoords) continue;
+        if (!predCoords || predCoords.item.hidden) continue;
         if (
           predCoords.isCollapsedRow &&
           succCoords.isCollapsedRow &&
@@ -1946,6 +1949,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     }> = [];
 
     for (const succ of items) {
+      if (succ.hidden) continue;
       if (!succ.dependencies || succ.dependencies.length === 0) continue;
       const succCoords = itemRowMap.get(succ.id);
       if (!succCoords) continue;
@@ -1955,7 +1959,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
       succ.dependencies.forEach((predId) => {
         const predCoords = itemRowMap.get(predId);
-        if (!predCoords) return;
+        if (!predCoords || predCoords.item.hidden) return;
         if (
           predCoords.isCollapsedRow &&
           succCoords.isCollapsedRow &&
@@ -2387,7 +2391,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       )}
 
                       {/* Botón de Columnas: SOLO ICONO VECTORIAL (sin texto) */}
-                      <div className="w-20 flex items-center justify-end pr-1">
+                      <div className="w-24 flex items-center justify-end pr-1">
                         <div ref={columnsMenuRef} className="relative" data-dropdown-container="true">
                           <button
                             type="button"
@@ -2600,7 +2604,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               )}
 
                               {/* Project Quick Actions */}
-                              <div className="w-20 shrink-0 flex items-center justify-end gap-0.5 pr-1">
+                              <div className="w-24 shrink-0 flex items-center justify-end gap-0.5 pr-1">
                                 <button
                                   type="button"
                                   data-fit-project-row={group.project.id}
@@ -2679,7 +2683,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               ? 'border-b-2 border-b-[#0C0C09] bg-[#F4F4F1] dark:bg-zinc-800'
                               : ''
                           } ${
-                            isBeingDragged
+                            item.hidden
+                              ? 'opacity-60 bg-zinc-50/70 dark:bg-zinc-900/30'
+                              : isBeingDragged
                               ? 'opacity-40 bg-[#F4F4F1] dark:bg-zinc-800/60'
                               : isHovered
                               ? 'bg-[#F4F4F1] dark:bg-zinc-900/60'
@@ -2785,6 +2791,15 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 data-task-name-input={item.id}
                               />
                             </div>
+                            {item.hidden && (
+                              <span
+                                data-testid={`task-hidden-badge-${item.id}`}
+                                title="Oculta del diagrama de cronograma"
+                                className="px-1 py-0.5 rounded-[2px] bg-zinc-200/80 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-[9px] font-mono shrink-0 border border-zinc-300 dark:border-zinc-700"
+                              >
+                                Oculta
+                              </span>
+                            )}
                             {isCrit && (
                               <span
                                 title="En Ruta Crítica (Slack = 0)"
@@ -2971,7 +2986,24 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             )}
 
                             {/* 6. Acciones Column */}
-                            <div className="w-20 shrink-0 flex items-center justify-end gap-0.5 pr-1">
+                            <div className="w-24 shrink-0 flex items-center justify-end gap-0.5 pr-1">
+                              <button
+                                type="button"
+                                data-testid={`toggle-task-visibility-${item.id}`}
+                                onClick={() => onUpdateItem({ ...item, hidden: !item.hidden }, false)}
+                                className={`p-1 rounded-[2px] transition cursor-pointer ${
+                                  item.hidden
+                                    ? 'text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20'
+                                    : 'text-[#6B6B66] hover:text-[#0C0C09] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10'
+                                }`}
+                                title={item.hidden ? 'Mostrar en el diagrama' : 'Ocultar del diagrama'}
+                              >
+                                {item.hidden ? (
+                                  <EyeOff className="w-3.5 h-3.5" />
+                                ) : (
+                                  <Eye className="w-3.5 h-3.5" />
+                                )}
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => onEditModal(item)}
@@ -3766,6 +3798,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
                 // Task or Milestone Bar
                 const { item } = row;
+                if (item.hidden) return null;
                 const coords = itemRowMap.get(item.id);
                 if (!coords) return null;
 
@@ -4481,6 +4514,14 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             <span className="truncate">{selectedItem.assignee}</span>
                           </span>
                         )}
+                        {selectedItem.hidden && (
+                          <span
+                            data-testid={`panel-hidden-badge-${selectedItem.id}`}
+                            className="text-[10px] font-medium px-1.5 py-0.5 rounded-[2px] bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30"
+                          >
+                            Oculta en diagrama
+                          </span>
+                        )}
                       </div>
                       <h4
                         className="font-bold text-[#0C0C09] dark:text-zinc-100 mt-1 text-sm leading-tight break-words"
@@ -4557,8 +4598,24 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               </div>
             </div>
 
-            {/* Actions: Edit button */}
-            <div className="flex items-center justify-end gap-2 pt-1 border-t border-[#E2E2DC] dark:border-zinc-800">
+            {/* Actions: Toggle Diagram Visibility & Edit button */}
+            <div className="flex items-center justify-between gap-2 pt-1 border-t border-[#E2E2DC] dark:border-zinc-800">
+              <button
+                type="button"
+                data-testid={`panel-toggle-task-visibility-${selectedItem.id}`}
+                onClick={() => {
+                  onUpdateItem({ ...selectedItem, hidden: !selectedItem.hidden }, false);
+                }}
+                className={`px-2 py-1 rounded-[3px] border text-[11px] font-medium flex items-center gap-1.5 transition cursor-pointer ${
+                  selectedItem.hidden
+                    ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20'
+                    : 'border-[#E2E2DC] dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-700'
+                }`}
+                title={selectedItem.hidden ? 'Mostrar en el diagrama' : 'Ocultar del diagrama'}
+              >
+                {selectedItem.hidden ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                <span>{selectedItem.hidden ? 'Mostrar en diagrama' : 'Ocultar en diagrama'}</span>
+              </button>
               <button
                 type="button"
                 onClick={() => {

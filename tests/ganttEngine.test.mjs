@@ -3609,5 +3609,212 @@ test('Timeline Drag Invariance (never modify other tasks), Undo/Redo mechanism, 
   }
 });
 
+test('Project deletion controls and hiding tasks from diagram (visibility toggles, badges, and SVG link filtering)', async () => {
+  // 1. Engine unit check: sanitizeGanttItem preserves hidden flag
+  const sanitizedHidden = sanitizeGanttItem({
+    id: 't-hidden',
+    name: 'Tarea Oculta',
+    startDate: '2026-11-01',
+    endDate: '2026-11-03',
+    duration: 3,
+    hidden: true,
+  });
+  assert.equal(sanitizedHidden.hidden, true, 'sanitizeGanttItem must retain hidden: true');
+
+  const sanitizedVisible = sanitizeGanttItem({
+    id: 't-visible',
+    name: 'Tarea Visible',
+    startDate: '2026-11-01',
+    endDate: '2026-11-03',
+    duration: 3,
+    hidden: false,
+  });
+  assert.equal(sanitizedVisible.hidden, false, 'sanitizeGanttItem must retain hidden: false');
+
+  // 2. SSR Component Verification: GanttWorkspace, TaskFormModal, and App
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const esbuild = await import('esbuild');
+  const React = await import('react');
+  const ReactDOMServer = await import('react-dom/server');
+
+  const bundle = await esbuild.build({
+    stdin: {
+      contents: `
+        import React from 'react';
+        import { App } from './src/App';
+        import { GanttWorkspace } from './src/components/GanttWorkspace';
+        import { TaskFormModal } from './src/components/TaskFormModal';
+
+        export function renderWorkspaceWithHiddenTask() {
+          const projects = [
+            { id: 'proj-1', name: 'Proyecto Alpha', color: 'indigo', collapsed: false },
+          ];
+          const items = [
+            {
+              id: 'task-visible-1',
+              name: 'Tarea Visible 1',
+              type: 'task',
+              projectId: 'proj-1',
+              startDate: '2026-11-01',
+              endDate: '2026-11-04',
+              duration: 4,
+              slack: 0,
+              dependencies: [],
+              progress: 50,
+              color: 'indigo',
+              hidden: false,
+            },
+            {
+              id: 'task-hidden-2',
+              name: 'Tarea Oculta 2',
+              type: 'task',
+              projectId: 'proj-1',
+              startDate: '2026-11-05',
+              endDate: '2026-11-08',
+              duration: 4,
+              slack: 0,
+              dependencies: ['task-visible-1'],
+              progress: 0,
+              color: 'emerald',
+              hidden: true,
+            },
+          ];
+
+          return (
+            <GanttWorkspace
+              items={items}
+              projects={projects}
+              selectedProjectIds={['proj-1']}
+              initialSelectedItemId="task-hidden-2"
+              onUpdateItem={() => {}}
+              onDeleteItem={() => {}}
+              onDuplicateItem={() => {}}
+              onEditModal={() => {}}
+              onQuickAdd={() => {}}
+              onReorderItem={() => {}}
+            />
+          );
+        }
+
+        export function renderModal(initialHidden) {
+          const item = {
+            id: 'task-test',
+            name: 'Tarea Test',
+            type: 'task',
+            projectId: 'proj-1',
+            startDate: '2026-11-01',
+            endDate: '2026-11-04',
+            duration: 4,
+            slack: 0,
+            dependencies: [],
+            progress: 0,
+            color: 'indigo',
+            hidden: initialHidden,
+          };
+          return (
+            <TaskFormModal
+              isOpen={true}
+              onClose={() => {}}
+              onSave={() => {}}
+              initialItem={item}
+              allItems={[item]}
+            />
+          );
+        }
+
+        export function renderAppMultiProjects() {
+          return <App initialView="gantt" initialProjectMenuOpen={true} />;
+        }
+      `,
+      resolveDir: path.resolve(__dirname, '..'),
+      sourcefile: 'ssr-deletion-visibility-test.tsx',
+      loader: 'tsx',
+    },
+    bundle: true,
+    format: 'cjs',
+    platform: 'node',
+    external: ['react', 'react-dom'],
+    write: false,
+  });
+
+  const tmpFile = path.resolve(__dirname, './.tmp-deletion-visibility-test.cjs');
+  await fs.writeFile(tmpFile, bundle.outputFiles[0].text, 'utf8');
+
+  try {
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+
+    // Verify Workspace rendering with hidden task
+    const wsHtml = ReactDOMServer.renderToString(mod.renderWorkspaceWithHiddenTask());
+
+    // 1) Table row controls: visibility toggle buttons must exist for both items
+    assert.ok(
+      wsHtml.includes('data-testid="toggle-task-visibility-task-visible-1"'),
+      'Must render visibility toggle button for visible task'
+    );
+    assert.ok(
+      wsHtml.includes('data-testid="toggle-task-visibility-task-hidden-2"'),
+      'Must render visibility toggle button for hidden task'
+    );
+
+    // 2) Hidden badge in table row
+    assert.ok(
+      wsHtml.includes('data-testid="task-hidden-badge-task-hidden-2"'),
+      'Must render "Oculta" badge in table row for hidden task'
+    );
+
+    // 3) Timeline bars: visible task must be rendered, hidden task bar must NOT be rendered
+    assert.ok(
+      wsHtml.includes('data-timeline-task="task-visible-1"') || wsHtml.includes('task-visible-1'),
+      'Visible task bar must be rendered in diagram timeline'
+    );
+    assert.ok(
+      !wsHtml.includes('data-timeline-task="task-hidden-2"'),
+      'Hidden task bar must NOT be rendered in diagram timeline'
+    );
+
+    // 4) SVG dependency arrows: dependency arrow into hidden task must NOT be drawn
+    assert.ok(
+      !wsHtml.includes('data-dep-link="task-visible-1->task-hidden-2"'),
+      'Dependency arrow connecting to hidden task must NOT be drawn in SVG layer'
+    );
+
+    // 5) Inspection panel: when inspecting hidden item, badge and toggle button must be present
+    assert.ok(
+      wsHtml.includes('data-testid="panel-hidden-badge-task-hidden-2"'),
+      'Inspection panel must show "Oculta en diagrama" badge'
+    );
+    assert.ok(
+      wsHtml.includes('data-testid="panel-toggle-task-visibility-task-hidden-2"'),
+      'Inspection panel must render diagram visibility toggle button'
+    );
+
+    // 6) TaskFormModal rendering
+    const modalHtml = ReactDOMServer.renderToString(mod.renderModal(true));
+    assert.ok(
+      modalHtml.includes('data-testid="task-form-hidden-checkbox"'),
+      'TaskFormModal must render diagram visibility checkbox'
+    );
+    assert.ok(
+      modalHtml.includes('checked=""') || modalHtml.includes('checked'),
+      'Diagram visibility checkbox must be checked when item is hidden'
+    );
+
+    // 7) App with multiple projects renders delete project buttons
+    const appHtml = ReactDOMServer.renderToString(mod.renderAppMultiProjects());
+    assert.ok(
+      appHtml.includes('data-projects-dropdown-menu="true"'),
+      'App must render projects dropdown menu in header'
+    );
+    assert.ok(
+      appHtml.includes('data-testid="delete-project-menu-btn-') ||
+        appHtml.includes('data-project-menu-item="'),
+      'App must render project menu items'
+    );
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
 
 

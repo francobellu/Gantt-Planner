@@ -390,6 +390,7 @@ export function sanitizeGanttItem(
     color,
     assignee: raw.assignee != null ? String(raw.assignee).trim() : undefined,
     notes: raw.notes != null ? String(raw.notes).trim() : undefined,
+    hidden: Boolean(raw.hidden),
   };
 
   if (raw.projectId != null && String(raw.projectId).trim()) {

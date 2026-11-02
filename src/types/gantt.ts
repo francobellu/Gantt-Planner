@@ -56,6 +56,7 @@ export interface GanttItem {
   color: TaskColor;
   assignee?: string;
   notes?: string;
+  hidden?: boolean;
 }
 
 export interface ComputedGanttItem extends GanttItem {

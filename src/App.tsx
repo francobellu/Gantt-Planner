@@ -263,11 +263,13 @@ export function App({
   initialView = 'gantt',
   initialSelectedProjectIds,
   initialShowTable = true,
+  initialProjectMenuOpen = false,
 }: {
   initialScenarioId?: string;
   initialView?: 'gantt' | 'history' | 'projects';
   initialSelectedProjectIds?: string[];
   initialShowTable?: boolean;
+  initialProjectMenuOpen?: boolean;
 } = {}) {
   const templates = useMemo(() => getProjectTemplates(), []);
   const defaultScenarios = useMemo(() => getDefaultSavedScenarios(), []);
@@ -588,7 +590,7 @@ export function App({
   // Minimalist UI toggles and menus
   const [showMetricsDrawer, setShowMetricsDrawer] = useState<boolean>(false);
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
-  const [projectMenuOpen, setProjectMenuOpen] = useState<boolean>(false);
+  const [projectMenuOpen, setProjectMenuOpen] = useState<boolean>(initialProjectMenuOpen);
   const [createMenuOpen, setCreateMenuOpen] = useState<boolean>(false);
 
   const projectMenuRef = useRef<HTMLDivElement>(null);
@@ -902,6 +904,12 @@ export function App({
         actionType = 'edit_item';
         actionLabel = 'Edición';
         desc = `Cambiar color de '${cleanItem.name}'`;
+      } else if (Boolean(prevItem.hidden) !== Boolean(cleanItem.hidden)) {
+        actionType = 'edit_item';
+        actionLabel = 'Visibilidad';
+        desc = cleanItem.hidden
+          ? `Ocultar '${cleanItem.name}' del diagrama`
+          : `Mostrar '${cleanItem.name}' en el diagrama`;
       }
     }
 
@@ -1551,31 +1559,58 @@ export function App({
                     PROJECT_COLORS.find((c) => c.value === group.project.color)?.bg ||
                     'bg-[#0C0C09]';
                   return (
-                    <label
+                    <div
                       key={group.project.id}
                       data-project-menu-item={group.project.id}
-                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-[2px] text-left transition cursor-pointer ${
+                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-[2px] text-left transition ${
                         isChecked
                           ? 'bg-[#F4F4F1] dark:bg-zinc-800/80 text-[#0C0C09] dark:text-white font-medium'
                           : 'hover:bg-[#F4F4F1]/60 dark:hover:bg-zinc-800/40 text-[#6B6B66] dark:text-zinc-400'
                       }`}
                     >
-                      <div className="flex items-center gap-2 min-w-0 pr-1">
+                      <label className="flex items-center gap-2 min-w-0 pr-1 flex-1 cursor-pointer">
                         <input
                           type="checkbox"
                           checked={isChecked}
                           onChange={() => handleToggleSelectProject(group.project.id)}
-                          className="rounded-[2px] border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] focus:ring-0"
+                          className="rounded-[2px] border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] focus:ring-0 cursor-pointer"
                         />
                         <span className={`w-2 h-2 rounded-full shrink-0 ${colorDot}`} />
-                        <span className="truncate max-w-[150px] font-display">
+                        <span className="truncate max-w-[130px] font-display">
                           P{group.projectIndex}: {group.project.name}
                         </span>
+                      </label>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-[10px] font-mono opacity-80">
+                          {group.items.length}t
+                        </span>
+                        {effectiveProjects.length > 1 && (
+                          <button
+                            type="button"
+                            data-testid={`delete-project-menu-btn-${group.project.id}`}
+                            data-delete-project-btn={group.project.id}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              if (
+                                typeof window !== 'undefined' &&
+                                window.confirm &&
+                                !window.confirm(
+                                  `¿Eliminar el proyecto "${group.project.name}"? Sus tareas se reasignarán al proyecto principal.`
+                                )
+                              ) {
+                                return;
+                              }
+                              handleDeleteProject(group.project.id);
+                            }}
+                            className="p-1 rounded-[2px] text-[#6B6B66] hover:text-[#DC2626] hover:bg-rose-500/10 transition cursor-pointer"
+                            title={`Eliminar proyecto ${group.project.name}`}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
                       </div>
-                      <span className="text-[10px] font-mono opacity-80 shrink-0">
-                        {group.items.length}t
-                      </span>
-                    </label>
+                    </div>
                   );
                 })}
 

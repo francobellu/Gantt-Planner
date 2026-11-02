@@ -127,6 +127,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
   );
   const [assignee, setAssignee] = useState(initialItem?.assignee || '');
   const [notes, setNotes] = useState(initialItem?.notes || '');
+  const [hidden, setHidden] = useState(Boolean(initialItem?.hidden));
   const [autoCascade, setAutoCascade] = useState(true);
   const [dateInputMode, setDateInputMode] = useState<'duration' | 'endDate'>('duration');
 
@@ -160,6 +161,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
           (initialItem.type === 'milestone' ? 'amber' : getTeamColor(itemAssignee))
       );
       setNotes(initialItem.notes || '');
+      setHidden(Boolean(initialItem.hidden));
     } else {
       const targetPid = fallbackPid;
       const projectItems = targetPid
@@ -189,6 +191,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
       setColor(isMilestone ? 'amber' : 'indigo');
       setAssignee('');
       setNotes('');
+      setHidden(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, initialItem, defaultType, defaultProjectId, todayStr]);
@@ -418,6 +421,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
       color,
       assignee: assignee.trim() || undefined,
       notes: notes.trim() || undefined,
+      hidden: Boolean(hidden),
     };
     onSave(newItem, autoCascade);
     onClose();
@@ -1027,14 +1031,26 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
             />
           </div>
 
-          {/* Auto-cascade toggle */}
-          <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800">
+          {/* Visibility and Auto-cascade toggles */}
+          <div className="flex flex-col gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+            <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 cursor-pointer">
+              <input
+                type="checkbox"
+                data-testid="task-form-hidden-checkbox"
+                checked={hidden}
+                onChange={(e) => setHidden(e.target.checked)}
+                className="rounded border-slate-300 text-[#0C0C09] focus:ring-0 cursor-pointer"
+              />
+              <span className="font-medium text-[#0C0C09] dark:text-zinc-200">
+                Ocultar del diagrama de Gantt (conservar en tabla WBS pero no mostrar en el cronograma)
+              </span>
+            </label>
             <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 cursor-pointer">
               <input
                 type="checkbox"
                 checked={autoCascade}
                 onChange={(e) => setAutoCascade(e.target.checked)}
-                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
               />
               <span>
                 Auto-ajustar en cascada las tareas sucesoras si hay solapamiento de fechas
