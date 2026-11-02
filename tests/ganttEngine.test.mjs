@@ -5162,6 +5162,42 @@ test('Task name positioning, configurable row separators, 37 char truncation, v1
           );
         }
 
+        export function renderWorkspaceWithWeekendShading(showWeekendShading: boolean) {
+          const items = [
+            {
+              id: 't-wknd',
+              projectId: 'p-1',
+              name: 'Tarea Weekend Test',
+              type: 'task',
+              startDate: '2026-10-15',
+              endDate: '2026-10-25',
+              duration: 11,
+              slack: 0,
+              dependencies: [],
+              progress: 30,
+              color: 'indigo'
+            }
+          ];
+          const projects = [
+            { id: 'p-1', name: 'Proyecto Prueba', color: 'indigo', releaseId: 'rel-t-26-12-1', collapsed: false }
+          ];
+          return (
+            <GanttWorkspace
+              items={items}
+              projects={projects}
+              releases={DEFAULT_PREDEFINED_RELEASES}
+              showTable={true}
+              showWeekendShading={showWeekendShading}
+              onUpdateItem={() => {}}
+              onDeleteItem={() => {}}
+              onEditModal={() => {}}
+              onDuplicateItem={() => {}}
+              onQuickAdd={() => {}}
+              scrollContainerRef={{ current: null }}
+            />
+          );
+        }
+
         export function renderAppHeader() {
           return <App />;
         }
@@ -5235,6 +5271,7 @@ test('Task name positioning, configurable row separators, 37 char truncation, v1
 
     // 2. Horizontal row separators toggle button in table header
     assert.ok(wsHtml.includes('data-testid="toggle-row-separators-btn"'), 'Table header must contain toggle-row-separators-btn');
+    assert.ok(wsHtml.includes('data-testid="toggle-weekend-shading-btn"'), 'Table header must contain toggle-weekend-shading-btn');
 
     // 3. Task name in table truncated to 37 characters + '…'
     const expectedTruncated = 'Esta es una tarea con un nombre extre…';
@@ -5263,18 +5300,26 @@ test('Task name positioning, configurable row separators, 37 char truncation, v1
     assert.ok(htmlWithoutSeparators.includes('border-b-0'), 'Rows must have border-b-0 when showRowSeparators is false');
     assert.ok(htmlWithoutSeparators.includes('border-y-0'), 'Group rows must have border-y-0 when showRowSeparators is false');
 
-    // 8. App Header displays v1.2.0 badge and header-toggle-row-separators-btn
+    // 8. Configurable Weekend Shading ON vs OFF:
+    const htmlWithWeekendShading = renderToString(mod.renderWorkspaceWithWeekendShading(true));
+    assert.ok(htmlWithWeekendShading.includes('bg-[#F4F4F1]/60'), 'Canvas must render weekend column shading when showWeekendShading is true');
+
+    const htmlWithoutWeekendShading = renderToString(mod.renderWorkspaceWithWeekendShading(false));
+    assert.ok(!htmlWithoutWeekendShading.includes('bg-[#F4F4F1]/60'), 'Canvas must NOT render weekend shading when showWeekendShading is false (clean uniform background)');
+
+    // 9. App Header displays v1.2.0 badge, row-separators-btn, and weekend-shading-btn
     const appHtml = renderToString(mod.renderAppHeader());
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'Header must contain app-version-badge');
     assert.ok(appHtml.includes('v1.2.0'), 'Header badge must display v1.2.0');
     assert.ok(appHtml.includes('data-testid="header-toggle-row-separators-btn"'), 'Header must contain header-toggle-row-separators-btn');
+    assert.ok(appHtml.includes('data-testid="header-toggle-weekend-shading-btn"'), 'Header must contain header-toggle-weekend-shading-btn');
 
-    // 9. TaskFormModal has external milestone checkbox
+    // 10. TaskFormModal has external milestone checkbox
     const modalHtml = renderToString(mod.renderTaskFormMilestoneModal());
     assert.ok(modalHtml.includes('data-testid="milestone-is-external-checkbox"'), 'Milestone form modal must have external milestone checkbox');
     assert.ok(modalHtml.includes('Hito externo (no pertenece a la release)'), 'Milestone form modal must describe external milestone');
 
-    // 10. Only one vertical line per month at month start (no extra daily vertical grid lines)
+    // 11. Only one vertical line per month at month start (no extra daily vertical grid lines)
     assert.ok(!wsHtml.includes('border-r border-[#E2E2DC]/50'), 'Must not render daily vertical grid lines across canvas');
     assert.ok(wsHtml.includes('data-month-divider="0"'), 'Must render month start vertical divider');
   } finally {

@@ -12,6 +12,7 @@ import { es } from 'date-fns/locale';
 import {
   AlertTriangle,
   Calendar,
+  CalendarDays,
   Check,
   ChevronDown,
   ChevronRight,
@@ -126,6 +127,8 @@ interface GanttWorkspaceProps {
   onToggleShowTable?: () => void;
   showRowSeparators?: boolean;
   onToggleRowSeparators?: () => void;
+  showWeekendShading?: boolean;
+  onToggleWeekendShading?: () => void;
   onOpenProjectsView?: () => void;
   zoom: ZoomLevel;
   dayWidth?: number;
@@ -491,6 +494,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   onToggleShowTable,
   showRowSeparators: showRowSeparatorsProp,
   onToggleRowSeparators,
+  showWeekendShading: showWeekendShadingProp,
+  onToggleWeekendShading,
   initialSelectedItemId,
   initialHoveredItemId,
   initialCursorScrubber,
@@ -743,6 +748,33 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         const next = !prev;
         try {
           localStorage.setItem('ganttflow_show_row_separators', String(next));
+        } catch {}
+        return next;
+      });
+    }
+  };
+
+  // Configurable weekend column shading (controlled via prop or local fallback, default false for clean flat timeline)
+  const [internalShowWeekendShading, setInternalShowWeekendShading] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('ganttflow_show_weekend_shading');
+      return saved !== null ? saved === 'true' : false;
+    } catch {
+      return false;
+    }
+  });
+
+  const showWeekendShading =
+    showWeekendShadingProp !== undefined ? showWeekendShadingProp : internalShowWeekendShading;
+
+  const handleToggleWeekendShading = () => {
+    if (onToggleWeekendShading) {
+      onToggleWeekendShading();
+    } else {
+      setInternalShowWeekendShading((prev) => {
+        const next = !prev;
+        try {
+          localStorage.setItem('ganttflow_show_weekend_shading', String(next));
         } catch {}
         return next;
       });
@@ -2935,8 +2967,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         </span>
                       )}
 
-                      {/* Botones de Control: Líneas Separadoras, Hitos de Release y Columnas */}
-                      <div className="w-28 flex items-center justify-end pr-1 gap-1">
+                      {/* Botones de Control: Líneas Separadoras, Sombreado Fin de Semana, Hitos de Release y Columnas */}
+                      <div className="w-36 flex items-center justify-end pr-1 gap-1">
                         {/* Botón para alternar líneas horizontales de separación */}
                         <button
                           type="button"
@@ -2955,6 +2987,26 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           }
                         >
                           <Rows className="w-3.5 h-3.5" />
+                        </button>
+
+                        {/* Botón para alternar sombreado de fines de semana */}
+                        <button
+                          type="button"
+                          data-testid="toggle-weekend-shading-btn"
+                          onClick={handleToggleWeekendShading}
+                          className={`p-1 rounded-[4px] transition cursor-pointer ${
+                            showWeekendShading
+                              ? 'bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09]'
+                              : 'hover:bg-black/5 dark:hover:bg-white/10 text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09] dark:hover:text-white'
+                          }`}
+                          aria-label="Alternar sombreado de fines de semana"
+                          title={
+                            showWeekendShading
+                              ? 'Ocultar sombreado de fines de semana en el cronograma'
+                              : 'Mostrar sombreado de fines de semana en el cronograma'
+                          }
+                        >
+                          <CalendarDays className="w-3.5 h-3.5" />
                         </button>
 
                         {/* Botón y Panel de Hitos de Release */}
@@ -4235,7 +4287,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       } ${
                         isToday
                           ? 'font-bold'
-                          : wknd && dayWidth >= 14
+                          : showWeekendShading && wknd && dayWidth >= 14
                           ? 'text-[#6B6B66]/60 dark:text-zinc-600'
                           : 'text-[#6B6B66] dark:text-zinc-400'
                       }`}
@@ -4261,7 +4313,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
             {/* Canvas Body: Background Columns + Horizontal Rows + SVG Dependencies + Project Summary & Task/Slack/Milestone Bars */}
             <div className="relative" style={{ height: displayRows.length * ROW_HEIGHT + 52 }}>
-              {/* Vertical Day Columns & Weekend Shading (no extra daily vertical lines) */}
+              {/* Vertical Day Columns & Weekend Shading (configurable) */}
               <div className="absolute inset-0 flex pointer-events-none z-0">
                 {timelineDays.map((day, idx) => {
                   const wknd = isWeekend(day);
@@ -4270,7 +4322,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       key={idx}
                       style={{ width: dayWidth }}
                       className={`h-full ${
-                        wknd && dayWidth >= 8
+                        showWeekendShading && wknd && dayWidth >= 8
                           ? 'bg-[#F4F4F1]/60 dark:bg-zinc-900/40'
                           : ''
                       }`}
