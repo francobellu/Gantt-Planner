@@ -5273,6 +5273,10 @@ test('Task name positioning, configurable row separators, 37 char truncation, v1
     const modalHtml = renderToString(mod.renderTaskFormMilestoneModal());
     assert.ok(modalHtml.includes('data-testid="milestone-is-external-checkbox"'), 'Milestone form modal must have external milestone checkbox');
     assert.ok(modalHtml.includes('Hito externo (no pertenece a la release)'), 'Milestone form modal must describe external milestone');
+
+    // 10. Only one vertical line per month at month start (no extra daily vertical grid lines)
+    assert.ok(!wsHtml.includes('border-r border-[#E2E2DC]/50'), 'Must not render daily vertical grid lines across canvas');
+    assert.ok(wsHtml.includes('data-month-divider="0"'), 'Must render month start vertical divider');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }

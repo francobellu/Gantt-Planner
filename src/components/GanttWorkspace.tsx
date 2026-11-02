@@ -4224,14 +4224,15 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       ? isBiWeekly
                       : isMonthStart || day.getDate() === 15;
 
-                  const showTick =
-                    dayWidth >= 20 || isMonday || isMonthStart || (dayWidth >= 6 && isBiWeekly);
-
                   return (
                     <div
                       key={idx}
                       style={{ width: dayWidth }}
                       className={`relative h-full flex flex-col items-center justify-center text-[10px] font-mono select-none ${
+                        isMonthStart && idx > 0
+                          ? 'border-l border-dashed border-[#0C0C09]/20 dark:border-zinc-800/90'
+                          : ''
+                      } ${
                         isToday
                           ? 'font-bold'
                           : wknd && dayWidth >= 14
@@ -4239,17 +4240,6 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           : 'text-[#6B6B66] dark:text-zinc-400'
                       }`}
                     >
-                      {/* Subtle tick notch at the top */}
-                      {showTick && (
-                        <div
-                          className={`absolute top-0 w-px ${
-                            isMonthStart
-                              ? 'h-2 bg-[#0C0C09] dark:bg-zinc-600'
-                              : 'h-1 bg-[#E2E2DC] dark:bg-zinc-800'
-                          }`}
-                        />
-                      )}
-
                       {/* Day number / weekday label */}
                       {showNumber && (
                         dayWidth >= 34 ? (
@@ -4271,23 +4261,15 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
             {/* Canvas Body: Background Columns + Horizontal Rows + SVG Dependencies + Project Summary & Task/Slack/Milestone Bars */}
             <div className="relative" style={{ height: displayRows.length * ROW_HEIGHT + 52 }}>
-              {/* Vertical Day Columns & Weekend Shading */}
+              {/* Vertical Day Columns & Weekend Shading (no extra daily vertical lines) */}
               <div className="absolute inset-0 flex pointer-events-none z-0">
                 {timelineDays.map((day, idx) => {
                   const wknd = isWeekend(day);
-                  const isMonday = day.getDay() === 1;
-                  const isMonthStart = day.getDate() === 1;
-                  const showGridLine =
-                    dayWidth >= 12 || isMonday || isMonthStart;
                   return (
                     <div
                       key={idx}
                       style={{ width: dayWidth }}
                       className={`h-full ${
-                        showGridLine
-                          ? 'border-r border-[#E2E2DC]/50 dark:border-zinc-900'
-                          : ''
-                      } ${
                         wknd && dayWidth >= 8
                           ? 'bg-[#F4F4F1]/60 dark:bg-zinc-900/40'
                           : ''
