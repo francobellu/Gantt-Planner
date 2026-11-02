@@ -491,6 +491,39 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   const [collapsedReleaseIds, setCollapsedReleaseIds] = useState<Set<string>>(
     new Set()
   );
+  const [hiddenReleaseGuideKeys, setHiddenReleaseGuideKeys] = useState<Set<string>>(() => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const saved = window.localStorage.getItem('ganttflow_hidden_release_guides');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) return new Set(parsed);
+        }
+      }
+    } catch {}
+    return new Set();
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        'ganttflow_hidden_release_guides',
+        JSON.stringify(Array.from(hiddenReleaseGuideKeys))
+      );
+    } catch {}
+  }, [hiddenReleaseGuideKeys]);
+
+  const handleToggleReleaseGuideLine = (guideKey: string) => {
+    setHiddenReleaseGuideKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(guideKey)) {
+        next.delete(guideKey);
+      } else {
+        next.add(guideKey);
+      }
+      return next;
+    });
+  };
   const [hoveredId, setHoveredId] = useState<string | null>(
     initialHoveredItemId || null
   );
@@ -2492,69 +2525,172 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     });
   }, [visibleMilestones, itemRowMap, timelineStart, dayWidth, totalCanvasWidth]);
 
-  // Compute release milestone guides for full-canvas vertical alignment
+  // Compute release milestone guides scoped strictly to the vertical span of their release / assigned projects
   const releaseMilestoneGuides = useMemo(() => {
     if (releaseGuideVisibility === 'none' || !releases || releases.length === 0) {
       return [];
     }
 
-    let targetReleases: Release[] = [];
+    const targetReleaseIds = new Set<string>();
     if (releaseGuideVisibility === 'all') {
-      targetReleases = releases;
+      for (const r of releases) targetReleaseIds.add(r.id);
     } else if (releaseGuideVisibility === 'assigned') {
-      targetReleases = releases.filter((r) =>
-        projects.some((p) => p.releaseId === r.id)
-      );
+      for (const r of releases) {
+        if (projects.some((p) => p.releaseId === r.id)) {
+          targetReleaseIds.add(r.id);
+        }
+      }
     } else {
       // 'selected' (default)
       if (activeReleaseId) {
-        targetReleases = releases.filter((r) => r.id === activeReleaseId);
+        targetReleaseIds.add(activeReleaseId);
       } else {
-        const visibleRelIds = new Set(
-          visibleProjectGroups
-            .map((g) => g.project.releaseId)
-            .filter(Boolean) as string[]
-        );
-        if (visibleRelIds.size > 0) {
-          targetReleases = releases.filter((r) => visibleRelIds.has(r.id));
+        const visibleRelIds = visibleProjectGroups
+          .map((g) => g.project.releaseId)
+          .filter(Boolean) as string[];
+        if (visibleRelIds.length > 0) {
+          for (const id of visibleRelIds) targetReleaseIds.add(id);
         } else {
           const firstWithProj = releases.find((r) =>
             projects.some((p) => p.releaseId === r.id)
           );
-          targetReleases = [firstWithProj || releases[0]];
+          targetReleaseIds.add(firstWithProj?.id || releases[0]?.id);
+        }
+      }
+    }
+
+    interface ReleaseArea {
+      release: Release;
+      topY: number;
+      height: number;
+    }
+    const areas: ReleaseArea[] = [];
+
+    if (groupingMode === 'release') {
+      let currentRel: Release | null = null;
+      let startIdx = 0;
+
+      for (let i = 0; i < displayRows.length; i++) {
+        const row = displayRows[i];
+        if (row.kind === 'release') {
+          if (currentRel && targetReleaseIds.has(currentRel.id)) {
+            areas.push({
+              release: currentRel,
+              topY: startIdx * ROW_HEIGHT,
+              height: (i - startIdx) * ROW_HEIGHT,
+            });
+          }
+          currentRel =
+            row.group.release.id !== '__unassigned__'
+              ? releases.find((r) => r.id === row.group.release.id) || null
+              : null;
+          startIdx = i;
+        }
+      }
+      if (currentRel && targetReleaseIds.has(currentRel.id)) {
+        areas.push({
+          release: currentRel,
+          topY: startIdx * ROW_HEIGHT,
+          height: (displayRows.length - startIdx) * ROW_HEIGHT,
+        });
+      }
+    } else {
+      // Project grouping mode: each project assigned to a target release gets its vertical area
+      let currentProjRel: Release | null = null;
+      let projStartIdx = 0;
+
+      for (let i = 0; i < displayRows.length; i++) {
+        const row = displayRows[i];
+        if (row.kind === 'project') {
+          if (currentProjRel && targetReleaseIds.has(currentProjRel.id)) {
+            areas.push({
+              release: currentProjRel,
+              topY: projStartIdx * ROW_HEIGHT,
+              height: (i - projStartIdx) * ROW_HEIGHT,
+            });
+          }
+          const relId = row.group.project.releaseId;
+          currentProjRel =
+            relId && targetReleaseIds.has(relId)
+              ? releases.find((r) => r.id === relId) || null
+              : null;
+          projStartIdx = i;
+        }
+      }
+      if (currentProjRel && targetReleaseIds.has(currentProjRel.id)) {
+        areas.push({
+          release: currentProjRel,
+          topY: projStartIdx * ROW_HEIGHT,
+          height: (displayRows.length - projStartIdx) * ROW_HEIGHT,
+        });
+      }
+    }
+
+    // Resilience fallback if displayRows is empty (e.g. initial SSR render)
+    if (areas.length === 0 && displayRows.length === 0) {
+      for (const rId of targetReleaseIds) {
+        const rel = releases.find((r) => r.id === rId);
+        if (rel) {
+          areas.push({
+            release: rel,
+            topY: 0,
+            height: Math.max(ROW_HEIGHT, totalCanvasHeight),
+          });
         }
       }
     }
 
     const list: Array<{
+      guideKey: string;
       release: Release;
       milestone: ReleaseMilestone;
       x: number;
+      topY: number;
+      height: number;
       tier: number;
     }> = [];
 
-    for (const rel of targetReleases) {
-      for (const m of rel.milestones) {
+    for (const area of areas) {
+      const areaItems: Array<{
+        guideKey: string;
+        release: Release;
+        milestone: ReleaseMilestone;
+        x: number;
+        topY: number;
+        height: number;
+        tier: number;
+      }> = [];
+
+      for (const m of area.release.milestones) {
         const mDate = parseDateSafe(m.date);
         const diff = differenceInCalendarDays(mDate, timelineStart);
         const x = diff * dayWidth + dayWidth / 2;
-        if (x >= -40 && x <= totalCanvasWidth + 40) {
-          list.push({ release: rel, milestone: m, x, tier: 0 });
+        if (x >= -60 && x <= totalCanvasWidth + 60) {
+          areaItems.push({
+            guideKey: `${area.release.id}-${m.key}`,
+            release: area.release,
+            milestone: m,
+            x,
+            topY: area.topY,
+            height: area.height,
+            tier: 0,
+          });
         }
       }
-    }
 
-    list.sort((a, b) => a.x - b.x);
-    let lastX = -9999;
-    let tier = 0;
-    for (const item of list) {
-      if (Math.abs(item.x - lastX) < 65) {
-        tier = (tier + 1) % 2;
-      } else {
-        tier = 0;
+      areaItems.sort((a, b) => a.x - b.x);
+      let lastX = -9999;
+      let tier = 0;
+      for (const item of areaItems) {
+        if (Math.abs(item.x - lastX) < 55) {
+          tier = (tier + 1) % 2;
+        } else {
+          tier = 0;
+        }
+        item.tier = tier;
+        lastX = item.x;
+        list.push(item);
       }
-      item.tier = tier;
-      lastX = item.x;
     }
 
     return list;
@@ -2564,9 +2700,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     activeReleaseId,
     projects,
     visibleProjectGroups,
+    displayRows,
+    groupingMode,
     timelineStart,
     dayWidth,
     totalCanvasWidth,
+    totalCanvasHeight,
   ]);
 
   // Track cursor position and exact calendar date over timeline canvas for the date scrubber
@@ -3816,29 +3955,109 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                 }
               )}
 
-              {/* Release Milestone Vertical Alignment Guides */}
-              {releaseMilestoneGuides.map(({ release: rel, milestone: m, x, tier }, idx) => (
-                <div
-                  key={`rel-guide-${rel.id}-${m.id}-${idx}`}
-                  data-testid={`release-milestone-guide-${rel.id}-${m.key}`}
-                  style={{ left: x }}
-                  className="absolute top-0 bottom-0 pointer-events-none z-10 w-0"
-                >
-                  <div
-                    style={{
-                      left: 0,
-                      transform: 'translateX(-50%)',
-                      top: tier === 1 ? '22px' : '2px',
-                    }}
-                    className="absolute flex items-center justify-center gap-1 px-1.5 py-0.5 rounded-[2px] text-[9px] font-mono font-bold bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09] shadow-sm whitespace-nowrap z-20 cursor-help pointer-events-auto"
-                    title={`${rel.name} · ${m.code}: ${m.name} (${formatScrubberDate(m.date)})`}
-                  >
-                    <span className="text-[8px] leading-none text-amber-400 dark:text-indigo-600">🚀</span>
-                    <span>{m.code}</span>
-                  </div>
-                  <div className="absolute top-0 bottom-0 left-0 w-0 -translate-x-1/2 border-l-2 border-dashed border-indigo-600/70 dark:border-indigo-400/60" />
-                </div>
-              ))}
+              {/* Release Milestone Vertical Alignment Guides scoped to specific Release / Project area */}
+              {releaseMilestoneGuides.map(
+                (
+                  { guideKey, release: rel, milestone: m, x, topY, height, tier },
+                  idx
+                ) => {
+                  const isLineHidden = hiddenReleaseGuideKeys.has(guideKey);
+                  const diamondWidth = Math.max(
+                    38,
+                    Math.min(84, m.code.length * 7.2 + 16)
+                  );
+                  const diamondHeight = 20;
+                  const halfW = diamondWidth / 2;
+                  const halfH = diamondHeight / 2;
+                  const points = `${halfW},1 ${diamondWidth - 1.5},${halfH} ${halfW},${diamondHeight - 1} 1.5,${halfH}`;
+                  const diamondTop = tier === 1 ? 24 : 2;
+
+                  return (
+                    <div
+                      key={`rel-guide-${rel.id}-${m.id}-${topY}-${idx}`}
+                      data-testid={`release-milestone-guide-${rel.id}-${m.key}`}
+                      style={{
+                        left: x,
+                        top: topY,
+                        height: height,
+                      }}
+                      className="absolute pointer-events-none z-10 w-0 overflow-visible"
+                    >
+                      {/* Diamond Milestone Icon with Code inside */}
+                      <div
+                        style={{
+                          left: 0,
+                          transform: 'translateX(-50%)',
+                          top: `${diamondTop}px`,
+                        }}
+                        className="absolute z-20 pointer-events-auto"
+                      >
+                        <button
+                          type="button"
+                          data-testid={`release-milestone-diamond-${rel.id}-${m.key}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleReleaseGuideLine(guideKey);
+                          }}
+                          title={`${rel.name} · ${m.code}: ${m.name} (${formatScrubberDate(m.date)}) — ${
+                            isLineHidden
+                              ? 'Línea oculta (clic para mostrar)'
+                              : 'Clic para ocultar línea vertical'
+                          }`}
+                          className={`group relative flex items-center justify-center cursor-pointer transition-all select-none outline-none ${
+                            isLineHidden
+                              ? 'opacity-65 hover:opacity-100 hover:scale-105'
+                              : 'opacity-100 hover:scale-110 drop-shadow-sm'
+                          }`}
+                          style={{ width: diamondWidth, height: diamondHeight }}
+                        >
+                          <svg
+                            width={diamondWidth}
+                            height={diamondHeight}
+                            viewBox={`0 0 ${diamondWidth} ${diamondHeight}`}
+                            className="overflow-visible"
+                          >
+                            <polygon
+                              points={points}
+                              className={
+                                isLineHidden
+                                  ? 'fill-white dark:fill-zinc-900 stroke-slate-400 dark:stroke-zinc-500 stroke-[1.5]'
+                                  : 'fill-[#0C0C09] dark:fill-zinc-100 stroke-indigo-600 dark:stroke-indigo-400 stroke-[1.5]'
+                              }
+                              strokeDasharray={isLineHidden ? '2 2' : undefined}
+                            />
+                            <text
+                              x="50%"
+                              y="50%"
+                              textAnchor="middle"
+                              dominantBaseline="central"
+                              className={`text-[9.5px] font-mono font-bold tracking-tight select-none pointer-events-none ${
+                                isLineHidden
+                                  ? 'fill-slate-500 dark:fill-zinc-400'
+                                  : 'fill-white dark:fill-[#0C0C09]'
+                              }`}
+                            >
+                              {m.code}
+                            </text>
+                          </svg>
+                        </button>
+                      </div>
+
+                      {/* Vertical Dashed Guide Line: ONLY in the release/project vertical area, and hidden when clicked */}
+                      {!isLineHidden && (
+                        <div
+                          data-testid={`release-milestone-line-${rel.id}-${m.key}`}
+                          style={{
+                            top: `${diamondTop + diamondHeight}px`,
+                            bottom: 0,
+                          }}
+                          className="absolute left-0 w-0 -translate-x-1/2 border-l-2 border-dashed border-indigo-600/70 dark:border-indigo-400/60 pointer-events-none"
+                        />
+                      )}
+                    </div>
+                  );
+                }
+              )}
 
               {/* Today ("HOY") Vertical Line Marker */}
               {todayIndex >= 0 && (

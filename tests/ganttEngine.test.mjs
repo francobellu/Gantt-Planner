@@ -4295,6 +4295,8 @@ T_99.1.1;ENERO 2099;01/01/2099;;;;;01/02/2099;10/02/2099;;;;;;;;20/02/2099;`;
     assert.ok(wsHtml.includes('data-testid="project-release-badge-p-test-1"'), 'Project row must display assigned release badge');
     assert.ok(wsHtml.includes('data-testid="task-release-violation-t-test-1"'), 'Task violating release milestone must display violation indicator');
     assert.ok(wsHtml.includes(`data-testid="release-milestone-guide-${rel0Id}-iop"`), 'Timeline canvas must render vertical guide line for release milestone');
+    assert.ok(wsHtml.includes(`data-testid="release-milestone-diamond-${rel0Id}-iop"`), 'Timeline canvas must render diamond icon for release milestone');
+    assert.ok(wsHtml.includes(`data-testid="release-milestone-line-${rel0Id}-iop"`), 'Timeline canvas must render vertical dashed line for release milestone');
     assert.ok(wsHtml.includes(`data-release-summary-bar="${rel0Id}"`), 'Timeline canvas must render release summary bar');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
