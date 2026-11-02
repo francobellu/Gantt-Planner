@@ -858,3 +858,48 @@ export function checkTaskReleaseCompliance(
 
   return violations;
 }
+
+/**
+ * Calculates the bounding start date, end date, and total calendar duration
+ * of a Release based on its milestones (from first milestone to last milestone).
+ */
+export function getReleaseDateSpan(release?: Release | null): {
+  startDate: string;
+  endDate: string;
+  duration: number;
+} {
+  const defaultToday = new Date().toISOString().slice(0, 10);
+  if (!release || !release.milestones || release.milestones.length === 0) {
+    return {
+      startDate: defaultToday,
+      endDate: defaultToday,
+      duration: 1,
+    };
+  }
+
+  const validMilestoneDates = release.milestones
+    .map((m) => m.date)
+    .filter((d): d is string => Boolean(d && typeof d === 'string'))
+    .sort();
+
+  if (validMilestoneDates.length === 0) {
+    return {
+      startDate: defaultToday,
+      endDate: defaultToday,
+      duration: 1,
+    };
+  }
+
+  const startDate = validMilestoneDates[0];
+  const endDate = validMilestoneDates[validMilestoneDates.length - 1];
+
+  const d1 = new Date(startDate + 'T00:00:00Z').getTime();
+  const d2 = new Date(endDate + 'T00:00:00Z').getTime();
+  const duration = Math.max(1, Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1);
+
+  return {
+    startDate,
+    endDate,
+    duration,
+  };
+}

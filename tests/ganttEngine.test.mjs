@@ -4809,4 +4809,115 @@ test('Task names rendered above timeline task bars without clipping for short bo
   }
 });
 
+test('Automatically creates a task named DIGI spanning the assigned release when a new project is created', async () => {
+  const fs = await import('node:fs/promises');
+  const relBundle = await build({
+    entryPoints: [path.resolve(__dirname, '../src/utils/releaseEngine.ts')],
+    bundle: true,
+    format: 'esm',
+    platform: 'node',
+    packages: 'external',
+    write: false,
+  });
+
+  const tmpRelFile = path.resolve(__dirname, './.tmp-rel-53.mjs');
+  await fs.writeFile(tmpRelFile, relBundle.outputFiles[0].text, 'utf8');
+  let relMod;
+  try {
+    relMod = await import(`${tmpRelFile}?t=${Date.now()}`);
+  } finally {
+    await fs.unlink(tmpRelFile).catch(() => {});
+  }
+
+  const { getReleaseDateSpan, DEFAULT_PREDEFINED_RELEASES } = relMod;
+
+  // 1. Verify getReleaseDateSpan computes the exact bounding span from first to last milestone
+  const rel1 = DEFAULT_PREDEFINED_RELEASES[0]; // T_26.12.1
+  const span1 = getReleaseDateSpan(rel1);
+  assert.equal(span1.startDate, '2026-10-05', 'Release 1 must start at QG1 date 2026-10-05');
+  assert.equal(span1.endDate, '2026-12-25', 'Release 1 must end at QG9 date 2026-12-25');
+  assert.equal(span1.duration, 82, 'Duration must equal inclusive calendar days from 05 Oct to 25 Dec (82d)');
+
+  const rel2 = DEFAULT_PREDEFINED_RELEASES[1]; // T_27.1.1
+  const span2 = getReleaseDateSpan(rel2);
+  assert.equal(span2.startDate, '2026-11-04', 'Release 2 must start at QG1 date 2026-11-04');
+  assert.equal(span2.endDate, '2027-01-29', 'Release 2 must end at QG9 date 2027-01-29');
+  assert.equal(span2.duration, 87, 'Duration must equal inclusive calendar days from 04 Nov to 29 Jan (87d)');
+
+  // 2. SSR Verification: GanttWorkspace renders the DIGI task spanning the entire release
+  const { renderToString } = await import('react-dom/server');
+  const bundle = await build({
+    stdin: {
+      contents: `
+        import React from 'react';
+        import { GanttWorkspace } from './src/components/GanttWorkspace.tsx';
+        import { computeGanttMetrics, sanitizeProject, sanitizeGanttItem } from './src/utils/ganttEngine.ts';
+        import { getReleaseDateSpan, DEFAULT_PREDEFINED_RELEASES } from './src/utils/releaseEngine.ts';
+
+        export function renderWorkspaceWithDigiTask() {
+          const rel = DEFAULT_PREDEFINED_RELEASES[0];
+          const span = getReleaseDateSpan(rel);
+          const project = sanitizeProject({ id: 'p-digi', name: 'Proyecto Fibra', releaseId: rel.id }, 0);
+          const digiTask = sanitizeGanttItem({
+            id: 't-digi',
+            projectId: 'p-digi',
+            name: 'DIGI',
+            type: 'task',
+            startDate: span.startDate,
+            endDate: span.endDate,
+            duration: span.duration,
+            progress: 0,
+          });
+          const items = computeGanttMetrics([digiTask]);
+          return (
+            <GanttWorkspace
+              items={items}
+              projects={[project]}
+              releases={DEFAULT_PREDEFINED_RELEASES}
+              groupByProject={true}
+              selectedProjectId="all"
+              zoom="day"
+              dayWidth={20}
+              showCriticalPath={false}
+              showCpmFloat={false}
+              autoCascade={true}
+              onUpdateItem={() => {}}
+              onEditModal={() => {}}
+              onDeleteItem={() => {}}
+              onDuplicateItem={() => {}}
+              onQuickAdd={() => {}}
+              scrollContainerRef={{ current: null }}
+            />
+          );
+        }
+      `,
+      resolveDir: path.resolve(__dirname, '..'),
+      sourcefile: 'ssr-digi-render-test.tsx',
+      loader: 'tsx',
+    },
+    bundle: true,
+    format: 'cjs',
+    platform: 'node',
+    external: ['react', 'react-dom'],
+    write: false,
+  });
+
+  const tmpFile = path.resolve(__dirname, './.tmp-ssr-digi-render.cjs');
+  await fs.writeFile(tmpFile, bundle.outputFiles[0].text, 'utf8');
+
+  try {
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+    const html = renderToString(mod.renderWorkspaceWithDigiTask());
+
+    // Verify task name DIGI is rendered in WBS table and above timeline bar
+    assert.ok(html.includes('DIGI'), 'Must render DIGI task in workspace');
+    assert.ok(html.includes('data-timeline-task-name="t-digi"'), 'Must render DIGI label above timeline bar');
+    assert.ok(html.includes('(82d)'), 'DIGI task duration must reflect full 82 days of the release');
+    assert.ok(html.includes('2026-10-05'), 'DIGI start date input must match release start date');
+    assert.ok(html.includes('2026-12-25'), 'DIGI end date input must match release end date');
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
 

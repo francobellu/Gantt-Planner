@@ -93,6 +93,7 @@ import { ReleasesModal } from './components/ReleasesModal';
 import {
   DEFAULT_PREDEFINED_RELEASES,
   checkTaskReleaseCompliance,
+  getReleaseDateSpan,
 } from './utils/releaseEngine';
 
 const STORAGE_KEY = 'ganttflow_pro_state_v2';
@@ -1176,11 +1177,32 @@ export function App({
     );
     setGroupByProject(true);
     setSelectedProjectId('all');
+
+    // Automatically create a task named "DIGI" spanning the entire assigned release
+    const targetRelease = releases.find((r) => r.id === clean.releaseId) || releases[0];
+    const span = getReleaseDateSpan(targetRelease);
+
+    const digiTask: GanttItem = {
+      id: `task-${Date.now()}`,
+      projectId: clean.id,
+      name: 'DIGI',
+      type: 'task',
+      startDate: span.startDate,
+      endDate: span.endDate,
+      duration: span.duration,
+      progress: 0,
+      dependencies: [],
+      slack: 0,
+      color: 'indigo',
+    };
+    const nextItems = [...items, digiTask];
+    setItems(nextItems);
+
     recordPlanChange(
       'create_project',
       'Nuevo Proyecto',
-      `Crear proyecto '${clean.name}'`,
-      items,
+      `Crear proyecto '${clean.name}' con tarea DIGI (${targetRelease ? targetRelease.code : ''})`,
+      nextItems,
       nextProjects
     );
   };
@@ -1251,13 +1273,36 @@ export function App({
     setProjects(nextProjects);
     const proj = effectiveProjects.find((p) => p.id === projectId);
     const rel = releases.find((r) => r.id === releaseId);
+
+    // If project contains a DIGI task and a release was assigned, align DIGI to the new release span
+    let nextItems = items;
+    if (rel) {
+      const span = getReleaseDateSpan(rel);
+      let digiModified = false;
+      nextItems = items.map((it) => {
+        if (it.projectId === projectId && it.name.trim().toUpperCase() === 'DIGI') {
+          digiModified = true;
+          return {
+            ...it,
+            startDate: span.startDate,
+            endDate: span.endDate,
+            duration: span.duration,
+          };
+        }
+        return it;
+      });
+      if (digiModified) {
+        setItems(nextItems);
+      }
+    }
+
     recordPlanChange(
       'edit_project',
       'Release',
       releaseId
         ? `Asignar proyecto '${proj?.name || projectId}' a release '${rel?.code || releaseId}'`
         : `Desasignar release de proyecto '${proj?.name || projectId}'`,
-      items,
+      nextItems,
       nextProjects,
       projectId
     );
