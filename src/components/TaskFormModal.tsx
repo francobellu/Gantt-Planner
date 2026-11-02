@@ -28,6 +28,7 @@ import {
   formatDateDisplay,
   formatDateISO,
   getEarliestStartFromPredecessors,
+  getTeamColor,
   parseDateSafe,
   wouldCreateCycle,
 } from '../utils/ganttEngine';
@@ -115,8 +116,14 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
     initialItem?.dependencyTypes || {}
   );
   const [progress, setProgress] = useState(initialItem?.progress ?? 0);
+  const userChosenCustomColor = useRef(false);
   const [color, setColor] = useState<TaskColor>(
-    initialItem?.color || (isInitialMilestone ? 'amber' : 'indigo')
+    initialItem?.color ||
+      (isInitialMilestone
+        ? 'amber'
+        : initialItem?.assignee
+        ? getTeamColor(initialItem.assignee)
+        : 'indigo')
   );
   const [assignee, setAssignee] = useState(initialItem?.assignee || '');
   const [notes, setNotes] = useState(initialItem?.notes || '');
@@ -140,10 +147,18 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
       setDependencies(initialItem.dependencies || []);
       setDependencyTypes(initialItem.dependencyTypes || {});
       setProgress(initialItem.progress ?? 0);
-      setColor(
-        initialItem.color || (initialItem.type === 'milestone' ? 'amber' : 'indigo')
+      const itemAssignee = initialItem.assignee || '';
+      setAssignee(itemAssignee);
+      const isCustomColor = Boolean(
+        initialItem.color &&
+          initialItem.color !== 'indigo' &&
+          (!itemAssignee || initialItem.color !== getTeamColor(itemAssignee))
       );
-      setAssignee(initialItem.assignee || '');
+      userChosenCustomColor.current = isCustomColor;
+      setColor(
+        initialItem.color ||
+          (initialItem.type === 'milestone' ? 'amber' : getTeamColor(itemAssignee))
+      );
       setNotes(initialItem.notes || '');
     } else {
       const targetPid = fallbackPid;
@@ -170,6 +185,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
       setDependencies(lastItem ? [lastItem.id] : []);
       setDependencyTypes({});
       setProgress(0);
+      userChosenCustomColor.current = false;
       setColor(isMilestone ? 'amber' : 'indigo');
       setAssignee('');
       setNotes('');
@@ -607,7 +623,13 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                 <input
                   type="text"
                   value={assignee}
-                  onChange={(e) => setAssignee(e.target.value)}
+                  onChange={(e) => {
+                    const nextVal = e.target.value;
+                    setAssignee(nextVal);
+                    if (!userChosenCustomColor.current && type === 'task') {
+                      setColor(getTeamColor(nextVal));
+                    }
+                  }}
                   placeholder="Ej. Frontend Team"
                   className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                 />
@@ -971,7 +993,10 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                   <button
                     key={c.value}
                     type="button"
-                    onClick={() => setColor(c.value)}
+                    onClick={() => {
+                      userChosenCustomColor.current = true;
+                      setColor(c.value);
+                    }}
                     title={c.label}
                     data-color={c.value}
                     aria-label={`Color ${c.label}`}

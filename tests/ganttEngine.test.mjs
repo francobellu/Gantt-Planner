@@ -60,6 +60,9 @@ const {
   removeDependencyLink,
   updateDependencyLinkType,
   moveDependencyLink,
+  getTeamColor,
+  getItemEffectiveColor,
+  TEAM_COLOR_PALETTE,
 } = await import(codeUrl);
 
 test('calculateEndDateFromDuration & calculateDurationFromDates handle tasks and milestones', () => {
@@ -3095,6 +3098,161 @@ test('Minimal Design System: Index typography, Alabaster/Ink palette, Header The
   assert.ok(wsSrc.includes('border-[#0C0C09]'), 'GanttWorkspace must use stark border-[#0C0C09]');
   assert.ok(wsSrc.includes('bg-[#F4F4F1]'), 'GanttWorkspace table header must use alabaster #F4F4F1');
   assert.ok(wsSrc.includes('rounded-[4px]'), 'GanttWorkspace task bars must use rounded-[4px]');
+});
+
+test('Default team colors, table team badges, and non-cutting project name sizing', async () => {
+  const { renderToString } = await import('react-dom/server');
+
+  // 1. Verify getTeamColor resolution for software teams
+  assert.equal(getTeamColor('qa'), 'cyan');
+  assert.equal(getTeamColor('QA Lead'), 'cyan');
+  assert.equal(getTeamColor('FrontEnd'), 'violet');
+  assert.equal(getTeamColor('UI Designer'), 'violet');
+  assert.equal(getTeamColor('Backend Developer'), 'blue');
+  assert.equal(getTeamColor('DevOps & Cloud'), 'emerald');
+  assert.equal(getTeamColor('PM Lead'), 'amber');
+  assert.equal(getTeamColor('Security Auditor'), 'rose');
+  assert.equal(getTeamColor(''), 'indigo');
+  assert.equal(getTeamColor(undefined), 'indigo');
+
+  // Deterministic palette mapping for arbitrary team names
+  const teamAColor = getTeamColor('Equipo A');
+  const teamBColor = getTeamColor('Equipo B');
+  assert.ok(TEAM_COLOR_PALETTE.includes(teamAColor));
+  assert.ok(TEAM_COLOR_PALETTE.includes(teamBColor));
+
+  // 2. Verify sanitizeGanttItem assigns default team colors
+  const taskQA = sanitizeGanttItem({
+    id: 't-qa',
+    name: 'task1',
+    type: 'task',
+    startDate: '2026-11-01',
+    endDate: '2026-11-05',
+    assignee: 'qa',
+  });
+  assert.equal(taskQA.color, 'cyan', 'Task with assignee "qa" must default to cyan');
+
+  const taskFE = sanitizeGanttItem({
+    id: 't-fe',
+    name: 'Task 2',
+    type: 'task',
+    startDate: '2026-11-03',
+    endDate: '2026-11-08',
+    assignee: 'FrontEnd',
+  });
+  assert.equal(taskFE.color, 'violet', 'Task with assignee "FrontEnd" must default to violet');
+
+  const milestone = sanitizeGanttItem({
+    id: 'm-qa',
+    name: 'Hito QA',
+    type: 'milestone',
+    startDate: '2026-11-05',
+    assignee: 'qa',
+  });
+  assert.equal(milestone.color, 'amber', 'Milestones must remain amber by default even with assignee');
+
+  const customColorTask = sanitizeGanttItem({
+    id: 't-custom',
+    name: 'Task Custom Color',
+    type: 'task',
+    startDate: '2026-11-01',
+    endDate: '2026-11-03',
+    color: 'rose',
+    assignee: 'qa',
+  });
+  assert.equal(customColorTask.color, 'rose', 'Explicit custom color must not be overridden');
+
+  // 3. Verify SSR rendering of GanttWorkspace with team badges and project name input sizing
+  const bundle = await build({
+    stdin: {
+      contents: `
+        import React from 'react';
+        import { GanttWorkspace, TEAM_BADGE_STYLES } from './src/components/GanttWorkspace.tsx';
+        import { computeGanttMetrics, sanitizeProject, sanitizeGanttItem } from './src/utils/ganttEngine.ts';
+
+        export function renderTeamBadgeWorkspace() {
+          const project = sanitizeProject({ id: 'p-1', name: 'Escenario Importado' }, 0);
+          const rawTasks = [
+            sanitizeGanttItem({
+              id: 't-1',
+              name: 'task1',
+              type: 'task',
+              projectId: 'p-1',
+              startDate: '2026-11-01',
+              endDate: '2026-11-04',
+              assignee: 'qa',
+            }),
+            sanitizeGanttItem({
+              id: 't-2',
+              name: 'Task 2',
+              type: 'task',
+              projectId: 'p-1',
+              startDate: '2026-11-02',
+              endDate: '2026-11-07',
+              assignee: 'FrontEnd',
+            }),
+          ];
+          const items = computeGanttMetrics(rawTasks);
+          return (
+            <GanttWorkspace
+              items={items}
+              projects={[project]}
+              groupByProject={true}
+              selectedProjectId="all"
+              zoom="day"
+              showCriticalPath={false}
+              showCpmFloat={false}
+              autoCascade={true}
+              onUpdateItem={() => {}}
+              onEditModal={() => {}}
+              onDeleteItem={() => {}}
+              onDuplicateItem={() => {}}
+              onQuickAdd={() => {}}
+              scrollContainerRef={{ current: null }}
+            />
+          );
+        }
+      `,
+      resolveDir: path.resolve(__dirname, '..'),
+      sourcefile: 'ssr-team-test.tsx',
+      loader: 'tsx',
+    },
+    bundle: true,
+    format: 'cjs',
+    platform: 'node',
+    external: ['react', 'react-dom'],
+    write: false,
+  });
+
+  const fsNode = await import('node:fs/promises');
+  const tmpFile = path.resolve(__dirname, './.tmp-team-badge-bundle.cjs');
+  await fsNode.writeFile(tmpFile, bundle.outputFiles[0].text, 'utf8');
+
+  try {
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+    const html = renderToString(mod.renderTeamBadgeWorkspace());
+
+    // Verify team badge in table for qa has cyan styling
+    assert.ok(html.includes('data-assignee-badge="qa"'), 'Must render data-assignee-badge="qa"');
+    assert.ok(html.includes('text-cyan-800'), 'Team badge for qa must have cyan text');
+    assert.ok(html.includes('bg-[#0891B2]'), 'Team badge for qa must have cyan indicator dot');
+
+    // Verify team badge in table for FrontEnd has violet styling
+    assert.ok(html.includes('data-assignee-badge="FrontEnd"'), 'Must render data-assignee-badge="FrontEnd"');
+    assert.ok(html.includes('text-violet-800'), 'Team badge for FrontEnd must have violet text');
+    assert.ok(html.includes('bg-[#7C3AED]'), 'Team badge for FrontEnd must have violet indicator dot');
+
+    // Verify project name input occupies exact space needed with dynamic ch width
+    assert.ok(html.includes('data-project-name-input="p-1"'), 'Must render data-project-name-input="p-1"');
+    assert.ok(html.includes('width:20ch') || html.includes('width: 20ch'), 'Project name input must size to text length with ch unit');
+    assert.ok(html.includes('ítems') || html.includes('&iacute;tems'), 'Project row must display items badge directly beside name');
+
+    // Verify timeline task bars render with their distinct team colors
+    assert.ok(html.includes('bg-[#0891B2]'), 'Timeline task bar for qa must be rendered in cyan bg');
+    assert.ok(html.includes('bg-[#7C3AED]'), 'Timeline task bar for FrontEnd must be rendered in violet bg');
+  } finally {
+    await fsNode.unlink(tmpFile).catch(() => {});
+  }
 });
 
 

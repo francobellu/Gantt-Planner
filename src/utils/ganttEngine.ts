@@ -146,6 +146,76 @@ const VALID_COLORS = new Set<TaskColor>([
   'cyan',
 ]);
 
+export const TEAM_COLOR_PALETTE: TaskColor[] = [
+  'cyan',
+  'violet',
+  'blue',
+  'emerald',
+  'amber',
+  'rose',
+  'indigo',
+];
+
+/**
+ * Deterministically resolves a distinct TaskColor for a team/assignee name.
+ * Well-known software engineering roles receive intuitive distinct colors.
+ */
+export function getTeamColor(teamName?: string | null): TaskColor {
+  if (!teamName || !teamName.trim()) {
+    return 'indigo';
+  }
+  const clean = teamName.trim().toLowerCase();
+
+  // Keyword-based matching for common software engineering disciplines
+  if (/\b(qa|test|testing|calidad|pruebas|tester|qa lead)\b/.test(clean) || clean.includes('qa')) {
+    return 'cyan';
+  }
+  if (/\b(front|frontend|front-end|ui|ux|design|diseño|web)\b/.test(clean)) {
+    return 'violet';
+  }
+  if (/\b(back|backend|back-end|api|core|server|servicios|datos|db|database|dba)\b/.test(clean)) {
+    return 'blue';
+  }
+  if (/\b(devops|infra|infrastructure|cloud|sre|ops|sysadmin|sistemas|plataforma)\b/.test(clean)) {
+    return 'emerald';
+  }
+  if (/\b(pm|product|producto|lead|gestion|gestión|scrum|manager|owner|dirección|direccion)\b/.test(clean)) {
+    return 'amber';
+  }
+  if (/\b(sec|security|seguridad|ciso|audit|legal)\b/.test(clean)) {
+    return 'rose';
+  }
+
+  // Consistent hash across vivid colors so each arbitrary team gets a distinct color
+  let hash = 0;
+  for (let i = 0; i < clean.length; i++) {
+    hash = (hash * 31 + clean.charCodeAt(i)) >>> 0;
+  }
+  const vividPalette: TaskColor[] = ['cyan', 'violet', 'blue', 'emerald', 'amber', 'rose'];
+  return vividPalette[hash % vividPalette.length];
+}
+
+/**
+ * Returns the effective color for an item, taking into account team assignment
+ * when no custom non-default color is set.
+ */
+export function getItemEffectiveColor(item: {
+  type?: 'task' | 'milestone';
+  color?: TaskColor;
+  assignee?: string;
+}): TaskColor {
+  if (item.type === 'milestone') {
+    return item.color || 'amber';
+  }
+  if (item.color && item.color !== 'indigo' && VALID_COLORS.has(item.color)) {
+    return item.color;
+  }
+  if (item.assignee && item.assignee.trim()) {
+    return getTeamColor(item.assignee);
+  }
+  return item.color && VALID_COLORS.has(item.color) ? item.color : 'indigo';
+}
+
 export const DEMO_PROJECT_IDS = new Set<string>([
   'proj-discovery',
   'proj-core',
@@ -264,12 +334,21 @@ export function sanitizeGanttItem(
     }
   }
 
-  const color =
-    raw.color && VALID_COLORS.has(raw.color)
-      ? raw.color
-      : type === 'milestone'
-      ? 'amber'
-      : 'indigo';
+  const rawColor = raw.color && VALID_COLORS.has(raw.color) ? raw.color : undefined;
+  const rawAssignee = raw.assignee != null ? String(raw.assignee).trim() : undefined;
+
+  let color: TaskColor;
+  if (type === 'milestone') {
+    color = rawColor || 'amber';
+  } else if (rawColor && rawColor !== 'indigo') {
+    // Custom non-default color explicitly chosen
+    color = rawColor;
+  } else if (rawAssignee) {
+    // Default distinct color assigned per team
+    color = getTeamColor(rawAssignee);
+  } else {
+    color = rawColor || 'indigo';
+  }
 
   const rawId = raw.id != null ? String(raw.id).trim() : '';
   const id =
