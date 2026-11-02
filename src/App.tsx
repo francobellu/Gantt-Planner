@@ -1393,6 +1393,7 @@ export function App({
         projectName,
         projects: effectiveProjects,
         items,
+        releases,
       },
       null,
       2
@@ -1483,6 +1484,16 @@ export function App({
         if (isJson || (!isCsv && (text.startsWith('{') || text.startsWith('[')))) {
           try {
             const parsed = JSON.parse(text);
+            if (
+              parsed &&
+              typeof parsed === 'object' &&
+              Array.isArray((parsed as Record<string, unknown>).releases)
+            ) {
+              const rawRels = (parsed as Record<string, unknown>).releases as Release[];
+              if (rawRels.length > 0 && rawRels[0]?.id && rawRels[0]?.code) {
+                setReleases(rawRels);
+              }
+            }
             result = importGanttData(parsed);
           } catch (jsonErr) {
             if (isJson && !isCsv) {
