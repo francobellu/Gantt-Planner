@@ -4526,7 +4526,7 @@ test('Help page, version control v1.2.0, release selection on project creation, 
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version control consistency
-  assert.equal(pkg.version, '1.2.0', 'package.json version must be 1.2.0');
+  assert.equal(pkg.version, '1.3.0', 'package.json version must be 1.3.0');
   assert.ok(pkg.scripts['version:patch'], 'package.json must contain version:patch script');
   assert.ok(pkg.scripts['version:minor'], 'package.json must contain version:minor script');
   assert.ok(pkg.scripts['release:patch'], 'package.json must contain release:patch script');
@@ -5302,15 +5302,15 @@ test('Task name positioning, configurable row separators, 37 char truncation, v1
 
     // 8. Configurable Weekend Shading ON vs OFF:
     const htmlWithWeekendShading = renderToString(mod.renderWorkspaceWithWeekendShading(true));
-    assert.ok(htmlWithWeekendShading.includes('bg-[#F4F4F1]/60'), 'Canvas must render weekend column shading when showWeekendShading is true');
+    assert.ok(htmlWithWeekendShading.includes('bg-[#E5E5DF]'), 'Canvas and header must render weekend column shading when showWeekendShading is true');
 
     const htmlWithoutWeekendShading = renderToString(mod.renderWorkspaceWithWeekendShading(false));
-    assert.ok(!htmlWithoutWeekendShading.includes('bg-[#F4F4F1]/60'), 'Canvas must NOT render weekend shading when showWeekendShading is false (clean uniform background)');
+    assert.ok(!htmlWithoutWeekendShading.includes('bg-[#E5E5DF]'), 'Canvas and header must NOT render weekend shading when showWeekendShading is false (clean uniform background)');
 
-    // 9. App Header displays v1.2.0 badge, row-separators-btn, and weekend-shading-btn
+    // 9. App Header displays v1.3.0 badge, row-separators-btn, and weekend-shading-btn
     const appHtml = renderToString(mod.renderAppHeader());
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'Header must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.2.0'), 'Header badge must display v1.2.0');
+    assert.ok(appHtml.includes('v1.3.0'), 'Header badge must display v1.3.0');
     assert.ok(appHtml.includes('data-testid="header-toggle-row-separators-btn"'), 'Header must contain header-toggle-row-separators-btn');
     assert.ok(appHtml.includes('data-testid="header-toggle-weekend-shading-btn"'), 'Header must contain header-toggle-weekend-shading-btn');
 

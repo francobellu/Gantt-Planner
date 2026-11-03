@@ -4285,10 +4285,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           ? 'border-l border-dashed border-[#0C0C09]/20 dark:border-zinc-800/90'
                           : ''
                       } ${
-                        isToday
+                        showWeekendShading && wknd
+                          ? 'bg-[#E5E5DF] dark:bg-zinc-800/80 text-[#0C0C09] dark:text-zinc-200'
+                          : isToday
                           ? 'font-bold'
-                          : showWeekendShading && wknd && dayWidth >= 14
-                          ? 'text-[#6B6B66]/60 dark:text-zinc-600'
                           : 'text-[#6B6B66] dark:text-zinc-400'
                       }`}
                     >
@@ -4314,7 +4314,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             {/* Canvas Body: Background Columns + Horizontal Rows + SVG Dependencies + Project Summary & Task/Slack/Milestone Bars */}
             <div className="relative" style={{ height: displayRows.length * ROW_HEIGHT + 52 }}>
               {/* Vertical Day Columns & Weekend Shading (configurable) */}
-              <div className="absolute inset-0 flex pointer-events-none z-0">
+              <div className="absolute inset-0 flex pointer-events-none z-[2]">
                 {timelineDays.map((day, idx) => {
                   const wknd = isWeekend(day);
                   return (
@@ -4322,8 +4322,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       key={idx}
                       style={{ width: dayWidth }}
                       className={`h-full ${
-                        showWeekendShading && wknd && dayWidth >= 8
-                          ? 'bg-[#F4F4F1]/60 dark:bg-zinc-900/40'
+                        showWeekendShading && wknd
+                          ? 'bg-[#E5E5DF]/70 dark:bg-zinc-800/60'
                           : ''
                       }`}
                     />
