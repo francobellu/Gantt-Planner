@@ -101,6 +101,7 @@ import { PlanHistoryPage } from './components/PlanHistoryPage';
 import { HelpPage } from './components/HelpPage';
 import { ReleasesModal } from './components/ReleasesModal';
 import { SettingsModal } from './components/SettingsModal';
+import { ReportsView } from './components/ReportsView';
 import {
   DEFAULT_PREDEFINED_RELEASES,
   checkTaskReleaseCompliance,
@@ -316,7 +317,7 @@ export function App({
     [templates, defaultScenarios, initialScenarioId]
   );
 
-  const [currentView, setCurrentView] = useState<'gantt' | 'history' | 'projects' | 'help'>(
+  const [currentView, setCurrentView] = useState<'gantt' | 'history' | 'projects' | 'reports' | 'help'>(
     initialView || 'gantt'
   );
   const [projectName, setProjectName] = useState<string>(
@@ -2128,6 +2129,23 @@ export function App({
             <span className="font-display font-medium hidden sm:inline">Ayuda</span>
           </button>
 
+          {/* Informes Button (Tablas tipo Excel) */}
+          <button
+            type="button"
+            data-testid="header-reports-btn"
+            onClick={() => setCurrentView((prev) => (prev === 'reports' ? 'gantt' : 'reports'))}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border text-xs font-medium transition cursor-pointer shrink-0 ${
+              currentView === 'reports'
+                ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
+                : 'bg-white dark:bg-zinc-900 border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800'
+            }`}
+            title="Consultar tablas completas tipo Excel (Cronograma Completo, Resumen Proyectos, Catálogo Releases)"
+            aria-label="Informes"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            <span className="font-display font-medium hidden sm:inline">Informes</span>
+          </button>
+
           {/* Selector de Plataforma (iOS, Android, Multiplataforma) */}
           <div className="flex items-center gap-1 shrink-0">
             <select
@@ -2484,6 +2502,13 @@ export function App({
             onRestoreSnapshot={handleRestoreSnapshot}
             onBackToGantt={() => setCurrentView('gantt')}
             onClearHistory={handleClearHistory}
+          />
+        ) : currentView === 'reports' ? (
+          <ReportsView
+            releases={releases}
+            projects={effectiveProjects}
+            items={computedItems}
+            onBackToGantt={() => setCurrentView('gantt')}
           />
         ) : (
           <>

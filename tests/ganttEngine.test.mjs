@@ -5863,6 +5863,176 @@ test('Escape and toggle focus exit, configurable text truncation limit, and hidd
   }
 });
 
+test('Excel Cronograma Completo splits dependencies per row with element names, and App provides interactive Informes page with 3 spreadsheet tabs', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('path');
+  const { fileURLToPath } = await import('url');
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const esbuild = await import('esbuild');
+  const ReactDOMServer = await import('react-dom/server');
+  const React = (await import('react')).default;
+
+  const ssrBundle = await esbuild.build({
+    stdin: {
+      contents: `
+        import React from 'react';
+        import { App } from './src/App';
+        import { ReportsView } from './src/components/ReportsView';
+        import {
+          exportFullGanttToWorkbook,
+          generateCronogramaCompletoRows,
+          generateProjectSummaryRows,
+          generateReleaseSummaryRows,
+          resolveDependencyName
+        } from './src/utils/excelExportEngine';
+
+        export {
+          App,
+          ReportsView,
+          exportFullGanttToWorkbook,
+          generateCronogramaCompletoRows,
+          generateProjectSummaryRows,
+          generateReleaseSummaryRows,
+          resolveDependencyName
+        };
+
+        export function renderReportsView(initialTab = 'cronograma') {
+          const p1 = { id: 'p1', name: 'App iOS Banking', releaseId: 'rel-1', platform: 'iOS', color: 'indigo' };
+          const p2 = { id: 'p2', name: 'App Android Banking', releaseId: 'rel-1', platform: 'Android', color: 'teal' };
+          const t1 = {
+            id: 't1',
+            projectId: 'p1',
+            name: 'Diseño UX Mobile',
+            type: 'task',
+            startDate: '2026-03-01',
+            endDate: '2026-03-05',
+            duration: 5,
+            progress: 100,
+            dependencies: []
+          };
+          const t2 = {
+            id: 't2',
+            projectId: 'p1',
+            name: 'Arquitectura Cloud',
+            type: 'task',
+            startDate: '2026-03-02',
+            endDate: '2026-03-06',
+            duration: 5,
+            progress: 80,
+            dependencies: []
+          };
+          const t3 = {
+            id: 't3',
+            projectId: 'p1',
+            name: 'Desarrollo Core Mobile',
+            type: 'task',
+            startDate: '2026-03-07',
+            endDate: '2026-03-20',
+            duration: 14,
+            progress: 40,
+            dependencies: ['t1', 't2'],
+            dependencyTypes: { t1: 'FS', t2: 'SS' }
+          };
+          const rel = {
+            id: 'rel-1',
+            code: 'T_26.03.1',
+            name: 'Release Marzo 2026',
+            month: 'MARZO',
+            year: 2026,
+            milestones: [
+              { id: 'm1', key: 'qg1', code: 'QG1', name: 'Scope QG1', date: '2026-03-05' },
+              { id: 'm2', key: 'iop', code: 'IOP', name: 'Puesta en Marcha', date: '2026-03-28' }
+            ]
+          };
+
+          return React.createElement(ReportsView, {
+            releases: [rel],
+            projects: [p1, p2],
+            items: [t1, t2, t3],
+            onBackToGantt: () => {},
+            initialTab
+          });
+        }
+      `,
+      resolveDir: path.resolve(__dirname, '..'),
+    },
+    bundle: true,
+    write: false,
+    format: 'cjs',
+    platform: 'node',
+    external: ['react', 'react-dom', 'xlsx'],
+  });
+
+  const tmpFile = path.resolve(__dirname, `./.tmp-ssr-v142-test.cjs`);
+  await fs.writeFile(tmpFile, ssrBundle.outputFiles[0].text, 'utf8');
+
+  try {
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+    const { renderToString } = ReactDOMServer.default || ReactDOMServer;
+
+    // 1. Test dependency resolution with human-readable element name
+    const sampleItems = [
+      { id: 'dep-a', name: 'Análisis de Requisitos', wbs: '1.1' },
+      { id: 'dep-b', name: 'Diseño de Base de Datos', wbs: '1.2' },
+      { id: 'task-main', name: 'Desarrollo API', dependencies: ['dep-a', 'dep-b'], dependencyTypes: { 'dep-a': 'FS', 'dep-b': 'SS' } },
+    ];
+    const depAName = mod.resolveDependencyName('dep-a', sampleItems, sampleItems[2]);
+    assert.equal(depAName, 'Análisis de Requisitos (FS)', 'Dependency name must use predecessor task name instead of ID');
+    const depBName = mod.resolveDependencyName('dep-b', sampleItems, sampleItems[2]);
+    assert.equal(depBName, 'Diseño de Base de Datos (SS)', 'Dependency name must respect custom dependency type');
+
+    // 2. Test generateCronogramaCompletoRows splitting dependencies into distinct rows
+    const p1 = { id: 'p1', name: 'Proyecto Test', releaseId: 'rel-1', platform: 'iOS' };
+    const r1 = { id: 'rel-1', code: 'T_26.03.1', name: 'Release 1', milestones: [] };
+    const rows = mod.generateCronogramaCompletoRows([r1], [p1], sampleItems);
+
+    // Look for rows of task-main
+    const taskMainRows = rows.filter((r) => r.name === 'Desarrollo API');
+    assert.equal(taskMainRows.length, 2, 'Task with 2 dependencies must produce 2 distinct rows in Cronograma Completo');
+    assert.equal(taskMainRows[0].dependency, 'Análisis de Requisitos (FS)', 'Row 1 must show first predecessor name');
+    assert.equal(taskMainRows[1].dependency, 'Diseño de Base de Datos (SS)', 'Row 2 must show second predecessor name');
+    assert.equal(taskMainRows[1].isDepRow, true, 'Second row is marked as isDepRow');
+
+    // 3. Test exportFullGanttToWorkbook Excel output
+    const wb = mod.exportFullGanttToWorkbook([r1], [p1], sampleItems);
+    const s1 = wb.Sheets['Cronograma Completo'];
+    const s1Str = JSON.stringify(s1);
+    assert.ok(s1Str.includes('Análisis de Requisitos (FS)'), 'Excel sheet 1 must contain predecessor element name');
+    assert.ok(s1Str.includes('Diseño de Base de Datos (SS)'), 'Excel sheet 1 must contain second predecessor element name');
+
+    // 4. Test ReportsView SSR rendering (Tab 1: Cronograma Completo)
+    const cronoHtml = renderToString(mod.renderReportsView('cronograma'));
+    assert.ok(cronoHtml.includes('data-testid="reports-view"'), 'ReportsView container renders');
+    assert.ok(cronoHtml.includes('data-testid="reports-tab-cronograma"'), 'Cronograma tab button renders');
+    assert.ok(cronoHtml.includes('data-testid="reports-tab-projects"'), 'Projects tab button renders');
+    assert.ok(cronoHtml.includes('data-testid="reports-tab-releases"'), 'Releases tab button renders');
+    assert.ok(cronoHtml.includes('data-testid="reports-download-excel-btn"'), 'Download Excel button renders');
+    assert.ok(cronoHtml.includes('data-testid="reports-back-btn"'), 'Back to Gantt button renders');
+    assert.ok(cronoHtml.includes('data-testid="reports-search-input"'), 'Search input renders');
+    assert.ok(cronoHtml.includes('data-testid="reports-platform-select"'), 'Platform select renders');
+    assert.ok(cronoHtml.includes('Diseño UX Mobile (FS)'), 'Cronograma tab renders predecessor element name');
+    assert.ok(cronoHtml.includes('Arquitectura Cloud (SS)'), 'Cronograma tab renders second predecessor element name');
+
+    // 5. Test ReportsView SSR rendering (Tab 2: Resumen Proyectos)
+    const projHtml = renderToString(mod.renderReportsView('projects'));
+    assert.ok(projHtml.includes('App iOS Banking'), 'Projects tab renders App iOS Banking');
+    assert.ok(projHtml.includes('App Android Banking'), 'Projects tab renders App Android Banking');
+
+    // 6. Test ReportsView SSR rendering (Tab 3: Catálogo Releases)
+    const relHtml = renderToString(mod.renderReportsView('releases'));
+    assert.ok(relHtml.includes('T_26.03.1'), 'Releases tab renders release code');
+    assert.ok(relHtml.includes('Release Marzo 2026'), 'Releases tab renders release name');
+
+    // 7. App Header includes Informes button
+    const appHtml = renderToString(React.createElement(mod.App));
+    assert.ok(appHtml.includes('data-testid="header-reports-btn"'), 'App header must render header-reports-btn');
+    assert.ok(appHtml.includes('Informes'), 'App header must display Informes label');
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
+
 
 
 
