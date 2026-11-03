@@ -1,8 +1,16 @@
-export const APP_VERSION = '1.3.0';
+export const APP_VERSION = '1.4.0';
 
 export type TaskType = 'task' | 'milestone';
 
 export type DependencyType = 'FS' | 'SS' | 'FF' | 'SF';
+
+export type ProjectPlatform = 'iOS' | 'Android' | 'Multiplataforma';
+
+export interface FocusEntity {
+  type: 'task' | 'project' | 'release';
+  id: string;
+  name?: string;
+}
 
 export type TaskColor =
   | 'indigo'
@@ -54,6 +62,7 @@ export interface GanttProject {
   releaseId?: string;
   collapsed?: boolean;
   isDemo?: boolean;
+  platform?: ProjectPlatform;
 }
 
 export interface GanttItem {

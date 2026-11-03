@@ -13,9 +13,11 @@ import {
   ComputedReleaseGroup,
   DependencyType,
   FitToProjectResult,
+  FocusEntity,
   GanttImportResult,
   GanttItem,
   GanttProject,
+  ProjectPlatform,
   ProjectTemplate,
   Release,
   SavedScenario,
@@ -283,6 +285,11 @@ export function sanitizeProject(
   const rawId = raw.id != null ? String(raw.id).trim() : '';
   const rawName = raw.name != null ? String(raw.name).trim() : '';
   const id = rawId || `proj-${fallbackIndex + 1}-${Date.now()}`;
+  const validPlatforms: ProjectPlatform[] = ['iOS', 'Android', 'Multiplataforma'];
+  const platform =
+    raw.platform && validPlatforms.includes(raw.platform as ProjectPlatform)
+      ? (raw.platform as ProjectPlatform)
+      : undefined;
 
   return {
     id,
@@ -290,6 +297,7 @@ export function sanitizeProject(
     color,
     description: raw.description != null ? String(raw.description).trim() : undefined,
     releaseId: raw.releaseId != null ? String(raw.releaseId).trim() || undefined : undefined,
+    platform,
     collapsed: Boolean(raw.collapsed),
     isDemo: isDemoProject({ ...raw, id }),
   };
@@ -3065,6 +3073,133 @@ export function mergeImportedGanttData(
     updatedItemsCount,
   };
 }
+
+/**
+ * Resolves all items, projects, and releases directly or transitively related to a given FocusEntity.
+ * - If focus is a task/milestone: traverses upstream predecessors and downstream successors recursively,
+ *   collecting all connected tasks, their projects, and their releases.
+ * - If focus is a project: collects all its tasks, their dependencies, connected projects, and release.
+ * - If focus is a release: collects all assigned projects and their tasks.
+ */
+export function getRelatedFocusEntityIds(
+  focus: FocusEntity,
+  items: GanttItem[],
+  projects: GanttProject[]
+): { itemIds: string[]; projectIds: string[]; releaseIds: string[] } {
+  const itemMap = new Map<string, GanttItem>();
+  for (const it of items) itemMap.set(it.id, it);
+  const projectMap = new Map<string, GanttProject>();
+  for (const p of projects) projectMap.set(p.id, p);
+
+  // Successor map: depId -> array of itemIds that depend on depId
+  const successorMap = new Map<string, string[]>();
+  for (const it of items) {
+    if (it.dependencies) {
+      for (const depId of it.dependencies) {
+        if (!successorMap.has(depId)) successorMap.set(depId, []);
+        successorMap.get(depId)!.push(it.id);
+      }
+    }
+  }
+
+  const relatedItemIds = new Set<string>();
+  const relatedProjectIds = new Set<string>();
+  const relatedReleaseIds = new Set<string>();
+
+  if (focus.type === 'task') {
+    const queue = [focus.id];
+    relatedItemIds.add(focus.id);
+
+    while (queue.length > 0) {
+      const currentId = queue.shift()!;
+      const it = itemMap.get(currentId);
+      if (it) {
+        if (it.projectId) {
+          relatedProjectIds.add(it.projectId);
+          const p = projectMap.get(it.projectId);
+          if (p?.releaseId) relatedReleaseIds.add(p.releaseId);
+        }
+
+        // Predecessors
+        if (it.dependencies) {
+          for (const predId of it.dependencies) {
+            if (!relatedItemIds.has(predId)) {
+              relatedItemIds.add(predId);
+              queue.push(predId);
+            }
+          }
+        }
+      }
+
+      // Successors
+      const succs = successorMap.get(currentId);
+      if (succs) {
+        for (const succId of succs) {
+          if (!relatedItemIds.has(succId)) {
+            relatedItemIds.add(succId);
+            queue.push(succId);
+          }
+        }
+      }
+    }
+  } else if (focus.type === 'project') {
+    relatedProjectIds.add(focus.id);
+    const proj = projectMap.get(focus.id);
+    if (proj?.releaseId) relatedReleaseIds.add(proj.releaseId);
+
+    // All items in this project
+    const projectItems = items.filter((it) => it.projectId === focus.id);
+    for (const it of projectItems) {
+      relatedItemIds.add(it.id);
+    }
+
+    // Direct dependencies connected to these items (predecessors and successors)
+    for (const it of projectItems) {
+      if (it.dependencies) {
+        for (const predId of it.dependencies) {
+          relatedItemIds.add(predId);
+          const pred = itemMap.get(predId);
+          if (pred?.projectId) {
+            relatedProjectIds.add(pred.projectId);
+            const p = projectMap.get(pred.projectId);
+            if (p?.releaseId) relatedReleaseIds.add(p.releaseId);
+          }
+        }
+      }
+      const succs = successorMap.get(it.id);
+      if (succs) {
+        for (const succId of succs) {
+          relatedItemIds.add(succId);
+          const succ = itemMap.get(succId);
+          if (succ?.projectId) {
+            relatedProjectIds.add(succ.projectId);
+            const p = projectMap.get(succ.projectId);
+            if (p?.releaseId) relatedReleaseIds.add(p.releaseId);
+          }
+        }
+      }
+    }
+  } else if (focus.type === 'release') {
+    relatedReleaseIds.add(focus.id);
+    for (const p of projects) {
+      if (p.releaseId === focus.id) {
+        relatedProjectIds.add(p.id);
+      }
+    }
+    for (const it of items) {
+      if (it.projectId && relatedProjectIds.has(it.projectId)) {
+        relatedItemIds.add(it.id);
+      }
+    }
+  }
+
+  return {
+    itemIds: Array.from(relatedItemIds),
+    projectIds: Array.from(relatedProjectIds),
+    releaseIds: Array.from(relatedReleaseIds),
+  };
+}
+
 
 
 

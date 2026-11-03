@@ -36,6 +36,7 @@ import {
   Rocket,
   Rows,
   SlidersHorizontal,
+  Sparkles,
   Trash2,
   User,
   X,
@@ -46,10 +47,12 @@ import {
   ComputedProjectGroup,
   ComputedReleaseGroup,
   DependencyType,
+  FocusEntity,
   GanttItem,
   GanttProject,
   GroupingMode,
   PROJECT_COLORS,
+  ProjectPlatform,
   Release,
   ReleaseGuideVisibility,
   ReleaseMilestone,
@@ -71,6 +74,7 @@ import {
   formatScrubberDate,
   getDayWidthForPreset,
   getItemEffectiveColor,
+  getRelatedFocusEntityIds,
   getTeamColor,
   groupItemsByProject,
   groupItemsByReleaseAndProject,
@@ -174,6 +178,13 @@ interface GanttWorkspaceProps {
     slack?: boolean;
     deps?: boolean;
   };
+  hiddenReleaseIds?: string[];
+  onToggleHideRelease?: (releaseId: string) => void;
+  isFocusMode?: boolean;
+  focusEntity?: FocusEntity | null;
+  onExitFocusMode?: () => void;
+  onSetFocusEntity?: (entity: FocusEntity | null) => void;
+  selectedPlatform?: 'all' | 'iOS' | 'Android' | 'Multiplataforma';
 }
 
 
@@ -511,7 +522,15 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   onOpenReleasesModal,
   initialVisibleMilestoneKeys,
   initialVisibleColumns,
+  hiddenReleaseIds = [],
+  onToggleHideRelease,
+  isFocusMode = false,
+  focusEntity = null,
+  onExitFocusMode,
+  onSetFocusEntity,
+  selectedPlatform = 'all',
 }) => {
+  const [focusedProjectInputId, setFocusedProjectInputId] = useState<string | null>(null);
   const [collapsedReleaseIds, setCollapsedReleaseIds] = useState<Set<string>>(() => {
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
@@ -1478,15 +1497,49 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     return map;
   }, [allProjectGroups]);
 
-  const visibleProjectGroups = useMemo(
-    () =>
-      filterGroupsBySelectedProjects(
-        allProjectGroups,
-        selectedProjectIds,
-        selectedProjectId
-      ),
-    [allProjectGroups, selectedProjectIds, selectedProjectId]
-  );
+  const focusRelatedSets = useMemo(() => {
+    if (!isFocusMode || !focusEntity) return null;
+    const res = getRelatedFocusEntityIds(focusEntity, effectiveItems, projects);
+    return {
+      itemIds: new Set(res.itemIds),
+      projectIds: new Set(res.projectIds),
+      releaseIds: new Set(res.releaseIds),
+    };
+  }, [isFocusMode, focusEntity, effectiveItems, projects]);
+
+  const visibleProjectGroups = useMemo(() => {
+    let filtered = filterGroupsBySelectedProjects(
+      allProjectGroups,
+      selectedProjectIds,
+      selectedProjectId
+    );
+
+    if (hiddenReleaseIds && hiddenReleaseIds.length > 0) {
+      const hiddenSet = new Set(hiddenReleaseIds);
+      filtered = filtered.filter(
+        (g) => !g.project.releaseId || !hiddenSet.has(g.project.releaseId)
+      );
+    }
+
+    if (selectedPlatform && selectedPlatform !== 'all') {
+      filtered = filtered.filter(
+        (g) => (g.project.platform || 'Multiplataforma') === selectedPlatform
+      );
+    }
+
+    if (focusRelatedSets) {
+      filtered = filtered.filter((g) => focusRelatedSets.projectIds.has(g.project.id));
+    }
+
+    return filtered;
+  }, [
+    allProjectGroups,
+    selectedProjectIds,
+    selectedProjectId,
+    hiddenReleaseIds,
+    selectedPlatform,
+    focusRelatedSets,
+  ]);
 
   // All milestones in visible projects for full-canvas vertical alignment guides
   const visibleMilestones = useMemo(() => {
@@ -1519,6 +1572,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         releases
       );
       for (const rg of releaseGroups) {
+        if (hiddenReleaseIds && hiddenReleaseIds.includes(rg.release.id)) {
+          continue;
+        }
+        if (focusRelatedSets && !focusRelatedSets.releaseIds.has(rg.release.id)) {
+          continue;
+        }
         rows.push({
           kind: 'release',
           rowId: `release:${rg.release.id}`,
@@ -1533,6 +1592,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             });
             if (!group.project.collapsed) {
               for (const item of group.items) {
+                if (focusRelatedSets && !focusRelatedSets.itemIds.has(item.id)) {
+                  continue;
+                }
                 rows.push({
                   kind: 'item',
                   rowId: item.id,
@@ -1553,6 +1615,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         });
         if (!group.project.collapsed) {
           for (const item of group.items) {
+            if (focusRelatedSets && !focusRelatedSets.itemIds.has(item.id)) {
+              continue;
+            }
             rows.push({
               kind: 'item',
               rowId: item.id,
@@ -1565,6 +1630,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     } else {
       for (const group of visibleProjectGroups) {
         for (const item of group.items) {
+          if (focusRelatedSets && !focusRelatedSets.itemIds.has(item.id)) {
+            continue;
+          }
           rows.push({
             kind: 'item',
             rowId: item.id,
@@ -1583,6 +1651,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     visibleProjectGroups,
     effectiveItems,
     projects,
+    hiddenReleaseIds,
+    focusRelatedSets,
   ]);
 
   const timelineScopedItems = useMemo(() => {
@@ -2736,6 +2806,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       }
     }
 
+    if (hiddenReleaseIds && hiddenReleaseIds.length > 0) {
+      for (const hid of hiddenReleaseIds) {
+        targetReleaseIds.delete(hid);
+      }
+    }
+
     interface ReleaseArea {
       release: Release;
       topY: number;
@@ -2885,6 +2961,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     totalCanvasWidth,
     totalCanvasHeight,
     visibleMilestoneKeys,
+    hiddenReleaseIds,
   ]);
 
   // Track cursor position and exact calendar date over timeline canvas for the date scrubber
@@ -3298,6 +3375,40 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                   <span>Gestionar</span>
                                 </button>
                               )}
+                              {onToggleHideRelease && (
+                                <button
+                                  type="button"
+                                  data-testid={`hide-release-${rGroup.release.id}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onToggleHideRelease(rGroup.release.id);
+                                  }}
+                                  className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-sans font-medium bg-white/20 hover:bg-white/30 text-white dark:bg-black/10 dark:hover:bg-black/20 dark:text-black transition cursor-pointer shrink-0"
+                                  title={`Ocultar release ${rGroup.release.code} y todos sus proyectos asociados`}
+                                >
+                                  <EyeOff className="w-3 h-3" />
+                                  <span>Ocultar</span>
+                                </button>
+                              )}
+                              {onSetFocusEntity && (
+                                <button
+                                  type="button"
+                                  data-testid={`focus-release-${rGroup.release.id}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onSetFocusEntity({
+                                      type: 'release',
+                                      id: rGroup.release.id,
+                                      name: rGroup.release.name,
+                                    });
+                                  }}
+                                  className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-sans font-medium bg-white/20 hover:bg-white/30 text-white dark:bg-black/10 dark:hover:bg-black/20 dark:text-black transition cursor-pointer shrink-0"
+                                  title={`Enfocar release ${rGroup.release.code} y sus proyectos`}
+                                >
+                                  <Sparkles className="w-3 h-3 text-amber-300" />
+                                  <span>Enfoque</span>
+                                </button>
+                              )}
                               {rGroup.violationsCount > 0 && (
                                 <span
                                   data-testid={`release-violations-badge-${rGroup.release.code}`}
@@ -3416,16 +3527,43 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 P{group.projectIndex}
                               </button>
 
+                              {group.project.platform && (
+                                <span
+                                  data-testid={`project-platform-badge-${group.project.id}`}
+                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold shrink-0 border ${
+                                    group.project.platform === 'iOS'
+                                      ? 'bg-sky-50 text-sky-700 border-sky-300 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800'
+                                      : group.project.platform === 'Android'
+                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
+                                      : 'bg-zinc-100 text-zinc-700 border-zinc-300 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700'
+                                  }`}
+                                  title={`Plataforma: ${group.project.platform}`}
+                                >
+                                  {group.project.platform}
+                                </span>
+                              )}
+
                               <div className="inline-grid items-center shrink-0 max-w-full">
                                 <span
                                   aria-hidden="true"
                                   className="invisible col-start-1 row-start-1 font-bold text-xs px-1.5 py-0.5 whitespace-pre pointer-events-none select-none"
                                 >
-                                  {group.project.name || 'Proyecto'}
+                                  {focusedProjectInputId === group.project.id
+                                    ? group.project.name || 'Proyecto'
+                                    : (group.project.name && group.project.name.length > 37
+                                        ? group.project.name.slice(0, 37) + '…'
+                                        : group.project.name) || 'Proyecto'}
                                 </span>
                                 <input
                                   type="text"
-                                  value={group.project.name}
+                                  value={
+                                    focusedProjectInputId === group.project.id
+                                      ? group.project.name
+                                      : group.project.name && group.project.name.length > 37
+                                      ? group.project.name.slice(0, 37) + '…'
+                                      : group.project.name
+                                  }
+                                  onFocus={() => setFocusedProjectInputId(group.project.id)}
                                   onChange={(e) =>
                                     onUpdateProject?.({
                                       ...group.project,
@@ -3433,6 +3571,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                     })
                                   }
                                   onBlur={(e) => {
+                                    setFocusedProjectInputId(null);
                                     const trimmed = e.target.value.trim();
                                     if (!trimmed) {
                                       onUpdateProject?.({
@@ -3453,6 +3592,24 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                   data-project-name-input={group.project.id}
                                 />
                               </div>
+
+                              {onSetFocusEntity && (
+                                <button
+                                  type="button"
+                                  data-testid={`focus-project-${group.project.id}`}
+                                  onClick={() =>
+                                    onSetFocusEntity({
+                                      type: 'project',
+                                      id: group.project.id,
+                                      name: group.project.name,
+                                    })
+                                  }
+                                  className="p-1 rounded-[2px] text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer shrink-0"
+                                  title={`Enfocar proyecto ${group.project.name}`}
+                                >
+                                  <Sparkles className="w-3.5 h-3.5" />
+                                </button>
+                              )}
 
                               <button
                                 type="button"
@@ -4978,14 +5135,34 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         )} → ${formatDateDisplay(group.endDate, 'dd MMM yyyy')} (${
                           group.duration
                         } días · ${group.progress}% completado)`}
-                        className="relative flex flex-col justify-center cursor-pointer pointer-events-auto group"
+                        className="relative flex flex-col justify-center cursor-pointer pointer-events-auto group overflow-visible"
                       >
                         {/* Top Label above Summary Bracket */}
-                        <div className="flex items-center justify-between text-[10px] font-bold text-slate-700 dark:text-slate-200 mb-1 px-1">
-                          <span className="truncate">
-                            P{group.projectIndex}: {group.project.name} ({group.duration}d)
+                        <div
+                          data-timeline-project-name={group.project.name}
+                          className="flex items-center gap-1.5 text-[10px] font-bold text-slate-700 dark:text-slate-200 mb-1 px-0.5 whitespace-nowrap overflow-visible z-10 pointer-events-none"
+                        >
+                          <span className="whitespace-nowrap font-semibold">
+                            P{group.projectIndex}: {group.project.name}
                           </span>
-                          <span className="font-mono text-[#0C0C09] dark:text-zinc-200 ml-2 shrink-0 font-bold">
+                          {group.project.platform && (
+                            <span
+                              data-timeline-project-platform={group.project.platform}
+                              className={`px-1.5 py-0.2 rounded text-[9px] font-bold border ${
+                                group.project.platform === 'iOS'
+                                  ? 'bg-sky-50 text-sky-700 border-sky-300 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800'
+                                  : group.project.platform === 'Android'
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
+                                  : 'bg-zinc-100 text-zinc-700 border-zinc-300 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700'
+                              }`}
+                            >
+                              {group.project.platform}
+                            </span>
+                          )}
+                          <span className="text-zinc-500 dark:text-zinc-400 font-normal">
+                            ({group.duration}d)
+                          </span>
+                          <span className="font-mono text-[#0C0C09] dark:text-zinc-200 font-bold ml-1">
                             {group.progress}%
                           </span>
                         </div>
@@ -5830,6 +6007,24 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                 {selectedItem.hidden ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                 <span>{selectedItem.hidden ? 'Mostrar en diagrama' : 'Ocultar en diagrama'}</span>
               </button>
+              {onSetFocusEntity && (
+                <button
+                  type="button"
+                  data-testid="panel-focus-mode-btn"
+                  onClick={() => {
+                    onSetFocusEntity({
+                      type: 'task',
+                      id: selectedItem.id,
+                      name: selectedItem.name,
+                    });
+                  }}
+                  className="px-2 py-1 rounded-[3px] border border-indigo-400/40 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 text-[11px] font-medium flex items-center gap-1.5 transition cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
+                  title="Aislar y enfocar esta tarea y su cadena de dependencias"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                  <span>Enfoque</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -5956,6 +6151,27 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
                 <div>
                   <label className="block text-[11px] font-mono font-bold uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400 mb-1">
+                    Plataforma
+                  </label>
+                  <select
+                    data-testid="project-modal-platform-select"
+                    value={inspectingProject.platform || 'Multiplataforma'}
+                    onChange={(e) =>
+                      setInspectingProject({
+                        ...inspectingProject,
+                        platform: e.target.value as ProjectPlatform,
+                      })
+                    }
+                    className="w-full px-2.5 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs text-[#0C0C09] dark:text-zinc-200 outline-none focus:ring-1 focus:ring-indigo-500 font-mono"
+                  >
+                    <option value="Multiplataforma">Multiplataforma</option>
+                    <option value="iOS">iOS</option>
+                    <option value="Android">Android</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-mono font-bold uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400 mb-1">
                     Información / Descripción del Proyecto
                   </label>
                   <textarea
@@ -6011,25 +6227,46 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               })()}
 
               {/* Actions Footer */}
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#E2E2DC] dark:border-zinc-800">
-                <button
-                  type="button"
-                  onClick={() => setInspectingProject(null)}
-                  className="px-3 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-medium text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 transition cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  data-testid="save-project-details-btn"
-                  onClick={() => {
-                    onUpdateProject?.(inspectingProject);
-                    setInspectingProject(null);
-                  }}
-                  className="px-4 py-1.5 rounded-[4px] bg-[#0C0C09] hover:bg-[#312C85] dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-[#0C0C09] font-medium text-xs transition cursor-pointer"
-                >
-                  Guardar Información
-                </button>
+              <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#E2E2DC] dark:border-zinc-800">
+                {onSetFocusEntity && (
+                  <button
+                    type="button"
+                    data-testid="project-modal-focus-btn"
+                    onClick={() => {
+                      onSetFocusEntity({
+                        type: 'project',
+                        id: inspectingProject.id,
+                        name: inspectingProject.name,
+                      });
+                      setInspectingProject(null);
+                    }}
+                    className="px-2.5 py-1.5 rounded-[4px] border border-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 text-xs font-semibold flex items-center gap-1.5 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition cursor-pointer"
+                    title="Enfocar este proyecto en el diagrama Gantt"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                    <span>Modo Enfoque</span>
+                  </button>
+                )}
+                <div className="flex items-center gap-2 ml-auto">
+                  <button
+                    type="button"
+                    onClick={() => setInspectingProject(null)}
+                    className="px-3 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-medium text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 transition cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="save-project-details-btn"
+                    onClick={() => {
+                      onUpdateProject?.(inspectingProject);
+                      setInspectingProject(null);
+                    }}
+                    className="px-4 py-1.5 rounded-[4px] bg-[#0C0C09] hover:bg-[#312C85] dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-[#0C0C09] font-medium text-xs transition cursor-pointer"
+                  >
+                    Guardar Información
+                  </button>
+                </div>
               </div>
             </div>
           </div>

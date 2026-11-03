@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Download,
   Eye,
+  EyeOff,
   FileSpreadsheet,
   FolderKanban,
   Plus,
@@ -45,6 +46,8 @@ interface ReleasesModalProps {
   onChangeGuideVisibility: (vis: ReleaseGuideVisibility) => void;
   onUpdateReleases: (releases: Release[]) => void;
   onAssignProjectToRelease: (projectId: string, releaseId?: string) => void;
+  hiddenReleaseIds?: string[];
+  onToggleHideRelease?: (releaseId: string) => void;
 }
 
 export const ReleasesModal: React.FC<ReleasesModalProps> = ({
@@ -57,6 +60,8 @@ export const ReleasesModal: React.FC<ReleasesModalProps> = ({
   onChangeGuideVisibility,
   onUpdateReleases,
   onAssignProjectToRelease,
+  hiddenReleaseIds = [],
+  onToggleHideRelease,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedReleaseId, setSelectedReleaseId] = useState<string | null>(
@@ -381,6 +386,11 @@ export const ReleasesModal: React.FC<ReleasesModalProps> = ({
                             {rel.month}
                           </span>
                         )}
+                        {hiddenReleaseIds?.includes(rel.id) && (
+                          <span className="px-1 py-0.2 rounded text-[8.5px] font-mono font-bold bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30">
+                            Oculta
+                          </span>
+                        )}
                       </div>
                       <span className="text-[10px] font-mono text-[#6B6B66] dark:text-zinc-500">
                         {rel.year}
@@ -429,6 +439,35 @@ export const ReleasesModal: React.FC<ReleasesModalProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {onToggleHideRelease && (
+                    <button
+                      type="button"
+                      data-testid={`modal-toggle-hide-release-${activeRelease.id}`}
+                      onClick={() => onToggleHideRelease(activeRelease.id)}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] border text-xs font-medium transition cursor-pointer ${
+                        hiddenReleaseIds?.includes(activeRelease.id)
+                          ? 'bg-amber-100 border-amber-400 text-amber-800 dark:bg-amber-950/60 dark:border-amber-700 dark:text-amber-200'
+                          : 'bg-white border-[#0C0C09] dark:bg-zinc-900 dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1]'
+                      }`}
+                      title={
+                        hiddenReleaseIds?.includes(activeRelease.id)
+                          ? 'Mostrar release y proyectos en el cronograma'
+                          : 'Ocultar release y proyectos del cronograma'
+                      }
+                    >
+                      {hiddenReleaseIds?.includes(activeRelease.id) ? (
+                        <>
+                          <EyeOff className="w-3.5 h-3.5 text-amber-600" />
+                          <span>Release Oculta</span>
+                        </>
+                      ) : (
+                        <>
+                          <Eye className="w-3.5 h-3.5 text-slate-500" />
+                          <span>Visible en Gantt</span>
+                        </>
+                      )}
+                    </button>
+                  )}
                   {activeViolationsCount > 0 ? (
                     <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 text-xs font-medium">
                       <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />

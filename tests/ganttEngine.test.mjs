@@ -64,6 +64,7 @@ const {
   getTeamColor,
   getItemEffectiveColor,
   TEAM_COLOR_PALETTE,
+  getRelatedFocusEntityIds,
 } = await import(codeUrl);
 
 test('calculateEndDateFromDuration & calculateDurationFromDates handle tasks and milestones', () => {
@@ -4526,7 +4527,7 @@ test('Help page, version control v1.2.0, release selection on project creation, 
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version control consistency
-  assert.equal(pkg.version, '1.3.0', 'package.json version must be 1.3.0');
+  assert.equal(pkg.version, '1.4.0', 'package.json version must be 1.4.0');
   assert.ok(pkg.scripts['version:patch'], 'package.json must contain version:patch script');
   assert.ok(pkg.scripts['version:minor'], 'package.json must contain version:minor script');
   assert.ok(pkg.scripts['release:patch'], 'package.json must contain release:patch script');
@@ -5310,7 +5311,7 @@ test('Task name positioning, configurable row separators, 37 char truncation, v1
     // 9. App Header displays v1.3.0 badge, row-separators-btn, and weekend-shading-btn
     const appHtml = renderToString(mod.renderAppHeader());
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'Header must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.3.0'), 'Header badge must display v1.3.0');
+    assert.ok(appHtml.includes('v1.4.0'), 'Header badge must display v1.4.0');
     assert.ok(appHtml.includes('data-testid="header-toggle-row-separators-btn"'), 'Header must contain header-toggle-row-separators-btn');
     assert.ok(appHtml.includes('data-testid="header-toggle-weekend-shading-btn"'), 'Header must contain header-toggle-weekend-shading-btn');
 
@@ -5322,6 +5323,276 @@ test('Task name positioning, configurable row separators, 37 char truncation, v1
     // 11. Only one vertical line per month at month start (no extra daily vertical grid lines)
     assert.ok(!wsHtml.includes('border-r border-[#E2E2DC]/50'), 'Must not render daily vertical grid lines across canvas');
     assert.ok(wsHtml.includes('data-month-divider="0"'), 'Must render month start vertical divider');
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
+test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode, platform field and filter, and excel hierarchy export', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const { fileURLToPath } = await import('node:url');
+  const { build } = await import('esbuild');
+  const ReactDOMServer = await import('react-dom/server');
+  const ReactMod = await import('react');
+  const React = ReactMod.default || ReactMod;
+
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
+
+  // 1. Version Bump Verification
+  assert.equal(pkg.version, '1.4.0', 'package.json version must equal 1.4.0');
+
+  // Verify scripts/bump-version.mjs works properly
+  const bumpScript = await fs.readFile(path.resolve(__dirname, '../scripts/bump-version.mjs'), 'utf8');
+  assert.ok(bumpScript.includes("parts[1] += 1"), 'bump-version script must support minor bumps');
+  assert.ok(bumpScript.includes("parts[2] += 1"), 'bump-version script must support patch bumps');
+  assert.ok(bumpScript.includes("APP_VERSION"), 'bump-version script must update APP_VERSION in src/types/gantt.ts');
+
+  // 2. Pure Unit test for getRelatedFocusEntityIds (imported from bundled ganttEngine)
+  const sampleProjects = [
+    { id: 'proj-ios', name: 'App iOS', releaseId: 'rel-1', color: 'indigo', platform: 'iOS' },
+    { id: 'proj-android', name: 'App Android', releaseId: 'rel-1', color: 'teal', platform: 'Android' },
+    { id: 'proj-backend', name: 'Backend Multiplataforma', releaseId: 'rel-2', color: 'cyan', platform: 'Multiplataforma' },
+  ];
+  const sampleItems = [
+    { id: 't1', projectId: 'proj-backend', name: 'API Login', type: 'task', startDate: '2026-03-01', endDate: '2026-03-05', duration: 5, dependencies: [] },
+    { id: 't2', projectId: 'proj-ios', name: 'UI Login iOS', type: 'task', startDate: '2026-03-06', endDate: '2026-03-10', duration: 5, dependencies: ['t1'] },
+    { id: 't3', projectId: 'proj-ios', name: 'Home Screen iOS', type: 'task', startDate: '2026-03-11', endDate: '2026-03-15', duration: 5, dependencies: ['t2'] },
+    { id: 't4', projectId: 'proj-android', name: 'UI Login Android', type: 'task', startDate: '2026-03-06', endDate: '2026-03-10', duration: 5, dependencies: ['t1'] },
+    { id: 't5', projectId: 'proj-android', name: 'Unrelated Android Task', type: 'task', startDate: '2026-03-01', endDate: '2026-03-05', duration: 5, dependencies: [] },
+  ];
+
+  // Focus on task t2 (UI Login iOS): Predecessor is t1, Successor is t3.
+  // Should NOT include t5 (Unrelated Android Task)!
+  const taskFocusResult = getRelatedFocusEntityIds({ type: 'task', id: 't2' }, sampleItems, sampleProjects);
+  assert.ok(taskFocusResult.itemIds.includes('t1'), 'Focus on t2 must include predecessor t1');
+  assert.ok(taskFocusResult.itemIds.includes('t2'), 'Focus on t2 must include t2 itself');
+  assert.ok(taskFocusResult.itemIds.includes('t3'), 'Focus on t2 must include successor t3');
+  assert.ok(!taskFocusResult.itemIds.includes('t5'), 'Focus on t2 must not include unrelated task t5');
+  assert.ok(taskFocusResult.projectIds.includes('proj-ios'), 'Focus on t2 must include proj-ios');
+  assert.ok(taskFocusResult.projectIds.includes('proj-backend'), 'Focus on t2 must include predecessor project proj-backend');
+  assert.ok(taskFocusResult.releaseIds.includes('rel-1'), 'Focus on t2 must include rel-1');
+  assert.ok(taskFocusResult.releaseIds.includes('rel-2'), 'Focus on t2 must include predecessor release rel-2');
+
+  // Focus on project proj-ios: Should collect t2, t3, connected t1, and related project IDs
+  const projFocusResult = getRelatedFocusEntityIds({ type: 'project', id: 'proj-ios' }, sampleItems, sampleProjects);
+  assert.ok(projFocusResult.projectIds.includes('proj-ios'));
+  assert.ok(projFocusResult.itemIds.includes('t2'));
+  assert.ok(projFocusResult.itemIds.includes('t3'));
+  assert.ok(projFocusResult.itemIds.includes('t1'), 'Connected predecessor t1 must be included');
+
+  // Focus on release rel-1: Should collect proj-ios and proj-android and their tasks
+  const relFocusResult = getRelatedFocusEntityIds({ type: 'release', id: 'rel-1' }, sampleItems, sampleProjects);
+  assert.ok(relFocusResult.releaseIds.includes('rel-1'));
+  assert.ok(relFocusResult.projectIds.includes('proj-ios'));
+  assert.ok(relFocusResult.projectIds.includes('proj-android'));
+  assert.ok(!relFocusResult.projectIds.includes('proj-backend'));
+
+  // 3. SSR and Bundle Verification of Components and Excel Engine
+  const ssrBundle = await build({
+    stdin: {
+      contents: `
+        import React from 'react';
+        import { App } from './src/App.tsx';
+        import { GanttWorkspace } from './src/components/GanttWorkspace.tsx';
+        import { APP_VERSION } from './src/types/gantt.ts';
+        import { exportFullGanttToWorkbook } from './src/utils/excelExportEngine.ts';
+
+        export { App, GanttWorkspace, APP_VERSION, exportFullGanttToWorkbook };
+
+        export function renderWorkspaceWithLongProjectName() {
+          const scrollRef = { current: null };
+          const longNamedProject = {
+            id: 'proj-long',
+            name: 'Proyecto Muy Largo Que Supera Los Treinta Y Siete Caracteres Para Probar Truncamiento',
+            color: 'indigo',
+            platform: 'iOS',
+            releaseId: 'rel-1'
+          };
+          const task = {
+            id: 'task-1',
+            projectId: 'proj-long',
+            name: 'Tarea Corta',
+            type: 'task',
+            startDate: '2026-03-01',
+            endDate: '2026-03-02',
+            duration: 2,
+            dependencies: [],
+            progress: 50,
+            slack: 0
+          };
+          const rel = {
+            id: 'rel-1',
+            code: 'T_26.03.1',
+            name: 'Release Marzo',
+            year: 2026,
+            milestones: [{ id: 'm1', key: 'qg1', code: 'QG1', name: 'QG1', date: '2026-03-05' }]
+          };
+          return React.createElement(GanttWorkspace, {
+            items: [task],
+            projects: [longNamedProject],
+            releases: [rel],
+            scrollContainerRef: scrollRef,
+            showCriticalPath: true,
+            showCpmFloat: false,
+            autoCascade: true,
+            onUpdateItem: () => {},
+            onEditModal: () => {},
+            onDeleteItem: () => {},
+            onDuplicateItem: () => {},
+            onQuickAdd: () => {}
+          });
+        }
+
+        export function renderWorkspaceWithHiddenRelease(hiddenIds) {
+          const scrollRef = { current: null };
+          const p1 = { id: 'p1', name: 'Proyecto Release 1', releaseId: 'rel-hide', platform: 'iOS', color: 'indigo' };
+          const p2 = { id: 'p2', name: 'Proyecto Release 2', releaseId: 'rel-show', platform: 'Android', color: 'teal' };
+          const t1 = { id: 't1', projectId: 'p1', name: 'Tarea P1', type: 'task', startDate: '2026-03-01', endDate: '2026-03-05', duration: 5, dependencies: [] };
+          const t2 = { id: 't2', projectId: 'p2', name: 'Tarea P2', type: 'task', startDate: '2026-03-01', endDate: '2026-03-05', duration: 5, dependencies: [] };
+          const rels = [
+            { id: 'rel-hide', code: 'REL_HIDDEN', name: 'Release Oculta', year: 2026, milestones: [] },
+            { id: 'rel-show', code: 'REL_VISIBLE', name: 'Release Visible', year: 2026, milestones: [] }
+          ];
+          return React.createElement(GanttWorkspace, {
+            items: [t1, t2],
+            projects: [p1, p2],
+            releases: rels,
+            hiddenReleaseIds: hiddenIds,
+            onToggleHideRelease: () => {},
+            onSetFocusEntity: () => {},
+            scrollContainerRef: scrollRef,
+            showCriticalPath: true,
+            showCpmFloat: false,
+            autoCascade: true,
+            onUpdateItem: () => {},
+            onEditModal: () => {},
+            onDeleteItem: () => {},
+            onDuplicateItem: () => {},
+            onQuickAdd: () => {}
+          });
+        }
+
+        export function renderWorkspaceWithPlatformFilter(platform) {
+          const scrollRef = { current: null };
+          const p1 = { id: 'p1', name: 'Proyecto iOS', releaseId: 'rel-1', platform: 'iOS', color: 'indigo' };
+          const p2 = { id: 'p2', name: 'Proyecto Android', releaseId: 'rel-1', platform: 'Android', color: 'teal' };
+          const t1 = { id: 't1', projectId: 'p1', name: 'Tarea iOS', type: 'task', startDate: '2026-03-01', endDate: '2026-03-05', duration: 5, dependencies: [] };
+          const t2 = { id: 't2', projectId: 'p2', name: 'Tarea Android', type: 'task', startDate: '2026-03-01', endDate: '2026-03-05', duration: 5, dependencies: [] };
+          const rels = [{ id: 'rel-1', code: 'REL_1', name: 'Release 1', year: 2026, milestones: [] }];
+          return React.createElement(GanttWorkspace, {
+            items: [t1, t2],
+            projects: [p1, p2],
+            releases: rels,
+            selectedPlatform: platform,
+            scrollContainerRef: scrollRef,
+            showCriticalPath: true,
+            showCpmFloat: false,
+            autoCascade: true,
+            onUpdateItem: () => {},
+            onEditModal: () => {},
+            onDeleteItem: () => {},
+            onDuplicateItem: () => {},
+            onQuickAdd: () => {}
+          });
+        }
+      `,
+      resolveDir: path.resolve(__dirname, '..'),
+    },
+    bundle: true,
+    write: false,
+    format: 'cjs',
+    platform: 'node',
+    external: ['react', 'react-dom', 'xlsx'],
+  });
+
+  const tmpFile = path.resolve(__dirname, `./.tmp-ssr-v140-test.cjs`);
+  await fs.writeFile(tmpFile, ssrBundle.outputFiles[0].text, 'utf8');
+
+  try {
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+    const { renderToString } = ReactDOMServer.default || ReactDOMServer;
+
+    // A. APP_VERSION equals 1.4.0
+    assert.equal(mod.APP_VERSION, '1.4.0', 'APP_VERSION must be 1.4.0');
+
+    // A2. Excel Export Unit Test
+    const sampleReleases = [
+      {
+        id: 'rel-1',
+        code: 'T_26.03.1',
+        name: 'Release Marzo 2026',
+        month: 'MARZO',
+        year: 2026,
+        startDate: '2026-03-01',
+        endDate: '2026-03-31',
+        milestones: [
+          { id: 'm1', key: 'qg1', code: 'QG1', name: 'Scope QG1', date: '2026-03-05' },
+          { id: 'm2', key: 'iop', code: 'IOP', name: 'Puesta en Marcha', date: '2026-03-28' },
+        ],
+      },
+    ];
+    const workbook = mod.exportFullGanttToWorkbook(sampleReleases, sampleProjects, sampleItems);
+    assert.ok(workbook.SheetNames.includes('Cronograma Completo'), 'Workbook must contain "Cronograma Completo" sheet');
+    assert.ok(workbook.SheetNames.includes('Resumen Proyectos'), 'Workbook must contain "Resumen Proyectos" sheet');
+    assert.ok(workbook.SheetNames.includes('Catálogo Releases'), 'Workbook must contain "Catálogo Releases" sheet');
+
+    const s1 = workbook.Sheets['Cronograma Completo'];
+    const s1Content = JSON.stringify(s1);
+    assert.ok(s1Content.includes('Código WBS'), 'Sheet 1 must contain WBS header');
+    assert.ok(s1Content.includes('Plataforma'), 'Sheet 1 must contain Plataforma header');
+    assert.ok(s1Content.includes('Cumplimiento Release'), 'Sheet 1 must contain Cumplimiento Release header');
+    assert.ok(s1Content.includes('iOS'), 'Sheet 1 must include iOS platform label');
+    assert.ok(s1Content.includes('Android'), 'Sheet 1 must include Android platform label');
+
+    // B. Unclipped diagram project name vs truncated table project name
+    const longNameHtml = renderToString(mod.renderWorkspaceWithLongProjectName());
+    // Table should truncate at 37 characters + '…'
+    const expectedTruncated = 'Proyecto Muy Largo Que Supera Los Tre…';
+    assert.ok(
+      longNameHtml.includes(expectedTruncated),
+      `Table project name input should be truncated to 37 chars ("${expectedTruncated}") when not focused`
+    );
+    // Diagram should render full, unclipped project name
+    assert.ok(
+      longNameHtml.includes('data-timeline-project-name="Proyecto Muy Largo Que Supera Los Treinta Y Siete Caracteres Para Probar Truncamiento"'),
+      'Diagram project label must contain full unclipped project name in data-timeline-project-name'
+    );
+    assert.ok(
+      longNameHtml.includes('whitespace-nowrap overflow-visible'),
+      'Diagram project label must have whitespace-nowrap and overflow-visible'
+    );
+    assert.ok(
+      longNameHtml.includes('data-timeline-project-platform="iOS"'),
+      'Diagram project bar must display platform badge'
+    );
+
+    // C. Hide releases with all associated projects
+    const hiddenRelHtml = renderToString(mod.renderWorkspaceWithHiddenRelease(['rel-hide']));
+    assert.ok(!hiddenRelHtml.includes('REL_HIDDEN'), 'Hidden release code must not be rendered');
+    assert.ok(!hiddenRelHtml.includes('Proyecto Release 1'), 'Associated projects of hidden release must not be rendered');
+    assert.ok(!hiddenRelHtml.includes('Tarea P1'), 'Tasks of hidden release must not be rendered');
+    assert.ok(hiddenRelHtml.includes('REL_VISIBLE'), 'Visible release must be rendered');
+    assert.ok(hiddenRelHtml.includes('Proyecto Release 2'), 'Associated projects of visible release must be rendered');
+    assert.ok(hiddenRelHtml.includes('Tarea P2'), 'Tasks of visible release must be rendered');
+    assert.ok(hiddenRelHtml.includes('data-testid="hide-release-rel-show"'), 'Release table row must have hide button');
+
+    // D. Platform filtering in workspace
+    const iosOnlyHtml = renderToString(mod.renderWorkspaceWithPlatformFilter('iOS'));
+    assert.ok(iosOnlyHtml.includes('Proyecto iOS'), 'iOS filter must show Proyecto iOS');
+    assert.ok(!iosOnlyHtml.includes('Proyecto Android'), 'iOS filter must NOT show Proyecto Android');
+
+    const androidOnlyHtml = renderToString(mod.renderWorkspaceWithPlatformFilter('Android'));
+    assert.ok(androidOnlyHtml.includes('Proyecto Android'), 'Android filter must show Proyecto Android');
+    assert.ok(!androidOnlyHtml.includes('Proyecto iOS'), 'Android filter must NOT show Proyecto iOS');
+
+    // E. Header controls in App SSR
+    const appHtml = renderToString(React.createElement(mod.App));
+    assert.ok(appHtml.includes('data-testid="platform-filter-select"'), 'App header must contain platform-filter-select');
+    assert.ok(appHtml.includes('data-testid="header-toggle-focus-mode-btn"'), 'App header must contain header-toggle-focus-mode-btn');
+    assert.ok(appHtml.includes('data-testid="header-export-excel-btn"'), 'App header must contain header-export-excel-btn');
+    assert.ok(appHtml.includes('v1.4.0'), 'App header must display version v1.4.0');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }

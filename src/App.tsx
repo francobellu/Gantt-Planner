@@ -40,11 +40,13 @@ import {
   APP_VERSION,
   ArrowVisibility,
   ComputedGanttItem,
+  FocusEntity,
   GanttImportResult,
   GanttItem,
   GanttProject,
   GroupingMode,
   PROJECT_COLORS,
+  ProjectPlatform,
   ProjectTemplate,
   PlanHistoryActionType,
   PlanHistoryEntry,
@@ -97,6 +99,7 @@ import {
   checkTaskReleaseCompliance,
   getReleaseDateSpan,
 } from './utils/releaseEngine';
+import { downloadGanttExcelFile } from './utils/excelExportEngine';
 
 const STORAGE_KEY = 'ganttflow_pro_state_v2';
 const LEGACY_STORAGE_KEY_V1 = 'ganttflow_pro_state_v1';
@@ -107,6 +110,7 @@ const HISTORY_INDEX_STORAGE_KEY = 'ganttflow_pro_history_index_v1';
 const RELEASES_STORAGE_KEY = 'ganttflow_pro_releases_v1';
 const RELEASE_GUIDE_VISIBILITY_KEY = 'ganttflow_release_guide_visibility';
 const GROUPING_MODE_KEY = 'ganttflow_grouping_mode';
+const HIDDEN_RELEASES_STORAGE_KEY = 'ganttflow_hidden_releases';
 
 interface InitialWorkspaceState {
   activeScenarioId: string;
@@ -707,6 +711,73 @@ export function App({
     } catch {}
   }, [showWeekendShading]);
 
+  // Hidden Releases (persisted in localStorage)
+  const [hiddenReleaseIds, setHiddenReleaseIds] = useState<string[]>(() => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const raw = window.localStorage.getItem(HIDDEN_RELEASES_STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      }
+    } catch {}
+    return [];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(HIDDEN_RELEASES_STORAGE_KEY, JSON.stringify(hiddenReleaseIds));
+    } catch {}
+  }, [hiddenReleaseIds]);
+
+  const handleToggleHideRelease = (releaseId: string) => {
+    setHiddenReleaseIds((prev) => {
+      const isHidden = prev.includes(releaseId);
+      const next = isHidden ? prev.filter((id) => id !== releaseId) : [...prev, releaseId];
+      const rel = releases.find((r) => r.id === releaseId);
+      showToast(
+        isHidden
+          ? `Release '${rel?.code || releaseId}' ahora es visible con sus proyectos.`
+          : `Release '${rel?.code || releaseId}' y sus proyectos asociados han sido ocultados.`
+      );
+      return next;
+    });
+  };
+
+  // Focus Mode state
+  const [isFocusMode, setIsFocusMode] = useState<boolean>(false);
+  const [focusEntity, setFocusEntity] = useState<FocusEntity | null>(null);
+
+  const handleExitFocusMode = () => {
+    setIsFocusMode(false);
+    setFocusEntity(null);
+    showToast('Modo Enfoque desactivado: mostrando todos los elementos.');
+  };
+
+  const handleSetFocusEntity = (entity: FocusEntity | null) => {
+    if (entity) {
+      setFocusEntity(entity);
+      setIsFocusMode(true);
+      showToast(
+        `Modo Enfoque activado en ${
+          entity.type === 'task'
+            ? 'tarea'
+            : entity.type === 'project'
+            ? 'proyecto'
+            : 'release'
+        }: '${entity.name || entity.id}'`
+      );
+    } else {
+      handleExitFocusMode();
+    }
+  };
+
+  // Platform Filter state ('all' | 'iOS' | 'Android' | 'Multiplataforma')
+  const [selectedPlatform, setSelectedPlatform] = useState<
+    'all' | 'iOS' | 'Android' | 'Multiplataforma'
+  >('all');
+
   const [scenarioSavedToast, setScenarioSavedToast] = useState<string | null>(null);
 
   // Minimalist UI toggles and menus
@@ -716,6 +787,7 @@ export function App({
   const [newProjectFormName, setNewProjectFormName] = useState<string>('');
   const [newProjectFormReleaseId, setNewProjectFormReleaseId] = useState<string>('');
   const [newProjectFormColor, setNewProjectFormColor] = useState<string>('indigo');
+  const [newProjectFormPlatform, setNewProjectFormPlatform] = useState<ProjectPlatform>('Multiplataforma');
 
   const projectMenuRef = useRef<HTMLDivElement>(null);
   const metricsDrawerRef = useRef<HTMLDivElement>(null);
@@ -1199,6 +1271,7 @@ export function App({
           name: newProj?.name || `Proyecto ${projects.length + 1}`,
           color: newProj?.color || 'indigo',
           releaseId: newProj?.releaseId || releases[0]?.id || 'rel-t-26-12-1',
+          platform: newProj?.platform || 'Multiplataforma',
           ...newProj,
           isDemo: false,
         },
@@ -1964,6 +2037,58 @@ export function App({
             <span className="font-display font-medium hidden sm:inline">Ayuda</span>
           </button>
 
+          {/* Selector de Plataforma (iOS, Android, Multiplataforma) */}
+          <div className="flex items-center gap-1 shrink-0">
+            <select
+              data-testid="platform-filter-select"
+              value={selectedPlatform}
+              onChange={(e) => setSelectedPlatform(e.target.value as any)}
+              className="px-2.5 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-medium text-[#0C0C09] dark:text-zinc-200 outline-none cursor-pointer hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 transition"
+              title="Filtrar proyectos por tecnología o plataforma destino"
+            >
+              <option value="all">Plataformas: Todas</option>
+              <option value="iOS">Plataforma: iOS</option>
+              <option value="Android">Plataforma: Android</option>
+              <option value="Multiplataforma">Multiplataforma</option>
+            </select>
+          </div>
+
+          {/* Modo Enfoque Toggle */}
+          <button
+            type="button"
+            data-testid="header-toggle-focus-mode-btn"
+            onClick={() => {
+              if (isFocusMode) {
+                handleExitFocusMode();
+              } else {
+                const targetProj = effectiveProjects[0];
+                if (targetProj) {
+                  handleSetFocusEntity({
+                    type: 'project',
+                    id: targetProj.id,
+                    name: targetProj.name,
+                  });
+                }
+              }
+            }}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border text-xs font-medium transition cursor-pointer shrink-0 ${
+              isFocusMode
+                ? 'bg-indigo-600 border-indigo-600 text-white font-bold animate-pulse'
+                : 'bg-white dark:bg-zinc-900 border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800'
+            }`}
+            title={
+              isFocusMode
+                ? 'Salir de la modalidad enfoque'
+                : 'Activar modalidad enfoque en proyecto/tarea'
+            }
+            aria-label="Modalidad Enfoque"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-current" />
+            <span className="font-display font-medium hidden sm:inline">
+              {isFocusMode ? 'Enfocado' : 'Enfoque'}
+            </span>
+          </button>
+
           {/* Botón Importar */}
           <button
             type="button"
@@ -1987,7 +2112,27 @@ export function App({
             aria-label="Exportar"
           >
             <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-            <span className="font-display font-medium hidden sm:inline">Exportar</span>
+            <span className="font-display font-medium hidden sm:inline">JSON</span>
+          </button>
+
+          {/* Botón Exportar Excel con jerarquía */}
+          <button
+            type="button"
+            data-testid="header-export-excel-btn"
+            onClick={() => {
+              try {
+                downloadGanttExcelFile(releases, effectiveProjects, computedItems);
+                showToast('Descargando archivo Excel completo con jerarquía...');
+              } catch {
+                showToast('Error al exportar a Excel');
+              }
+            }}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#0C0C09] hover:text-white dark:hover:bg-zinc-100 dark:hover:text-[#0C0C09] text-xs font-semibold transition cursor-pointer shrink-0"
+            title="Exportar jerarquía completa (Releases, Proyectos, Tareas) a archivo Excel (.xlsx)"
+            aria-label="Exportar Excel"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            <span className="font-display font-semibold hidden sm:inline">Excel</span>
           </button>
 
           {scenarioSavedToast && (
@@ -2251,6 +2396,31 @@ export function App({
               </div>
             )}
 
+            {/* Focus Mode active banner */}
+            {isFocusMode && focusEntity && (
+              <div
+                data-testid="focus-mode-active-banner"
+                className="flex items-center justify-between gap-4 px-4 py-2 rounded-[4px] bg-indigo-600 text-white text-xs font-semibold shadow-md animate-fade-in"
+              >
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
+                  <span>
+                    <strong>MODO ENFOQUE ACTIVO:</strong> Viendo únicamente elementos relacionados con {focusEntity.type === 'task' ? 'la tarea' : focusEntity.type === 'project' ? 'el proyecto' : 'la release'}{' '}
+                    <strong className="underline underline-offset-2">&ldquo;{focusEntity.name || focusEntity.id}&rdquo;</strong>
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  data-testid="exit-focus-mode-btn"
+                  onClick={handleExitFocusMode}
+                  className="px-3 py-1 rounded-[3px] bg-white text-indigo-900 font-bold hover:bg-zinc-100 transition cursor-pointer text-xs flex items-center gap-1.5 shrink-0"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>Salir del Enfoque</span>
+                </button>
+              </div>
+            )}
+
             {/* Interactive Split-Pane Gantt Chart & WBS Table with Project Grouping */}
             <GanttWorkspace
               items={computedItems}
@@ -2292,6 +2462,13 @@ export function App({
               onToggleRowSeparators={() => setShowRowSeparators((prev) => !prev)}
               showWeekendShading={showWeekendShading}
               onToggleWeekendShading={() => setShowWeekendShading((prev) => !prev)}
+              hiddenReleaseIds={hiddenReleaseIds}
+              onToggleHideRelease={handleToggleHideRelease}
+              isFocusMode={isFocusMode}
+              focusEntity={focusEntity}
+              onExitFocusMode={handleExitFocusMode}
+              onSetFocusEntity={handleSetFocusEntity}
+              selectedPlatform={selectedPlatform}
             />
           </>
         )}
@@ -2334,7 +2511,9 @@ export function App({
                   name: trimmed,
                   color: newProjectFormColor as any,
                   releaseId: newProjectFormReleaseId || releases[0]?.id || 'rel-t-26-12-1',
+                  platform: newProjectFormPlatform,
                 });
+                setNewProjectFormPlatform('Multiplataforma');
                 setCreateProjectModalOpen(false);
               }}
               className="mt-4 space-y-4"
@@ -2373,6 +2552,25 @@ export function App({
                 </select>
                 <p className="text-[10px] text-[#6B6B66] dark:text-zinc-400 mt-1">
                   El proyecto y sus tareas se agruparán bajo esta Release en el cronograma Gantt.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#0C0C09] dark:text-zinc-300 mb-1">
+                  Plataforma
+                </label>
+                <select
+                  data-testid="create-project-modal-platform-select"
+                  value={newProjectFormPlatform}
+                  onChange={(e) => setNewProjectFormPlatform(e.target.value as ProjectPlatform)}
+                  className="w-full px-3 py-2 text-xs rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-100 outline-none focus:ring-1 focus:ring-indigo-500 font-mono"
+                >
+                  <option value="Multiplataforma">Multiplataforma (General)</option>
+                  <option value="iOS">iOS</option>
+                  <option value="Android">Android</option>
+                </select>
+                <p className="text-[10px] text-[#6B6B66] dark:text-zinc-400 mt-1">
+                  Identifica la tecnología destino para filtrar en el cronograma.
                 </p>
               </div>
 
@@ -2448,6 +2646,8 @@ export function App({
         onAssignProjectToRelease={handleAssignProjectToRelease}
         guideVisibility={releaseGuideVisibility}
         onChangeGuideVisibility={setReleaseGuideVisibility}
+        hiddenReleaseIds={hiddenReleaseIds}
+        onToggleHideRelease={handleToggleHideRelease}
       />
 
       {/* Hidden File Input for JSON / CSV Import */}
