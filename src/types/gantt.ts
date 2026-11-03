@@ -1,5 +1,8 @@
 export const APP_VERSION = '1.4.0';
 
+export const DEFAULT_TRUNCATE_CHAR_LIMIT = 37;
+export const TRUNCATE_LIMIT_STORAGE_KEY = 'ganttflow_truncate_char_limit';
+
 export type TaskType = 'task' | 'milestone';
 
 export type DependencyType = 'FS' | 'SS' | 'FF' | 'SF';

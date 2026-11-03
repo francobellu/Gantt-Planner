@@ -5598,6 +5598,271 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
   }
 });
 
+test('Escape and toggle focus exit, configurable text truncation limit, and hidden release visibility reset', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('path');
+  const { fileURLToPath } = await import('url');
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const esbuild = await import('esbuild');
+  const ReactDOMServer = await import('react-dom/server');
+  const React = (await import('react')).default;
+
+  const ssrBundle = await esbuild.build({
+    stdin: {
+      contents: `
+        import React from 'react';
+        import { App } from './src/App';
+        import { GanttWorkspace } from './src/components/GanttWorkspace';
+        import { SettingsModal } from './src/components/SettingsModal';
+        import { ReleasesModal } from './src/components/ReleasesModal';
+        import { DEFAULT_TRUNCATE_CHAR_LIMIT, TRUNCATE_LIMIT_STORAGE_KEY } from './src/types/gantt';
+
+        export { App, GanttWorkspace, SettingsModal, ReleasesModal, DEFAULT_TRUNCATE_CHAR_LIMIT, TRUNCATE_LIMIT_STORAGE_KEY };
+
+        export function renderWorkspaceWithCustomLimit(limit) {
+          const scrollRef = { current: null };
+          const p = {
+            id: 'p-trunc',
+            name: 'Proyecto Con Nombre Excesivamente Largo Para Probar Limite De Caracteres',
+            color: 'indigo'
+          };
+          const t = {
+            id: 't-trunc',
+            projectId: 'p-trunc',
+            name: 'Tarea Con Descripcion Y Nombre Muy Extenso Para Verificar Truncamiento',
+            type: 'task',
+            startDate: '2026-03-01',
+            endDate: '2026-03-05',
+            duration: 5,
+            dependencies: []
+          };
+          return React.createElement(GanttWorkspace, {
+            items: [t],
+            projects: [p],
+            truncateCharLimit: limit,
+            scrollContainerRef: scrollRef,
+            showCriticalPath: false,
+            showCpmFloat: false,
+            autoCascade: true,
+            onUpdateItem: () => {},
+            onEditModal: () => {},
+            onDeleteItem: () => {},
+            onDuplicateItem: () => {},
+            onQuickAdd: () => {}
+          });
+        }
+
+        export function renderFocusedWorkspace() {
+          const scrollRef = { current: null };
+          const p = { id: 'p-focus', name: 'Proyecto Enfocado', color: 'indigo', releaseId: 'rel-focus' };
+          const t = {
+            id: 't-focus',
+            projectId: 'p-focus',
+            name: 'Tarea Enfocada',
+            type: 'task',
+            startDate: '2026-03-01',
+            endDate: '2026-03-05',
+            duration: 5,
+            dependencies: []
+          };
+          const rel = { id: 'rel-focus', code: 'REL_FOC', name: 'Release Foco', color: 'indigo', milestones: [] };
+          return React.createElement(GanttWorkspace, {
+            items: [t],
+            projects: [p],
+            releases: [rel],
+            isFocusMode: true,
+            focusEntity: { type: 'project', id: 'p-focus', name: 'Proyecto Enfocado' },
+            onExitFocusMode: () => {},
+            onSetFocusEntity: () => {},
+            scrollContainerRef: scrollRef,
+            showCriticalPath: false,
+            showCpmFloat: false,
+            autoCascade: true,
+            onUpdateItem: () => {},
+            onEditModal: () => {},
+            onDeleteItem: () => {},
+            onDuplicateItem: () => {},
+            onQuickAdd: () => {}
+          });
+        }
+
+        export function renderAllHiddenReleasesWorkspace() {
+          const scrollRef = { current: null };
+          const p = { id: 'p-hidden', name: 'Proyecto En Release Oculta', color: 'indigo', releaseId: 'rel-all-hidden' };
+          const t = {
+            id: 't-hidden',
+            projectId: 'p-hidden',
+            name: 'Tarea Oculta',
+            type: 'task',
+            startDate: '2026-03-01',
+            endDate: '2026-03-05',
+            duration: 5,
+            dependencies: []
+          };
+          const rel = { id: 'rel-all-hidden', code: 'REL_HIDDEN_ALL', name: 'Release Todo Oculto', color: 'indigo', milestones: [] };
+          return React.createElement(GanttWorkspace, {
+            items: [t],
+            projects: [p],
+            releases: [rel],
+            hiddenReleaseIds: ['rel-all-hidden'],
+            onResetHiddenReleases: () => {},
+            scrollContainerRef: scrollRef,
+            showCriticalPath: false,
+            showCpmFloat: false,
+            autoCascade: true,
+            onUpdateItem: () => {},
+            onEditModal: () => {},
+            onDeleteItem: () => {},
+            onDuplicateItem: () => {},
+            onQuickAdd: () => {}
+          });
+        }
+
+        export function renderSettingsModal(isOpen, count) {
+          return React.createElement(SettingsModal, {
+            isOpen: isOpen,
+            onClose: () => {},
+            truncateCharLimit: 25,
+            onChangeTruncateCharLimit: () => {},
+            showRowSeparators: true,
+            onToggleRowSeparators: () => {},
+            showWeekendShading: false,
+            onToggleWeekendShading: () => {},
+            hiddenReleaseCount: count,
+            onResetHiddenReleases: () => {}
+          });
+        }
+
+        export function renderReleasesModal(hiddenIds) {
+          const rel = { id: 'rel-m', code: 'REL_M', name: 'Release Modal', color: 'indigo', milestones: [] };
+          return React.createElement(ReleasesModal, {
+            isOpen: true,
+            onClose: () => {},
+            releases: [rel],
+            projects: [],
+            items: [],
+            guideVisibility: 'all',
+            onChangeGuideVisibility: () => {},
+            onUpdateReleases: () => {},
+            onAssignProjectToRelease: () => {},
+            hiddenReleaseIds: hiddenIds,
+            onResetHiddenReleases: () => {}
+          });
+        }
+      `,
+      resolveDir: path.resolve(__dirname, '..'),
+    },
+    bundle: true,
+    write: false,
+    format: 'cjs',
+    platform: 'node',
+    external: ['react', 'react-dom', 'xlsx'],
+  });
+
+  const tmpFile = path.resolve(__dirname, `./.tmp-ssr-v141-test.cjs`);
+  await fs.writeFile(tmpFile, ssrBundle.outputFiles[0].text, 'utf8');
+
+  try {
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+    const { renderToString } = ReactDOMServer.default || ReactDOMServer;
+
+    // 1. Constants verification
+    assert.equal(mod.DEFAULT_TRUNCATE_CHAR_LIMIT, 37, 'DEFAULT_TRUNCATE_CHAR_LIMIT must be 37');
+    assert.equal(mod.TRUNCATE_LIMIT_STORAGE_KEY, 'ganttflow_truncate_char_limit', 'Storage key matches');
+
+    // 2. Configurable text truncation in GanttWorkspace table
+    const htmlLimit20 = renderToString(mod.renderWorkspaceWithCustomLimit(20));
+    assert.ok(
+      htmlLimit20.includes('Proyecto Con Nombre …'),
+      'When limit is 20, project name in table must truncate at 20 characters'
+    );
+    assert.ok(
+      htmlLimit20.includes('Tarea Con Descripcio…'),
+      'When limit is 20, task name in table must truncate at 20 characters'
+    );
+
+    const htmlLimit50 = renderToString(mod.renderWorkspaceWithCustomLimit(50));
+    assert.ok(
+      htmlLimit50.includes('Proyecto Con Nombre Excesivamente Largo Para Proba…'),
+      'When limit is 50, project name in table must truncate at 50 characters'
+    );
+
+    // 3. Focus mode toggle and active styling
+    const focusedHtml = renderToString(mod.renderFocusedWorkspace());
+    assert.ok(
+      focusedHtml.includes('data-testid="focus-project-p-focus"'),
+      'Project row must have focus button'
+    );
+    assert.ok(
+      focusedHtml.includes('bg-amber-400'),
+      'Focus button must have active highlighted state (bg-amber-400) when project is focused'
+    );
+    assert.ok(
+      focusedHtml.includes('Salir de la modalidad enfoque de Proyecto Enfocado (clic o tecla ESC)'),
+      'Focused button title informs user of ESC or clicking to exit'
+    );
+
+    // 4. Empty state diagnostics & reset button when all releases are hidden
+    const hiddenAllHtml = renderToString(mod.renderAllHiddenReleasesWorkspace());
+    assert.ok(
+      hiddenAllHtml.includes('data-testid="empty-state-reset-hidden-releases-btn"'),
+      'Empty state must render empty-state-reset-hidden-releases-btn when all releases are hidden'
+    );
+    assert.ok(
+      hiddenAllHtml.includes('release') && hiddenAllHtml.includes('oculta'),
+      'Empty state must explain that releases are currently hidden'
+    );
+    assert.ok(
+      hiddenAllHtml.includes('data-testid="hidden-releases-banner"'),
+      'Table must render hidden-releases-banner'
+    );
+    assert.ok(
+      hiddenAllHtml.includes('data-testid="table-reset-hidden-releases-btn"'),
+      'Table banner must contain table-reset-hidden-releases-btn'
+    );
+
+    // 5. SettingsModal SSR verification
+    const settingsHtml = renderToString(mod.renderSettingsModal(true, 2));
+    assert.ok(settingsHtml.includes('data-testid="settings-modal"'), 'SettingsModal must render');
+    assert.ok(
+      settingsHtml.includes('data-testid="settings-truncate-char-input"'),
+      'SettingsModal must contain truncation number input'
+    );
+    assert.ok(
+      settingsHtml.includes('data-testid="settings-preset-btn-20"'),
+      'SettingsModal must contain preset 20'
+    );
+    assert.ok(
+      settingsHtml.includes('data-testid="settings-preset-btn-37"'),
+      'SettingsModal must contain preset 37'
+    );
+    assert.ok(
+      settingsHtml.includes('data-testid="settings-preset-btn-50"'),
+      'SettingsModal must contain preset 50'
+    );
+    assert.ok(
+      settingsHtml.includes('data-testid="settings-reset-hidden-releases-btn"'),
+      'SettingsModal must contain reset hidden releases button when hidden count > 0'
+    );
+
+    // 6. ReleasesModal reset button verification
+    const relModalHtml = renderToString(mod.renderReleasesModal(['rel-m']));
+    assert.ok(
+      relModalHtml.includes('data-testid="modal-reset-hidden-releases-btn"'),
+      'ReleasesModal must contain reset hidden releases button when hidden releases exist'
+    );
+
+    // 7. App Header Settings Button
+    const appHtml = renderToString(React.createElement(mod.App));
+    assert.ok(
+      appHtml.includes('data-testid="header-settings-btn"'),
+      'App header must render header-settings-btn'
+    );
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
 
 
 

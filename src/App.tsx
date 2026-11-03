@@ -14,6 +14,8 @@ import {
   Diamond,
   CalendarDays,
   Download,
+  Eye,
+  EyeOff,
   FileSpreadsheet,
   Flame,
   FolderKanban,
@@ -28,6 +30,8 @@ import {
   Rocket,
   Rows,
   Save,
+  Settings,
+  Sliders,
   Sparkles,
   Sun,
   Trash2,
@@ -40,6 +44,7 @@ import {
   APP_VERSION,
   ArrowVisibility,
   ComputedGanttItem,
+  DEFAULT_TRUNCATE_CHAR_LIMIT,
   FocusEntity,
   GanttImportResult,
   GanttItem,
@@ -55,6 +60,7 @@ import {
   SavedScenario,
   TaskColor,
   TaskType,
+  TRUNCATE_LIMIT_STORAGE_KEY,
   ZoomLevel,
 } from './types/gantt';
 import {
@@ -94,6 +100,7 @@ import { TaskFormModal } from './components/TaskFormModal';
 import { PlanHistoryPage } from './components/PlanHistoryPage';
 import { HelpPage } from './components/HelpPage';
 import { ReleasesModal } from './components/ReleasesModal';
+import { SettingsModal } from './components/SettingsModal';
 import {
   DEFAULT_PREDEFINED_RELEASES,
   checkTaskReleaseCompliance,
@@ -745,6 +752,33 @@ export function App({
     });
   };
 
+  const handleResetHiddenReleases = () => {
+    setHiddenReleaseIds([]);
+    showToast('Se ha restablecido la visibilidad de todas las releases y proyectos.');
+  };
+
+  // Text Truncation Limit state & persistence
+  const [truncateCharLimit, setTruncateCharLimit] = useState<number>(() => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const saved = window.localStorage.getItem(TRUNCATE_LIMIT_STORAGE_KEY);
+        if (saved) {
+          const num = parseInt(saved, 10);
+          if (Number.isFinite(num) && num >= 5 && num <= 200) return num;
+        }
+      }
+    } catch {}
+    return DEFAULT_TRUNCATE_CHAR_LIMIT;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(TRUNCATE_LIMIT_STORAGE_KEY, String(truncateCharLimit));
+    } catch {}
+  }, [truncateCharLimit]);
+
+  const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
+
   // Focus Mode state
   const [isFocusMode, setIsFocusMode] = useState<boolean>(false);
   const [focusEntity, setFocusEntity] = useState<FocusEntity | null>(null);
@@ -756,21 +790,26 @@ export function App({
   };
 
   const handleSetFocusEntity = (entity: FocusEntity | null) => {
-    if (entity) {
-      setFocusEntity(entity);
-      setIsFocusMode(true);
-      showToast(
-        `Modo Enfoque activado en ${
-          entity.type === 'task'
-            ? 'tarea'
-            : entity.type === 'project'
-            ? 'proyecto'
-            : 'release'
-        }: '${entity.name || entity.id}'`
-      );
-    } else {
+    if (!entity) {
       handleExitFocusMode();
+      return;
     }
+    // Si ya estamos en modo enfoque para la MISMA entidad, salir de enfoque
+    if (isFocusMode && focusEntity?.type === entity.type && focusEntity?.id === entity.id) {
+      handleExitFocusMode();
+      return;
+    }
+    setFocusEntity(entity);
+    setIsFocusMode(true);
+    showToast(
+      `Modo Enfoque activado en ${
+        entity.type === 'task'
+          ? 'tarea'
+          : entity.type === 'project'
+          ? 'proyecto'
+          : 'release'
+      }: '${entity.name || entity.id}'`
+    );
   };
 
   // Platform Filter state ('all' | 'iOS' | 'Android' | 'Multiplataforma')
@@ -811,9 +850,14 @@ export function App({
     };
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (isFocusMode) {
+          handleExitFocusMode();
+          return;
+        }
         setProjectMenuOpen(false);
         setCreateProjectModalOpen(false);
         setShowMetricsDrawer(false);
+        setShowSettingsModal(false);
         return;
       }
 
@@ -850,7 +894,7 @@ export function App({
       document.removeEventListener('mousedown', handleGlobalClick);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [showMetricsDrawer, handleUndo, handleRedo]);
+  }, [showMetricsDrawer, handleUndo, handleRedo, isFocusMode]);
 
   // Modal state
   const [modalOpen, setModalOpen] = useState<boolean>(false);
@@ -1851,8 +1895,30 @@ export function App({
                   </div>
                 </div>
 
+                {hiddenReleaseIds.length > 0 && (
+                  <div
+                    data-testid="dropdown-hidden-releases-banner"
+                    className="flex items-center justify-between px-2 py-1.5 mb-1 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded text-[11px] text-amber-800 dark:text-amber-300"
+                  >
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <EyeOff className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">{hiddenReleaseIds.length} release(s) oculta(s)</span>
+                    </div>
+                    <button
+                      type="button"
+                      data-testid="dropdown-reset-hidden-releases-btn"
+                      onClick={handleResetHiddenReleases}
+                      className="font-bold underline hover:text-amber-900 dark:hover:text-amber-100 cursor-pointer shrink-0 ml-1"
+                    >
+                      Mostrar todas
+                    </button>
+                  </div>
+                )}
+
                 {projectGroups.map((group) => {
                   const isChecked = selectedProjectIds.includes(group.project.id);
+                  const isReleaseHidden =
+                    Boolean(group.project.releaseId && hiddenReleaseIds.includes(group.project.releaseId));
                   const colorDot =
                     PROJECT_COLORS.find((c) => c.value === group.project.color)?.bg ||
                     'bg-[#0C0C09]';
@@ -1874,9 +1940,17 @@ export function App({
                           className="rounded-[2px] border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] focus:ring-0 cursor-pointer"
                         />
                         <span className={`w-2 h-2 rounded-full shrink-0 ${colorDot}`} />
-                        <span className="truncate max-w-[130px] font-display">
+                        <span className="truncate max-w-[120px] font-display">
                           P{group.projectIndex}: {group.project.name}
                         </span>
+                        {isReleaseHidden && (
+                          <span
+                            className="text-[9px] px-1 py-0.2 rounded bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 font-mono shrink-0"
+                            title="La release asignada a este proyecto está oculta"
+                          >
+                            Oculto
+                          </span>
+                        )}
                       </label>
                       <div className="flex items-center gap-1.5 shrink-0">
                         <span className="text-[10px] font-mono opacity-80">
@@ -2019,6 +2093,23 @@ export function App({
               />
             )}
           </button>
+
+          {/* Botón para restablecer releases ocultas cuando hay alguna oculta */}
+          {hiddenReleaseIds.length > 0 && (
+            <button
+              type="button"
+              data-testid="header-reset-hidden-releases-btn"
+              onClick={handleResetHiddenReleases}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border border-amber-600 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-xs font-semibold transition cursor-pointer shrink-0 animate-fade-in"
+              title={`Hay ${hiddenReleaseIds.length} release(s) oculta(s). Clic para restablecer la visibilidad y ver todos los proyectos.`}
+              aria-label="Restablecer visibilidad de releases"
+            >
+              <Eye className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+              <span className="font-display font-medium hidden sm:inline">
+                Mostrar {hiddenReleaseIds.length} ocultas
+              </span>
+            </button>
+          )}
 
           {/* Ayuda Button */}
           <button
@@ -2299,6 +2390,27 @@ export function App({
             </div>
           </div>
 
+          {/* Panel de Configuración General */}
+          <div className="relative group">
+            <button
+              type="button"
+              data-testid="header-settings-btn"
+              onClick={() => setShowSettingsModal(true)}
+              className={`p-1.5 rounded-[4px] border transition shadow-none cursor-pointer ${
+                showSettingsModal
+                  ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
+                  : 'bg-white dark:bg-zinc-900 border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800'
+              }`}
+              aria-label="Ajustes"
+              title="Configuración de interfaz (Truncado, Líneas, Sombreado, Visibilidad)"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+            <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute right-0 top-10 px-2 py-1 bg-[#0C0C09] text-[#F4F4F1] text-[11px] font-mono font-medium rounded-[2px] shadow-lg border border-[#E2E2DC] whitespace-nowrap z-50 pointer-events-none">
+              Configuración
+            </div>
+          </div>
+
         </div>
       </header>
 
@@ -2464,6 +2576,9 @@ export function App({
               onToggleWeekendShading={() => setShowWeekendShading((prev) => !prev)}
               hiddenReleaseIds={hiddenReleaseIds}
               onToggleHideRelease={handleToggleHideRelease}
+              onResetHiddenReleases={handleResetHiddenReleases}
+              truncateCharLimit={truncateCharLimit}
+              onChangeTruncateCharLimit={setTruncateCharLimit}
               isFocusMode={isFocusMode}
               focusEntity={focusEntity}
               onExitFocusMode={handleExitFocusMode}
@@ -2648,6 +2763,21 @@ export function App({
         onChangeGuideVisibility={setReleaseGuideVisibility}
         hiddenReleaseIds={hiddenReleaseIds}
         onToggleHideRelease={handleToggleHideRelease}
+        onResetHiddenReleases={handleResetHiddenReleases}
+      />
+
+      {/* Settings Modal (Configuración de interfaz y visualización) */}
+      <SettingsModal
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+        truncateCharLimit={truncateCharLimit}
+        onChangeTruncateCharLimit={setTruncateCharLimit}
+        showRowSeparators={showRowSeparators}
+        onToggleRowSeparators={() => setShowRowSeparators((prev) => !prev)}
+        showWeekendShading={showWeekendShading}
+        onToggleWeekendShading={() => setShowWeekendShading((prev) => !prev)}
+        hiddenReleaseCount={hiddenReleaseIds.length}
+        onResetHiddenReleases={handleResetHiddenReleases}
       />
 
       {/* Hidden File Input for JSON / CSV Import */}

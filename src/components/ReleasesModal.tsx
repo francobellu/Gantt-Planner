@@ -48,6 +48,7 @@ interface ReleasesModalProps {
   onAssignProjectToRelease: (projectId: string, releaseId?: string) => void;
   hiddenReleaseIds?: string[];
   onToggleHideRelease?: (releaseId: string) => void;
+  onResetHiddenReleases?: () => void;
 }
 
 export const ReleasesModal: React.FC<ReleasesModalProps> = ({
@@ -62,6 +63,7 @@ export const ReleasesModal: React.FC<ReleasesModalProps> = ({
   onAssignProjectToRelease,
   hiddenReleaseIds = [],
   onToggleHideRelease,
+  onResetHiddenReleases,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedReleaseId, setSelectedReleaseId] = useState<string | null>(
@@ -321,6 +323,18 @@ export const ReleasesModal: React.FC<ReleasesModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            {hiddenReleaseIds.length > 0 && onResetHiddenReleases && (
+              <button
+                type="button"
+                data-testid="modal-reset-hidden-releases-btn"
+                onClick={onResetHiddenReleases}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-[4px] bg-amber-500 hover:bg-amber-600 text-black font-semibold text-xs shadow-xs transition cursor-pointer"
+                title="Mostrar todas las releases que están ocultas"
+              >
+                <Eye className="w-3 h-3" />
+                <span>Mostrar todas ({hiddenReleaseIds.length} ocultas)</span>
+              </button>
+            )}
             <button
               type="button"
               data-testid="release-restore-defaults-btn"
