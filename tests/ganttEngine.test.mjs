@@ -4527,7 +4527,7 @@ test('Help page, version control v1.2.0, release selection on project creation, 
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version control consistency
-  assert.equal(pkg.version, '1.6.0', 'package.json version must be 1.5.0');
+  assert.equal(pkg.version, '1.7.0', 'package.json version must be 1.5.0');
   assert.ok(pkg.scripts['version:patch'], 'package.json must contain version:patch script');
   assert.ok(pkg.scripts['version:minor'], 'package.json must contain version:minor script');
   assert.ok(pkg.scripts['release:patch'], 'package.json must contain release:patch script');
@@ -5308,10 +5308,10 @@ test('Task name positioning, configurable row separators, 37 char truncation, v1
     const htmlWithoutWeekendShading = renderToString(mod.renderWorkspaceWithWeekendShading(false));
     assert.ok(!htmlWithoutWeekendShading.includes('bg-[#E5E5DF]'), 'Canvas and header must NOT render weekend shading when showWeekendShading is false (clean uniform background)');
 
-    // 9. App Header displays v1.6.0 badge, row-separators-btn, and weekend-shading-btn
+    // 9. App Header displays v1.7.0 badge, row-separators-btn, and weekend-shading-btn
     const appHtml = renderToString(mod.renderAppHeader());
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'Header must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.6.0'), 'Header badge must display v1.6.0');
+    assert.ok(appHtml.includes('v1.7.0'), 'Header badge must display v1.7.0');
     assert.ok(appHtml.includes('data-testid="header-toggle-row-separators-btn"'), 'Header must contain header-toggle-row-separators-btn');
     assert.ok(appHtml.includes('data-testid="header-toggle-weekend-shading-btn"'), 'Header must contain header-toggle-weekend-shading-btn');
 
@@ -5341,7 +5341,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version Bump Verification
-  assert.equal(pkg.version, '1.6.0', 'package.json version must equal 1.5.0');
+  assert.equal(pkg.version, '1.7.0', 'package.json version must equal 1.5.0');
 
   // Verify scripts/bump-version.mjs works properly
   const bumpScript = await fs.readFile(path.resolve(__dirname, '../scripts/bump-version.mjs'), 'utf8');
@@ -5515,7 +5515,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // A. APP_VERSION equals 1.5.0
-    assert.equal(mod.APP_VERSION, '1.6.0', 'APP_VERSION must be 1.5.0');
+    assert.equal(mod.APP_VERSION, '1.7.0', 'APP_VERSION must be 1.5.0');
 
     // A2. Excel Export Unit Test
     const sampleReleases = [
@@ -5592,7 +5592,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     assert.ok(appHtml.includes('data-testid="platform-filter-select"'), 'App header must contain platform-filter-select');
     assert.ok(appHtml.includes('data-testid="header-toggle-focus-mode-btn"'), 'App header must contain header-toggle-focus-mode-btn');
     assert.ok(appHtml.includes('data-testid="header-export-excel-btn"'), 'App header must contain header-export-excel-btn');
-    assert.ok(appHtml.includes('v1.6.0'), 'App header must display version v1.6.0');
+    assert.ok(appHtml.includes('v1.7.0'), 'App header must display version v1.7.0');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6044,8 +6044,8 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
-  // 1. Version Bump Verification v1.6.0
-  assert.equal(pkg.version, '1.6.0', 'package.json version must equal 1.5.0');
+  // 1. Version Bump Verification v1.7.0
+  assert.equal(pkg.version, '1.7.0', 'package.json version must equal 1.5.0');
 
   // 2. SSR Bundle verification for TaskFormModal, App Header, and sanitizeGanttItem
   const tmpFile = path.resolve(__dirname, `tmp_test59_bundle_${Date.now()}.mjs`);
@@ -6143,7 +6143,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.equal(mod.APP_VERSION, '1.6.0', 'mod.APP_VERSION must equal 1.5.0');
+    assert.equal(mod.APP_VERSION, '1.7.0', 'mod.APP_VERSION must equal 1.5.0');
 
     // sanitizeGanttItem preserves platform
     const sanitizedIos = mod.sanitizeGanttItem({
@@ -6188,7 +6188,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     assert.ok(appHtml.includes('data-testid="header-more-menu-btn"'), 'App header must render header-more-menu-btn');
     assert.ok(appHtml.includes('data-testid="header-more-menu-dropdown"'), 'App must render header-more-menu-dropdown');
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'More menu must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.6.0'), 'Version badge must display v1.6.0');
+    assert.ok(appHtml.includes('v1.7.0'), 'Version badge must display v1.7.0');
     assert.ok(appHtml.includes('data-testid="force-reload-btn"'), 'More menu must contain force-reload-btn');
 
     // 7. Verify secondary buttons are rendered inside the menu
@@ -6210,7 +6210,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
       hiddenReleaseCount: 0,
     }));
     assert.ok(settingsHtml.includes('data-testid="settings-version-badge"'), 'SettingsModal must contain settings-version-badge');
-    assert.ok(settingsHtml.includes('1.6.0') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.5.0');
+    assert.ok(settingsHtml.includes('1.7.0') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.5.0');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6364,14 +6364,14 @@ test('Test 61: Version button, compiled release notes modal and changelog across
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
 
     // 1. Check RELEASE_NOTES compiled data
-    assert.strictEqual(mod.APP_VERSION, '1.6.0');
+    assert.strictEqual(mod.APP_VERSION, '1.7.0');
     assert.ok(Array.isArray(mod.RELEASE_NOTES), 'RELEASE_NOTES must be an array');
     assert.ok(mod.RELEASE_NOTES.length >= 7, 'RELEASE_NOTES must have at least 7 releases');
 
     const latest = mod.RELEASE_NOTES[0];
-    assert.strictEqual(latest.version, '1.6.0', 'First release note must be 1.6.0');
+    assert.strictEqual(latest.version, '1.7.0', 'First release note must be 1.6.0');
     assert.strictEqual(latest.isLatest, true, 'First release note must be isLatest: true');
-    assert.ok(latest.features.length > 0, 'v1.6.0 must contain features');
+    assert.ok(latest.features.length > 0, 'v1.7.0 must contain features');
 
     // 2. Render App and verify version button exists in dropdown menu and is NOT duplicated in top header
     const appHtml = renderToString(React.createElement(mod.App));
@@ -6384,8 +6384,8 @@ test('Test 61: Version button, compiled release notes modal and changelog across
       'App dropdown must contain data-testid="app-version-badge"'
     );
     assert.ok(
-      appHtml.includes('<button') && appHtml.includes('data-testid="app-version-badge"') && appHtml.includes('v1.6.0'),
-      'app-version-badge in tools dropdown must be an interactive button showing v1.6.0'
+      appHtml.includes('<button') && appHtml.includes('data-testid="app-version-badge"') && appHtml.includes('v1.7.0'),
+      'app-version-badge in tools dropdown must be an interactive button showing v1.7.0'
     );
 
     // 3. Render ReleaseNotesModal
@@ -6395,6 +6395,7 @@ test('Test 61: Version button, compiled release notes modal and changelog across
     }));
     assert.ok(modalHtml.includes('data-testid="release-notes-modal"'), 'Modal must render data-testid="release-notes-modal"');
     assert.ok(modalHtml.includes('data-testid="release-notes-current-badge"'), 'Modal must render current badge');
+    assert.ok(modalHtml.includes('data-testid="release-note-item-1.7.0"'), 'Modal must render 1.7.0 note item');
     assert.ok(modalHtml.includes('data-testid="release-note-item-1.6.0"'), 'Modal must render 1.6.0 note item');
     assert.ok(modalHtml.includes('data-testid="release-note-item-1.5.0"'), 'Modal must render 1.5.0 note item');
     assert.ok(modalHtml.includes('data-testid="release-note-item-1.0.0"'), 'Modal must render 1.0.0 note item');
@@ -6410,6 +6411,142 @@ test('Test 61: Version button, compiled release notes modal and changelog across
       onOpenReleaseNotes: () => {}
     }));
     assert.ok(settingsHtml.includes('data-testid="settings-version-badge"'), 'SettingsModal renders settings-version-badge');
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
+test('Test 62: Diagram project/release selection, contextual focus, moved import/export and icon-only header buttons', async () => {
+  const fs = await import('node:fs/promises');
+  const ReactMod = await import('react');
+  const React = ReactMod.default || ReactMod;
+  const ReactDOMServer = await import('react-dom/server');
+  const { renderToString } = ReactDOMServer.default || ReactDOMServer;
+
+  const tmpFile = path.resolve(__dirname, `tmp_test62_bundle_${Date.now()}.mjs`);
+  try {
+    await build({
+      stdin: {
+        contents: `
+          import React from 'react';
+          import { App } from './src/App.tsx';
+          import { GanttWorkspace } from './src/components/GanttWorkspace.tsx';
+          export { App, GanttWorkspace };
+        `,
+        resolveDir: path.resolve(__dirname, '..'),
+        sourcefile: 'test62_entry.tsx',
+        loader: 'tsx',
+      },
+      bundle: true,
+      format: 'esm',
+      outfile: tmpFile,
+      platform: 'neutral',
+      target: 'es2022',
+      jsx: 'automatic',
+      external: [
+        'react',
+        'react-dom',
+        'react-dom/server',
+        'lucide-react',
+        'date-fns',
+        'date-fns/locale',
+        'xlsx',
+        'canvas-confetti'
+      ],
+      define: {
+        'process.env.NODE_ENV': '"production"'
+      }
+    });
+
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+
+    // 1. GanttWorkspace allows selecting a project on the diagram
+    const wsProjectSelected = renderToString(React.createElement(mod.GanttWorkspace, {
+      items: [{ id: 't1', projectId: 'p1', name: 'Task 1', startDate: '2026-03-01', endDate: '2026-03-05', duration: 5, progress: 0, dependencies: [] }],
+      projects: [{ id: 'p1', name: 'Project Alpha', color: 'indigo', releaseId: 'rel-1' }],
+      releases: [{ id: 'rel-1', code: 'T_26.03.1', name: 'Release 1', milestones: [] }],
+      scrollContainerRef: { current: null },
+      zoom: 'week',
+      showCriticalPath: false,
+      showCpmFloat: false,
+      autoCascade: false,
+      selectedEntity: { type: 'project', id: 'p1', name: 'Project Alpha' },
+      onUpdateItem: () => {},
+      onDeleteItem: () => {},
+      onEditModal: () => {},
+      onDuplicateItem: () => {},
+      onQuickAdd: () => {},
+    }));
+    assert.ok(
+      wsProjectSelected.includes('data-selected-project-id="p1"'),
+      'Gantt diagram must mark selected project with data-selected-project-id'
+    );
+    assert.ok(
+      wsProjectSelected.includes('ring-2 ring-indigo-500'),
+      'Gantt diagram must render selection ring on selected project bar'
+    );
+
+    // 2. GanttWorkspace allows selecting a release on the diagram
+    const wsReleaseSelected = renderToString(React.createElement(mod.GanttWorkspace, {
+      items: [{ id: 't1', projectId: 'p1', name: 'Task 1', startDate: '2026-03-01', endDate: '2026-03-05', duration: 5, progress: 0, dependencies: [] }],
+      projects: [{ id: 'p1', name: 'Project Alpha', color: 'indigo', releaseId: 'rel-1' }],
+      releases: [{ id: 'rel-1', code: 'T_26.03.1', name: 'Release 1', milestones: [] }],
+      scrollContainerRef: { current: null },
+      zoom: 'week',
+      showCriticalPath: false,
+      showCpmFloat: false,
+      autoCascade: false,
+      selectedEntity: { type: 'release', id: 'rel-1', name: 'Release 1' },
+      onUpdateItem: () => {},
+      onDeleteItem: () => {},
+      onEditModal: () => {},
+      onDuplicateItem: () => {},
+      onQuickAdd: () => {},
+    }));
+    assert.ok(
+      wsReleaseSelected.includes('data-selected-release-id="rel-1"'),
+      'Gantt diagram must mark selected release with data-selected-release-id'
+    );
+    assert.ok(
+      wsReleaseSelected.includes('ring-3 ring-indigo-500'),
+      'Gantt diagram must render selection ring on selected release bar'
+    );
+
+    // 3. Render App: verify import & export are on the top header, releases is in dropdown
+    const appHtml = renderToString(React.createElement(mod.App));
+    assert.ok(
+      appHtml.includes('data-testid="header-import-btn"'),
+      'App header must contain direct Import button'
+    );
+    assert.ok(
+      appHtml.includes('data-testid="header-export-btn"'),
+      'App header must contain direct Export JSON button'
+    );
+    assert.ok(
+      appHtml.includes('data-testid="header-export-excel-btn"'),
+      'App header must contain direct Export Excel button'
+    );
+    assert.ok(
+      appHtml.includes('data-testid="header-releases-btn"'),
+      'Tools dropdown must contain Releases catalog button'
+    );
+    assert.ok(
+      appHtml.includes('data-testid="header-toggle-focus-mode-btn"'),
+      'App header must contain Focus Mode button'
+    );
+
+    // 4. Verify top header buttons are icon-only (do not contain text labels)
+    assert.ok(!appHtml.includes('>Importar</span>'), 'Header import button must be icon-only');
+    assert.ok(!appHtml.includes('>JSON</span>'), 'Header export JSON button must be icon-only');
+    assert.ok(!appHtml.includes('>Informes</span>'), 'Header informes button must be icon-only');
+    
+    const focusBtnMatch = appHtml.match(/data-testid="header-toggle-focus-mode-btn"[^>]*>([\s\S]*?)<\/button>/);
+    assert.ok(focusBtnMatch, 'Header focus button must exist');
+    assert.ok(!focusBtnMatch[1].includes('<span'), 'Header focus button must not contain text spans');
+
+    const toolsBtnMatch = appHtml.match(/data-testid="header-more-menu-btn"[^>]*>([\s\S]*?)<\/button>/);
+    assert.ok(toolsBtnMatch, 'Header tools button must exist');
+    assert.ok(!toolsBtnMatch[1].includes('<span'), 'Header tools button must not contain text spans');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }

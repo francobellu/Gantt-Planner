@@ -10,10 +10,22 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.7.0',
+    date: '04 Nov 2026',
+    title: 'Selección en diagrama de proyectos/releases, enfoque contextual y botones compactos',
+    isLatest: true,
+    features: [
+      'Selección directa de proyectos y releases en el diagrama de Gantt',
+      'Modo enfoque contextual sobre el elemento seleccionado (tarea, proyecto o release)',
+      'Botones de Importar y Exportar (JSON/Excel) trasladados a la barra superior',
+      'Botón de Releases reubicado en el menú de Herramientas',
+      'Botones de cabecera exclusivamente con icono y tooltips informativos',
+    ],
+  },
+  {
     version: '1.6.0',
     date: '04 Nov 2026',
     title: 'Barra dedicada de cronograma con botones compactos y corrección de sombreado',
-    isLatest: true,
     features: [
       'Barra de herramientas dedicada para el cronograma directamente sobre el diagrama.',
       'Botones de cronograma con formato icono-único (sin texto) y tooltips hints flotantes para máximo ahorro de espacio.',

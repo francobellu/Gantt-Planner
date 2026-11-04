@@ -787,6 +787,7 @@ export function App({
   // Focus Mode state
   const [isFocusMode, setIsFocusMode] = useState<boolean>(false);
   const [focusEntity, setFocusEntity] = useState<FocusEntity | null>(null);
+  const [selectedEntity, setSelectedEntity] = useState<FocusEntity | null>(null);
 
   const handleExitFocusMode = () => {
     setIsFocusMode(false);
@@ -2041,63 +2042,69 @@ export function App({
             </button>
           </div>
 
-          {/* Releases Hub Button */}
-          <button
-            type="button"
-            data-testid="header-releases-btn"
-            onClick={() => setShowReleasesModal(true)}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border text-xs font-medium transition cursor-pointer shrink-0 ${
-              showReleasesModal
-                ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
-                : 'bg-white dark:bg-zinc-900 border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800'
-            }`}
-            title="Gestionar catálogo de Releases e hitos (importar/exportar Excel)"
-            aria-label="Releases"
-          >
-            <Rocket className="w-3.5 h-3.5 text-current" />
-            <span className="font-display font-medium hidden sm:inline">Releases</span>
-            <span
-              data-testid="releases-counter-badge"
-              className={`px-1.5 py-0.2 rounded-[2px] text-[10px] font-mono border ${
-                showReleasesModal
-                  ? 'bg-zinc-800 text-white border-zinc-700 dark:bg-zinc-200 dark:text-[#0C0C09] dark:border-zinc-300'
-                  : 'bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-300 border-[#E2E2DC] dark:border-zinc-700'
-              }`}
+          {/* Botones de Importar y Exportar directos en barra superior (Icon-Only) */}
+          <div className="flex items-center border border-[#0C0C09] dark:border-zinc-700 rounded-[4px] bg-white dark:bg-zinc-900 overflow-hidden shrink-0">
+            <button
+              type="button"
+              data-testid="header-import-btn"
+              onClick={() => fileInputRef.current?.click()}
+              className="p-1.5 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 transition cursor-pointer flex items-center justify-center"
+              title="Importar cronograma (JSON / CSV)"
+              aria-label="Importar"
             >
-              {releases.length}
-            </span>
-            {totalReleaseViolations > 0 && (
-              <span
-                data-testid="releases-header-violation-indicator"
-                className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0"
-                title={`${totalReleaseViolations} tarea(s) violan los hitos de su release`}
-              />
-            )}
-          </button>
+              <Upload className="w-3.5 h-3.5 text-indigo-500" />
+            </button>
+            <div className="w-px h-3.5 bg-[#E2E2DC] dark:bg-zinc-800" />
+            <button
+              type="button"
+              data-testid="header-export-btn"
+              onClick={handleExportJSON}
+              className="p-1.5 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 transition cursor-pointer flex items-center justify-center"
+              title="Exportar cronograma (JSON)"
+              aria-label="Exportar"
+            >
+              <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            </button>
+            <div className="w-px h-3.5 bg-[#E2E2DC] dark:bg-zinc-800" />
+            <button
+              type="button"
+              data-testid="header-export-excel-btn"
+              onClick={() => {
+                try {
+                  downloadGanttExcelFile(releases, effectiveProjects, computedItems);
+                  showToast('Descargando archivo Excel completo con jerarquía...');
+                } catch {
+                  showToast('Error al exportar a Excel');
+                }
+              }}
+              className="p-1.5 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 transition cursor-pointer flex items-center justify-center"
+              title="Exportar jerarquía completa (Releases, Proyectos, Tareas) a archivo Excel (.xlsx)"
+              aria-label="Exportar Excel"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            </button>
+          </div>
 
-          {/* Botón para restablecer releases ocultas cuando hay alguna oculta */}
+          {/* Botón para restablecer releases ocultas cuando hay alguna oculta (Icon-Only) */}
           {hiddenReleaseIds.length > 0 && (
             <button
               type="button"
               data-testid="header-reset-hidden-releases-btn"
               onClick={handleResetHiddenReleases}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border border-amber-600 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-xs font-semibold transition cursor-pointer shrink-0 animate-fade-in"
+              className="p-1.5 rounded-[4px] border border-amber-600 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/60 transition cursor-pointer shrink-0 animate-fade-in flex items-center justify-center"
               title={`Hay ${hiddenReleaseIds.length} release(s) oculta(s). Clic para restablecer la visibilidad y ver todos los proyectos.`}
               aria-label="Restablecer visibilidad de releases"
             >
               <Eye className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-              <span className="font-display font-medium hidden sm:inline">
-                Mostrar {hiddenReleaseIds.length} ocultas
-              </span>
             </button>
           )}
 
-          {/* Informes Button (Tablas tipo Excel) */}
+          {/* Informes Button (Tablas tipo Excel - Icon-Only) */}
           <button
             type="button"
             data-testid="header-reports-btn"
             onClick={() => setCurrentView((prev) => (prev === 'reports' ? 'gantt' : 'reports'))}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border text-xs font-medium transition cursor-pointer shrink-0 ${
+            className={`p-1.5 rounded-[4px] border transition cursor-pointer shrink-0 flex items-center justify-center ${
               currentView === 'reports'
                 ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
                 : 'bg-white dark:bg-zinc-900 border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800'
@@ -2106,7 +2113,6 @@ export function App({
             aria-label="Informes"
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-            <span className="font-display font-medium hidden sm:inline">Informes</span>
           </button>
 
           {/* Selector de Plataforma (iOS, Android, Multiplataforma) */}
@@ -2125,13 +2131,15 @@ export function App({
             </select>
           </div>
 
-          {/* Modo Enfoque Toggle */}
+          {/* Modo Enfoque Toggle (Contextual al elemento seleccionado - Icon-Only) */}
           <button
             type="button"
             data-testid="header-toggle-focus-mode-btn"
             onClick={() => {
               if (isFocusMode) {
                 handleExitFocusMode();
+              } else if (selectedEntity) {
+                handleSetFocusEntity(selectedEntity);
               } else {
                 const targetProj = effectiveProjects[0];
                 if (targetProj) {
@@ -2143,22 +2151,27 @@ export function App({
                 }
               }
             }}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border text-xs font-medium transition cursor-pointer shrink-0 ${
+            className={`p-1.5 rounded-[4px] border transition cursor-pointer shrink-0 flex items-center justify-center ${
               isFocusMode
                 ? 'bg-indigo-600 border-indigo-600 text-white font-bold animate-pulse'
                 : 'bg-white dark:bg-zinc-900 border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800'
             }`}
             title={
               isFocusMode
-                ? 'Salir de la modalidad enfoque'
-                : 'Activar modalidad enfoque en proyecto/tarea'
+                ? `Salir de la modalidad enfoque (${focusEntity?.name || ''})`
+                : selectedEntity
+                ? `Enfocar ${
+                    selectedEntity.type === 'task'
+                      ? 'tarea'
+                      : selectedEntity.type === 'project'
+                      ? 'proyecto'
+                      : 'release'
+                  }: "${selectedEntity.name || selectedEntity.id}"`
+                : 'Modalidad Enfoque (selecciona una tarea, proyecto o release en el diagrama)'
             }
             aria-label="Modalidad Enfoque"
           >
             <Sparkles className="w-3.5 h-3.5 text-current" />
-            <span className="font-display font-medium hidden sm:inline">
-              {isFocusMode ? 'Enfocado' : 'Enfoque'}
-            </span>
           </button>
 
           {scenarioSavedToast && (
@@ -2187,7 +2200,7 @@ export function App({
             type="button"
             data-testid="header-theme-toggle-btn"
             onClick={() => setDarkMode((prev) => !prev)}
-            className="p-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 transition shadow-none cursor-pointer"
+            className="p-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 transition shadow-none cursor-pointer flex items-center justify-center"
             aria-label={darkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
             title={darkMode ? 'Modo claro' : 'Modo oscuro'}
           >
@@ -2198,23 +2211,21 @@ export function App({
             )}
           </button>
 
-          {/* Menú Secundario "Herramientas / Más Opciones" */}
+          {/* Menú Secundario "Herramientas / Más Opciones" (Icon-Only) */}
           <div ref={moreMenuRef} className="relative">
             <button
               type="button"
               data-testid="header-more-menu-btn"
               onClick={() => setMoreMenuOpen((prev) => !prev)}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border text-xs font-medium transition cursor-pointer shrink-0 ${
+              className={`p-1.5 rounded-[4px] border transition cursor-pointer shrink-0 flex items-center justify-center ${
                 moreMenuOpen
                   ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
                   : 'bg-white dark:bg-zinc-900 border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800'
               }`}
-              title="Herramientas, visualización, exportación y versión"
+              title="Herramientas y configuración"
               aria-label="Más opciones"
             >
               <SlidersHorizontal className="w-3.5 h-3.5 text-current" />
-              <span className="font-display font-medium hidden sm:inline">Herramientas</span>
-              <ChevronDown className="w-3 h-3 text-[#6B6B66]" />
             </button>
 
             {/* Dropdown Menu (rendered in DOM so test assertions find testids) */}
@@ -2312,62 +2323,42 @@ export function App({
                 </div>
               </div>
 
-              {/* Sección 3: Importar y Exportar */}
+              {/* Sección 3: Catálogo de Releases */}
               <div>
                 <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400 block mb-1.5">
-                  Importar y Exportar
+                  Releases
                 </span>
-                <div className="grid grid-cols-3 gap-1.5">
-                  <button
-                    type="button"
-                    data-testid="header-import-btn"
-                    onClick={() => {
-                      fileInputRef.current?.click();
-                      setMoreMenuOpen(false);
-                    }}
-                    className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-[3px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-700 text-xs font-medium transition cursor-pointer"
-                    title="Importar cronograma desde archivo JSON o CSV"
-                    aria-label="Importar"
-                  >
-                    <Upload className="w-3.5 h-3.5 text-indigo-500" />
-                    <span>Importar</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    data-testid="header-export-btn"
-                    onClick={() => {
-                      handleExportJSON();
-                      setMoreMenuOpen(false);
-                    }}
-                    className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-[3px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-700 text-xs font-medium transition cursor-pointer"
-                    title="Exportar cronograma en formato JSON"
-                    aria-label="Exportar"
-                  >
-                    <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                    <span>JSON</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    data-testid="header-export-excel-btn"
-                    onClick={() => {
-                      try {
-                        downloadGanttExcelFile(releases, effectiveProjects, computedItems);
-                        showToast('Descargando archivo Excel completo con jerarquía...');
-                      } catch {
-                        showToast('Error al exportar a Excel');
-                      }
-                      setMoreMenuOpen(false);
-                    }}
-                    className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-[3px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#0C0C09] hover:text-white dark:hover:bg-zinc-100 dark:hover:text-[#0C0C09] text-xs font-semibold transition cursor-pointer"
-                    title="Exportar jerarquía completa (Releases, Proyectos, Tareas) a archivo Excel (.xlsx)"
-                    aria-label="Exportar Excel"
-                  >
-                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                    <span>Excel</span>
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  data-testid="header-releases-btn"
+                  onClick={() => {
+                    setShowReleasesModal(true);
+                    setMoreMenuOpen(false);
+                  }}
+                  className="w-full flex items-center justify-between px-2.5 py-2 rounded-[3px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-700 text-xs font-medium transition cursor-pointer"
+                  title="Gestionar catálogo de Releases e hitos (importar/exportar Excel)"
+                  aria-label="Releases"
+                >
+                  <div className="flex items-center gap-2">
+                    <Rocket className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                    <span className="font-semibold">Catálogo de Releases</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      data-testid="releases-counter-badge"
+                      className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-[#F4F4F1] dark:bg-zinc-700 text-[#0C0C09] dark:text-zinc-300 border border-[#E2E2DC] dark:border-zinc-600"
+                    >
+                      {releases.length}
+                    </span>
+                    {totalReleaseViolations > 0 && (
+                      <span
+                        data-testid="releases-header-violation-indicator"
+                        className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0"
+                        title={`${totalReleaseViolations} tarea(s) violan los hitos de su release`}
+                      />
+                    )}
+                  </div>
+                </button>
               </div>
 
               {/* Sección 4: Configuración General */}
@@ -2578,6 +2569,8 @@ export function App({
               focusEntity={focusEntity}
               onExitFocusMode={handleExitFocusMode}
               onSetFocusEntity={handleSetFocusEntity}
+              selectedEntity={selectedEntity}
+              onSelectEntity={setSelectedEntity}
               selectedPlatform={selectedPlatform}
             />
           </>

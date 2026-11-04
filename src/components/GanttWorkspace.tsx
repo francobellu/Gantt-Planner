@@ -198,6 +198,8 @@ interface GanttWorkspaceProps {
   focusEntity?: FocusEntity | null;
   onExitFocusMode?: () => void;
   onSetFocusEntity?: (entity: FocusEntity | null) => void;
+  selectedEntity?: FocusEntity | null;
+  onSelectEntity?: (entity: FocusEntity | null) => void;
   selectedPlatform?: 'all' | 'iOS' | 'Android' | 'Multiplataforma';
   truncateCharLimit?: number;
   onChangeTruncateCharLimit?: (limit: number) => void;
@@ -550,6 +552,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   focusEntity = null,
   onExitFocusMode,
   onSetFocusEntity,
+  selectedEntity = null,
+  onSelectEntity,
   selectedPlatform = 'all',
   truncateCharLimit,
   onChangeTruncateCharLimit,
@@ -669,6 +673,58 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   const [selectedItemId, setSelectedItemId] = useState<string | null>(
     initialSelectedItemId || null
   );
+  const [selectedDiagramProjectId, setSelectedDiagramProjectId] = useState<string | null>(null);
+  const [selectedDiagramReleaseId, setSelectedDiagramReleaseId] = useState<string | null>(null);
+
+  const effectiveSelectedItemId = selectedEntity
+    ? selectedEntity.type === 'task'
+      ? selectedEntity.id
+      : null
+    : selectedItemId;
+  const effectiveSelectedProjectId = selectedEntity
+    ? selectedEntity.type === 'project'
+      ? selectedEntity.id
+      : null
+    : selectedDiagramProjectId;
+  const effectiveSelectedReleaseId = selectedEntity
+    ? selectedEntity.type === 'release'
+      ? selectedEntity.id
+      : null
+    : selectedDiagramReleaseId;
+
+  const handleSelectProject = (proj: GanttProject) => {
+    const isCurrent = effectiveSelectedProjectId === proj.id;
+    const next = isCurrent
+      ? null
+      : {
+          type: 'project' as const,
+          id: proj.id,
+          name: proj.name,
+        };
+    setSelectedDiagramProjectId(next ? proj.id : null);
+    setSelectedDiagramReleaseId(null);
+    setSelectedItemId(null);
+    setSelectedDepLink(null);
+    setInspectingProject(next ? proj : null);
+    onSelectEntity?.(next);
+  };
+
+  const handleSelectRelease = (rel: Release) => {
+    const isCurrent = effectiveSelectedReleaseId === rel.id;
+    const next = isCurrent
+      ? null
+      : {
+          type: 'release' as const,
+          id: rel.id,
+          name: rel.name || rel.code,
+        };
+    setSelectedDiagramReleaseId(next ? rel.id : null);
+    setSelectedDiagramProjectId(null);
+    setSelectedItemId(null);
+    setSelectedDepLink(null);
+    onSelectEntity?.(next);
+  };
+
   const [inspectingProject, setInspectingProject] = useState<GanttProject | null>(() => {
     if (initialInspectingProjectId && projects.length > 0) {
       return projects.find((p) => p.id === initialInspectingProjectId) || null;
@@ -2019,6 +2075,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         setDepDragState(null);
         setSelectedDepLink(null);
         setSelectedItemId(null);
+        setSelectedDiagramProjectId(null);
+        setSelectedDiagramReleaseId(null);
+        onSelectEntity?.(null);
         if (isFocusMode && onExitFocusMode) {
           onExitFocusMode();
         }
@@ -2078,7 +2137,18 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       return;
     }
     setSelectedDepLink(null);
-    setSelectedItemId((prev) => (prev === itemId ? null : itemId));
+    setSelectedDiagramProjectId(null);
+    setSelectedDiagramReleaseId(null);
+    setSelectedItemId((prev) => {
+      const next = prev === itemId ? null : itemId;
+      if (next) {
+        const it = enrichedItemById.get(next);
+        onSelectEntity?.({ type: 'task', id: next, name: it?.name });
+      } else {
+        onSelectEntity?.(null);
+      }
+      return next;
+    });
   };
 
   // Handle split pane divider resize
@@ -4797,7 +4867,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
           ref={scrollContainerRef}
           onClick={() => {
             setSelectedItemId(null);
+            setSelectedDiagramProjectId(null);
+            setSelectedDiagramReleaseId(null);
             setSelectedDepLink(null);
+            onSelectEntity?.(null);
           }}
           onMouseMove={handleTimelineMouseMove}
           onMouseLeave={handleTimelineMouseLeave}
@@ -5504,10 +5577,13 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   );
                   const rWidth = Math.max(dayWidth, spanDays * dayWidth);
 
+                  const isReleaseSelected = effectiveSelectedReleaseId === rGroup.release.id;
+
                   return (
                     <div
                       key={`release-summary-bar-${rGroup.release.id}`}
                       data-release-summary-bar={rGroup.release.id}
+                      data-selected-release-id={isReleaseSelected ? rGroup.release.id : undefined}
                       style={{
                         top: rowIndex * ROW_HEIGHT,
                         height: ROW_HEIGHT,
@@ -5516,7 +5592,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     >
                       <div
                         style={{ left: rStartX, width: rWidth }}
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSelectRelease(rGroup.release);
+                        }}
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
                           setCollapsedReleaseIds((prev) => {
                             const next = new Set(prev);
                             if (next.has(rGroup.release.id)) {
@@ -5527,8 +5608,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             return next;
                           });
                         }}
-                        className="relative z-20 flex items-center justify-between pointer-events-auto h-7 rounded-[4px] bg-[#0C0C09] dark:bg-zinc-100 text-white dark:text-[#0C0C09] px-2.5 shadow-md border border-[#0C0C09] dark:border-zinc-300 text-[10px] font-mono font-bold transition-all cursor-pointer hover:opacity-90 active:scale-[0.99] select-none group"
-                        title={`${rGroup.release.name}: ${effectiveStartDate} → ${effectiveEndDate} (${spanDays}d · Duración completa de la release · Acotado hasta su último hito: ${effectiveEndDate})`}
+                        className={`relative z-20 flex items-center justify-between pointer-events-auto h-7 rounded-[4px] bg-[#0C0C09] dark:bg-zinc-100 text-white dark:text-[#0C0C09] px-2.5 shadow-md border ${
+                          isReleaseSelected
+                            ? 'ring-3 ring-indigo-500 border-indigo-500 dark:border-indigo-400 scale-[1.01]'
+                            : 'border-[#0C0C09] dark:border-zinc-300'
+                        } text-[10px] font-mono font-bold transition-all cursor-pointer hover:opacity-90 active:scale-[0.99] select-none group`}
+                        title={`${rGroup.release.name}: ${effectiveStartDate} → ${effectiveEndDate} (${spanDays}d · Duración completa de la release · Acotado hasta su último hito: ${effectiveEndDate} · Clic para seleccionar release en diagrama, doble clic para colapsar)`}
                       >
                         <span className="truncate flex items-center gap-1.5">
                           <Rocket className="w-3.5 h-3.5 text-amber-400 dark:text-indigo-600 shrink-0" />
@@ -5571,10 +5656,13 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   const projTheme =
                     COLOR_STYLES[group.project.color] || COLOR_STYLES.indigo;
 
+                  const isProjectSelected = effectiveSelectedProjectId === group.project.id;
+
                   return (
                     <div
                       key={`summary-bar-${group.project.id}`}
                       data-project-summary-bar={group.project.id}
+                      data-selected-project-id={isProjectSelected ? group.project.id : undefined}
                       style={{
                         top: rowIndex * ROW_HEIGHT,
                         height: ROW_HEIGHT,
@@ -5583,14 +5671,23 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     >
                       <div
                         style={{ left: groupStartX, width: groupWidth }}
-                        onClick={() => onToggleProjectCollapse?.(group.project.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSelectProject(group.project);
+                        }}
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
+                          onToggleProjectCollapse?.(group.project.id);
+                        }}
                         title={`${group.project.name}: ${formatDateDisplay(
                           group.startDate,
                           'dd MMM'
                         )} → ${formatDateDisplay(group.endDate, 'dd MMM yyyy')} (${
                           group.duration
-                        } días · ${group.progress}% completado)`}
-                        className="relative z-20 flex flex-col justify-center cursor-pointer pointer-events-auto group overflow-visible"
+                        } días · Clic para seleccionar proyecto en diagrama, doble clic para colapsar)`}
+                        className={`relative z-20 flex flex-col justify-center cursor-pointer pointer-events-auto group overflow-visible ${
+                          isProjectSelected ? 'ring-2 ring-indigo-500 rounded-[4px] p-0.5' : ''
+                        }`}
                       >
                         {/* Top Label above Summary Bracket */}
                         <div
