@@ -1830,16 +1830,6 @@ export function App({
               <GitBranch className="w-4 h-4 text-[#312C85] dark:text-indigo-400" />
               <span>GanttFlow</span>
             </span>
-            <button
-              type="button"
-              data-testid="header-version-btn"
-              onClick={() => setShowReleaseNotesModal(true)}
-              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[3px] bg-[#0C0C09] hover:bg-[#312C85] text-white dark:bg-zinc-100 dark:hover:bg-white dark:text-[#0C0C09] text-[10px] font-mono font-bold tracking-tight shadow-xs transition cursor-pointer"
-              title={`GanttFlow v${APP_VERSION} · Clic para ver notas de versión y novedades`}
-              aria-label={`Versión ${APP_VERSION}, abrir notas de versión`}
-            >
-              <span>{`v${APP_VERSION}`}</span>
-            </button>
           </div>
 
           {/* Botón posicionado en el icono para esconder la tabla y enseñar solo el diagrama */}

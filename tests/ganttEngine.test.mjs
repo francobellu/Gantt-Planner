@@ -6373,19 +6373,19 @@ test('Test 61: Version button, compiled release notes modal and changelog across
     assert.strictEqual(latest.isLatest, true, 'First release note must be isLatest: true');
     assert.ok(latest.features.length > 0, 'v1.6.0 must contain features');
 
-    // 2. Render App and verify version button exists in top header and dropdown
+    // 2. Render App and verify version button exists in dropdown menu and is NOT duplicated in top header
     const appHtml = renderToString(React.createElement(mod.App));
     assert.ok(
-      appHtml.includes('data-testid="header-version-btn"'),
-      'App header must render data-testid="header-version-btn"'
-    );
-    assert.ok(
-      appHtml.includes('data-testid="header-version-btn"') && appHtml.includes('v1.6.0'),
-      'header-version-btn must display v1.6.0'
+      !appHtml.includes('data-testid="header-version-btn"'),
+      'Version button must NOT be duplicated in the top header'
     );
     assert.ok(
       appHtml.includes('data-testid="app-version-badge"'),
       'App dropdown must contain data-testid="app-version-badge"'
+    );
+    assert.ok(
+      appHtml.includes('<button') && appHtml.includes('data-testid="app-version-badge"') && appHtml.includes('v1.6.0'),
+      'app-version-badge in tools dropdown must be an interactive button showing v1.6.0'
     );
 
     // 3. Render ReleaseNotesModal
