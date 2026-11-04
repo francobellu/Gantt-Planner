@@ -11,6 +11,7 @@ import {
 import { es } from 'date-fns/locale';
 import {
   AlertTriangle,
+  BarChart3,
   Calendar,
   CalendarDays,
   Check,
@@ -18,6 +19,7 @@ import {
   ChevronRight,
   ChevronUp,
   Clock,
+  Compass,
   Copy,
   Diamond,
   Edit3,
@@ -32,6 +34,8 @@ import {
   Maximize2,
   Minus,
   MousePointer,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   Rocket,
   Rows,
@@ -40,6 +44,8 @@ import {
   Trash2,
   User,
   X,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
 import {
   ArrowVisibility,
@@ -141,6 +147,11 @@ interface GanttWorkspaceProps {
   onChangeDayWidth?: (newDayWidth: number) => void;
   onFitToProject?: (projectId?: string) => void;
   showCriticalPath: boolean;
+  onToggleCriticalPath?: () => void;
+  onScrollToToday?: () => void;
+  showMetricsDrawer?: boolean;
+  onToggleMetricsDrawer?: () => void;
+  metricsToggleBtnRef?: React.RefObject<HTMLButtonElement | null>;
   showCpmFloat: boolean;
   autoCascade: boolean;
   arrowVisibility?: ArrowVisibility;
@@ -488,6 +499,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   onChangeDayWidth,
   onFitToProject,
   showCriticalPath,
+  onToggleCriticalPath,
+  onScrollToToday,
+  showMetricsDrawer = false,
+  onToggleMetricsDrawer,
+  metricsToggleBtnRef,
   showCpmFloat,
   autoCascade,
   arrowVisibility: controlledArrowVisibility,
@@ -836,6 +852,35 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       });
     }
   };
+
+  const handleToggleCriticalPath = () => {
+    if (onToggleCriticalPath) {
+      onToggleCriticalPath();
+    }
+  };
+
+  const handleScrollToToday = () => {
+    if (onScrollToToday) {
+      onScrollToToday();
+      return;
+    }
+    if (!scrollContainerRef.current) return;
+    const container = scrollContainerRef.current;
+    const marker = container.querySelector('#gantt-today-marker') as HTMLElement | null;
+    const todayX = marker ? Number(marker.getAttribute('data-today-x') || marker.offsetLeft) : 180;
+    const targetLeft = Math.max(0, todayX - container.clientWidth / 3);
+    container.scrollTo({
+      left: targetLeft,
+      behavior: 'smooth',
+    });
+  };
+
+  const handleToggleMetrics = () => {
+    if (onToggleMetricsDrawer) {
+      onToggleMetricsDrawer();
+    }
+  };
+
 
   // Track focused task input in the table so full name is editable when focused
   const [focusedTaskInputId, setFocusedTaskInputId] = useState<string | null>(null);
@@ -3039,6 +3084,234 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-white dark:bg-[#0C0C09] rounded-[8px] border border-[#0C0C09] dark:border-zinc-800 shadow-none overflow-hidden">
+      {/* Barra de Herramientas Dedicada del Cronograma (Icon-Only con Hints) */}
+      <div
+        data-testid="cronograma-toolbar"
+        className="h-10 px-3 bg-[#F4F4F1] dark:bg-zinc-900 border-b border-[#0C0C09] dark:border-zinc-800 flex items-center justify-between shrink-0 select-none gap-2 z-10"
+      >
+        {/* Left Side: Cronograma Title & Viewport Navigation */}
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-1.5 text-xs font-mono font-bold uppercase tracking-wider text-[#0C0C09] dark:text-zinc-200 shrink-0">
+            <Calendar className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+            <span>Cronograma</span>
+          </div>
+
+          <div className="h-4 w-px bg-[#E2E2DC] dark:bg-zinc-800 shrink-0" />
+
+          {/* Toggle WBS Table button (Icon-only with hint) */}
+          {onToggleShowTable && (
+            <div className="relative group inline-flex items-center">
+              <button
+                type="button"
+                data-testid="cronograma-toggle-table-btn"
+                onClick={onToggleShowTable}
+                aria-label={showTable ? 'Ocultar tabla de tareas' : 'Mostrar tabla de tareas'}
+                title={showTable ? 'Ocultar tabla WBS' : 'Mostrar tabla WBS'}
+                className={`w-7 h-7 flex items-center justify-center rounded-[3px] border transition cursor-pointer shrink-0 ${
+                  showTable
+                    ? 'bg-white dark:bg-zinc-800 border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 shadow-xs'
+                    : 'bg-[#F4F4F1] dark:bg-zinc-800/60 border-dashed border-[#E2E2DC] dark:border-zinc-700 text-[#6B6B66] dark:text-zinc-400'
+                }`}
+              >
+                {showTable ? (
+                  <PanelLeftClose className="w-3.5 h-3.5" />
+                ) : (
+                  <PanelLeftOpen className="w-3.5 h-3.5" />
+                )}
+              </button>
+              <div className="pointer-events-none absolute top-full mt-1.5 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col items-center z-50 animate-fade-in">
+                <div className="w-1.5 h-1.5 bg-[#0C0C09] dark:bg-zinc-100 rotate-45 -mb-0.5" />
+                <div className="bg-[#0C0C09] dark:bg-zinc-100 text-white dark:text-[#0C0C09] text-[10px] font-medium px-2 py-0.5 rounded shadow-lg whitespace-nowrap">
+                  {showTable ? 'Ocultar tabla WBS' : 'Mostrar tabla WBS'}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Zoom In & Zoom Out Controls */}
+          <div className="flex items-center gap-1 shrink-0">
+            <div className="relative group inline-flex items-center">
+              <button
+                type="button"
+                data-testid="cronograma-zoom-out-btn"
+                onClick={() => handleZoomChange(dayWidth * 0.8)}
+                aria-label="Alejar zoom"
+                title="Alejar escala de tiempo (-)"
+                className="w-7 h-7 flex items-center justify-center rounded-[3px] border border-[#E2E2DC] dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09] dark:hover:text-white hover:border-[#0C0C09] transition cursor-pointer"
+              >
+                <ZoomOut className="w-3.5 h-3.5" />
+              </button>
+              <div className="pointer-events-none absolute top-full mt-1.5 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col items-center z-50 animate-fade-in">
+                <div className="w-1.5 h-1.5 bg-[#0C0C09] dark:bg-zinc-100 rotate-45 -mb-0.5" />
+                <div className="bg-[#0C0C09] dark:bg-zinc-100 text-white dark:text-[#0C0C09] text-[10px] font-medium px-2 py-0.5 rounded shadow-lg whitespace-nowrap">
+                  Alejar zoom
+                </div>
+              </div>
+            </div>
+
+            <div className="relative group inline-flex items-center">
+              <button
+                type="button"
+                data-testid="cronograma-zoom-in-btn"
+                onClick={() => handleZoomChange(dayWidth * 1.25)}
+                aria-label="Acercar zoom"
+                title="Acercar escala de tiempo (+)"
+                className="w-7 h-7 flex items-center justify-center rounded-[3px] border border-[#E2E2DC] dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09] dark:hover:text-white hover:border-[#0C0C09] transition cursor-pointer"
+              >
+                <ZoomIn className="w-3.5 h-3.5" />
+              </button>
+              <div className="pointer-events-none absolute top-full mt-1.5 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col items-center z-50 animate-fade-in">
+                <div className="w-1.5 h-1.5 bg-[#0C0C09] dark:bg-zinc-100 rotate-45 -mb-0.5" />
+                <div className="bg-[#0C0C09] dark:bg-zinc-100 text-white dark:text-[#0C0C09] text-[10px] font-medium px-2 py-0.5 rounded shadow-lg whitespace-nowrap">
+                  Acercar zoom
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Side: The 6 Dedicated Icon-Only Buttons with Tooltip Hints */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* 1. Líneas Filas (Separators) */}
+          <div className="relative group inline-flex items-center">
+            <button
+              type="button"
+              data-testid="header-toggle-row-separators-btn"
+              onClick={handleToggleRowSeparators}
+              aria-label="Líneas horizontales"
+              title="Líneas de separación entre filas"
+              className={`w-7 h-7 flex items-center justify-center rounded-[3px] border transition cursor-pointer shrink-0 ${
+                showRowSeparators
+                  ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
+                  : 'bg-white dark:bg-zinc-800 border-[#E2E2DC] dark:border-zinc-700 text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09] dark:hover:text-white hover:border-[#0C0C09] dark:hover:border-zinc-500'
+              }`}
+            >
+              <Rows className="w-3.5 h-3.5" />
+            </button>
+            <div className="pointer-events-none absolute top-full mt-1.5 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col items-center z-50 animate-fade-in">
+              <div className="w-1.5 h-1.5 bg-[#0C0C09] dark:bg-zinc-100 rotate-45 -mb-0.5" />
+              <div className="bg-[#0C0C09] dark:bg-zinc-100 text-white dark:text-[#0C0C09] text-[10px] font-medium px-2 py-0.5 rounded shadow-lg whitespace-nowrap">
+                Líneas de separación
+              </div>
+            </div>
+          </div>
+
+          {/* 2. Fines de Semana */}
+          <div className="relative group inline-flex items-center">
+            <button
+              type="button"
+              data-testid="header-toggle-weekend-shading-btn"
+              onClick={handleToggleWeekendShading}
+              aria-label="Fines de semana"
+              title="Sombreado de fines de semana"
+              className={`w-7 h-7 flex items-center justify-center rounded-[3px] border transition cursor-pointer shrink-0 ${
+                showWeekendShading
+                  ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
+                  : 'bg-white dark:bg-zinc-800 border-[#E2E2DC] dark:border-zinc-700 text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09] dark:hover:text-white hover:border-[#0C0C09] dark:hover:border-zinc-500'
+              }`}
+            >
+              <CalendarDays className="w-3.5 h-3.5" />
+            </button>
+            <div className="pointer-events-none absolute top-full mt-1.5 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col items-center z-50 animate-fade-in">
+              <div className="w-1.5 h-1.5 bg-[#0C0C09] dark:bg-zinc-100 rotate-45 -mb-0.5" />
+              <div className="bg-[#0C0C09] dark:bg-zinc-100 text-white dark:text-[#0C0C09] text-[10px] font-medium px-2 py-0.5 rounded shadow-lg whitespace-nowrap">
+                Sombreado de fines de semana
+              </div>
+            </div>
+          </div>
+
+          {/* 3. Ruta Crítica (CPM) */}
+          <div className="relative group inline-flex items-center">
+            <button
+              type="button"
+              data-testid="header-toggle-critical-path-btn"
+              onClick={handleToggleCriticalPath}
+              aria-label="Ruta Crítica"
+              title="Ruta Crítica (CPM)"
+              className={`w-7 h-7 flex items-center justify-center rounded-[3px] border transition cursor-pointer shrink-0 ${
+                showCriticalPath
+                  ? 'bg-amber-500/20 border-[#D97706] text-[#D97706] dark:text-amber-400 font-bold'
+                  : 'bg-white dark:bg-zinc-800 border-[#E2E2DC] dark:border-zinc-700 text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09] dark:hover:text-white hover:border-[#0C0C09] dark:hover:border-zinc-500'
+              }`}
+            >
+              <Flame className="w-3.5 h-3.5 text-current" />
+            </button>
+            <div className="pointer-events-none absolute top-full mt-1.5 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col items-center z-50 animate-fade-in">
+              <div className="w-1.5 h-1.5 bg-[#0C0C09] dark:bg-zinc-100 rotate-45 -mb-0.5" />
+              <div className="bg-[#0C0C09] dark:bg-zinc-100 text-white dark:text-[#0C0C09] text-[10px] font-medium px-2 py-0.5 rounded shadow-lg whitespace-nowrap">
+                Ruta Crítica (CPM)
+              </div>
+            </div>
+          </div>
+
+          {/* 4. Ajustar Zoom al Proyecto */}
+          <div className="relative group inline-flex items-center">
+            <button
+              type="button"
+              data-fit-timeline-btn="true"
+              data-fit-project-header-btn="true"
+              onClick={() => handleFitProjectAction()}
+              aria-label="Ajustar a Proyecto"
+              title="Ajustar a Proyecto (ajustar zoom al proyecto completo)"
+              className="w-7 h-7 flex items-center justify-center rounded-[3px] border border-[#E2E2DC] dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09] dark:hover:text-white hover:border-[#0C0C09] dark:hover:border-zinc-500 transition cursor-pointer shrink-0"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+            </button>
+            <div className="pointer-events-none absolute top-full mt-1.5 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col items-center z-50 animate-fade-in">
+              <div className="w-1.5 h-1.5 bg-[#0C0C09] dark:bg-zinc-100 rotate-45 -mb-0.5" />
+              <div className="bg-[#0C0C09] dark:bg-zinc-100 text-white dark:text-[#0C0C09] text-[10px] font-medium px-2 py-0.5 rounded shadow-lg whitespace-nowrap">
+                Ajustar zoom al proyecto
+              </div>
+            </div>
+          </div>
+
+          {/* 5. Ir a Hoy */}
+          <div className="relative group inline-flex items-center">
+            <button
+              type="button"
+              data-testid="header-scroll-today-btn"
+              onClick={handleScrollToToday}
+              aria-label="Ir a Hoy"
+              title="Ir al día de hoy"
+              className="w-7 h-7 flex items-center justify-center rounded-[3px] border border-[#E2E2DC] dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09] dark:hover:text-white hover:border-[#0C0C09] dark:hover:border-zinc-500 transition cursor-pointer shrink-0"
+            >
+              <Compass className="w-3.5 h-3.5" />
+            </button>
+            <div className="pointer-events-none absolute top-full mt-1.5 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col items-center z-50 animate-fade-in">
+              <div className="w-1.5 h-1.5 bg-[#0C0C09] dark:bg-zinc-100 rotate-45 -mb-0.5" />
+              <div className="bg-[#0C0C09] dark:bg-zinc-100 text-white dark:text-[#0C0C09] text-[10px] font-medium px-2 py-0.5 rounded shadow-lg whitespace-nowrap">
+                Ir a Hoy
+              </div>
+            </div>
+          </div>
+
+          {/* 6. Métricas del Proyecto */}
+          <div className="relative group inline-flex items-center">
+            <button
+              ref={metricsToggleBtnRef as any}
+              type="button"
+              data-testid="header-toggle-metrics-btn"
+              onClick={handleToggleMetrics}
+              aria-label="Métricas del proyecto"
+              title="Métricas del proyecto"
+              className={`w-7 h-7 flex items-center justify-center rounded-[3px] border transition cursor-pointer shrink-0 ${
+                showMetricsDrawer
+                  ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
+                  : 'bg-white dark:bg-zinc-800 border-[#E2E2DC] dark:border-zinc-700 text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09] dark:hover:text-white hover:border-[#0C0C09] dark:hover:border-zinc-500'
+              }`}
+            >
+              <BarChart3 className="w-3.5 h-3.5" />
+            </button>
+            <div className="pointer-events-none absolute top-full mt-1.5 right-0 hidden group-hover:flex flex-col items-end z-50 animate-fade-in">
+              <div className="w-1.5 h-1.5 bg-[#0C0C09] dark:bg-zinc-100 rotate-45 -mb-0.5 mr-2" />
+              <div className="bg-[#0C0C09] dark:bg-zinc-100 text-white dark:text-[#0C0C09] text-[10px] font-medium px-2 py-0.5 rounded shadow-lg whitespace-nowrap">
+                Métricas del proyecto
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Main Synchronized Split View */}
       <div className="flex flex-1 min-h-0 overflow-hidden relative">
         {/* LEFT PANE: WBS Editable Data Grid */}

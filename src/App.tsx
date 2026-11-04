@@ -2363,119 +2363,7 @@ export function App({
                 </div>
               </div>
 
-              {/* Sección 4: Herramientas del Cronograma */}
-              <div>
-                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400 block mb-1.5">
-                  Herramientas del Cronograma
-                </span>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <button
-                    type="button"
-                    data-testid="header-toggle-row-separators-btn"
-                    onClick={() => setShowRowSeparators((prev) => !prev)}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[3px] border text-xs font-medium transition cursor-pointer ${
-                      showRowSeparators
-                        ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
-                        : 'bg-[#F4F4F1] dark:bg-zinc-800 border-[#E2E2DC] dark:border-zinc-700 text-[#6B6B66] hover:text-[#0C0C09] dark:hover:text-white'
-                    }`}
-                    aria-label="Líneas Horizontales"
-                    title={
-                      showRowSeparators
-                        ? 'Ocultar líneas horizontales de separación'
-                        : 'Mostrar líneas horizontales de separación'
-                    }
-                  >
-                    <Rows className="w-3.5 h-3.5" />
-                    <span>Líneas filas</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    data-testid="header-toggle-weekend-shading-btn"
-                    onClick={() => setShowWeekendShading((prev) => !prev)}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[3px] border text-xs font-medium transition cursor-pointer ${
-                      showWeekendShading
-                        ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
-                        : 'bg-[#F4F4F1] dark:bg-zinc-800 border-[#E2E2DC] dark:border-zinc-700 text-[#6B6B66] hover:text-[#0C0C09] dark:hover:text-white'
-                    }`}
-                    aria-label="Sombreado Fines de Semana"
-                    title={
-                      showWeekendShading
-                        ? 'Ocultar sombreado de fines de semana'
-                        : 'Mostrar sombreado de fines de semana'
-                    }
-                  >
-                    <CalendarDays className="w-3.5 h-3.5" />
-                    <span>Fines de semana</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setShowCriticalPath((prev) => !prev)}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[3px] border text-xs font-medium transition cursor-pointer ${
-                      showCriticalPath
-                        ? 'bg-[#D97706]/20 border-[#D97706] text-[#D97706] font-bold'
-                        : 'bg-[#F4F4F1] dark:bg-zinc-800 border-[#E2E2DC] dark:border-zinc-700 text-[#6B6B66] hover:text-[#0C0C09] dark:hover:text-white'
-                    }`}
-                    aria-label="Ruta Crítica"
-                    title="Ruta Crítica (CPM)"
-                  >
-                    <Flame className="w-3.5 h-3.5 text-current" />
-                    <span>Ruta Crítica</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    data-fit-timeline-btn="true"
-                    data-fit-project-header-btn="true"
-                    onClick={() => {
-                      handleFitToProject();
-                      setMoreMenuOpen(false);
-                    }}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[3px] border border-[#E2E2DC] dark:border-zinc-700 bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-xs font-medium transition cursor-pointer"
-                    aria-label="Ajustar"
-                    title="Ajustar a Proyecto"
-                  >
-                    <Maximize2 className="w-3.5 h-3.5" />
-                    <span>Ajustar Zoom</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      scrollToToday();
-                      setMoreMenuOpen(false);
-                    }}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[3px] border border-[#E2E2DC] dark:border-zinc-700 bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-xs font-medium transition cursor-pointer"
-                    aria-label="Hoy"
-                    title="Ir a Hoy"
-                  >
-                    <Compass className="w-3.5 h-3.5" />
-                    <span>Ir a Hoy</span>
-                  </button>
-
-                  <button
-                    ref={metricsToggleBtnRef}
-                    type="button"
-                    onClick={() => {
-                      setShowMetricsDrawer((prev) => !prev);
-                      setMoreMenuOpen(false);
-                    }}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[3px] border text-xs font-medium transition cursor-pointer ${
-                      showMetricsDrawer
-                        ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09]'
-                        : 'bg-[#F4F4F1] dark:bg-zinc-800 border-[#E2E2DC] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-zinc-200'
-                    }`}
-                    aria-label="Métricas"
-                    title="Métricas del proyecto"
-                  >
-                    <BarChart3 className="w-3.5 h-3.5" />
-                    <span>Métricas</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Sección 5: Configuración General */}
+              {/* Sección 4: Configuración General */}
               <div className="pt-2 border-t border-[#E2E2DC] dark:border-zinc-800">
                 <button
                   type="button"
@@ -2645,6 +2533,11 @@ export function App({
               onChangeDayWidth={handleChangeDayWidth}
               onFitToProject={(pid) => handleFitToProject(pid)}
               showCriticalPath={showCriticalPath}
+              onToggleCriticalPath={() => setShowCriticalPath((prev) => !prev)}
+              onScrollToToday={scrollToToday}
+              showMetricsDrawer={showMetricsDrawer}
+              onToggleMetricsDrawer={() => setShowMetricsDrawer((prev) => !prev)}
+              metricsToggleBtnRef={metricsToggleBtnRef}
               showCpmFloat={showCpmFloat}
               autoCascade={autoCascade}
               arrowVisibility={arrowVisibility}

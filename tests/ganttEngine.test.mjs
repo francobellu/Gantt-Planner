@@ -6216,6 +6216,77 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
   }
 });
 
+test('Dedicated Cronograma Toolbar with space-saving icon-only buttons, hover hints, and clean dropdown menu', async () => {
+  const fs = await import('node:fs/promises');
+  const ReactMod = await import('react');
+  const React = ReactMod.default || ReactMod;
+  const ReactDOMServer = await import('react-dom/server');
+  const { renderToString } = ReactDOMServer.default || ReactDOMServer;
+
+  const tmpFile = path.resolve(__dirname, `tmp_test60_bundle_${Date.now()}.mjs`);
+  try {
+    await build({
+      entryPoints: [path.resolve(__dirname, '../src/App.tsx')],
+      bundle: true,
+      format: 'esm',
+      outfile: tmpFile,
+      platform: 'neutral',
+      target: 'es2022',
+      jsx: 'automatic',
+      external: [
+        'react',
+        'react-dom',
+        'react-dom/server',
+        'lucide-react',
+        'date-fns',
+        'date-fns/locale',
+        'xlsx',
+        'canvas-confetti'
+      ],
+      define: {
+        'process.env.NODE_ENV': '"production"'
+      }
+    });
+
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+
+    // Render full App in Gantt view
+    const appHtml = renderToString(React.createElement(mod.App));
+
+    // 1. Dedicated Cronograma Toolbar exists
+    assert.ok(appHtml.includes('data-testid="cronograma-toolbar"'), 'App must render dedicated cronograma-toolbar');
+
+    // 2. Contains all 6 diagram-specific options
+    assert.ok(appHtml.includes('data-testid="header-toggle-row-separators-btn"'), 'Toolbar contains header-toggle-row-separators-btn');
+    assert.ok(appHtml.includes('data-testid="header-toggle-weekend-shading-btn"'), 'Toolbar contains header-toggle-weekend-shading-btn');
+    assert.ok(appHtml.includes('data-testid="header-toggle-critical-path-btn"'), 'Toolbar contains header-toggle-critical-path-btn');
+    assert.ok(appHtml.includes('data-fit-timeline-btn="true"'), 'Toolbar contains data-fit-timeline-btn');
+    assert.ok(appHtml.includes('data-testid="header-scroll-today-btn"'), 'Toolbar contains header-scroll-today-btn');
+    assert.ok(appHtml.includes('data-testid="header-toggle-metrics-btn"'), 'Toolbar contains header-toggle-metrics-btn');
+
+    // 3. Zoom controls & table toggle in toolbar
+    assert.ok(appHtml.includes('data-testid="cronograma-zoom-out-btn"'), 'Toolbar contains zoom-out button');
+    assert.ok(appHtml.includes('data-testid="cronograma-zoom-in-btn"'), 'Toolbar contains zoom-in button');
+    assert.ok(appHtml.includes('data-testid="cronograma-toggle-table-btn"'), 'Toolbar contains toggle-table button');
+
+    // 4. Buttons are icon-only (do not contain text spans) and have hints/tooltips
+    assert.ok(!appHtml.includes('<span>Líneas filas</span>'), 'Buttons must NOT contain text "Líneas filas"');
+    assert.ok(!appHtml.includes('<span>Fines de semana</span>'), 'Buttons must NOT contain text "Fines de semana"');
+    assert.ok(appHtml.includes('Líneas de separación'), 'Toolbar must render hover hint for row separators');
+    assert.ok(appHtml.includes('Sombreado de fines de semana'), 'Toolbar must render hover hint for weekend shading');
+    assert.ok(appHtml.includes('Ruta Crítica (CPM)'), 'Toolbar must render hover hint for critical path');
+    assert.ok(appHtml.includes('Ajustar a Proyecto'), 'Toolbar must render hint for fit to project');
+    assert.ok(appHtml.includes('Ir a Hoy'), 'Toolbar must render hover hint for scroll to today');
+    assert.ok(appHtml.includes('Métricas del proyecto'), 'Toolbar must render hover hint for metrics');
+
+    // 5. Dropdown menu does not render the redundant 2-column text grid
+    assert.ok(!appHtml.includes('Herramientas del Cronograma'), 'Secondary menu must not contain redundant Herramientas del Cronograma grid');
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
+
 
 
 
