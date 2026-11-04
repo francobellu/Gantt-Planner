@@ -5035,7 +5035,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           transform: 'translateX(-50%)',
                           top: `${diamondTop}px`,
                         }}
-                        className="absolute z-20 pointer-events-auto"
+                        className="absolute z-30 pointer-events-auto"
                       >
                         <button
                           type="button"
@@ -5110,7 +5110,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   id="gantt-today-marker"
                   data-today-x={todayIndex * dayWidth + dayWidth / 2}
                   style={{ left: todayIndex * dayWidth + dayWidth / 2 }}
-                  className="absolute top-0 bottom-0 w-0.5 bg-[#0C0C09] dark:bg-zinc-400 z-10 pointer-events-none"
+                  className="absolute top-0 bottom-0 w-0.5 bg-[#0C0C09] dark:bg-zinc-400 z-30 pointer-events-none"
                 >
                   <div className="absolute -top-0.5 -translate-x-1/2 px-1.5 py-0.5 rounded-[2px] bg-[#0C0C09] text-[#F4F4F1] text-[9px] font-mono font-bold tracking-wider shadow-none">
                     HOY
@@ -5512,7 +5512,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         top: rowIndex * ROW_HEIGHT,
                         height: ROW_HEIGHT,
                       }}
-                      className="absolute left-0 right-0 flex items-center pointer-events-none"
+                      className="absolute left-0 right-0 flex items-center pointer-events-none z-20"
                     >
                       <div
                         style={{ left: rStartX, width: rWidth }}
@@ -5527,7 +5527,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             return next;
                           });
                         }}
-                        className="relative flex items-center justify-between pointer-events-auto h-7 rounded-[4px] bg-[#0C0C09] dark:bg-zinc-100 text-white dark:text-[#0C0C09] px-2.5 shadow-md border border-[#0C0C09] dark:border-zinc-300 text-[10px] font-mono font-bold transition-all cursor-pointer hover:opacity-90 active:scale-[0.99] select-none group"
+                        className="relative z-20 flex items-center justify-between pointer-events-auto h-7 rounded-[4px] bg-[#0C0C09] dark:bg-zinc-100 text-white dark:text-[#0C0C09] px-2.5 shadow-md border border-[#0C0C09] dark:border-zinc-300 text-[10px] font-mono font-bold transition-all cursor-pointer hover:opacity-90 active:scale-[0.99] select-none group"
                         title={`${rGroup.release.name}: ${effectiveStartDate} → ${effectiveEndDate} (${spanDays}d · Duración completa de la release · Acotado hasta su último hito: ${effectiveEndDate})`}
                       >
                         <span className="truncate flex items-center gap-1.5">
@@ -5579,7 +5579,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         top: rowIndex * ROW_HEIGHT,
                         height: ROW_HEIGHT,
                       }}
-                      className="absolute left-0 right-0 flex items-center pointer-events-none"
+                      className="absolute left-0 right-0 flex items-center pointer-events-none z-20"
                     >
                       <div
                         style={{ left: groupStartX, width: groupWidth }}
@@ -5590,7 +5590,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         )} → ${formatDateDisplay(group.endDate, 'dd MMM yyyy')} (${
                           group.duration
                         } días · ${group.progress}% completado)`}
-                        className="relative flex flex-col justify-center cursor-pointer pointer-events-auto group overflow-visible"
+                        className="relative z-20 flex flex-col justify-center cursor-pointer pointer-events-auto group overflow-visible"
                       >
                         {/* Top Label above Summary Bracket */}
                         <div

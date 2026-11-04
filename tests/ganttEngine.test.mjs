@@ -6226,7 +6226,17 @@ test('Dedicated Cronograma Toolbar with space-saving icon-only buttons, hover hi
   const tmpFile = path.resolve(__dirname, `tmp_test60_bundle_${Date.now()}.mjs`);
   try {
     await build({
-      entryPoints: [path.resolve(__dirname, '../src/App.tsx')],
+      stdin: {
+        contents: `
+          import React from 'react';
+          import { App } from './src/App.tsx';
+          import { GanttWorkspace } from './src/components/GanttWorkspace.tsx';
+          export { App, GanttWorkspace };
+        `,
+        resolveDir: path.resolve(__dirname, '..'),
+        sourcefile: 'test60_entry.tsx',
+        loader: 'tsx',
+      },
       bundle: true,
       format: 'esm',
       outfile: tmpFile,
@@ -6281,6 +6291,26 @@ test('Dedicated Cronograma Toolbar with space-saving icon-only buttons, hover hi
 
     // 5. Dropdown menu does not render the redundant 2-column text grid
     assert.ok(!appHtml.includes('Herramientas del Cronograma'), 'Secondary menu must not contain redundant Herramientas del Cronograma grid');
+
+    // 6. Release and project summary bars have z-20 so weekend shading does not overlay or affect them
+    assert.ok(appHtml.includes('data-release-summary-bar') && appHtml.includes('z-20'), 'Release summary bars must have z-20');
+
+    const wsHtml = renderToString(React.createElement(mod.GanttWorkspace, {
+      items: [{ id: 't1', projectId: 'p1', name: 'Task 1', startDate: '2026-03-01', endDate: '2026-03-05', duration: 5, progress: 0, dependencies: [] }],
+      projects: [{ id: 'p1', name: 'Project 1', color: 'indigo', releaseId: 'rel-1' }],
+      releases: [{ id: 'rel-1', code: 'T_26.03.1', name: 'Release 1', milestones: [] }],
+      scrollContainerRef: { current: null },
+      zoom: 'week',
+      showCriticalPath: false,
+      showCpmFloat: false,
+      autoCascade: false,
+      onUpdateItem: () => {},
+      onDeleteItem: () => {},
+      onEditModal: () => {},
+      onDuplicateItem: () => {},
+      onQuickAdd: () => {},
+    }));
+    assert.ok(wsHtml.includes('data-project-summary-bar') && wsHtml.includes('z-20'), 'Project summary bars must have z-20');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
