@@ -10,10 +10,24 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.8.2',
+    date: '04 Nov 2026',
+    title: 'Corrección de barra de búsqueda y eliminación de sombras de fines de semana en barras de tareas',
+    isLatest: true,
+    features: [
+      'Búsqueda y filtro de plataforma optimizados en la barra superior del cronograma, garantizando visibilidad continua y total claridad de las filas de release.',
+    ],
+    fixes: [
+      'Ubicación óptima de la barra de búsqueda y filtro de plataformas: trasladada a la barra de herramientas del cronograma (sticky top-12), evitando que se superponga o tape las filas de release e información de duración y proyectos en la tabla WBS.',
+      'Alineación perfecta de cabecera de tabla: la cabecera de la tabla WBS permanece en sticky top-0 con altura sincronizada a 60px, sin desplazamientos que corten las releases.',
+      'Eliminación de sombras de fines de semana sobre las barras de tareas: las barras de tareas y de hitos ahora cuentan con elevación z-20 y capas de fondo optimizadas (z-[1]) para que el sombreado de fines de semana se dibuje estrictamente de fondo y nunca opaque o corte las barras del diagrama.',
+    ],
+  },
+  {
     version: '1.8.1',
     date: '04 Nov 2026',
     title: 'Interfaz despejada: eliminación de botones de zoom y deshacer/rehacer, y favicon oficial',
-    isLatest: true,
+    isLatest: false,
     features: [
       'Favicon oficial en pestaña del navegador: el icono distintivo GitBranch se muestra como icono oficial de la aplicación al cargar la web.',
     ],

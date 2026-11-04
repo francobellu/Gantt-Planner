@@ -1,4 +1,4 @@
-export const APP_VERSION = '1.8.1';
+export const APP_VERSION = '1.8.2';
 
 export const DEFAULT_TRUNCATE_CHAR_LIMIT = 37;
 export const TRUNCATE_LIMIT_STORAGE_KEY = 'ganttflow_truncate_char_limit';

@@ -3304,8 +3304,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         data-testid="cronograma-toolbar"
         className="sticky top-12 z-30 h-10 px-3 bg-[#F4F4F1] dark:bg-zinc-900 border-b border-[#0C0C09] dark:border-zinc-800 flex items-center justify-between shrink-0 select-none gap-2 shadow-xs"
       >
-        {/* Left Side: Cronograma Title & Viewport Navigation */}
-        <div className="flex items-center gap-2 min-w-0">
+        {/* Left Side: Cronograma Title, WBS Toggle & Table Search / Platform Filter */}
+        <div className="flex items-center gap-2 min-w-0 flex-1">
           <div className="flex items-center gap-1.5 text-xs font-mono font-bold uppercase tracking-wider text-[#0C0C09] dark:text-zinc-200 shrink-0">
             <Calendar className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
             <span>Cronograma</span>
@@ -3342,6 +3342,64 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               </div>
             </div>
           )}
+
+          <div className="h-4 w-px bg-[#E2E2DC] dark:bg-zinc-800 shrink-0 hidden sm:block" />
+
+          {/* Table Search Input & Platform Filter: Cleanly positioned in toolbar so it never occludes release info */}
+          <div className="flex items-center gap-1.5 min-w-0">
+            <div className="relative flex items-center w-40 sm:w-56 shrink-0">
+              <Search className="w-3 h-3 absolute left-1.5 text-zinc-400 pointer-events-none" />
+              <input
+                type="text"
+                data-testid="table-search-input"
+                value={tableSearchQuery}
+                onChange={(e) => setTableSearchQuery(e.target.value)}
+                placeholder="Buscar proyecto o tarea..."
+                className="w-full pl-6 pr-5 py-0.5 text-[10px] font-sans font-normal normal-case rounded-[3px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 outline-none focus:border-[#0C0C09] dark:focus:border-white h-6.5"
+              />
+              {tableSearchQuery && (
+                <button
+                  type="button"
+                  data-testid="table-search-clear-btn"
+                  onClick={() => setTableSearchQuery('')}
+                  className="absolute right-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-0.5 cursor-pointer"
+                  title="Limpiar búsqueda"
+                >
+                  <X className="w-2.5 h-2.5" />
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1 shrink-0">
+              <Smartphone className="w-3 h-3 text-zinc-500 shrink-0 hidden md:block" />
+              <select
+                data-testid="table-platform-filter"
+                value={tablePlatformFilter}
+                onChange={(e) => setTablePlatformFilter(e.target.value as any)}
+                className="px-1.5 py-0.5 text-[10px] font-sans font-medium normal-case rounded-[3px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 outline-none cursor-pointer h-6.5"
+                title="Filtrar por plataforma"
+              >
+                <option value="all">Todas las plataformas</option>
+                <option value="iOS">iOS</option>
+                <option value="Android">Android</option>
+                <option value="Multiplataforma">Multiplataforma</option>
+              </select>
+            </div>
+
+            {(tableSearchQuery || tablePlatformFilter !== 'all') && (
+              <button
+                type="button"
+                data-testid="table-clear-filters-btn"
+                onClick={() => {
+                  setTableSearchQuery('');
+                  setTablePlatformFilter('all');
+                }}
+                className="text-[9px] font-sans font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer shrink-0"
+              >
+                Limpiar
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Right Side: The 6 Dedicated Icon-Only Buttons with Tooltip Hints */}
@@ -3500,14 +3558,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   {/* Minimalist Table Header (matches timeline HEADER_HEIGHT = 60px) */}
                   <div
                     style={{ height: HEADER_HEIGHT, minWidth: tableMinWidth }}
-                    className="flex flex-col justify-between px-3 py-1 bg-[#F4F4F1] dark:bg-[#18181b] border-b border-[#0C0C09] dark:border-zinc-800 text-[10px] font-mono font-bold uppercase tracking-wider text-[#0C0C09] dark:text-zinc-300 shrink-0 select-none shadow-xs sticky top-[88px] z-20"
+                    className="flex items-center justify-between px-3 bg-[#F4F4F1] dark:bg-[#18181b] border-b border-[#0C0C09] dark:border-zinc-800 text-[10px] font-mono font-bold uppercase tracking-wider text-[#0C0C09] dark:text-zinc-300 shrink-0 select-none shadow-xs sticky top-0 z-20"
                   >
-                    {/* Top Tier: Column Titles & Icon-Only Configurator */}
-                    <div className="flex items-center justify-between w-full h-7">
-                      <div
-                        style={{ width: nameColumnWidth }}
-                        className="flex items-center gap-2 shrink-0"
-                      >
+                    <div
+                      style={{ width: nameColumnWidth }}
+                      className="flex items-center gap-2 shrink-0"
+                    >
                         <span className="w-16 font-mono text-center shrink-0"># / Orden</span>
                         <span className="font-semibold">
                           Nombre{visibleColumns.team ? ' / Equipo' : ''}
@@ -3797,65 +3853,6 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             </div>
                           )}
                         </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Bottom Tier: Table Search Input & Platform Filter */}
-                    <div className="flex items-center justify-between w-full h-7 pt-1 border-t border-slate-200/80 dark:border-zinc-800">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className="relative flex items-center w-48 sm:w-56 shrink-0">
-                          <Search className="w-3 h-3 absolute left-1.5 text-zinc-400 pointer-events-none" />
-                          <input
-                            type="text"
-                            data-testid="table-search-input"
-                            value={tableSearchQuery}
-                            onChange={(e) => setTableSearchQuery(e.target.value)}
-                            placeholder="Buscar proyecto o tarea..."
-                            className="w-full pl-6 pr-5 py-0.5 text-[10px] font-sans font-normal normal-case rounded-[2px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 outline-none focus:border-[#0C0C09] dark:focus:border-white"
-                          />
-                          {tableSearchQuery && (
-                            <button
-                              type="button"
-                              data-testid="table-search-clear-btn"
-                              onClick={() => setTableSearchQuery('')}
-                              className="absolute right-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-0.5 cursor-pointer"
-                              title="Limpiar búsqueda"
-                            >
-                              <X className="w-2.5 h-2.5" />
-                            </button>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-1 shrink-0">
-                          <Smartphone className="w-3 h-3 text-zinc-500 shrink-0" />
-                          <select
-                            data-testid="table-platform-filter"
-                            value={tablePlatformFilter}
-                            onChange={(e) => setTablePlatformFilter(e.target.value as any)}
-                            className="px-1.5 py-0.5 text-[10px] font-sans font-medium normal-case rounded-[2px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 outline-none cursor-pointer"
-                            title="Filtrar por plataforma"
-                          >
-                            <option value="all">Todas las plataformas</option>
-                            <option value="iOS">iOS</option>
-                            <option value="Android">Android</option>
-                            <option value="Multiplataforma">Multiplataforma</option>
-                          </select>
-                        </div>
-
-                        {(tableSearchQuery || tablePlatformFilter !== 'all') && (
-                          <button
-                            type="button"
-                            data-testid="table-clear-filters-btn"
-                            onClick={() => {
-                              setTableSearchQuery('');
-                              setTablePlatformFilter('all');
-                            }}
-                            className="text-[9px] font-sans font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer shrink-0"
-                          >
-                            Limpiar
-                          </button>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -5319,7 +5316,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             {/* Canvas Body: Background Columns + Horizontal Rows + SVG Dependencies + Project Summary & Task/Slack/Milestone Bars */}
             <div className="relative" style={{ height: displayRows.length * ROW_HEIGHT + 52 }}>
               {/* Vertical Day Columns & Weekend Shading (configurable) */}
-              <div className="absolute inset-0 flex pointer-events-none z-[2]">
+              <div className="absolute inset-0 flex pointer-events-none z-[1]">
                 {timelineDays.map((day, idx) => {
                   const wknd = isWeekend(day);
                   return (
@@ -6203,7 +6200,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     }}
                     onMouseEnter={() => setHoveredId(item.id)}
                     onMouseLeave={() => setHoveredId(null)}
-                    className={`absolute left-0 right-0 flex items-center pointer-events-none transition-opacity ${
+                    className={`absolute left-0 right-0 flex items-center pointer-events-none z-20 transition-opacity ${
                       isDimmed ? 'opacity-40' : 'opacity-100'
                     }`}
                   >
