@@ -422,6 +422,10 @@ export function sanitizeGanttItem(
     assignee: raw.assignee != null ? String(raw.assignee).trim() : undefined,
     notes: raw.notes != null ? String(raw.notes).trim() : undefined,
     hidden: Boolean(raw.hidden),
+    platform:
+      raw.platform === 'iOS' || raw.platform === 'Android' || raw.platform === 'Multiplataforma'
+        ? raw.platform
+        : undefined,
   };
 
   if (raw.projectId != null && String(raw.projectId).trim()) {

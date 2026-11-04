@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const pkgPath = path.resolve(__dirname, '../package.json');
 const typesPath = path.resolve(__dirname, '../src/types/gantt.ts');
+const testPath = path.resolve(__dirname, '../tests/ganttEngine.test.mjs');
 
 const bumpType = process.argv[2] || 'patch'; // 'patch' | 'minor' | 'major'
 
@@ -36,4 +37,13 @@ typesContent = typesContent.replace(
 );
 fs.writeFileSync(typesPath, typesContent, 'utf8');
 
-console.log(`Version bumped from ${currentVersion} to ${newVersion} in package.json and src/types/gantt.ts`);
+// Update tests/ganttEngine.test.mjs
+if (fs.existsSync(testPath)) {
+  let testContent = fs.readFileSync(testPath, 'utf8');
+  testContent = testContent
+    .replaceAll(`'${currentVersion}'`, `'${newVersion}'`)
+    .replaceAll(`v${currentVersion}`, `v${newVersion}`);
+  fs.writeFileSync(testPath, testContent, 'utf8');
+}
+
+console.log(`Version bumped from ${currentVersion} to ${newVersion} across package.json, src/types/gantt.ts, and tests`);

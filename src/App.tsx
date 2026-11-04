@@ -28,10 +28,12 @@ import {
   Plus,
   Redo2,
   Rocket,
+  RotateCw,
   Rows,
   Save,
   Settings,
   Sliders,
+  SlidersHorizontal,
   Sparkles,
   Sun,
   Trash2,
@@ -823,6 +825,7 @@ export function App({
   // Minimalist UI toggles and menus
   const [showMetricsDrawer, setShowMetricsDrawer] = useState<boolean>(false);
   const [projectMenuOpen, setProjectMenuOpen] = useState<boolean>(initialProjectMenuOpen);
+  const [moreMenuOpen, setMoreMenuOpen] = useState<boolean>(false);
   const [createProjectModalOpen, setCreateProjectModalOpen] = useState<boolean>(false);
   const [newProjectFormName, setNewProjectFormName] = useState<string>('');
   const [newProjectFormReleaseId, setNewProjectFormReleaseId] = useState<string>('');
@@ -830,6 +833,7 @@ export function App({
   const [newProjectFormPlatform, setNewProjectFormPlatform] = useState<ProjectPlatform>('Multiplataforma');
 
   const projectMenuRef = useRef<HTMLDivElement>(null);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
   const metricsDrawerRef = useRef<HTMLDivElement>(null);
   const metricsToggleBtnRef = useRef<HTMLButtonElement>(null);
 
@@ -838,6 +842,9 @@ export function App({
       const target = e.target as Node;
       if (projectMenuRef.current && !projectMenuRef.current.contains(target)) {
         setProjectMenuOpen(false);
+      }
+      if (moreMenuRef.current && !moreMenuRef.current.contains(target)) {
+        setMoreMenuOpen(false);
       }
       if (
         showMetricsDrawer &&
@@ -856,6 +863,7 @@ export function App({
           return;
         }
         setProjectMenuOpen(false);
+        setMoreMenuOpen(false);
         setCreateProjectModalOpen(false);
         setShowMetricsDrawer(false);
         setShowSettingsModal(false);
@@ -1810,19 +1818,17 @@ export function App({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {/* Top Navigation Bar — Single Minimalist 48px Bar */}
+      {/* Top Navigation Bar — Single Clean 48px Bar */}
       <header className="sticky top-0 z-30 h-12 px-4 bg-[#F4F4F1] dark:bg-[#0C0C09] border-b border-[#0C0C09] dark:border-zinc-800 flex items-center justify-between gap-3 select-none">
         
-        {/* LEFT: Toggle Table Button + "Proyectos" Multi-Select Dropdown */}
-        <div className="flex items-center gap-2.5 min-w-0">
-          <span
-            data-testid="app-version-badge"
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[3px] bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09] text-[10px] font-mono font-bold tracking-tight shrink-0 shadow-xs"
-            title={`GanttFlow v${APP_VERSION}`}
-          >
-            <span className="hidden sm:inline opacity-80 font-normal">GanttFlow</span>
-            <span>{`v${APP_VERSION}`}</span>
-          </span>
+        {/* LEFT: Brand Logo + Primary Workflow Controls */}
+        <div className="flex items-center gap-2.5 min-w-0 flex-wrap">
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="font-display font-bold text-sm tracking-tight text-[#0C0C09] dark:text-zinc-100 flex items-center gap-1.5 shrink-0">
+              <GitBranch className="w-4 h-4 text-[#312C85] dark:text-indigo-400" />
+              <span>GanttFlow</span>
+            </span>
+          </div>
 
           {/* Botón posicionado en el icono para esconder la tabla y enseñar solo el diagrama */}
           <button
@@ -2033,34 +2039,6 @@ export function App({
             </button>
           </div>
 
-          {/* Historial Button */}
-          <button
-            type="button"
-            data-testid="header-history-btn"
-            data-history-btn="true"
-            onClick={() => setCurrentView((prev) => (prev === 'history' ? 'gantt' : 'history'))}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border text-xs font-medium transition cursor-pointer shrink-0 ${
-              currentView === 'history'
-                ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
-                : 'bg-white dark:bg-zinc-900 border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800'
-            }`}
-            title="Consultar historial de cambios del plan"
-            aria-label="Historial"
-          >
-            <History className="w-3.5 h-3.5 text-current" />
-            <span className="font-display font-medium hidden sm:inline">Historial</span>
-            <span
-              data-testid="history-counter-badge"
-              className={`px-1.5 py-0.2 rounded-[2px] text-[10px] font-mono border ${
-                currentView === 'history'
-                  ? 'bg-zinc-800 text-white border-zinc-700 dark:bg-zinc-200 dark:text-[#0C0C09] dark:border-zinc-300'
-                  : 'bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-300 border-[#E2E2DC] dark:border-zinc-700'
-              }`}
-            >
-              {history.length}
-            </span>
-          </button>
-
           {/* Releases Hub Button */}
           <button
             type="button"
@@ -2111,23 +2089,6 @@ export function App({
               </span>
             </button>
           )}
-
-          {/* Ayuda Button */}
-          <button
-            type="button"
-            data-testid="header-help-btn"
-            onClick={() => setCurrentView((prev) => (prev === 'help' ? 'gantt' : 'help'))}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border text-xs font-medium transition cursor-pointer shrink-0 ${
-              currentView === 'help'
-                ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
-                : 'bg-white dark:bg-zinc-900 border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800'
-            }`}
-            title="Guía de uso y documentación de funcionalidades"
-            aria-label="Ayuda"
-          >
-            <HelpCircle className="w-3.5 h-3.5 text-current" />
-            <span className="font-display font-medium hidden sm:inline">Ayuda</span>
-          </button>
 
           {/* Informes Button (Tablas tipo Excel) */}
           <button
@@ -2198,52 +2159,6 @@ export function App({
             </span>
           </button>
 
-          {/* Botón Importar */}
-          <button
-            type="button"
-            data-testid="header-import-btn"
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 text-xs font-medium transition cursor-pointer shrink-0"
-            title="Importar cronograma desde archivo JSON o CSV"
-            aria-label="Importar"
-          >
-            <Upload className="w-3.5 h-3.5 text-[#312C85] dark:text-indigo-400" />
-            <span className="font-display font-medium hidden sm:inline">Importar</span>
-          </button>
-
-          {/* Botón Exportar Directo (JSON) */}
-          <button
-            type="button"
-            data-testid="header-export-btn"
-            onClick={handleExportJSON}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 text-xs font-medium transition cursor-pointer shrink-0"
-            title="Exportar cronograma en formato JSON"
-            aria-label="Exportar"
-          >
-            <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-            <span className="font-display font-medium hidden sm:inline">JSON</span>
-          </button>
-
-          {/* Botón Exportar Excel con jerarquía */}
-          <button
-            type="button"
-            data-testid="header-export-excel-btn"
-            onClick={() => {
-              try {
-                downloadGanttExcelFile(releases, effectiveProjects, computedItems);
-                showToast('Descargando archivo Excel completo con jerarquía...');
-              } catch {
-                showToast('Error al exportar a Excel');
-              }
-            }}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#0C0C09] hover:text-white dark:hover:bg-zinc-100 dark:hover:text-[#0C0C09] text-xs font-semibold transition cursor-pointer shrink-0"
-            title="Exportar jerarquía completa (Releases, Proyectos, Tareas) a archivo Excel (.xlsx)"
-            aria-label="Exportar Excel"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-            <span className="font-display font-semibold hidden sm:inline">Excel</span>
-          </button>
-
           {scenarioSavedToast && (
             <span
               className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-[11px] font-mono font-semibold text-white shadow-none animate-fade-in ${
@@ -2262,170 +2177,325 @@ export function App({
           )}
         </div>
 
-        {/* RIGHT: Iconos Vectoriales Minimalistas con Hints */}
+        {/* RIGHT: Quick Theme Toggle + Unified Tools & Settings Dropdown Menu */}
         <div className="flex items-center gap-2 shrink-0">
 
-          {/* Alternar Líneas Horizontales de Separación */}
-          <div className="relative group">
-            <button
-              type="button"
-              data-testid="header-toggle-row-separators-btn"
-              onClick={() => setShowRowSeparators((prev) => !prev)}
-              className={`p-1.5 rounded-[4px] border transition shadow-none cursor-pointer ${
-                showRowSeparators
-                  ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
-                  : 'bg-white dark:bg-zinc-900 border-[#0C0C09] dark:border-zinc-700 text-[#6B6B66] hover:text-[#0C0C09] dark:hover:text-white'
-              }`}
-              aria-label="Líneas Horizontales"
-              title={
-                showRowSeparators
-                  ? 'Ocultar líneas horizontales de separación'
-                  : 'Mostrar líneas horizontales de separación'
-              }
-            >
-              <Rows className="w-4 h-4" />
-            </button>
-            <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute right-0 top-10 px-2 py-1 bg-[#0C0C09] text-[#F4F4F1] text-[11px] font-mono font-medium rounded-[2px] shadow-lg border border-[#E2E2DC] whitespace-nowrap z-50 pointer-events-none">
-              {showRowSeparators ? 'Ocultar líneas horizontales' : 'Mostrar líneas horizontales'}
-            </div>
-          </div>
-
-          {/* Alternar Sombreado de Fines de Semana */}
-          <div className="relative group">
-            <button
-              type="button"
-              data-testid="header-toggle-weekend-shading-btn"
-              onClick={() => setShowWeekendShading((prev) => !prev)}
-              className={`p-1.5 rounded-[4px] border transition shadow-none cursor-pointer ${
-                showWeekendShading
-                  ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
-                  : 'bg-white dark:bg-zinc-900 border-[#0C0C09] dark:border-zinc-700 text-[#6B6B66] hover:text-[#0C0C09] dark:hover:text-white'
-              }`}
-              aria-label="Sombreado Fines de Semana"
-              title={
-                showWeekendShading
-                  ? 'Ocultar sombreado de fines de semana'
-                  : 'Mostrar sombreado de fines de semana'
-              }
-            >
-              <CalendarDays className="w-4 h-4" />
-            </button>
-            <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute right-0 top-10 px-2 py-1 bg-[#0C0C09] text-[#F4F4F1] text-[11px] font-mono font-medium rounded-[2px] shadow-lg border border-[#E2E2DC] whitespace-nowrap z-50 pointer-events-none">
-              {showWeekendShading ? 'Ocultar fines de semana' : 'Resaltar fines de semana'}
-            </div>
-          </div>
-
-          {/* Ruta Crítica */}
-          <div className="relative group">
-            <button
-              type="button"
-              onClick={() => setShowCriticalPath((prev) => !prev)}
-              className={`p-1.5 rounded-[4px] border transition shadow-none ${
-                showCriticalPath
-                  ? 'bg-[#D97706]/15 border-[#D97706] text-[#D97706] hover:bg-[#D97706]/25'
-                  : 'bg-white dark:bg-zinc-900 border-[#0C0C09] dark:border-zinc-700 text-[#6B6B66] hover:text-[#0C0C09] dark:hover:text-white'
-              }`}
-              aria-label="Ruta Crítica"
-            >
-              <Flame className="w-4 h-4" />
-            </button>
-            <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute right-0 top-10 px-2 py-1 bg-[#0C0C09] text-[#F4F4F1] text-[11px] font-mono font-medium rounded-[2px] shadow-lg border border-[#E2E2DC] whitespace-nowrap z-50 pointer-events-none">
-              Ruta Crítica (CPM)
-            </div>
-          </div>
-
-          {/* Ajustar a pantalla */}
-          <div className="relative group">
-            <button
-              type="button"
-              data-fit-timeline-btn="true"
-              data-fit-project-header-btn="true"
-              onClick={() => handleFitToProject()}
-              className="p-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 transition shadow-none cursor-pointer"
-              aria-label="Ajustar"
-              title="Ajustar a Proyecto"
-            >
-              <Maximize2 className="w-4 h-4" />
-            </button>
-            <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute right-0 top-10 px-2 py-1 bg-[#0C0C09] text-[#F4F4F1] text-[11px] font-mono font-medium rounded-[2px] shadow-lg border border-[#E2E2DC] whitespace-nowrap z-50 pointer-events-none">
-              Ajustar a Proyecto
-            </div>
-          </div>
-
-          {/* Ir a Hoy */}
-          <div className="relative group">
-            <button
-              type="button"
-              onClick={scrollToToday}
-              className="p-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 transition shadow-none cursor-pointer"
-              aria-label="Hoy"
-            >
-              <Compass className="w-4 h-4" />
-            </button>
-            <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute right-0 top-10 px-2 py-1 bg-[#0C0C09] text-[#F4F4F1] text-[11px] font-mono font-medium rounded-[2px] shadow-lg border border-[#E2E2DC] whitespace-nowrap z-50 pointer-events-none">
-              Ir a Hoy
-            </div>
-          </div>
-
-          {/* Métricas Drawer Toggle */}
-          <div className="relative group">
-            <button
-              ref={metricsToggleBtnRef}
-              type="button"
-              onClick={() => setShowMetricsDrawer((prev) => !prev)}
-              className={`p-1.5 rounded-[4px] border transition shadow-none cursor-pointer ${
-                showMetricsDrawer
-                  ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09]'
-                  : 'bg-white dark:bg-zinc-900 border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1]'
-              }`}
-              aria-label="Métricas"
-            >
-              <BarChart3 className="w-4 h-4" />
-            </button>
-            <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute right-0 top-10 px-2 py-1 bg-[#0C0C09] text-[#F4F4F1] text-[11px] font-mono font-medium rounded-[2px] shadow-lg border border-[#E2E2DC] whitespace-nowrap z-50 pointer-events-none">
-              Métricas del proyecto
-            </div>
-          </div>
-
           {/* Selector Rápido de Tema (Claro / Oscuro) */}
-          <div className="relative group">
-            <button
-              type="button"
-              data-testid="header-theme-toggle-btn"
-              onClick={() => setDarkMode((prev) => !prev)}
-              className="p-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 transition shadow-none cursor-pointer"
-              aria-label={darkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
-              title={darkMode ? 'Modo claro (Alabastro minimalista)' : 'Modo oscuro'}
-            >
-              {darkMode ? (
-                <Sun className="w-4 h-4 text-amber-400" />
-              ) : (
-                <Moon className="w-4 h-4 text-[#0C0C09]" />
-              )}
-            </button>
-            <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute right-0 top-10 px-2 py-1 bg-[#0C0C09] text-[#F4F4F1] text-[11px] font-mono font-medium rounded-[2px] shadow-lg border border-[#E2E2DC] whitespace-nowrap z-50 pointer-events-none">
-              {darkMode ? 'Cambiar a Modo Claro' : 'Cambiar a Modo Oscuro'}
-            </div>
-          </div>
+          <button
+            type="button"
+            data-testid="header-theme-toggle-btn"
+            onClick={() => setDarkMode((prev) => !prev)}
+            className="p-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 transition shadow-none cursor-pointer"
+            aria-label={darkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+            title={darkMode ? 'Modo claro' : 'Modo oscuro'}
+          >
+            {darkMode ? (
+              <Sun className="w-4 h-4 text-amber-400" />
+            ) : (
+              <Moon className="w-4 h-4 text-[#0C0C09]" />
+            )}
+          </button>
 
-          {/* Panel de Configuración General */}
-          <div className="relative group">
+          {/* Menú Secundario "Herramientas / Más Opciones" */}
+          <div ref={moreMenuRef} className="relative">
             <button
               type="button"
-              data-testid="header-settings-btn"
-              onClick={() => setShowSettingsModal(true)}
-              className={`p-1.5 rounded-[4px] border transition shadow-none cursor-pointer ${
-                showSettingsModal
+              data-testid="header-more-menu-btn"
+              onClick={() => setMoreMenuOpen((prev) => !prev)}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border text-xs font-medium transition cursor-pointer shrink-0 ${
+                moreMenuOpen
                   ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
                   : 'bg-white dark:bg-zinc-900 border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800'
               }`}
-              aria-label="Ajustes"
-              title="Configuración de interfaz (Truncado, Líneas, Sombreado, Visibilidad)"
+              title="Herramientas, visualización, exportación y versión"
+              aria-label="Más opciones"
             >
-              <Settings className="w-4 h-4" />
+              <SlidersHorizontal className="w-3.5 h-3.5 text-current" />
+              <span className="font-display font-medium hidden sm:inline">Herramientas</span>
+              <ChevronDown className="w-3 h-3 text-[#6B6B66]" />
             </button>
-            <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute right-0 top-10 px-2 py-1 bg-[#0C0C09] text-[#F4F4F1] text-[11px] font-mono font-medium rounded-[2px] shadow-lg border border-[#E2E2DC] whitespace-nowrap z-50 pointer-events-none">
-              Configuración
+
+            {/* Dropdown Menu (rendered in DOM so test assertions find testids) */}
+            <div
+              data-testid="header-more-menu-dropdown"
+              className={`absolute right-0 top-10 w-80 p-3 bg-white dark:bg-zinc-900 border border-[#0C0C09] dark:border-zinc-700 rounded-[4px] shadow-2xl z-50 text-xs flex flex-col gap-3 max-h-[calc(100vh-60px)] overflow-y-auto ${
+                moreMenuOpen ? 'block' : 'hidden'
+              }`}
+            >
+              {/* Sección 1: Versión de la Aplicación y Recarga */}
+              <div className="flex items-center justify-between pb-2 border-b border-[#E2E2DC] dark:border-zinc-800">
+                <div className="flex items-center gap-2">
+                  <span
+                    data-testid="app-version-badge"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[3px] bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09] text-[10px] font-mono font-bold tracking-tight shadow-xs"
+                    title={`GanttFlow v${APP_VERSION}`}
+                  >
+                    <span>GanttFlow</span>
+                    <span>{`v${APP_VERSION}`}</span>
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  data-testid="force-reload-btn"
+                  onClick={() => {
+                    if (typeof window !== 'undefined') {
+                      window.location.reload();
+                    }
+                  }}
+                  className="flex items-center gap-1 text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline font-mono cursor-pointer"
+                  title="Forzar recarga sin caché para garantizar la última versión"
+                >
+                  <RotateCw className="w-3 h-3" />
+                  <span>Recargar app</span>
+                </button>
+              </div>
+
+              {/* Sección 2: Navegación & Ayuda */}
+              <div>
+                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400 block mb-1.5">
+                  Vistas y Ayuda
+                </span>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    data-testid="header-history-btn"
+                    data-history-btn="true"
+                    onClick={() => {
+                      setCurrentView((prev) => (prev === 'history' ? 'gantt' : 'history'));
+                      setMoreMenuOpen(false);
+                    }}
+                    className={`flex items-center justify-between px-2.5 py-1.5 rounded-[3px] border text-xs font-medium transition cursor-pointer ${
+                      currentView === 'history'
+                        ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
+                        : 'bg-[#F4F4F1] dark:bg-zinc-800 border-[#E2E2DC] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+                    }`}
+                    title="Consultar historial de cambios del plan"
+                    aria-label="Historial"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <History className="w-3.5 h-3.5 text-current" />
+                      <span>Historial</span>
+                    </span>
+                    <span
+                      data-testid="history-counter-badge"
+                      className="px-1.5 py-0.2 rounded-[2px] text-[10px] font-mono bg-white dark:bg-zinc-900 border border-[#E2E2DC] dark:border-zinc-700"
+                    >
+                      {history.length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    data-testid="header-help-btn"
+                    onClick={() => {
+                      setCurrentView((prev) => (prev === 'help' ? 'gantt' : 'help'));
+                      setMoreMenuOpen(false);
+                    }}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[3px] border text-xs font-medium transition cursor-pointer ${
+                      currentView === 'help'
+                        ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
+                        : 'bg-[#F4F4F1] dark:bg-zinc-800 border-[#E2E2DC] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+                    }`}
+                    title="Guía de uso y documentación de funcionalidades"
+                    aria-label="Ayuda"
+                  >
+                    <HelpCircle className="w-3.5 h-3.5 text-current" />
+                    <span>Ayuda</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Sección 3: Importar y Exportar */}
+              <div>
+                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400 block mb-1.5">
+                  Importar y Exportar
+                </span>
+                <div className="grid grid-cols-3 gap-1.5">
+                  <button
+                    type="button"
+                    data-testid="header-import-btn"
+                    onClick={() => {
+                      fileInputRef.current?.click();
+                      setMoreMenuOpen(false);
+                    }}
+                    className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-[3px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-700 text-xs font-medium transition cursor-pointer"
+                    title="Importar cronograma desde archivo JSON o CSV"
+                    aria-label="Importar"
+                  >
+                    <Upload className="w-3.5 h-3.5 text-indigo-500" />
+                    <span>Importar</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    data-testid="header-export-btn"
+                    onClick={() => {
+                      handleExportJSON();
+                      setMoreMenuOpen(false);
+                    }}
+                    className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-[3px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-700 text-xs font-medium transition cursor-pointer"
+                    title="Exportar cronograma en formato JSON"
+                    aria-label="Exportar"
+                  >
+                    <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <span>JSON</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    data-testid="header-export-excel-btn"
+                    onClick={() => {
+                      try {
+                        downloadGanttExcelFile(releases, effectiveProjects, computedItems);
+                        showToast('Descargando archivo Excel completo con jerarquía...');
+                      } catch {
+                        showToast('Error al exportar a Excel');
+                      }
+                      setMoreMenuOpen(false);
+                    }}
+                    className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-[3px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#0C0C09] hover:text-white dark:hover:bg-zinc-100 dark:hover:text-[#0C0C09] text-xs font-semibold transition cursor-pointer"
+                    title="Exportar jerarquía completa (Releases, Proyectos, Tareas) a archivo Excel (.xlsx)"
+                    aria-label="Exportar Excel"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <span>Excel</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Sección 4: Herramientas del Cronograma */}
+              <div>
+                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400 block mb-1.5">
+                  Herramientas del Cronograma
+                </span>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    data-testid="header-toggle-row-separators-btn"
+                    onClick={() => setShowRowSeparators((prev) => !prev)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[3px] border text-xs font-medium transition cursor-pointer ${
+                      showRowSeparators
+                        ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
+                        : 'bg-[#F4F4F1] dark:bg-zinc-800 border-[#E2E2DC] dark:border-zinc-700 text-[#6B6B66] hover:text-[#0C0C09] dark:hover:text-white'
+                    }`}
+                    aria-label="Líneas Horizontales"
+                    title={
+                      showRowSeparators
+                        ? 'Ocultar líneas horizontales de separación'
+                        : 'Mostrar líneas horizontales de separación'
+                    }
+                  >
+                    <Rows className="w-3.5 h-3.5" />
+                    <span>Líneas filas</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    data-testid="header-toggle-weekend-shading-btn"
+                    onClick={() => setShowWeekendShading((prev) => !prev)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[3px] border text-xs font-medium transition cursor-pointer ${
+                      showWeekendShading
+                        ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
+                        : 'bg-[#F4F4F1] dark:bg-zinc-800 border-[#E2E2DC] dark:border-zinc-700 text-[#6B6B66] hover:text-[#0C0C09] dark:hover:text-white'
+                    }`}
+                    aria-label="Sombreado Fines de Semana"
+                    title={
+                      showWeekendShading
+                        ? 'Ocultar sombreado de fines de semana'
+                        : 'Mostrar sombreado de fines de semana'
+                    }
+                  >
+                    <CalendarDays className="w-3.5 h-3.5" />
+                    <span>Fines de semana</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowCriticalPath((prev) => !prev)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[3px] border text-xs font-medium transition cursor-pointer ${
+                      showCriticalPath
+                        ? 'bg-[#D97706]/20 border-[#D97706] text-[#D97706] font-bold'
+                        : 'bg-[#F4F4F1] dark:bg-zinc-800 border-[#E2E2DC] dark:border-zinc-700 text-[#6B6B66] hover:text-[#0C0C09] dark:hover:text-white'
+                    }`}
+                    aria-label="Ruta Crítica"
+                    title="Ruta Crítica (CPM)"
+                  >
+                    <Flame className="w-3.5 h-3.5 text-current" />
+                    <span>Ruta Crítica</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    data-fit-timeline-btn="true"
+                    data-fit-project-header-btn="true"
+                    onClick={() => {
+                      handleFitToProject();
+                      setMoreMenuOpen(false);
+                    }}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[3px] border border-[#E2E2DC] dark:border-zinc-700 bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-xs font-medium transition cursor-pointer"
+                    aria-label="Ajustar"
+                    title="Ajustar a Proyecto"
+                  >
+                    <Maximize2 className="w-3.5 h-3.5" />
+                    <span>Ajustar Zoom</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      scrollToToday();
+                      setMoreMenuOpen(false);
+                    }}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[3px] border border-[#E2E2DC] dark:border-zinc-700 bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-xs font-medium transition cursor-pointer"
+                    aria-label="Hoy"
+                    title="Ir a Hoy"
+                  >
+                    <Compass className="w-3.5 h-3.5" />
+                    <span>Ir a Hoy</span>
+                  </button>
+
+                  <button
+                    ref={metricsToggleBtnRef}
+                    type="button"
+                    onClick={() => {
+                      setShowMetricsDrawer((prev) => !prev);
+                      setMoreMenuOpen(false);
+                    }}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[3px] border text-xs font-medium transition cursor-pointer ${
+                      showMetricsDrawer
+                        ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09]'
+                        : 'bg-[#F4F4F1] dark:bg-zinc-800 border-[#E2E2DC] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-zinc-200'
+                    }`}
+                    aria-label="Métricas"
+                    title="Métricas del proyecto"
+                  >
+                    <BarChart3 className="w-3.5 h-3.5" />
+                    <span>Métricas</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Sección 5: Configuración General */}
+              <div className="pt-2 border-t border-[#E2E2DC] dark:border-zinc-800">
+                <button
+                  type="button"
+                  data-testid="header-settings-btn"
+                  onClick={() => {
+                    setShowSettingsModal(true);
+                    setMoreMenuOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-[3px] border text-xs font-medium transition cursor-pointer ${
+                    showSettingsModal
+                      ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
+                      : 'bg-white dark:bg-zinc-800 border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-700'
+                  }`}
+                  aria-label="Ajustes"
+                  title="Configuración de interfaz (Truncado, Líneas, Sombreado, Visibilidad)"
+                >
+                  <Settings className="w-3.5 h-3.5" />
+                  <span>Configuración General</span>
+                </button>
+              </div>
             </div>
           </div>
 

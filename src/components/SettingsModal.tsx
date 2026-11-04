@@ -9,7 +9,7 @@ import {
   EyeOff,
   RotateCcw,
 } from 'lucide-react';
-import { DEFAULT_TRUNCATE_CHAR_LIMIT } from '../types/gantt';
+import { APP_VERSION, DEFAULT_TRUNCATE_CHAR_LIMIT } from '../types/gantt';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -258,7 +258,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 border-t border-[#E2E2DC] dark:border-zinc-800 pt-3">
+        <div className="flex items-center justify-between border-t border-[#E2E2DC] dark:border-zinc-800 pt-3">
+          <div className="flex items-center gap-2">
+            <span
+              data-testid="settings-version-badge"
+              className="text-[10px] font-mono font-bold text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded border border-zinc-200 dark:border-zinc-700"
+            >
+              GanttFlow v{APP_VERSION}
+            </span>
+          </div>
           <button
             type="button"
             data-testid="settings-modal-done-btn"

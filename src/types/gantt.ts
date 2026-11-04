@@ -1,4 +1,4 @@
-export const APP_VERSION = '1.4.0';
+export const APP_VERSION = '1.5.0';
 
 export const DEFAULT_TRUNCATE_CHAR_LIMIT = 37;
 export const TRUNCATE_LIMIT_STORAGE_KEY = 'ganttflow_truncate_char_limit';
@@ -86,6 +86,7 @@ export interface GanttItem {
   notes?: string;
   hidden?: boolean;
   isExternal?: boolean; // When true, milestone/task is external (does not belong to or get constrained by the release)
+  platform?: ProjectPlatform; // Optional task-level platform override (iOS, Android, Multiplataforma)
 }
 
 export interface ComputedGanttItem extends GanttItem {

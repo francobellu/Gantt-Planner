@@ -4527,7 +4527,7 @@ test('Help page, version control v1.2.0, release selection on project creation, 
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version control consistency
-  assert.equal(pkg.version, '1.4.0', 'package.json version must be 1.4.0');
+  assert.equal(pkg.version, '1.5.0', 'package.json version must be 1.5.0');
   assert.ok(pkg.scripts['version:patch'], 'package.json must contain version:patch script');
   assert.ok(pkg.scripts['version:minor'], 'package.json must contain version:minor script');
   assert.ok(pkg.scripts['release:patch'], 'package.json must contain release:patch script');
@@ -5308,10 +5308,10 @@ test('Task name positioning, configurable row separators, 37 char truncation, v1
     const htmlWithoutWeekendShading = renderToString(mod.renderWorkspaceWithWeekendShading(false));
     assert.ok(!htmlWithoutWeekendShading.includes('bg-[#E5E5DF]'), 'Canvas and header must NOT render weekend shading when showWeekendShading is false (clean uniform background)');
 
-    // 9. App Header displays v1.3.0 badge, row-separators-btn, and weekend-shading-btn
+    // 9. App Header displays v1.5.0 badge, row-separators-btn, and weekend-shading-btn
     const appHtml = renderToString(mod.renderAppHeader());
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'Header must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.4.0'), 'Header badge must display v1.4.0');
+    assert.ok(appHtml.includes('v1.5.0'), 'Header badge must display v1.5.0');
     assert.ok(appHtml.includes('data-testid="header-toggle-row-separators-btn"'), 'Header must contain header-toggle-row-separators-btn');
     assert.ok(appHtml.includes('data-testid="header-toggle-weekend-shading-btn"'), 'Header must contain header-toggle-weekend-shading-btn');
 
@@ -5341,7 +5341,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version Bump Verification
-  assert.equal(pkg.version, '1.4.0', 'package.json version must equal 1.4.0');
+  assert.equal(pkg.version, '1.5.0', 'package.json version must equal 1.5.0');
 
   // Verify scripts/bump-version.mjs works properly
   const bumpScript = await fs.readFile(path.resolve(__dirname, '../scripts/bump-version.mjs'), 'utf8');
@@ -5514,8 +5514,8 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    // A. APP_VERSION equals 1.4.0
-    assert.equal(mod.APP_VERSION, '1.4.0', 'APP_VERSION must be 1.4.0');
+    // A. APP_VERSION equals 1.5.0
+    assert.equal(mod.APP_VERSION, '1.5.0', 'APP_VERSION must be 1.5.0');
 
     // A2. Excel Export Unit Test
     const sampleReleases = [
@@ -5592,7 +5592,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     assert.ok(appHtml.includes('data-testid="platform-filter-select"'), 'App header must contain platform-filter-select');
     assert.ok(appHtml.includes('data-testid="header-toggle-focus-mode-btn"'), 'App header must contain header-toggle-focus-mode-btn');
     assert.ok(appHtml.includes('data-testid="header-export-excel-btn"'), 'App header must contain header-export-excel-btn');
-    assert.ok(appHtml.includes('v1.4.0'), 'App header must display version v1.4.0');
+    assert.ok(appHtml.includes('v1.5.0'), 'App header must display version v1.5.0');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6031,6 +6031,191 @@ test('Excel Cronograma Completo splits dependencies per row with element names, 
     await fs.unlink(tmpFile).catch(() => {});
   }
 });
+
+test('Header overflow more-menu, Task platform field in creation/edition modal, and Version 1.5.0 verification', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const { fileURLToPath } = await import('node:url');
+  const { build } = await import('esbuild');
+  const ReactDOMServer = await import('react-dom/server');
+  const ReactMod = await import('react');
+  const React = ReactMod.default || ReactMod;
+
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
+
+  // 1. Version Bump Verification v1.5.0
+  assert.equal(pkg.version, '1.5.0', 'package.json version must equal 1.5.0');
+
+  // 2. SSR Bundle verification for TaskFormModal, App Header, and sanitizeGanttItem
+  const tmpFile = path.resolve(__dirname, `tmp_test59_bundle_${Date.now()}.mjs`);
+  try {
+    await build({
+      stdin: {
+        contents: `
+          import React from 'react';
+          import { App } from './src/App.tsx';
+          import { TaskFormModal } from './src/components/TaskFormModal.tsx';
+          import { GanttWorkspace } from './src/components/GanttWorkspace.tsx';
+          import { SettingsModal } from './src/components/SettingsModal.tsx';
+          import { APP_VERSION } from './src/types/gantt.ts';
+          import { sanitizeGanttItem } from './src/utils/ganttEngine.ts';
+
+          export { App, TaskFormModal, GanttWorkspace, SettingsModal, APP_VERSION, sanitizeGanttItem };
+
+          export function renderTaskFormModalWithPlatform(platform) {
+            const project = { id: 'p1', name: 'Mobile Banking', color: 'indigo', platform: 'Multiplataforma' };
+            const item = {
+              id: 't1',
+              name: 'Tarea Test Plataforma',
+              type: 'task',
+              startDate: '2026-03-01',
+              endDate: '2026-03-05',
+              duration: 5,
+              projectId: 'p1',
+              platform: platform || undefined,
+            };
+            return React.createElement(TaskFormModal, {
+              isOpen: true,
+              onClose: () => {},
+              onSave: () => {},
+              initialItem: item,
+              projects: [project],
+              allItems: [item],
+            });
+          }
+
+          export function renderWorkspaceWithTaskPlatform() {
+            const project = { id: 'p1', name: 'Mobile App', color: 'indigo', platform: 'Multiplataforma', releaseId: 'rel-1' };
+            const item = {
+              id: 't1',
+              name: 'Tarea Nativa iOS',
+              type: 'task',
+              startDate: '2026-03-01',
+              endDate: '2026-03-05',
+              duration: 5,
+              projectId: 'p1',
+              platform: 'iOS',
+              dependencies: [],
+              progress: 0,
+              slack: 0,
+            };
+            const rel = {
+              id: 'rel-1',
+              code: 'T_26.03.1',
+              name: 'Release Marzo',
+              year: 2026,
+              milestones: [{ id: 'm1', key: 'qg1', code: 'QG1', name: 'QG1', date: '2026-03-05' }],
+            };
+            return React.createElement(GanttWorkspace, {
+              items: [item],
+              projects: [project],
+              releases: [rel],
+              scrollContainerRef: { current: null },
+              onUpdateItem: () => {},
+              onDeleteItem: () => {},
+              onAddItem: () => {},
+              onQuickAdd: () => {},
+              initialSelectedItemId: 't1',
+            });
+          }
+        `,
+        resolveDir: path.resolve(__dirname, '..'),
+        sourcefile: 'test59_entry.tsx',
+        loader: 'tsx',
+      },
+      bundle: true,
+      format: 'esm',
+      outfile: tmpFile,
+      external: [
+        'react',
+        'react-dom',
+        'react-dom/server',
+        'lucide-react',
+        'date-fns',
+        'xlsx',
+        'clsx',
+        'tailwind-merge',
+      ],
+      jsx: 'automatic',
+    });
+
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+    const { renderToString } = ReactDOMServer.default || ReactDOMServer;
+
+    assert.equal(mod.APP_VERSION, '1.5.0', 'mod.APP_VERSION must equal 1.5.0');
+
+    // sanitizeGanttItem preserves platform
+    const sanitizedIos = mod.sanitizeGanttItem({
+      id: 't-ios-1',
+      name: 'Build Swift UI',
+      type: 'task',
+      startDate: '2026-03-01',
+      endDate: '2026-03-05',
+      duration: 5,
+      platform: 'iOS',
+    });
+    assert.equal(sanitizedIos.platform, 'iOS', 'sanitizeGanttItem must preserve iOS platform');
+
+    const sanitizedAndroid = mod.sanitizeGanttItem({
+      id: 't-and-1',
+      name: 'Build Jetpack Compose',
+      type: 'task',
+      startDate: '2026-03-01',
+      endDate: '2026-03-05',
+      duration: 5,
+      platform: 'Android',
+    });
+    assert.equal(sanitizedAndroid.platform, 'Android', 'sanitizeGanttItem must preserve Android platform');
+
+    // 4. TaskFormModal renders data-testid="task-platform-select"
+    const modalHtml = renderToString(mod.renderTaskFormModalWithPlatform('iOS'));
+    assert.ok(modalHtml.includes('data-testid="task-platform-select"'), 'TaskFormModal must render task-platform-select dropdown');
+    assert.ok(modalHtml.includes('Plataforma'), 'TaskFormModal must have Plataforma label');
+    assert.ok(modalHtml.includes('Por defecto (Multiplataforma)'), 'TaskFormModal must display project platform fallback');
+    assert.ok(modalHtml.includes('value="iOS"'), 'TaskFormModal must have iOS option');
+    assert.ok(modalHtml.includes('value="Android"'), 'TaskFormModal must have Android option');
+    assert.ok(modalHtml.includes('value="Multiplataforma"'), 'TaskFormModal must have Multiplataforma option');
+
+    // 5. GanttWorkspace inspection panel and table row render platform badges
+    const wsHtml = renderToString(mod.renderWorkspaceWithTaskPlatform());
+    assert.ok(wsHtml.includes('data-testid="task-platform-badge-t1"'), 'Table row must render task-platform-badge');
+    assert.ok(wsHtml.includes('data-testid="panel-platform-badge-t1"'), 'Inspection panel must render panel-platform-badge');
+    assert.ok(wsHtml.includes('iOS'), 'Badge must render iOS text');
+
+    // 6. Header cleanup & more-menu dropdown verification
+    const appHtml = renderToString(React.createElement(mod.App));
+    assert.ok(appHtml.includes('data-testid="header-more-menu-btn"'), 'App header must render header-more-menu-btn');
+    assert.ok(appHtml.includes('data-testid="header-more-menu-dropdown"'), 'App must render header-more-menu-dropdown');
+    assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'More menu must contain app-version-badge');
+    assert.ok(appHtml.includes('v1.5.0'), 'Version badge must display v1.5.0');
+    assert.ok(appHtml.includes('data-testid="force-reload-btn"'), 'More menu must contain force-reload-btn');
+
+    // 7. Verify secondary buttons are rendered inside the menu
+    assert.ok(appHtml.includes('data-testid="header-import-btn"'), 'Dropdown contains header-import-btn');
+    assert.ok(appHtml.includes('data-testid="header-export-btn"'), 'Dropdown contains header-export-btn');
+    assert.ok(appHtml.includes('data-testid="header-export-excel-btn"'), 'Dropdown contains header-export-excel-btn');
+    assert.ok(appHtml.includes('data-testid="header-history-btn"'), 'Dropdown contains header-history-btn');
+    assert.ok(appHtml.includes('data-testid="header-help-btn"'), 'Dropdown contains header-help-btn');
+    assert.ok(appHtml.includes('data-testid="header-settings-btn"'), 'Dropdown contains header-settings-btn');
+    assert.ok(appHtml.includes('data-testid="header-toggle-row-separators-btn"'), 'Dropdown contains header-toggle-row-separators-btn');
+    assert.ok(appHtml.includes('data-testid="header-toggle-weekend-shading-btn"'), 'Dropdown contains header-toggle-weekend-shading-btn');
+
+    // 8. SettingsModal renders version badge
+    const settingsHtml = renderToString(React.createElement(mod.SettingsModal, {
+      isOpen: true,
+      onClose: () => {},
+      truncateCharLimit: 37,
+      onChangeTruncateCharLimit: () => {},
+      hiddenReleaseCount: 0,
+    }));
+    assert.ok(settingsHtml.includes('data-testid="settings-version-badge"'), 'SettingsModal must contain settings-version-badge');
+    assert.ok(settingsHtml.includes('1.5.0') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.5.0');
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
 
 
 

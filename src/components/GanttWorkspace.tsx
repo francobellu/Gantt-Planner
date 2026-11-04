@@ -1560,7 +1560,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
     if (selectedPlatform && selectedPlatform !== 'all') {
       filtered = filtered.filter(
-        (g) => (g.project.platform || 'Multiplataforma') === selectedPlatform
+        (g) =>
+          (g.project.platform || 'Multiplataforma') === selectedPlatform ||
+          g.items.some(
+            (it) => (it.platform || g.project.platform || 'Multiplataforma') === selectedPlatform
+          )
       );
     }
 
@@ -4112,6 +4116,21 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 Oculta
                               </span>
                             )}
+                            {item.platform && (
+                              <span
+                                data-testid={`task-platform-badge-${item.id}`}
+                                title={`Plataforma específica de tarea: ${item.platform}`}
+                                className={`px-1.5 py-0.5 rounded-[2px] text-[9px] font-mono font-semibold shrink-0 border ${
+                                  item.platform === 'iOS'
+                                    ? 'bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border-sky-300 dark:border-sky-700'
+                                    : item.platform === 'Android'
+                                    ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
+                                    : 'bg-violet-50 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300 border-violet-300 dark:border-violet-700'
+                                }`}
+                              >
+                                {item.platform}
+                              </span>
+                            )}
                             {isCrit && (
                               <span
                                 title="En Ruta Crítica (Slack = 0)"
@@ -6076,6 +6095,30 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             Oculta en diagrama
                           </span>
                         )}
+                        {(() => {
+                          const itemProj = projects.find((p) => p.id === selectedItem.projectId);
+                          const effPlatform = selectedItem.platform || itemProj?.platform;
+                          if (!effPlatform) return null;
+                          return (
+                            <span
+                              data-testid={`panel-platform-badge-${selectedItem.id}`}
+                              className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-[2px] border ${
+                                effPlatform === 'iOS'
+                                  ? 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/20'
+                                  : effPlatform === 'Android'
+                                  ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20'
+                                  : 'bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/20'
+                              }`}
+                              title={`Plataforma: ${effPlatform}${
+                                selectedItem.platform
+                                  ? ' (específica de la tarea)'
+                                  : ' (heredada del proyecto)'
+                              }`}
+                            >
+                              {effPlatform}
+                            </span>
+                          );
+                        })()}
                       </div>
                       <h4
                         className="font-bold text-[#0C0C09] dark:text-zinc-100 mt-1 text-sm leading-tight break-words"

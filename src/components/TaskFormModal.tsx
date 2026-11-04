@@ -19,6 +19,7 @@ import {
   DependencyType,
   GanttItem,
   GanttProject,
+  ProjectPlatform,
   TaskColor,
   TaskType,
 } from '../types/gantt';
@@ -144,6 +145,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
         : 'indigo')
   );
   const [assignee, setAssignee] = useState(initialItem?.assignee || '');
+  const [platform, setPlatform] = useState<ProjectPlatform | ''>(initialItem?.platform || '');
   const [notes, setNotes] = useState(initialItem?.notes || '');
   const [hidden, setHidden] = useState(Boolean(initialItem?.hidden));
   const [isExternal, setIsExternal] = useState(Boolean(initialItem?.isExternal));
@@ -160,6 +162,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
       setType(initialItem.type);
       setName(initialItem.name);
       setProjectId(initialItem.projectId || fallbackPid);
+      setPlatform(initialItem.platform || '');
       setStartDate(initialItem.startDate);
       setEndDate(initialItem.endDate);
       setDuration(initialItem.type === 'milestone' ? 0 : Math.max(1, initialItem.duration));
@@ -210,6 +213,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
       userChosenCustomColor.current = false;
       setColor(isMilestone ? 'amber' : 'indigo');
       setAssignee('');
+      setPlatform('');
       setNotes('');
       setHidden(false);
       setIsExternal(false);
@@ -442,6 +446,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
       color,
       customColor: userChosenCustomColor.current,
       assignee: assignee.trim() || undefined,
+      platform: platform || undefined,
       notes: notes.trim() || undefined,
       hidden: Boolean(hidden),
       isExternal: type === 'milestone' ? Boolean(isExternal) : false,
@@ -622,9 +627,9 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
             </div>
           )}
 
-          {/* Name & Assignee */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="sm:col-span-2">
+          {/* Name, Assignee & Platform */}
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
+            <div className="sm:col-span-6">
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1.5">
                 Nombre {type === 'milestone' ? 'del Hito' : 'de la Tarea'} *
               </label>
@@ -641,7 +646,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
               />
             </div>
-            <div>
+            <div className="sm:col-span-3">
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1.5">
                 Responsable / Rol
               </label>
@@ -661,6 +666,30 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                   className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                 />
               </div>
+            </div>
+            <div className="sm:col-span-3">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1.5">
+                Plataforma
+              </label>
+              {(() => {
+                const currentProj = projects.find((p) => p.id === (projectId || defaultProjectId || ''));
+                return (
+                  <select
+                    data-testid="task-platform-select"
+                    value={platform}
+                    onChange={(e) => setPlatform(e.target.value as ProjectPlatform | '')}
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer"
+                    title="Plataforma de la tarea (iOS, Android, Multiplataforma o heredar del proyecto)"
+                  >
+                    <option value="">
+                      {currentProj?.platform ? `Por defecto (${currentProj.platform})` : 'Por defecto (Heredar)'}
+                    </option>
+                    <option value="iOS">iOS</option>
+                    <option value="Android">Android</option>
+                    <option value="Multiplataforma">Multiplataforma</option>
+                  </select>
+                );
+              })()}
             </div>
           </div>
 
