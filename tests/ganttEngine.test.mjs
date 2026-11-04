@@ -4527,7 +4527,7 @@ test('Help page, version control v1.2.0, release selection on project creation, 
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version control consistency
-  assert.equal(pkg.version, '1.5.0', 'package.json version must be 1.5.0');
+  assert.equal(pkg.version, '1.6.0', 'package.json version must be 1.5.0');
   assert.ok(pkg.scripts['version:patch'], 'package.json must contain version:patch script');
   assert.ok(pkg.scripts['version:minor'], 'package.json must contain version:minor script');
   assert.ok(pkg.scripts['release:patch'], 'package.json must contain release:patch script');
@@ -5308,10 +5308,10 @@ test('Task name positioning, configurable row separators, 37 char truncation, v1
     const htmlWithoutWeekendShading = renderToString(mod.renderWorkspaceWithWeekendShading(false));
     assert.ok(!htmlWithoutWeekendShading.includes('bg-[#E5E5DF]'), 'Canvas and header must NOT render weekend shading when showWeekendShading is false (clean uniform background)');
 
-    // 9. App Header displays v1.5.0 badge, row-separators-btn, and weekend-shading-btn
+    // 9. App Header displays v1.6.0 badge, row-separators-btn, and weekend-shading-btn
     const appHtml = renderToString(mod.renderAppHeader());
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'Header must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.5.0'), 'Header badge must display v1.5.0');
+    assert.ok(appHtml.includes('v1.6.0'), 'Header badge must display v1.6.0');
     assert.ok(appHtml.includes('data-testid="header-toggle-row-separators-btn"'), 'Header must contain header-toggle-row-separators-btn');
     assert.ok(appHtml.includes('data-testid="header-toggle-weekend-shading-btn"'), 'Header must contain header-toggle-weekend-shading-btn');
 
@@ -5341,7 +5341,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version Bump Verification
-  assert.equal(pkg.version, '1.5.0', 'package.json version must equal 1.5.0');
+  assert.equal(pkg.version, '1.6.0', 'package.json version must equal 1.5.0');
 
   // Verify scripts/bump-version.mjs works properly
   const bumpScript = await fs.readFile(path.resolve(__dirname, '../scripts/bump-version.mjs'), 'utf8');
@@ -5515,7 +5515,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // A. APP_VERSION equals 1.5.0
-    assert.equal(mod.APP_VERSION, '1.5.0', 'APP_VERSION must be 1.5.0');
+    assert.equal(mod.APP_VERSION, '1.6.0', 'APP_VERSION must be 1.5.0');
 
     // A2. Excel Export Unit Test
     const sampleReleases = [
@@ -5592,7 +5592,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     assert.ok(appHtml.includes('data-testid="platform-filter-select"'), 'App header must contain platform-filter-select');
     assert.ok(appHtml.includes('data-testid="header-toggle-focus-mode-btn"'), 'App header must contain header-toggle-focus-mode-btn');
     assert.ok(appHtml.includes('data-testid="header-export-excel-btn"'), 'App header must contain header-export-excel-btn');
-    assert.ok(appHtml.includes('v1.5.0'), 'App header must display version v1.5.0');
+    assert.ok(appHtml.includes('v1.6.0'), 'App header must display version v1.6.0');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6044,8 +6044,8 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
-  // 1. Version Bump Verification v1.5.0
-  assert.equal(pkg.version, '1.5.0', 'package.json version must equal 1.5.0');
+  // 1. Version Bump Verification v1.6.0
+  assert.equal(pkg.version, '1.6.0', 'package.json version must equal 1.5.0');
 
   // 2. SSR Bundle verification for TaskFormModal, App Header, and sanitizeGanttItem
   const tmpFile = path.resolve(__dirname, `tmp_test59_bundle_${Date.now()}.mjs`);
@@ -6143,7 +6143,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.equal(mod.APP_VERSION, '1.5.0', 'mod.APP_VERSION must equal 1.5.0');
+    assert.equal(mod.APP_VERSION, '1.6.0', 'mod.APP_VERSION must equal 1.5.0');
 
     // sanitizeGanttItem preserves platform
     const sanitizedIos = mod.sanitizeGanttItem({
@@ -6188,7 +6188,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     assert.ok(appHtml.includes('data-testid="header-more-menu-btn"'), 'App header must render header-more-menu-btn');
     assert.ok(appHtml.includes('data-testid="header-more-menu-dropdown"'), 'App must render header-more-menu-dropdown');
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'More menu must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.5.0'), 'Version badge must display v1.5.0');
+    assert.ok(appHtml.includes('v1.6.0'), 'Version badge must display v1.6.0');
     assert.ok(appHtml.includes('data-testid="force-reload-btn"'), 'More menu must contain force-reload-btn');
 
     // 7. Verify secondary buttons are rendered inside the menu
@@ -6210,7 +6210,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
       hiddenReleaseCount: 0,
     }));
     assert.ok(settingsHtml.includes('data-testid="settings-version-badge"'), 'SettingsModal must contain settings-version-badge');
-    assert.ok(settingsHtml.includes('1.5.0') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.5.0');
+    assert.ok(settingsHtml.includes('1.6.0') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.5.0');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
