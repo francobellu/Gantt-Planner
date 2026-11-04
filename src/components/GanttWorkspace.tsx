@@ -47,8 +47,6 @@ import {
   Trash2,
   User,
   X,
-  ZoomIn,
-  ZoomOut,
 } from 'lucide-react';
 import {
   ArrowVisibility,
@@ -3344,47 +3342,6 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               </div>
             </div>
           )}
-
-          {/* Zoom In & Zoom Out Controls */}
-          <div className="flex items-center gap-1 shrink-0">
-            <div className="relative group inline-flex items-center">
-              <button
-                type="button"
-                data-testid="cronograma-zoom-out-btn"
-                onClick={() => handleZoomChange(dayWidth * 0.8)}
-                aria-label="Alejar zoom"
-                title="Alejar escala de tiempo (-)"
-                className="w-7 h-7 flex items-center justify-center rounded-[3px] border border-[#E2E2DC] dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09] dark:hover:text-white hover:border-[#0C0C09] transition cursor-pointer"
-              >
-                <ZoomOut className="w-3.5 h-3.5" />
-              </button>
-              <div className="pointer-events-none absolute top-full mt-1.5 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col items-center z-50 animate-fade-in">
-                <div className="w-1.5 h-1.5 bg-[#0C0C09] dark:bg-zinc-100 rotate-45 -mb-0.5" />
-                <div className="bg-[#0C0C09] dark:bg-zinc-100 text-white dark:text-[#0C0C09] text-[10px] font-medium px-2 py-0.5 rounded shadow-lg whitespace-nowrap">
-                  Alejar zoom
-                </div>
-              </div>
-            </div>
-
-            <div className="relative group inline-flex items-center">
-              <button
-                type="button"
-                data-testid="cronograma-zoom-in-btn"
-                onClick={() => handleZoomChange(dayWidth * 1.25)}
-                aria-label="Acercar zoom"
-                title="Acercar escala de tiempo (+)"
-                className="w-7 h-7 flex items-center justify-center rounded-[3px] border border-[#E2E2DC] dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09] dark:hover:text-white hover:border-[#0C0C09] transition cursor-pointer"
-              >
-                <ZoomIn className="w-3.5 h-3.5" />
-              </button>
-              <div className="pointer-events-none absolute top-full mt-1.5 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col items-center z-50 animate-fade-in">
-                <div className="w-1.5 h-1.5 bg-[#0C0C09] dark:bg-zinc-100 rotate-45 -mb-0.5" />
-                <div className="bg-[#0C0C09] dark:bg-zinc-100 text-white dark:text-[#0C0C09] text-[10px] font-medium px-2 py-0.5 rounded shadow-lg whitespace-nowrap">
-                  Acercar zoom
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Right Side: The 6 Dedicated Icon-Only Buttons with Tooltip Hints */}

@@ -10,10 +10,24 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.8.1',
+    date: '04 Nov 2026',
+    title: 'Interfaz despejada: eliminación de botones de zoom y deshacer/rehacer, y favicon oficial',
+    isLatest: true,
+    features: [
+      'Favicon oficial en pestaña del navegador: el icono distintivo GitBranch se muestra como icono oficial de la aplicación al cargar la web.',
+    ],
+    improvements: [
+      'Eliminación de los botones redundantes de Zoom (+/-) en la barra del cronograma para maximizar el espacio de visualización.',
+      'Eliminación de los botones de Deshacer y Rehacer de la cabecera superior, preservando los atajos de teclado completos (Ctrl+Z, Ctrl+Shift+Z, ⌘Z, ⌘⇧Z) y la página de Historial.',
+      'Eliminación del texto de marca GanttFlow y su icono de la barra superior para optimizar el espacio horizontal disponible.',
+    ],
+  },
+  {
     version: '1.8.0',
     date: '04 Nov 2026',
     title: 'Filtro por búsqueda y plataforma en tabla, dependencias entre proyectos colapsados, reordenación y barra sticky',
-    isLatest: true,
+    isLatest: false,
     features: [
       'Búsqueda en tiempo real por texto (nombre, notas, asignado) y filtro de plataforma (Todas, iOS, Android, Multiplataforma) directamente desde la cabecera de la tabla WBS.',
       'Visualización de dependencias entre proyectos colapsados: al colapsar proyectos, las dependencias entre tareas de distintos proyectos se conectan automáticamente desde y hacia las barras de resumen de los proyectos.',

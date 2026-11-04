@@ -19,14 +19,12 @@ import {
   FileSpreadsheet,
   Flame,
   FolderKanban,
-  GitBranch,
   HelpCircle,
   History,
   Layers,
   Maximize2,
   Moon,
   Plus,
-  Redo2,
   Rocket,
   RotateCw,
   Rows,
@@ -37,10 +35,8 @@ import {
   Sparkles,
   Sun,
   Trash2,
-  Undo2,
   Upload,
   X,
-  ZoomIn,
 } from 'lucide-react';
 import {
   APP_VERSION,
@@ -1920,15 +1916,8 @@ export function App({
       {/* Top Navigation Bar — Single Clean 48px Bar */}
       <header className="sticky top-0 z-30 h-12 px-4 bg-[#F4F4F1] dark:bg-[#0C0C09] border-b border-[#0C0C09] dark:border-zinc-800 flex items-center justify-between gap-3 select-none">
         
-        {/* LEFT: Brand Logo + Primary Workflow Controls */}
+        {/* LEFT: Primary Workflow Controls */}
         <div className="flex items-center gap-2.5 min-w-0 flex-wrap">
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="font-display font-bold text-sm tracking-tight text-[#0C0C09] dark:text-zinc-100 flex items-center gap-1.5 shrink-0">
-              <GitBranch className="w-4 h-4 text-[#312C85] dark:text-indigo-400" />
-              <span>GanttFlow</span>
-            </span>
-          </div>
-
           {/* Botón posicionado en el icono para esconder la tabla y enseñar solo el diagrama */}
           <button
             type="button"
@@ -2099,43 +2088,6 @@ export function App({
                 </button>
               </div>
             )}
-          </div>
-
-          {/* Deshacer / Rehacer */}
-          <div className="flex items-center border border-[#0C0C09] dark:border-zinc-700 rounded-[4px] bg-white dark:bg-zinc-900 overflow-hidden shrink-0">
-            <button
-              type="button"
-              data-testid="header-undo-btn"
-              data-undo-btn="true"
-              disabled={!canUndo}
-              onClick={handleUndo}
-              className={`p-1.5 transition flex items-center justify-center ${
-                canUndo
-                  ? 'text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 cursor-pointer'
-                  : 'text-[#0C0C09]/25 dark:text-zinc-600 cursor-not-allowed'
-              }`}
-              title="Deshacer (Ctrl+Z / ⌘Z)"
-              aria-label="Deshacer"
-            >
-              <Undo2 className="w-3.5 h-3.5" />
-            </button>
-            <div className="w-px h-3.5 bg-[#E2E2DC] dark:bg-zinc-800" />
-            <button
-              type="button"
-              data-testid="header-redo-btn"
-              data-redo-btn="true"
-              disabled={!canRedo}
-              onClick={handleRedo}
-              className={`p-1.5 transition flex items-center justify-center ${
-                canRedo
-                  ? 'text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 cursor-pointer'
-                  : 'text-[#0C0C09]/25 dark:text-zinc-600 cursor-not-allowed'
-              }`}
-              title="Rehacer (Ctrl+Shift+Z / ⌘⇧Z)"
-              aria-label="Rehacer"
-            >
-              <Redo2 className="w-3.5 h-3.5" />
-            </button>
           </div>
 
           {/* Botones de Importar y Exportar directos en barra superior (Icon-Only) */}
@@ -2342,9 +2294,8 @@ export function App({
                       setShowReleaseNotesModal(true);
                     }}
                     className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[3px] bg-[#0C0C09] hover:bg-[#312C85] text-white dark:bg-zinc-100 dark:hover:bg-white dark:text-[#0C0C09] text-[10px] font-mono font-bold tracking-tight shadow-xs transition cursor-pointer"
-                    title={`GanttFlow v${APP_VERSION} · Clic para ver notas de versión y novedades`}
+                    title={`v${APP_VERSION} · Clic para ver notas de versión y novedades`}
                   >
-                    <span>GanttFlow</span>
                     <span>{`v${APP_VERSION}`}</span>
                   </button>
                 </div>

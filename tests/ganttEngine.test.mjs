@@ -3491,15 +3491,15 @@ test('Timeline Drag Invariance (never modify other tasks), Undo/Redo mechanism, 
   try {
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
 
-    // Verify Gantt view header renders Deshacer, Rehacer, and Historial buttons
+    // Verify Gantt view header does not clutter with Undo/Redo buttons (shortcuts used) and renders Historial button
     const ganttHtml = ReactDOMServer.renderToString(mod.renderGanttApp());
     assert.ok(
-      ganttHtml.includes('data-testid="header-undo-btn"'),
-      'Header must render Deshacer (Undo) button'
+      !ganttHtml.includes('data-testid="header-undo-btn"'),
+      'Header must not render Deshacer (Undo) button (relying on keyboard shortcuts)'
     );
     assert.ok(
-      ganttHtml.includes('data-testid="header-redo-btn"'),
-      'Header must render Rehacer (Redo) button'
+      !ganttHtml.includes('data-testid="header-redo-btn"'),
+      'Header must not render Rehacer (Redo) button (relying on keyboard shortcuts)'
     );
     assert.ok(
       ganttHtml.includes('data-testid="header-history-btn"'),
@@ -4007,10 +4007,6 @@ test('App version in settings, inline task name editing, custom colors, and proj
     assert.ok(
       appHtml.includes(`v${mod.APP_VERSION}`),
       `Header must display version v${mod.APP_VERSION}`
-    );
-    assert.ok(
-      appHtml.includes(`GanttFlow v${mod.APP_VERSION}`),
-      `Header must display GanttFlow v${mod.APP_VERSION}`
     );
 
     // Test Workspace with project description indicator badge and info button
@@ -4528,7 +4524,7 @@ test('Help page, version control v1.2.0, release selection on project creation, 
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version control consistency
-  assert.equal(pkg.version, '1.8.0', 'package.json version must be 1.8.0');
+  assert.equal(pkg.version, '1.8.1', 'package.json version must be 1.8.1');
   assert.ok(pkg.scripts['version:patch'], 'package.json must contain version:patch script');
   assert.ok(pkg.scripts['version:minor'], 'package.json must contain version:minor script');
   assert.ok(pkg.scripts['release:patch'], 'package.json must contain release:patch script');
@@ -5309,10 +5305,10 @@ test('Task name positioning, configurable row separators, 37 char truncation, v1
     const htmlWithoutWeekendShading = renderToString(mod.renderWorkspaceWithWeekendShading(false));
     assert.ok(!htmlWithoutWeekendShading.includes('bg-[#E5E5DF]'), 'Canvas and header must NOT render weekend shading when showWeekendShading is false (clean uniform background)');
 
-    // 9. App Header displays v1.8.0 badge, row-separators-btn, and weekend-shading-btn
+    // 9. App Header displays v1.8.1 badge, row-separators-btn, and weekend-shading-btn
     const appHtml = renderToString(mod.renderAppHeader());
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'Header must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.8.0'), 'Header badge must display v1.8.0');
+    assert.ok(appHtml.includes('v1.8.1'), 'Header badge must display v1.8.1');
     assert.ok(appHtml.includes('data-testid="header-toggle-row-separators-btn"'), 'Header must contain header-toggle-row-separators-btn');
     assert.ok(appHtml.includes('data-testid="header-toggle-weekend-shading-btn"'), 'Header must contain header-toggle-weekend-shading-btn');
 
@@ -5342,7 +5338,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version Bump Verification
-  assert.equal(pkg.version, '1.8.0', 'package.json version must equal 1.8.0');
+  assert.equal(pkg.version, '1.8.1', 'package.json version must equal 1.8.1');
 
   // Verify scripts/bump-version.mjs works properly
   const bumpScript = await fs.readFile(path.resolve(__dirname, '../scripts/bump-version.mjs'), 'utf8');
@@ -5515,8 +5511,8 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    // A. APP_VERSION equals 1.8.0
-    assert.equal(mod.APP_VERSION, '1.8.0', 'APP_VERSION must be 1.8.0');
+    // A. APP_VERSION equals 1.8.1
+    assert.equal(mod.APP_VERSION, '1.8.1', 'APP_VERSION must be 1.8.1');
 
     // A2. Excel Export Unit Test
     const sampleReleases = [
@@ -5593,7 +5589,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     assert.ok(appHtml.includes('data-testid="platform-filter-select"'), 'App header must contain platform-filter-select');
     assert.ok(appHtml.includes('data-testid="header-toggle-focus-mode-btn"'), 'App header must contain header-toggle-focus-mode-btn');
     assert.ok(appHtml.includes('data-testid="header-export-excel-btn"'), 'App header must contain header-export-excel-btn');
-    assert.ok(appHtml.includes('v1.8.0'), 'App header must display version v1.8.0');
+    assert.ok(appHtml.includes('v1.8.1'), 'App header must display version v1.8.1');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6045,8 +6041,8 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
-  // 1. Version Bump Verification v1.8.0
-  assert.equal(pkg.version, '1.8.0', 'package.json version must equal 1.8.0');
+  // 1. Version Bump Verification v1.8.1
+  assert.equal(pkg.version, '1.8.1', 'package.json version must equal 1.8.1');
 
   // 2. SSR Bundle verification for TaskFormModal, App Header, and sanitizeGanttItem
   const tmpFile = path.resolve(__dirname, `tmp_test59_bundle_${Date.now()}.mjs`);
@@ -6144,7 +6140,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.equal(mod.APP_VERSION, '1.8.0', 'mod.APP_VERSION must equal 1.8.0');
+    assert.equal(mod.APP_VERSION, '1.8.1', 'mod.APP_VERSION must equal 1.8.1');
 
     // sanitizeGanttItem preserves platform
     const sanitizedIos = mod.sanitizeGanttItem({
@@ -6189,7 +6185,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     assert.ok(appHtml.includes('data-testid="header-more-menu-btn"'), 'App header must render header-more-menu-btn');
     assert.ok(appHtml.includes('data-testid="header-more-menu-dropdown"'), 'App must render header-more-menu-dropdown');
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'More menu must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.8.0'), 'Version badge must display v1.8.0');
+    assert.ok(appHtml.includes('v1.8.1'), 'Version badge must display v1.8.1');
     assert.ok(appHtml.includes('data-testid="force-reload-btn"'), 'More menu must contain force-reload-btn');
 
     // 7. Verify secondary buttons are rendered inside the menu
@@ -6211,7 +6207,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
       hiddenReleaseCount: 0,
     }));
     assert.ok(settingsHtml.includes('data-testid="settings-version-badge"'), 'SettingsModal must contain settings-version-badge');
-    assert.ok(settingsHtml.includes('1.8.0') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.8.0');
+    assert.ok(settingsHtml.includes('1.8.1') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.8.1');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6275,9 +6271,9 @@ test('Dedicated Cronograma Toolbar with space-saving icon-only buttons, hover hi
     assert.ok(appHtml.includes('data-testid="header-scroll-today-btn"'), 'Toolbar contains header-scroll-today-btn');
     assert.ok(appHtml.includes('data-testid="header-toggle-metrics-btn"'), 'Toolbar contains header-toggle-metrics-btn');
 
-    // 3. Zoom controls & table toggle in toolbar
-    assert.ok(appHtml.includes('data-testid="cronograma-zoom-out-btn"'), 'Toolbar contains zoom-out button');
-    assert.ok(appHtml.includes('data-testid="cronograma-zoom-in-btn"'), 'Toolbar contains zoom-in button');
+    // 3. Zoom controls removed & table toggle in toolbar
+    assert.ok(!appHtml.includes('data-testid="cronograma-zoom-out-btn"'), 'Toolbar must NOT contain zoom-out button');
+    assert.ok(!appHtml.includes('data-testid="cronograma-zoom-in-btn"'), 'Toolbar must NOT contain zoom-in button');
     assert.ok(appHtml.includes('data-testid="cronograma-toggle-table-btn"'), 'Toolbar contains toggle-table button');
 
     // 4. Buttons are icon-only (do not contain text spans) and have hints/tooltips
@@ -6365,14 +6361,14 @@ test('Test 61: Version button, compiled release notes modal and changelog across
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
 
     // 1. Check RELEASE_NOTES compiled data
-    assert.strictEqual(mod.APP_VERSION, '1.8.0');
+    assert.strictEqual(mod.APP_VERSION, '1.8.1');
     assert.ok(Array.isArray(mod.RELEASE_NOTES), 'RELEASE_NOTES must be an array');
     assert.ok(mod.RELEASE_NOTES.length >= 8, 'RELEASE_NOTES must have at least 8 releases');
 
     const latest = mod.RELEASE_NOTES[0];
-    assert.strictEqual(latest.version, '1.8.0', 'First release note must be 1.8.0');
+    assert.strictEqual(latest.version, '1.8.1', 'First release note must be 1.8.1');
     assert.strictEqual(latest.isLatest, true, 'First release note must be isLatest: true');
-    assert.ok(latest.features.length > 0, 'v1.8.0 must contain features');
+    assert.ok(latest.features.length > 0, 'v1.8.1 must contain features');
 
     // 2. Render App and verify version button exists in dropdown menu and is NOT duplicated in top header
     const appHtml = renderToString(React.createElement(mod.App));
@@ -6385,8 +6381,8 @@ test('Test 61: Version button, compiled release notes modal and changelog across
       'App dropdown must contain data-testid="app-version-badge"'
     );
     assert.ok(
-      appHtml.includes('<button') && appHtml.includes('data-testid="app-version-badge"') && appHtml.includes('v1.8.0'),
-      'app-version-badge in tools dropdown must be an interactive button showing v1.8.0'
+      appHtml.includes('<button') && appHtml.includes('data-testid="app-version-badge"') && appHtml.includes('v1.8.1'),
+      'app-version-badge in tools dropdown must be an interactive button showing v1.8.1'
     );
 
     // 3. Render ReleaseNotesModal
@@ -6805,6 +6801,98 @@ test('Test 64: v1.8.0 Table search & platform filters, collapsed cross-project d
     await fs.unlink(tmpFile).catch(() => {});
   }
 });
+
+test('Test 65: v1.8.1 Elimination of zoom buttons, undo/redo buttons, GanttFlow text/icon from header, and GitBranch favicon in index.html', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const { fileURLToPath } = await import('node:url');
+  const React = (await import('react')).default;
+  const { renderToString } = await import('react-dom/server');
+  const { build } = await import('esbuild');
+
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const tmpFile = path.resolve(__dirname, `./tmp_test65_bundle_${Date.now()}.mjs`);
+
+  try {
+    // 1. Verify index.html contains favicon link
+    const indexHtml = await fs.readFile(path.resolve(__dirname, '../index.html'), 'utf8');
+    assert.ok(
+      indexHtml.includes('<link rel="icon" type="image/svg+xml" href="/favicon.svg" />'),
+      'index.html must link to /favicon.svg'
+    );
+
+    // 2. Verify public/favicon.svg exists and contains GitBranch path
+    const faviconSvg = await fs.readFile(path.resolve(__dirname, '../public/favicon.svg'), 'utf8');
+    assert.ok(faviconSvg.includes('<svg'), 'public/favicon.svg must be an SVG file');
+    assert.ok(faviconSvg.includes('d="M18 9a9 9 0 0 1-9 9"'), 'favicon.svg must contain GitBranch icon path');
+    assert.ok(faviconSvg.includes('#312C85'), 'favicon.svg must use brand indigo color #312C85');
+
+    // 3. Build SSR bundle
+    await build({
+      entryPoints: [],
+      stdin: {
+        contents: `
+          import React from 'react';
+          import { App } from './src/App.tsx';
+          import { GanttWorkspace } from './src/components/GanttWorkspace.tsx';
+          export { App, GanttWorkspace };
+        `,
+        resolveDir: path.resolve(__dirname, '..'),
+        sourcefile: 'test65_entry.tsx',
+        loader: 'tsx',
+      },
+      bundle: true,
+      format: 'esm',
+      outfile: tmpFile,
+      platform: 'neutral',
+      target: 'es2022',
+      jsx: 'automatic',
+      external: [
+        'react',
+        'react-dom',
+        'react-dom/server',
+        'lucide-react',
+        'date-fns',
+        'date-fns/locale',
+        'xlsx',
+        'canvas-confetti'
+      ],
+      define: {
+        'process.env.NODE_ENV': '"production"'
+      }
+    });
+
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+
+    // 4. Verify GanttWorkspace has NO zoom buttons
+    const wsHtml = renderToString(React.createElement(mod.GanttWorkspace, {
+      items: [],
+      projects: [],
+      releases: [],
+      scrollContainerRef: { current: null },
+      zoom: 'week',
+      showCriticalPath: false,
+      showCpmFloat: false,
+      autoCascade: false,
+    }));
+    assert.ok(!wsHtml.includes('cronograma-zoom-out-btn'), 'GanttWorkspace must NOT render cronograma-zoom-out-btn');
+    assert.ok(!wsHtml.includes('cronograma-zoom-in-btn'), 'GanttWorkspace must NOT render cronograma-zoom-in-btn');
+
+    // 5. Verify App header has NO undo/redo buttons and NO GanttFlow brand logo
+    const appHtml = renderToString(React.createElement(mod.App));
+    assert.ok(!appHtml.includes('data-testid="header-undo-btn"'), 'App header must NOT render header-undo-btn');
+    assert.ok(!appHtml.includes('data-testid="header-redo-btn"'), 'App header must NOT render header-redo-btn');
+
+    // Extract the <header>...</header> block to assert brand removal
+    const headerMatch = appHtml.match(/<header[^>]*>([\s\S]*?)<\/header>/);
+    assert.ok(headerMatch, 'App must render a header');
+    const headerContent = headerMatch[1];
+    assert.ok(!headerContent.includes('<span>GanttFlow</span>'), 'Header must NOT render GanttFlow text brand');
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
 
 
 
