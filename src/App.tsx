@@ -1422,6 +1422,67 @@ export function App({
     );
   };
 
+  const handleReorderProject = (projectId: string, direction: 'up' | 'down') => {
+    const targetProj = effectiveProjects.find((p) => p.id === projectId);
+    if (!targetProj) return;
+
+    // Filter projects sharing the same release (or unassigned if no release)
+    const sameReleaseProjs = effectiveProjects.filter(
+      (p) => (p.releaseId || '') === (targetProj.releaseId || '')
+    );
+    const currentIndex = sameReleaseProjs.findIndex((p) => p.id === projectId);
+    if (currentIndex < 0) return;
+
+    const swapIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (swapIndex < 0 || swapIndex >= sameReleaseProjs.length) return;
+
+    const otherProj = sameReleaseProjs[swapIndex];
+    const projIndexA = effectiveProjects.findIndex((p) => p.id === targetProj.id);
+    const projIndexB = effectiveProjects.findIndex((p) => p.id === otherProj.id);
+    if (projIndexA < 0 || projIndexB < 0) return;
+
+    const nextProjects = [...effectiveProjects];
+    nextProjects[projIndexA] = otherProj;
+    nextProjects[projIndexB] = targetProj;
+
+    setProjects(nextProjects);
+    recordPlanChange(
+      'reorder_project',
+      'Reordenar Proyecto',
+      `Mover proyecto '${targetProj.name}' ${direction === 'up' ? 'hacia arriba' : 'hacia abajo'}`,
+      items,
+      nextProjects,
+      targetProj.id
+    );
+  };
+
+  const handleChangeProjectColor = (projectId: string, newColor: TaskColor) => {
+    const nextProjects = effectiveProjects.map((p) =>
+      p.id === projectId ? { ...p, color: newColor } : p
+    );
+    const nextItems = items.map((it) => {
+      if (it.projectId === projectId && it.type === 'task') {
+        return {
+          ...it,
+          color: newColor,
+          customColor: true,
+        };
+      }
+      return it;
+    });
+
+    setProjects(nextProjects);
+    setItems(nextItems);
+    recordPlanChange(
+      'change_project_color',
+      'Color de Proyecto',
+      `Cambiar color del proyecto y todas sus tareas a '${newColor}'`,
+      nextItems,
+      nextProjects,
+      projectId
+    );
+  };
+
   const handleToggleProjectCollapse = (projectId: string) => {
     setProjects(() =>
       effectiveProjects.map((p) =>
@@ -2605,6 +2666,8 @@ export function App({
               onToggleGroupByProject={() => setGroupByProject((prev) => !prev)}
               onToggleProjectCollapse={handleToggleProjectCollapse}
               onUpdateProject={handleUpdateProject}
+              onReorderProject={handleReorderProject}
+              onChangeProjectColor={handleChangeProjectColor}
               onDeleteProject={handleDeleteProject}
               onCreateProject={handleCreateProject}
               onCreateDigiTask={handleCreateDigiTask}

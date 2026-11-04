@@ -76,6 +76,18 @@ const ACTION_BADGE_CONFIG: Record<
     text: 'text-violet-700 dark:text-violet-300',
     border: 'border-violet-200 dark:border-violet-800',
   },
+  reorder_project: {
+    label: 'Reordenar Proyecto',
+    bg: 'bg-violet-50 dark:bg-violet-950/60',
+    text: 'text-violet-700 dark:text-violet-300',
+    border: 'border-violet-200 dark:border-violet-800',
+  },
+  change_project_color: {
+    label: 'Color Proyecto',
+    bg: 'bg-fuchsia-50 dark:bg-fuchsia-950/60',
+    text: 'text-fuchsia-700 dark:text-fuchsia-300',
+    border: 'border-fuchsia-200 dark:border-fuchsia-800',
+  },
   create_project: {
     label: 'Nuevo Proyecto',
     bg: 'bg-emerald-50 dark:bg-emerald-950/60',

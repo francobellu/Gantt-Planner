@@ -34,12 +34,15 @@ import {
   Maximize2,
   Minus,
   MousePointer,
+  Palette,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
   Rocket,
   Rows,
+  Search,
   SlidersHorizontal,
+  Smartphone,
   Sparkles,
   Trash2,
   User,
@@ -167,6 +170,8 @@ interface GanttWorkspaceProps {
   onToggleGroupByProject?: () => void;
   onToggleProjectCollapse?: (projectId: string) => void;
   onUpdateProject?: (project: GanttProject) => void;
+  onReorderProject?: (projectId: string, direction: 'up' | 'down') => void;
+  onChangeProjectColor?: (projectId: string, newColor: TaskColor) => void;
   onDeleteProject?: (projectId: string) => void;
   onCreateProject?: (project: GanttProject) => void;
   onCreateDigiTask?: (project: GanttProject) => void;
@@ -527,6 +532,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   onToggleGroupByProject,
   onToggleProjectCollapse,
   onUpdateProject,
+  onReorderProject,
+  onChangeProjectColor,
   onDeleteProject,
   onCreateProject,
   onCreateDigiTask,
@@ -566,6 +573,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   onChangeTruncateCharLimit,
 }) => {
   const [focusedProjectInputId, setFocusedProjectInputId] = useState<string | null>(null);
+  const [tableSearchQuery, setTableSearchQuery] = useState<string>('');
+  const [tablePlatformFilter, setTablePlatformFilter] = useState<'all' | ProjectPlatform>('all');
+  const [hoveredNameId, setHoveredNameId] = useState<string | null>(null);
+  const [activeColorPickerProjId, setActiveColorPickerProjId] = useState<string | null>(null);
   const [collapsedReleaseIds, setCollapsedReleaseIds] = useState<Set<string>>(() => {
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
@@ -1666,14 +1677,39 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       );
     }
 
-    if (selectedPlatform && selectedPlatform !== 'all') {
+    const effectivePlatform =
+      tablePlatformFilter !== 'all'
+        ? tablePlatformFilter
+        : selectedPlatform && selectedPlatform !== 'all'
+        ? selectedPlatform
+        : 'all';
+
+    if (effectivePlatform !== 'all') {
       filtered = filtered.filter(
         (g) =>
-          (g.project.platform || 'Multiplataforma') === selectedPlatform ||
+          (g.project.platform || 'Multiplataforma') === effectivePlatform ||
           g.items.some(
-            (it) => (it.platform || g.project.platform || 'Multiplataforma') === selectedPlatform
+            (it) => (it.platform || g.project.platform || 'Multiplataforma') === effectivePlatform
           )
       );
+    }
+
+    const query = tableSearchQuery.trim().toLowerCase();
+    if (query) {
+      filtered = filtered.filter((g) => {
+        const projMatch =
+          g.project.name.toLowerCase().includes(query) ||
+          (g.project.description && g.project.description.toLowerCase().includes(query)) ||
+          (g.project.platform && g.project.platform.toLowerCase().includes(query));
+        if (projMatch) return true;
+        return g.items.some(
+          (it) =>
+            it.name.toLowerCase().includes(query) ||
+            (it.assignee && it.assignee.toLowerCase().includes(query)) ||
+            (it.notes && it.notes.toLowerCase().includes(query)) ||
+            (it.platform && it.platform.toLowerCase().includes(query))
+        );
+      });
     }
 
     if (focusRelatedSets) {
@@ -1687,6 +1723,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     selectedProjectId,
     hiddenReleaseIds,
     selectedPlatform,
+    tablePlatformFilter,
+    tableSearchQuery,
     focusRelatedSets,
   ]);
 
@@ -1706,6 +1744,32 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   // Unified row list (Release headers + Project group headers + Task/Milestone rows) so Left WBS Table and Right Timeline stay 100% aligned
   const displayRows = useMemo<DisplayRow[]>(() => {
     const rows: DisplayRow[] = [];
+    const effectivePlatform =
+      tablePlatformFilter !== 'all'
+        ? tablePlatformFilter
+        : selectedPlatform && selectedPlatform !== 'all'
+        ? selectedPlatform
+        : 'all';
+    const query = tableSearchQuery.trim().toLowerCase();
+
+    const itemMatchesFilter = (it: ComputedGanttItem, proj: GanttProject) => {
+      if (effectivePlatform !== 'all') {
+        const plat = it.platform || proj.platform || 'Multiplataforma';
+        if (plat !== effectivePlatform) return false;
+      }
+      if (!query) return true;
+      const projMatches =
+        proj.name.toLowerCase().includes(query) ||
+        (proj.description && proj.description.toLowerCase().includes(query));
+      if (projMatches) return true;
+      return (
+        it.name.toLowerCase().includes(query) ||
+        (it.assignee && it.assignee.toLowerCase().includes(query)) ||
+        (it.notes && it.notes.toLowerCase().includes(query)) ||
+        (it.platform && it.platform.toLowerCase().includes(query))
+      );
+    };
+
     if (groupingMode === 'release' && releases.length > 0) {
       const visibleProjects = visibleProjectGroups.map((g) => g.project);
       if (visibleProjects.length === 0) {
@@ -1751,6 +1815,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   if (focusRelatedSets && !focusRelatedSets.itemIds.has(item.id)) {
                     continue;
                   }
+                  if (!itemMatchesFilter(item, group.project)) {
+                    continue;
+                  }
                   rows.push({
                     kind: 'item',
                     rowId: item.id,
@@ -1782,6 +1849,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               if (focusRelatedSets && !focusRelatedSets.itemIds.has(item.id)) {
                 continue;
               }
+              if (!itemMatchesFilter(item, group.project)) {
+                continue;
+              }
               rows.push({
                 kind: 'item',
                 rowId: item.id,
@@ -1796,6 +1866,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       for (const group of visibleProjectGroups) {
         for (const item of group.items) {
           if (focusRelatedSets && !focusRelatedSets.itemIds.has(item.id)) {
+            continue;
+          }
+          if (!itemMatchesFilter(item, group.project)) {
             continue;
           }
           rows.push({
@@ -2235,8 +2308,30 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     const computeCoordsForItem = (
       it: ComputedGanttItem,
       rowIndex: number,
-      isCollapsedRow = false
+      isCollapsedRow = false,
+      groupOverride?: ComputedProjectGroup
     ) => {
+      if (isCollapsedRow && groupOverride) {
+        const groupStart = parseDateSafe(groupOverride.startDate);
+        const startOffsetDays = differenceInCalendarDays(groupStart, timelineStart);
+        const groupStartX = startOffsetDays * dayWidth;
+        const groupDuration = Math.max(1, groupOverride.duration);
+        const groupEndX = groupStartX + groupDuration * dayWidth;
+        const centerY = rowIndex * ROW_HEIGHT + ROW_HEIGHT / 2;
+
+        return {
+          index: rowIndex,
+          item: it,
+          startX: groupStartX,
+          endX: groupEndX,
+          centerY,
+          effectiveStartStr: groupOverride.startDate,
+          effectiveEndStr: groupOverride.endDate,
+          effectiveDuration: groupDuration,
+          isCollapsedRow: true,
+        };
+      }
+
       const effectiveStart = parseDateSafe(it.startDate);
       const effectiveDuration =
         it.type === 'milestone' ? 0 : Math.max(1, it.duration);
@@ -2272,9 +2367,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       if (row.kind === 'item') {
         map.set(row.item.id, computeCoordsForItem(row.item, rowIndex, false));
       } else if (row.kind === 'project' && row.group.project.collapsed) {
-        // Anchor collapsed items to their parent project summary row so cross-project dependency lines still connect
+        // Anchor collapsed items to their parent project summary bar so cross-project dependency lines visually connect
         for (const collapsedItem of row.group.items) {
-          map.set(collapsedItem.id, computeCoordsForItem(collapsedItem, rowIndex, true));
+          map.set(collapsedItem.id, computeCoordsForItem(collapsedItem, rowIndex, true, row.group));
         }
       }
     });
@@ -2592,6 +2687,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       }
     }
 
+    const drawnCollapsedPairs = new Set<string>();
+
     const list: Array<{
       key: string;
       predId: string;
@@ -2611,6 +2708,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       isCriticalLink: boolean;
       isSelectedLink: boolean;
       isHoveredLink: boolean;
+      isInterProject?: boolean;
     }> = [];
 
     for (const succ of items) {
@@ -2631,6 +2729,13 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
           predCoords.index === succCoords.index
         ) {
           return;
+        }
+
+        const isInterProject = Boolean(predCoords.isCollapsedRow || succCoords.isCollapsedRow);
+        if (predCoords.isCollapsedRow && succCoords.isCollapsedRow) {
+          const pairKey = `${predCoords.index}->${succCoords.index}`;
+          if (drawnCollapsedPairs.has(pairKey)) return;
+          drawnCollapsedPairs.add(pairKey);
         }
 
         const incomingIndex = succPreds.indexOf(predId);
@@ -2780,6 +2885,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
           isCriticalLink,
           isSelectedLink,
           isHoveredLink,
+          isInterProject,
         });
       });
     }
@@ -3194,11 +3300,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   };
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 bg-white dark:bg-[#0C0C09] rounded-[8px] border border-[#0C0C09] dark:border-zinc-800 shadow-none overflow-hidden">
-      {/* Barra de Herramientas Dedicada del Cronograma (Icon-Only con Hints) */}
+    <div className="flex flex-col flex-1 min-h-0 bg-white dark:bg-[#0C0C09] rounded-[8px] border border-[#0C0C09] dark:border-zinc-800 shadow-none">
+      {/* Barra de Herramientas Dedicada del Cronograma (Icon-Only con Hints, Sticky) */}
       <div
         data-testid="cronograma-toolbar"
-        className="h-10 px-3 bg-[#F4F4F1] dark:bg-zinc-900 border-b border-[#0C0C09] dark:border-zinc-800 flex items-center justify-between shrink-0 select-none gap-2 z-10"
+        className="sticky top-12 z-30 h-10 px-3 bg-[#F4F4F1] dark:bg-zinc-900 border-b border-[#0C0C09] dark:border-zinc-800 flex items-center justify-between shrink-0 select-none gap-2 shadow-xs"
       >
         {/* Left Side: Cronograma Title & Viewport Navigation */}
         <div className="flex items-center gap-2 min-w-0">
@@ -3437,17 +3543,19 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   {/* Minimalist Table Header (matches timeline HEADER_HEIGHT = 60px) */}
                   <div
                     style={{ height: HEADER_HEIGHT, minWidth: tableMinWidth }}
-                    className="flex items-center justify-start px-3 bg-[#F4F4F1] dark:bg-[#18181b] border-b border-[#0C0C09] dark:border-zinc-800 text-[10px] font-mono font-bold uppercase tracking-wider text-[#0C0C09] dark:text-zinc-300 shrink-0 select-none"
+                    className="flex flex-col justify-between px-3 py-1 bg-[#F4F4F1] dark:bg-[#18181b] border-b border-[#0C0C09] dark:border-zinc-800 text-[10px] font-mono font-bold uppercase tracking-wider text-[#0C0C09] dark:text-zinc-300 shrink-0 select-none shadow-xs sticky top-[88px] z-20"
                   >
-                    <div
-                      style={{ width: nameColumnWidth }}
-                      className="flex items-center gap-2 shrink-0"
-                    >
-                      <span className="w-16 font-mono text-center shrink-0"># / Orden</span>
-                      <span className="font-semibold">
-                        Nombre{visibleColumns.team ? ' / Equipo' : ''}
-                      </span>
-                    </div>
+                    {/* Top Tier: Column Titles & Icon-Only Configurator */}
+                    <div className="flex items-center justify-between w-full h-7">
+                      <div
+                        style={{ width: nameColumnWidth }}
+                        className="flex items-center gap-2 shrink-0"
+                      >
+                        <span className="w-16 font-mono text-center shrink-0"># / Orden</span>
+                        <span className="font-semibold">
+                          Nombre{visibleColumns.team ? ' / Equipo' : ''}
+                        </span>
+                      </div>
 
                     {/* Column Titles & Icon-Only Configurator */}
                     <div className="flex items-center shrink-0">
@@ -3736,6 +3844,65 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     </div>
                   </div>
 
+                  {/* Bottom Tier: Table Search Input & Platform Filter */}
+                    <div className="flex items-center justify-between w-full h-7 pt-1 border-t border-slate-200/80 dark:border-zinc-800">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="relative flex items-center w-48 sm:w-56 shrink-0">
+                          <Search className="w-3 h-3 absolute left-1.5 text-zinc-400 pointer-events-none" />
+                          <input
+                            type="text"
+                            data-testid="table-search-input"
+                            value={tableSearchQuery}
+                            onChange={(e) => setTableSearchQuery(e.target.value)}
+                            placeholder="Buscar proyecto o tarea..."
+                            className="w-full pl-6 pr-5 py-0.5 text-[10px] font-sans font-normal normal-case rounded-[2px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 outline-none focus:border-[#0C0C09] dark:focus:border-white"
+                          />
+                          {tableSearchQuery && (
+                            <button
+                              type="button"
+                              data-testid="table-search-clear-btn"
+                              onClick={() => setTableSearchQuery('')}
+                              className="absolute right-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-0.5 cursor-pointer"
+                              title="Limpiar búsqueda"
+                            >
+                              <X className="w-2.5 h-2.5" />
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Smartphone className="w-3 h-3 text-zinc-500 shrink-0" />
+                          <select
+                            data-testid="table-platform-filter"
+                            value={tablePlatformFilter}
+                            onChange={(e) => setTablePlatformFilter(e.target.value as any)}
+                            className="px-1.5 py-0.5 text-[10px] font-sans font-medium normal-case rounded-[2px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 outline-none cursor-pointer"
+                            title="Filtrar por plataforma"
+                          >
+                            <option value="all">Todas las plataformas</option>
+                            <option value="iOS">iOS</option>
+                            <option value="Android">Android</option>
+                            <option value="Multiplataforma">Multiplataforma</option>
+                          </select>
+                        </div>
+
+                        {(tableSearchQuery || tablePlatformFilter !== 'all') && (
+                          <button
+                            type="button"
+                            data-testid="table-clear-filters-btn"
+                            onClick={() => {
+                              setTableSearchQuery('');
+                              setTablePlatformFilter('all');
+                            }}
+                            className="text-[9px] font-sans font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer shrink-0"
+                          >
+                            Limpiar
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Banner de Releases Ocultas con botón para restablecer visibilidad */}
                   {hiddenReleaseIds && hiddenReleaseIds.length > 0 && onResetHiddenReleases && (
                     <div
@@ -3767,7 +3934,29 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         style={{ minWidth: tableMinWidth }}
                         className="flex flex-col items-center justify-center py-12 px-6 text-center bg-slate-50/40 dark:bg-zinc-900/30"
                       >
-                        {hiddenReleaseIds && hiddenReleaseIds.length > 0 ? (
+                        {tableSearchQuery.trim() || tablePlatformFilter !== 'all' ? (
+                          <>
+                            <Search className="w-8 h-8 text-slate-400 dark:text-zinc-500 mb-2" />
+                            <p className="text-sm font-bold text-slate-700 dark:text-zinc-200">
+                              No se encontraron proyectos o tareas coincidentes
+                            </p>
+                            <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1 max-w-md">
+                              Ningún elemento coincide con la búsqueda o la plataforma seleccionada.
+                            </p>
+                            <button
+                              type="button"
+                              data-testid="table-reset-filters-btn"
+                              onClick={() => {
+                                setTableSearchQuery('');
+                                setTablePlatformFilter('all');
+                              }}
+                              className="mt-3 px-3.5 py-1.5 rounded-[4px] bg-[#0C0C09] hover:bg-[#312C85] dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-[#0C0C09] text-xs font-semibold shadow-sm transition cursor-pointer flex items-center gap-1.5"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                              <span>Restablecer búsqueda y filtros</span>
+                            </button>
+                          </>
+                        ) : hiddenReleaseIds && hiddenReleaseIds.length > 0 ? (
                           <>
                             <EyeOff className="w-8 h-8 text-amber-500 mb-2" />
                             <p className="text-sm font-bold text-slate-700 dark:text-zinc-200">
@@ -3880,18 +4069,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               >
                                 {rGroup.duration}d
                               </span>
-                              {onOpenReleasesModal && (
-                                <button
-                                  type="button"
-                                  data-testid={`release-manage-btn-${rGroup.release.code}`}
-                                  onClick={() => onOpenReleasesModal(rGroup.release.id)}
-                                  className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-sans font-medium bg-white/20 hover:bg-white/30 text-white dark:bg-black/10 dark:hover:bg-black/20 dark:text-black transition cursor-pointer shrink-0"
-                                  title={`Abrir gestión de la release ${rGroup.release.code} (asignar proyectos, editar hitos)`}
-                                >
-                                  <SlidersHorizontal className="w-3 h-3" />
-                                  <span>Gestionar</span>
-                                </button>
-                              )}
+
                               {onToggleHideRelease && (
                                 <button
                                   type="button"
@@ -4009,6 +4187,23 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         const isProjectDragTarget =
                           dragOverRow?.id === `project:${group.project.id}`;
 
+                        const sameReleaseProjects = visibleProjectGroups.filter(
+                          (g) => (g.project.releaseId || '') === (group.project.releaseId || '')
+                        );
+                        const currentProjIdxInRelease = sameReleaseProjects.findIndex(
+                          (g) => g.project.id === group.project.id
+                        );
+                        const isFirstInRelease = currentProjIdxInRelease <= 0;
+                        const isLastInRelease = currentProjIdxInRelease >= sameReleaseProjects.length - 1;
+
+                        const isProjectNameExpanded =
+                          focusedProjectInputId === group.project.id ||
+                          hoveredNameId === group.project.id;
+                        const displayProjectName =
+                          isProjectNameExpanded || !group.project.name || group.project.name.length <= effectiveTruncateLimit
+                            ? group.project.name || 'Proyecto'
+                            : group.project.name.slice(0, effectiveTruncateLimit) + '…';
+
                         return (
                           <div
                             key={row.rowId}
@@ -4036,6 +4231,40 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               style={{ width: nameColumnWidth }}
                               className="flex items-center gap-2 pr-2 shrink-0 pl-1 min-w-0"
                             >
+                              {/* Reorder project buttons within same release */}
+                              <div className="flex flex-col -space-y-1 shrink-0">
+                                <button
+                                  type="button"
+                                  disabled={isFirstInRelease}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onReorderProject?.(group.project.id, 'up');
+                                  }}
+                                  className={`p-0.5 rounded-[2px] text-slate-500 hover:text-black dark:hover:text-white transition cursor-pointer ${
+                                    isFirstInRelease ? 'opacity-20 cursor-not-allowed hover:text-slate-500' : ''
+                                  }`}
+                                  title="Subir proyecto dentro de esta release"
+                                  data-testid={`project-reorder-up-${group.project.id}`}
+                                >
+                                  <ChevronUp className="w-3 h-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={isLastInRelease}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onReorderProject?.(group.project.id, 'down');
+                                  }}
+                                  className={`p-0.5 rounded-[2px] text-slate-500 hover:text-black dark:hover:text-white transition cursor-pointer ${
+                                    isLastInRelease ? 'opacity-20 cursor-not-allowed hover:text-slate-500' : ''
+                                  }`}
+                                  title="Bajar proyecto dentro de esta release"
+                                  data-testid={`project-reorder-down-${group.project.id}`}
+                                >
+                                  <ChevronDown className="w-3 h-3" />
+                                </button>
+                              </div>
+
                               <button
                                 type="button"
                                 onClick={() => onToggleProjectCollapse?.(group.project.id)}
@@ -4076,26 +4305,23 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 </span>
                               )}
 
-                              <div className="inline-grid items-center shrink-0 max-w-full">
+                              <div
+                                className="inline-grid items-center shrink-0 max-w-full transition-all duration-150"
+                                data-testid={`project-name-container-${group.project.id}`}
+                                data-name-truncated={group.project.name && group.project.name.length > effectiveTruncateLimit}
+                                data-name-expanded={isProjectNameExpanded}
+                                onMouseEnter={() => setHoveredNameId(group.project.id)}
+                                onMouseLeave={() => setHoveredNameId((prev) => (prev === group.project.id ? null : prev))}
+                              >
                                 <span
                                   aria-hidden="true"
                                   className="invisible col-start-1 row-start-1 font-bold text-xs px-1.5 py-0.5 whitespace-pre pointer-events-none select-none"
                                 >
-                                  {focusedProjectInputId === group.project.id
-                                    ? group.project.name || 'Proyecto'
-                                    : (group.project.name && group.project.name.length > effectiveTruncateLimit
-                                        ? group.project.name.slice(0, effectiveTruncateLimit) + '…'
-                                        : group.project.name) || 'Proyecto'}
+                                  {displayProjectName}
                                 </span>
                                 <input
                                   type="text"
-                                  value={
-                                    focusedProjectInputId === group.project.id
-                                      ? group.project.name
-                                      : group.project.name && group.project.name.length > effectiveTruncateLimit
-                                      ? group.project.name.slice(0, effectiveTruncateLimit) + '…'
-                                      : group.project.name
-                                  }
+                                  value={displayProjectName}
                                   onFocus={() => setFocusedProjectInputId(group.project.id)}
                                   onChange={(e) =>
                                     onUpdateProject?.({
@@ -4124,6 +4350,52 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                   title="Haz clic para renombrar este proyecto"
                                   data-project-name-input={group.project.id}
                                 />
+                              </div>
+
+                              {/* Selector de color para cambiar el color de todas las tareas del proyecto */}
+                              <div className="relative shrink-0" data-dropdown-container="true">
+                                <button
+                                  type="button"
+                                  data-testid={`project-color-picker-btn-${group.project.id}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveColorPickerProjId((prev) => (prev === group.project.id ? null : group.project.id));
+                                  }}
+                                  className="p-1 rounded-[2px] text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer shrink-0"
+                                  title="Cambiar color del proyecto y de todas sus tareas"
+                                >
+                                  <Palette className="w-3.5 h-3.5" />
+                                </button>
+                                {activeColorPickerProjId === group.project.id && (
+                                  <div
+                                    data-testid={`project-color-dropdown-${group.project.id}`}
+                                    className="absolute left-0 top-full mt-1 p-2 bg-white dark:bg-zinc-900 border border-[#0C0C09] dark:border-zinc-700 rounded-[4px] shadow-xl z-50 text-xs flex flex-col gap-1.5 w-44"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400 border-b border-slate-200 dark:border-zinc-800 pb-1">
+                                      Color de tareas
+                                    </div>
+                                    <div className="grid grid-cols-5 gap-1.5">
+                                      {PROJECT_COLORS.map((c) => (
+                                        <button
+                                          key={c.value}
+                                          type="button"
+                                          data-testid={`project-inline-color-opt-${c.value}`}
+                                          onClick={() => {
+                                            onChangeProjectColor?.(group.project.id, c.value);
+                                            setActiveColorPickerProjId(null);
+                                          }}
+                                          title={c.value}
+                                          className={`w-5 h-5 rounded-full ${c.bg} flex items-center justify-center transition cursor-pointer hover:scale-110 ${
+                                            group.project.color === c.value ? 'ring-2 ring-black dark:ring-white ring-offset-1' : ''
+                                          }`}
+                                        >
+                                          {group.project.color === c.value && <Check className="w-2.5 h-2.5 text-white" />}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
 
                               {onSetFocusEntity && (() => {
@@ -4183,29 +4455,6 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               >
                                 <FileText className="w-3.5 h-3.5" />
                               </button>
-
-                              {group.project.releaseId ? (
-                                <button
-                                  type="button"
-                                  onClick={() => setInspectingProject(group.project)}
-                                  data-testid={`project-release-badge-${group.project.id}`}
-                                  className="px-1.5 py-0.5 rounded-[2px] bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09] text-[10px] font-mono font-bold shrink-0 hover:opacity-85 transition cursor-pointer flex items-center gap-1"
-                                  title={`Release asignada: ${releases?.find((r) => r.id === group.project.releaseId)?.name || group.project.releaseId} (Clic para cambiar)`}
-                                >
-                                  <span>🚀</span>
-                                  <span>{releases?.find((r) => r.id === group.project.releaseId)?.code || group.project.releaseId}</span>
-                                </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => setInspectingProject(group.project)}
-                                  data-testid={`project-assign-release-btn-${group.project.id}`}
-                                  className="px-1.5 py-0.5 rounded-[2px] border border-dashed border-indigo-400 text-indigo-600 dark:text-indigo-400 bg-indigo-50/50 dark:bg-indigo-950/30 text-[10px] font-mono shrink-0 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition cursor-pointer flex items-center gap-1"
-                                  title="Asignar este proyecto a una Release predefinida"
-                                >
-                                  <span>🚀 + Asignar Release</span>
-                                </button>
-                              )}
 
                               <span
                                 className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono border shrink-0 ${projTheme.groupBadgeBg}`}
@@ -4504,55 +4753,66 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 }`}
                               />
                             )}
-                            <div className="inline-grid items-center shrink-0 max-w-full">
-                              <span
-                                aria-hidden="true"
-                                className="invisible col-start-1 row-start-1 font-medium text-xs px-1.5 py-0.5 whitespace-pre pointer-events-none select-none"
-                              >
-                                {focusedTaskInputId === item.id
+                            {(() => {
+                              const isTaskNameExpanded =
+                                focusedTaskInputId === item.id ||
+                                hoveredNameId === item.id;
+                              const displayTaskName =
+                                isTaskNameExpanded || !item.name || item.name.length <= effectiveTruncateLimit
                                   ? item.name || 'Tarea'
-                                  : (item.name && item.name.length > effectiveTruncateLimit
-                                      ? item.name.slice(0, effectiveTruncateLimit) + '…'
-                                      : item.name) || 'Tarea'}
-                              </span>
-                              <input
-                                type="text"
-                                value={
-                                  focusedTaskInputId === item.id
-                                    ? item.name
-                                    : item.name && item.name.length > effectiveTruncateLimit
-                                    ? item.name.slice(0, effectiveTruncateLimit) + '…'
-                                    : item.name
-                                }
-                                onFocus={() => setFocusedTaskInputId(item.id)}
-                                onChange={(e) =>
-                                  onUpdateItem({ ...item, name: e.target.value }, false)
-                                }
-                                onBlur={(e) => {
-                                  setFocusedTaskInputId(null);
-                                  const trimmed = e.target.value.trim();
-                                  if (!trimmed) {
-                                    onUpdateItem(
-                                      {
-                                        ...item,
-                                        name:
-                                          item.type === 'milestone'
-                                            ? 'Nuevo Hito'
-                                            : 'Nueva Tarea',
-                                      },
-                                      false
-                                    );
-                                  } else if (trimmed !== item.name) {
-                                    onUpdateItem({ ...item, name: trimmed }, false);
-                                  }
-                                }}
-                                className={`col-start-1 row-start-1 w-full min-w-[24px] bg-transparent text-xs font-medium text-[#0C0C09] dark:text-zinc-100 focus:bg-white dark:focus:bg-zinc-800 px-1.5 py-0.5 rounded-[2px] outline-none focus:ring-1 focus:ring-[#0C0C09] ${
-                                  draggingRowId ? 'pointer-events-none' : ''
-                                }`}
-                                title={`${item.name} (${group.project.name})`}
-                                data-task-name-input={item.id}
-                              />
-                            </div>
+                                  : item.name.slice(0, effectiveTruncateLimit) + '…';
+
+                            return (
+                              <React.Fragment key="task-name-block">
+                                <div
+                                  className="inline-grid items-center shrink-0 max-w-full transition-all duration-150"
+                                  data-testid={`task-name-container-${item.id}`}
+                                  data-name-truncated={item.name && item.name.length > effectiveTruncateLimit}
+                                  data-name-expanded={isTaskNameExpanded}
+                                  onMouseEnter={() => setHoveredNameId(item.id)}
+                                  onMouseLeave={() => setHoveredNameId((prev) => (prev === item.id ? null : prev))}
+                                >
+                                  <span
+                                    aria-hidden="true"
+                                    className="invisible col-start-1 row-start-1 font-medium text-xs px-1.5 py-0.5 whitespace-pre pointer-events-none select-none"
+                                  >
+                                    {displayTaskName}
+                                  </span>
+                                  <input
+                                    type="text"
+                                    value={displayTaskName}
+                                    onFocus={() => setFocusedTaskInputId(item.id)}
+                                    onChange={(e) =>
+                                      onUpdateItem({ ...item, name: e.target.value }, false)
+                                    }
+                                    onBlur={(e) => {
+                                      setFocusedTaskInputId(null);
+                                      const trimmed = e.target.value.trim();
+                                      if (!trimmed) {
+                                        onUpdateItem(
+                                          {
+                                            ...item,
+                                            name:
+                                              item.type === 'milestone'
+                                                ? 'Nuevo Hito'
+                                                : 'Nueva Tarea',
+                                          },
+                                          false
+                                        );
+                                      } else if (trimmed !== item.name) {
+                                        onUpdateItem({ ...item, name: trimmed }, false);
+                                      }
+                                    }}
+                                    className={`col-start-1 row-start-1 w-full min-w-[24px] bg-transparent text-xs font-medium text-[#0C0C09] dark:text-zinc-100 focus:bg-white dark:focus:bg-zinc-800 px-1.5 py-0.5 rounded-[2px] outline-none focus:ring-1 focus:ring-[#0C0C09] ${
+                                      draggingRowId ? 'pointer-events-none' : ''
+                                    }`}
+                                    title={`${item.name} (${group.project.name})`}
+                                    data-task-name-input={item.id}
+                                  />
+                                </div>
+                              </React.Fragment>
+                            );
+                          })()}
                             {item.hidden && (
                               <span
                                 data-testid={`task-hidden-badge-${item.id}`}
@@ -5408,6 +5668,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       <g
                         key={link.key}
                         data-dep-link={`${link.predId}->${link.succId}`}
+                        data-inter-project-link={link.isInterProject ? "true" : undefined}
                       >
                         {/* Visible Orthogonal Dependency Path */}
                         <path
@@ -5819,16 +6080,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             <span className="px-1 py-0.2 rounded text-[9px] font-mono bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
                               0 tareas
                             </span>
-                            {targetRel && (
-                              <span className="px-1 py-0.2 rounded text-[9px] font-mono bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09]">
-                                🚀 {targetRel.code}
-                              </span>
-                            )}
                           </div>
 
                           {/* Dashed summary bar */}
                           <div className="h-4 rounded-[3px] border-2 border-dashed border-indigo-400 dark:border-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/40 flex items-center justify-between px-2 text-[10px] text-indigo-700 dark:text-indigo-300 font-mono shadow-xs">
-                            <span className="truncate">Ventana Release: {targetRel?.code || 'Proyecto sin tareas'}</span>
+                            <span className="truncate">Ventana estimada {targetRel ? `(${targetRel.code})` : ''}</span>
                             <span className="shrink-0 font-bold">{groupDuration}d</span>
                           </div>
                         </div>
@@ -6905,6 +7161,19 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       </button>
                     ))}
                   </div>
+                  {onChangeProjectColor && (
+                    <button
+                      type="button"
+                      data-testid="apply-color-to-all-tasks-modal-btn"
+                      onClick={() => {
+                        onChangeProjectColor(inspectingProject.id, inspectingProject.color);
+                      }}
+                      className="mt-2 w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border border-indigo-300 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 text-xs font-semibold hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition cursor-pointer"
+                    >
+                      <Palette className="w-3.5 h-3.5" />
+                      <span>Aplicar este color a todas las tareas del proyecto</span>
+                    </button>
+                  )}
                 </div>
 
                 <div>

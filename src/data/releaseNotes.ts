@@ -10,10 +10,27 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.8.0',
+    date: '04 Nov 2026',
+    title: 'Filtro por búsqueda y plataforma en tabla, dependencias entre proyectos colapsados, reordenación y barra sticky',
+    isLatest: true,
+    features: [
+      'Búsqueda en tiempo real por texto (nombre, notas, asignado) y filtro de plataforma (Todas, iOS, Android, Multiplataforma) directamente desde la cabecera de la tabla WBS.',
+      'Visualización de dependencias entre proyectos colapsados: al colapsar proyectos, las dependencias entre tareas de distintos proyectos se conectan automáticamente desde y hacia las barras de resumen de los proyectos.',
+      'Reordenar proyectos dentro de una misma release: botones de subir y bajar posición entre proyectos de la misma release directamente en la tabla.',
+      'Cambiar el color de todas las tareas de un proyecto de una sola vez, tanto desde el selector de la fila del proyecto como desde el modal de edición.',
+      'Expansión al pasar el ratón (hover) sobre nombres truncados: visualiza el nombre completo desplazando temporalmente a la derecha los demás elementos de la fila.',
+      'Barra superior del cronograma fija (sticky top-12) y cabeceras sincronizadas que no desaparecen al hacer scroll vertical.',
+    ],
+    improvements: [
+      'Eliminación de la etiqueta de release repetida en las barras de proyecto (los proyectos ya se agrupan visiblemente dentro de su release).',
+      'Eliminación del botón "Gestionar" redundante en las cabeceras de release de la tabla WBS.',
+    ],
+  },
+  {
     version: '1.7.1',
     date: '04 Nov 2026',
     title: 'Soporte completo para proyectos sin tareas, estado vacío visual y prevención de vistas en blanco',
-    isLatest: true,
     features: [
       'Fila informativa de estado vacío en tabla WBS con botones directos para añadir tareas.',
       'Barra visual de ventana de release en el cronograma para proyectos con 0 tareas (nunca queda el diagrama en blanco).',

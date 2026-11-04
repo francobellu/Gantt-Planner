@@ -1,4 +1,4 @@
-export const APP_VERSION = '1.7.1';
+export const APP_VERSION = '1.8.0';
 
 export const DEFAULT_TRUNCATE_CHAR_LIMIT = 37;
 export const TRUNCATE_LIMIT_STORAGE_KEY = 'ganttflow_truncate_char_limit';
@@ -150,6 +150,8 @@ export type PlanHistoryActionType =
   | 'delete_item'
   | 'duplicate_item'
   | 'reorder_item'
+  | 'reorder_project'
+  | 'change_project_color'
   | 'create_project'
   | 'edit_project'
   | 'delete_project'
