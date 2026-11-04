@@ -103,6 +103,7 @@ import { PlanHistoryPage } from './components/PlanHistoryPage';
 import { HelpPage } from './components/HelpPage';
 import { ReleasesModal } from './components/ReleasesModal';
 import { SettingsModal } from './components/SettingsModal';
+import { ReleaseNotesModal } from './components/ReleaseNotesModal';
 import { ReportsView } from './components/ReportsView';
 import {
   DEFAULT_PREDEFINED_RELEASES,
@@ -781,6 +782,7 @@ export function App({
   }, [truncateCharLimit]);
 
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
+  const [showReleaseNotesModal, setShowReleaseNotesModal] = useState<boolean>(false);
 
   // Focus Mode state
   const [isFocusMode, setIsFocusMode] = useState<boolean>(false);
@@ -1828,6 +1830,16 @@ export function App({
               <GitBranch className="w-4 h-4 text-[#312C85] dark:text-indigo-400" />
               <span>GanttFlow</span>
             </span>
+            <button
+              type="button"
+              data-testid="header-version-btn"
+              onClick={() => setShowReleaseNotesModal(true)}
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[3px] bg-[#0C0C09] hover:bg-[#312C85] text-white dark:bg-zinc-100 dark:hover:bg-white dark:text-[#0C0C09] text-[10px] font-mono font-bold tracking-tight shadow-xs transition cursor-pointer"
+              title={`GanttFlow v${APP_VERSION} · Clic para ver notas de versión y novedades`}
+              aria-label={`Versión ${APP_VERSION}, abrir notas de versión`}
+            >
+              <span>{`v${APP_VERSION}`}</span>
+            </button>
           </div>
 
           {/* Botón posicionado en el icono para esconder la tabla y enseñar solo el diagrama */}
@@ -2225,14 +2237,19 @@ export function App({
               {/* Sección 1: Versión de la Aplicación y Recarga */}
               <div className="flex items-center justify-between pb-2 border-b border-[#E2E2DC] dark:border-zinc-800">
                 <div className="flex items-center gap-2">
-                  <span
+                  <button
+                    type="button"
                     data-testid="app-version-badge"
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[3px] bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09] text-[10px] font-mono font-bold tracking-tight shadow-xs"
-                    title={`GanttFlow v${APP_VERSION}`}
+                    onClick={() => {
+                      setMoreMenuOpen(false);
+                      setShowReleaseNotesModal(true);
+                    }}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[3px] bg-[#0C0C09] hover:bg-[#312C85] text-white dark:bg-zinc-100 dark:hover:bg-white dark:text-[#0C0C09] text-[10px] font-mono font-bold tracking-tight shadow-xs transition cursor-pointer"
+                    title={`GanttFlow v${APP_VERSION} · Clic para ver notas de versión y novedades`}
                   >
                     <span>GanttFlow</span>
                     <span>{`v${APP_VERSION}`}</span>
-                  </span>
+                  </button>
                 </div>
                 <button
                   type="button"
@@ -2766,6 +2783,13 @@ export function App({
         onToggleWeekendShading={() => setShowWeekendShading((prev) => !prev)}
         hiddenReleaseCount={hiddenReleaseIds.length}
         onResetHiddenReleases={handleResetHiddenReleases}
+        onOpenReleaseNotes={() => setShowReleaseNotesModal(true)}
+      />
+
+      {/* Release Notes Modal (Changelog de versiones) */}
+      <ReleaseNotesModal
+        isOpen={showReleaseNotesModal}
+        onClose={() => setShowReleaseNotesModal(false)}
       />
 
       {/* Hidden File Input for JSON / CSV Import */}

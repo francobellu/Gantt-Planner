@@ -6316,6 +6316,106 @@ test('Dedicated Cronograma Toolbar with space-saving icon-only buttons, hover hi
   }
 });
 
+test('Test 61: Version button, compiled release notes modal and changelog across versions', async () => {
+  const fs = await import('node:fs/promises');
+  const ReactMod = await import('react');
+  const React = ReactMod.default || ReactMod;
+  const ReactDOMServer = await import('react-dom/server');
+  const { renderToString } = ReactDOMServer.default || ReactDOMServer;
+
+  const tmpFile = path.resolve(__dirname, `tmp_test61_bundle_${Date.now()}.mjs`);
+  try {
+    await build({
+      stdin: {
+        contents: `
+          import React from 'react';
+          import { App } from './src/App.tsx';
+          import { ReleaseNotesModal } from './src/components/ReleaseNotesModal.tsx';
+          import { RELEASE_NOTES } from './src/data/releaseNotes.ts';
+          import { SettingsModal } from './src/components/SettingsModal.tsx';
+          import { APP_VERSION } from './src/types/gantt.ts';
+          export { App, ReleaseNotesModal, RELEASE_NOTES, SettingsModal, APP_VERSION };
+        `,
+        resolveDir: path.resolve(__dirname, '..'),
+        sourcefile: 'test61_entry.tsx',
+        loader: 'tsx',
+      },
+      bundle: true,
+      format: 'esm',
+      outfile: tmpFile,
+      platform: 'neutral',
+      target: 'es2022',
+      jsx: 'automatic',
+      external: [
+        'react',
+        'react-dom',
+        'react-dom/server',
+        'lucide-react',
+        'date-fns',
+        'date-fns/locale',
+        'xlsx',
+        'canvas-confetti'
+      ],
+      define: {
+        'process.env.NODE_ENV': '"production"'
+      }
+    });
+
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+
+    // 1. Check RELEASE_NOTES compiled data
+    assert.strictEqual(mod.APP_VERSION, '1.6.0');
+    assert.ok(Array.isArray(mod.RELEASE_NOTES), 'RELEASE_NOTES must be an array');
+    assert.ok(mod.RELEASE_NOTES.length >= 7, 'RELEASE_NOTES must have at least 7 releases');
+
+    const latest = mod.RELEASE_NOTES[0];
+    assert.strictEqual(latest.version, '1.6.0', 'First release note must be 1.6.0');
+    assert.strictEqual(latest.isLatest, true, 'First release note must be isLatest: true');
+    assert.ok(latest.features.length > 0, 'v1.6.0 must contain features');
+
+    // 2. Render App and verify version button exists in top header and dropdown
+    const appHtml = renderToString(React.createElement(mod.App));
+    assert.ok(
+      appHtml.includes('data-testid="header-version-btn"'),
+      'App header must render data-testid="header-version-btn"'
+    );
+    assert.ok(
+      appHtml.includes('data-testid="header-version-btn"') && appHtml.includes('v1.6.0'),
+      'header-version-btn must display v1.6.0'
+    );
+    assert.ok(
+      appHtml.includes('data-testid="app-version-badge"'),
+      'App dropdown must contain data-testid="app-version-badge"'
+    );
+
+    // 3. Render ReleaseNotesModal
+    const modalHtml = renderToString(React.createElement(mod.ReleaseNotesModal, {
+      isOpen: true,
+      onClose: () => {}
+    }));
+    assert.ok(modalHtml.includes('data-testid="release-notes-modal"'), 'Modal must render data-testid="release-notes-modal"');
+    assert.ok(modalHtml.includes('data-testid="release-notes-current-badge"'), 'Modal must render current badge');
+    assert.ok(modalHtml.includes('data-testid="release-note-item-1.6.0"'), 'Modal must render 1.6.0 note item');
+    assert.ok(modalHtml.includes('data-testid="release-note-item-1.5.0"'), 'Modal must render 1.5.0 note item');
+    assert.ok(modalHtml.includes('data-testid="release-note-item-1.0.0"'), 'Modal must render 1.0.0 note item');
+    assert.ok(modalHtml.includes('data-testid="close-release-notes-btn"'), 'Modal must render close button');
+
+    // 4. Render SettingsModal and verify version badge button
+    const settingsHtml = renderToString(React.createElement(mod.SettingsModal, {
+      isOpen: true,
+      onClose: () => {},
+      truncateCharLimit: 37,
+      onChangeTruncateCharLimit: () => {},
+      hiddenReleaseCount: 0,
+      onOpenReleaseNotes: () => {}
+    }));
+    assert.ok(settingsHtml.includes('data-testid="settings-version-badge"'), 'SettingsModal renders settings-version-badge');
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
+
 
 
 

@@ -22,6 +22,7 @@ interface SettingsModalProps {
   onToggleWeekendShading?: () => void;
   hiddenReleaseCount: number;
   onResetHiddenReleases?: () => void;
+  onOpenReleaseNotes?: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -35,6 +36,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onToggleWeekendShading,
   hiddenReleaseCount,
   onResetHiddenReleases,
+  onOpenReleaseNotes,
 }) => {
   useEffect(() => {
     if (!isOpen) return;
@@ -260,12 +262,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         {/* Footer */}
         <div className="flex items-center justify-between border-t border-[#E2E2DC] dark:border-zinc-800 pt-3">
           <div className="flex items-center gap-2">
-            <span
+            <button
+              type="button"
               data-testid="settings-version-badge"
-              className="text-[10px] font-mono font-bold text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded border border-zinc-200 dark:border-zinc-700"
+              onClick={() => {
+                if (onOpenReleaseNotes) {
+                  onClose();
+                  onOpenReleaseNotes();
+                }
+              }}
+              className="text-[10px] font-mono font-bold text-zinc-600 dark:text-zinc-300 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 px-2 py-0.5 rounded border border-zinc-200 dark:border-zinc-700 transition cursor-pointer"
+              title="Ver notas de versión (Changelog)"
             >
-              GanttFlow v{APP_VERSION}
-            </span>
+              GanttFlow v{APP_VERSION} · Ver novedades
+            </button>
           </div>
           <button
             type="button"

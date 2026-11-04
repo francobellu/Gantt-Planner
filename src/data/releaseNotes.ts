@@ -1,0 +1,125 @@
+export interface ReleaseNoteEntry {
+  version: string;
+  date: string;
+  title: string;
+  isLatest?: boolean;
+  features?: string[];
+  improvements?: string[];
+  fixes?: string[];
+}
+
+export const RELEASE_NOTES: ReleaseNoteEntry[] = [
+  {
+    version: '1.6.0',
+    date: '04 Nov 2026',
+    title: 'Barra dedicada de cronograma con botones compactos y corrección de sombreado',
+    isLatest: true,
+    features: [
+      'Barra de herramientas dedicada para el cronograma directamente sobre el diagrama.',
+      'Botones de cronograma con formato icono-único (sin texto) y tooltips hints flotantes para máximo ahorro de espacio.',
+      'Botón interactivo de versión con pantalla modal de Notas de Versión (Release Notes).',
+    ],
+    improvements: [
+      'Limpieza del menú superior "Herramientas", eliminando la cuadrícula redundante de opciones del cronograma.',
+      'Controles rápidos de zoom (+ / -) y alternancia de tabla WBS integrados en la barra del cronograma.',
+    ],
+    fixes: [
+      'Aislamiento del sombreado de fines de semana (z-20): las columnas de sábado y domingo ya no afectan ni se superponen a las barras de release y proyecto.',
+      'Posicionamiento z-30 para los rombos de hitos de release (QG4, QG5) y el marcador del día actual (HOY).',
+    ],
+  },
+  {
+    version: '1.5.0',
+    date: '04 Nov 2026',
+    title: 'Plataforma en tareas, menú secundario de cabecera y script de versionado automático',
+    features: [
+      'Campo tecnología/plataforma a nivel de tarea (iOS, Android, Multiplataforma o herencia por defecto del proyecto).',
+      'Etiquetas visuales de plataforma en la tabla de tareas WBS y en el panel lateral de inspección.',
+      'Columna de plataforma por tarea en la exportación jerárquica a Excel (.xlsx).',
+    ],
+    improvements: [
+      'Menú secundario "Herramientas" para descongestionar la barra superior de elementos solapados.',
+      'Script automatizado de versionado `bump-version.mjs` para sincronización íntegra entre package.json, types y tests.',
+      'Cabeceras anti-caché en Vercel para garantizar la visualización inmediata de cada nueva versión desplegada.',
+    ],
+    fixes: [
+      'Sincronización de versiones en despliegues sin retención de caché.',
+    ],
+  },
+  {
+    version: '1.4.0',
+    date: '03 Nov 2026',
+    title: 'Exportación jerárquica Excel, informes en la app, modo enfoque y límite de truncado',
+    features: [
+      'Exportación Excel con dependencias detalladas una a una por fila y con nombre legible en vez de código.',
+      'Nueva página "Informes" con 3 pestañas estilo hoja de cálculo (Cronograma Completo, Resumen Proyectos, Catálogo Releases).',
+      'Modalidad Enfoque (Focus Mode) para aislar un proyecto o tarea con salida mediante tecla Escape o pulsación de botón.',
+      'Límite de caracteres de truncado configurable desde el panel de Ajustes Generales.',
+    ],
+    improvements: [
+      'Botón para restablecer la visibilidad de releases ocultas.',
+      'Selector de filtro por plataforma tecnológica en cabecera.',
+    ],
+    fixes: [
+      'Asegurada la visibilidad de nombres de proyecto largos en el diagrama sin cortes.',
+    ],
+  },
+  {
+    version: '1.3.0',
+    date: '03 Nov 2026',
+    title: 'Hitos externos, sombreado de fines de semana y líneas de separación configurables',
+    features: [
+      'Hitos externos marcados con distintivo ámbar para hitos fuera de releases.',
+      'Sombreado configurable de columnas de fines de semana (sábados y domingos).',
+      'Líneas horizontales de separación entre filas configurables.',
+    ],
+    improvements: [
+      'Ocultación selectiva de releases y proyectos en el cronograma.',
+      'Truncado inteligente de nombres a 37 caracteres sin cortes abruptos.',
+    ],
+    fixes: [
+      'Centrado de etiquetas de hitos sobre las líneas guía del calendario.',
+    ],
+  },
+  {
+    version: '1.2.0',
+    date: '02 Nov 2026',
+    title: 'Historial de cambios (Undo/Redo), página de ayuda y asignación de releases',
+    features: [
+      'Sistema de Deshacer y Rehacer (Undo/Redo) con página completa de historial de snapshots.',
+      'Página de Ayuda con documentación y guía visual de atajos.',
+      'Asignación obligatoria de release al crear un proyecto y tarea automática DIGI.',
+    ],
+    improvements: [
+      'Preservación persistente en almacenamiento local contra pérdidas de datos en recargas.',
+    ],
+    fixes: [
+      'Alineación y cálculo de duración completa de releases hasta su último hito.',
+    ],
+  },
+  {
+    version: '1.1.0',
+    date: '02 Nov 2026',
+    title: 'Edición interactiva de dependencias en diagrama y catálogo de releases',
+    features: [
+      'Creación, reconexión y eliminación de flechas de dependencia directamente sobre las barras del diagrama.',
+      'Catálogo de 16 hitos de release (QG1 a QG5) con guías verticales de alineación.',
+      'Selector desplegable múltiple de proyectos para visualización selectiva en el Gantt.',
+    ],
+    improvements: [
+      'Validación de dependencias circulares en tiempo real (anti-ciclos).',
+      'Líneas ortogonales con esquinas redondeadas tipo fillet.',
+    ],
+  },
+  {
+    version: '1.0.0',
+    date: '01 Nov 2026',
+    title: 'Lanzamiento inicial de GanttFlow',
+    features: [
+      'Diagrama de Gantt interactivo con división de paneles (WBS Table + Timeline Canvas).',
+      'Motor de Ruta Crítica (CPM) y cálculo de holgura (Total Slack).',
+      'Exportación e importación de proyectos en JSON y Excel.',
+      'Soporte de temas Claro y Oscuro.',
+    ],
+  },
+];
