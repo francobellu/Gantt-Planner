@@ -169,6 +169,7 @@ interface GanttWorkspaceProps {
   onUpdateProject?: (project: GanttProject) => void;
   onDeleteProject?: (projectId: string) => void;
   onCreateProject?: (project: GanttProject) => void;
+  onCreateDigiTask?: (project: GanttProject) => void;
   scrollContainerRef: React.RefObject<HTMLDivElement>;
   initialSelectedItemId?: string;
   initialHoveredItemId?: string;
@@ -214,6 +215,11 @@ type DisplayRow =
     }
   | {
       kind: 'project';
+      rowId: string;
+      group: ComputedProjectGroup;
+    }
+  | {
+      kind: 'empty-project';
       rowId: string;
       group: ComputedProjectGroup;
     }
@@ -523,6 +529,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   onUpdateProject,
   onDeleteProject,
   onCreateProject,
+  onCreateDigiTask,
   scrollContainerRef,
   showTable: showTableProp,
   onToggleShowTable,
@@ -1733,16 +1740,24 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               group,
             });
             if (!group.project.collapsed) {
-              for (const item of group.items) {
-                if (focusRelatedSets && !focusRelatedSets.itemIds.has(item.id)) {
-                  continue;
-                }
+              if (group.items.length === 0) {
                 rows.push({
-                  kind: 'item',
-                  rowId: item.id,
-                  item,
+                  kind: 'empty-project',
+                  rowId: `empty-proj-${group.project.id}`,
                   group,
                 });
+              } else {
+                for (const item of group.items) {
+                  if (focusRelatedSets && !focusRelatedSets.itemIds.has(item.id)) {
+                    continue;
+                  }
+                  rows.push({
+                    kind: 'item',
+                    rowId: item.id,
+                    item,
+                    group,
+                  });
+                }
               }
             }
           }
@@ -1756,16 +1771,24 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
           group,
         });
         if (!group.project.collapsed) {
-          for (const item of group.items) {
-            if (focusRelatedSets && !focusRelatedSets.itemIds.has(item.id)) {
-              continue;
-            }
+          if (group.items.length === 0) {
             rows.push({
-              kind: 'item',
-              rowId: item.id,
-              item,
+              kind: 'empty-project',
+              rowId: `empty-proj-${group.project.id}`,
               group,
             });
+          } else {
+            for (const item of group.items) {
+              if (focusRelatedSets && !focusRelatedSets.itemIds.has(item.id)) {
+                continue;
+              }
+              rows.push({
+                kind: 'item',
+                rowId: item.id,
+                item,
+                group,
+              });
+            }
           }
         }
       }
@@ -1808,11 +1831,29 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     return items;
   }, [items, selectedProjectIds, allProjectGroups.length, visibleProjectGroups]);
 
+  // Extra date anchors from assigned releases and projects so timeline bounds cover schedules when projects have 0 tasks
+  const timelineDates = useMemo(() => {
+    if (timelineScopedItems.length > 0) return undefined;
+    const dates: string[] = [];
+    for (const group of visibleProjectGroups) {
+      if (group.project.releaseId) {
+        const rel = releases.find((r) => r.id === group.project.releaseId);
+        if (rel) {
+          const span = getReleaseDateSpan(rel);
+          dates.push(span.startDate, span.endDate);
+        }
+      }
+      if (group.startDate) dates.push(group.startDate);
+      if (group.endDate) dates.push(group.endDate);
+    }
+    return dates.length > 0 ? dates : undefined;
+  }, [timelineScopedItems.length, visibleProjectGroups, releases]);
+
   // Compute timeline date range with padding before and after project
   const { timelineDays, timelineStart, monthGroups, todayIndex } = useMemo(() => {
     const today = startOfDay(new Date());
     const { timelineStart: paddedStart, timelineEnd: paddedEnd } =
-      computeTimelineBounds(timelineScopedItems, today);
+      computeTimelineBounds(timelineScopedItems, today, timelineDates);
     const days = eachDayOfInterval({ start: paddedStart, end: paddedEnd });
 
     // Group consecutive days by Month + Year for the top header tier
@@ -4172,6 +4213,21 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               >
                                 {group.items.length} ítems
                               </span>
+                              {group.items.length === 0 && (
+                                <button
+                                  type="button"
+                                  data-testid={`project-header-add-task-btn-${group.project.id}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onQuickAdd('task', group.project.id);
+                                  }}
+                                  className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition cursor-pointer flex items-center gap-0.5 shrink-0"
+                                  title="Añadir primera tarea a este proyecto"
+                                >
+                                  <Plus className="w-3 h-3" />
+                                  <span>Tarea</span>
+                                </button>
+                              )}
                             </div>
 
                             {/* Aligned Columns matching header */}
@@ -4253,6 +4309,53 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                   </button>
                                 )}
                               </div>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (row.kind === 'empty-project') {
+                        const { group } = row;
+                        const targetRel = releases?.find((r) => r.id === group.project.releaseId);
+                        return (
+                          <div
+                            key={row.rowId}
+                            data-empty-project-row={group.project.id}
+                            style={{ height: ROW_HEIGHT, minWidth: tableMinWidth }}
+                            className={`flex items-center justify-between px-3 text-xs bg-indigo-50/20 dark:bg-zinc-900/40 ${
+                              showRowSeparators
+                                ? 'border-b border-[#E2E2DC] dark:border-zinc-800/60'
+                                : 'border-b-0'
+                            } pl-10`}
+                          >
+                            <div className="flex items-center gap-2 text-slate-500 dark:text-zinc-400">
+                              <span className="italic text-[11px] flex items-center gap-1.5">
+                                <span>💡</span> Este proyecto no tiene tareas ni hitos aún.
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 pr-3">
+                              <button
+                                type="button"
+                                data-testid={`project-empty-add-task-btn-${group.project.id}`}
+                                onClick={() => onQuickAdd('task', group.project.id)}
+                                className="px-2.5 py-1 text-[11px] font-semibold rounded bg-white dark:bg-zinc-800 border border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-700 transition cursor-pointer flex items-center gap-1 shadow-xs"
+                                title="Crear primera tarea en este proyecto"
+                              >
+                                <Plus className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                                <span>+ Nueva Tarea</span>
+                              </button>
+                              {group.project.releaseId && onCreateDigiTask && (
+                                <button
+                                  type="button"
+                                  data-testid={`project-empty-add-digi-btn-${group.project.id}`}
+                                  onClick={() => onCreateDigiTask(group.project)}
+                                  className="px-2.5 py-1 text-[11px] font-semibold rounded bg-[#0C0C09] hover:bg-[#312C85] dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-[#0C0C09] transition cursor-pointer flex items-center gap-1 shadow-xs font-mono"
+                                  title="Crear tarea DIGI automática cubriendo toda la release asignada"
+                                >
+                                  <span>🚀</span>
+                                  <span>+ Tarea DIGI ({targetRel?.code || group.project.releaseId})</span>
+                                </button>
+                              )}
                             </div>
                           </div>
                         );
@@ -5219,6 +5322,19 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     />
                   );
                 }
+                if (row.kind === 'empty-project') {
+                  return (
+                    <div
+                      key={`row-bg-${row.rowId}`}
+                      style={{ height: ROW_HEIGHT }}
+                      className={`${
+                        showRowSeparators
+                          ? 'border-b border-[#E2E2DC] dark:border-zinc-800/60'
+                          : 'border-b-0'
+                      } bg-indigo-50/15 dark:bg-zinc-900/20`}
+                    />
+                  );
+                }
                 const isHovered = hoveredId === row.item.id;
                 return (
                   <div
@@ -5642,9 +5758,83 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   );
                 }
 
+                if (row.kind === 'empty-project') {
+                  return null;
+                }
+
                 if (row.kind === 'project') {
                   const { group } = row;
-                  if (group.items.length === 0) return null;
+                  const targetRel = releases?.find((r) => r.id === group.project.releaseId);
+                  const isProjectSelected = effectiveSelectedProjectId === group.project.id;
+
+                  if (group.items.length === 0) {
+                    const relSpan = targetRel ? getReleaseDateSpan(targetRel) : null;
+                    const groupStartDateStr = relSpan ? relSpan.startDate : group.startDate;
+                    const groupDuration = relSpan ? relSpan.duration : Math.max(1, group.duration || 14);
+                    const groupEndDateStr = relSpan ? relSpan.endDate : group.endDate;
+
+                    const groupStart = parseDateSafe(groupStartDateStr);
+                    const startOffsetDays = differenceInCalendarDays(
+                      groupStart,
+                      timelineStart
+                    );
+                    const groupStartX = startOffsetDays * dayWidth;
+                    const groupWidth = Math.max(dayWidth, groupDuration * dayWidth);
+
+                    return (
+                      <div
+                        key={`summary-bar-${group.project.id}`}
+                        data-project-summary-bar={group.project.id}
+                        data-empty-project-timeline-bar="true"
+                        data-selected-project-id={isProjectSelected ? group.project.id : undefined}
+                        style={{
+                          top: rowIndex * ROW_HEIGHT,
+                          height: ROW_HEIGHT,
+                        }}
+                        className="absolute left-0 right-0 flex items-center pointer-events-none z-20"
+                      >
+                        <div
+                          style={{ left: groupStartX, width: groupWidth }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSelectProject(group.project);
+                          }}
+                          onDoubleClick={(e) => {
+                            e.stopPropagation();
+                            onToggleProjectCollapse?.(group.project.id);
+                          }}
+                          title={`${group.project.name} (Sin tareas aún · ${targetRel ? `Release ${targetRel.code}` : 'Ventana estimada'}: ${formatDateDisplay(groupStartDateStr, 'dd MMM')} → ${formatDateDisplay(groupEndDateStr, 'dd MMM yyyy')} · Clic para seleccionar proyecto en diagrama)`}
+                          className={`relative z-20 flex flex-col justify-center cursor-pointer pointer-events-auto group overflow-visible ${
+                            isProjectSelected ? 'ring-2 ring-indigo-500 rounded-[4px] p-0.5' : ''
+                          }`}
+                        >
+                          {/* Label above empty summary bar */}
+                          <div
+                            data-timeline-project-name={group.project.name}
+                            className="flex items-center gap-1.5 text-[10px] font-bold text-slate-700 dark:text-slate-200 mb-1 px-0.5 whitespace-nowrap overflow-visible z-10 pointer-events-none"
+                          >
+                            <span className="whitespace-nowrap font-semibold">
+                              P{group.projectIndex}: {group.project.name}
+                            </span>
+                            <span className="px-1 py-0.2 rounded text-[9px] font-mono bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+                              0 tareas
+                            </span>
+                            {targetRel && (
+                              <span className="px-1 py-0.2 rounded text-[9px] font-mono bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09]">
+                                🚀 {targetRel.code}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Dashed summary bar */}
+                          <div className="h-4 rounded-[3px] border-2 border-dashed border-indigo-400 dark:border-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/40 flex items-center justify-between px-2 text-[10px] text-indigo-700 dark:text-indigo-300 font-mono shadow-xs">
+                            <span className="truncate">Ventana Release: {targetRel?.code || 'Proyecto sin tareas'}</span>
+                            <span className="shrink-0 font-bold">{groupDuration}d</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
 
                   const groupStart = parseDateSafe(group.startDate);
                   const startOffsetDays = differenceInCalendarDays(
@@ -5655,8 +5845,6 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   const groupWidth = Math.max(dayWidth, group.duration * dayWidth);
                   const projTheme =
                     COLOR_STYLES[group.project.color] || COLOR_STYLES.indigo;
-
-                  const isProjectSelected = effectiveSelectedProjectId === group.project.id;
 
                   return (
                     <div

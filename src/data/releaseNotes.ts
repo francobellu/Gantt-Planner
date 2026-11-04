@@ -10,10 +10,21 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.7.1',
+    date: '04 Nov 2026',
+    title: 'Soporte completo para proyectos sin tareas, estado vacío visual y prevención de vistas en blanco',
+    isLatest: true,
+    features: [
+      'Fila informativa de estado vacío en tabla WBS con botones directos para añadir tareas.',
+      'Barra visual de ventana de release en el cronograma para proyectos con 0 tareas (nunca queda el diagrama en blanco).',
+      'Botón rápido de creación de tarea DIGI automática cubriendo la release asignada.',
+      'Manejo enriquecido de Modo Enfoque en proyectos vacíos con aviso y acción directa para crear tarea o salir de enfoque.',
+    ],
+  },
+  {
     version: '1.7.0',
     date: '04 Nov 2026',
     title: 'Selección en diagrama de proyectos/releases, enfoque contextual y botones compactos',
-    isLatest: true,
     features: [
       'Selección directa de proyectos y releases en el diagrama de Gantt',
       'Modo enfoque contextual sobre el elemento seleccionado (tarea, proyecto o release)',

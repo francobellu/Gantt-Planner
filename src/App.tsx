@@ -79,6 +79,7 @@ import {
   getDayWidthForPreset,
   getDefaultSavedScenarios,
   getProjectTemplates,
+  getRelatedFocusEntityIds,
   groupItemsByProject,
   importGanttData,
   isDemoProject,
@@ -1114,6 +1115,12 @@ export function App({
     return count;
   }, [effectiveProjects, releases, computedItems]);
 
+  const focusRelatedItemCount = useMemo(() => {
+    if (!isFocusMode || !focusEntity) return 0;
+    const res = getRelatedFocusEntityIds(focusEntity, computedItems, effectiveProjects);
+    return res.itemIds.length;
+  }, [isFocusMode, focusEntity, computedItems, effectiveProjects]);
+
   const handleSaveFromModal = (savedItem: GanttItem, cascade: boolean) => {
     const cleanItem = sanitizeGanttItem({
       ...savedItem,
@@ -1324,18 +1331,18 @@ export function App({
       ...sanitizeProject(
         {
           id: `proj-${Date.now()}`,
-          name: newProj?.name || `Proyecto ${projects.length + 1}`,
+          name: newProj?.name || `Proyecto ${effectiveProjects.length + 1}`,
           color: newProj?.color || 'indigo',
           releaseId: newProj?.releaseId || releases[0]?.id || 'rel-t-26-12-1',
           platform: newProj?.platform || 'Multiplataforma',
           ...newProj,
           isDemo: false,
         },
-        projects.length
+        effectiveProjects.length
       ),
       isDemo: false,
     };
-    const nextProjects = [...projects, clean];
+    const nextProjects = [...effectiveProjects, clean];
     setProjects(nextProjects);
     setSelectedProjectIds((prev) =>
       prev.includes(clean.id) ? prev : [...prev, clean.id]
@@ -1358,7 +1365,7 @@ export function App({
       progress: 0,
       dependencies: [],
       slack: 0,
-      color: 'indigo',
+      color: clean.color || 'indigo',
     };
     const nextItems = [...items, digiTask];
     setItems(nextItems);
@@ -1369,6 +1376,34 @@ export function App({
       `Crear proyecto '${clean.name}' con tarea DIGI (${targetRelease ? targetRelease.code : ''})`,
       nextItems,
       nextProjects
+    );
+  };
+
+  const handleCreateDigiTask = (project: GanttProject) => {
+    const targetRelease = releases.find((r) => r.id === project.releaseId) || releases[0];
+    const span = getReleaseDateSpan(targetRelease);
+    const digiTask: GanttItem = {
+      id: `task-${Date.now()}`,
+      projectId: project.id,
+      name: 'DIGI',
+      type: 'task',
+      startDate: span.startDate,
+      endDate: span.endDate,
+      duration: span.duration,
+      progress: 0,
+      dependencies: [],
+      slack: 0,
+      color: project.color || 'indigo',
+    };
+    const nextItems = [...items, digiTask];
+    setItems(nextItems);
+    showToast(`Tarea DIGI creada para '${project.name}' (${targetRelease?.code || ''})`);
+    recordPlanChange(
+      'create_item',
+      'Creación Tarea DIGI',
+      `Crear tarea DIGI en proyecto '${project.name}'`,
+      nextItems,
+      effectiveProjects
     );
   };
 
@@ -2495,22 +2530,41 @@ export function App({
                 data-testid="focus-mode-active-banner"
                 className="flex items-center justify-between gap-4 px-4 py-2 rounded-[4px] bg-indigo-600 text-white text-xs font-semibold shadow-md animate-fade-in"
               >
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Sparkles className="w-4 h-4 text-amber-300 animate-pulse shrink-0" />
                   <span>
                     <strong>MODO ENFOQUE ACTIVO:</strong> Viendo únicamente elementos relacionados con {focusEntity.type === 'task' ? 'la tarea' : focusEntity.type === 'project' ? 'el proyecto' : 'la release'}{' '}
                     <strong className="underline underline-offset-2">&ldquo;{focusEntity.name || focusEntity.id}&rdquo;</strong>
                   </span>
+                  {focusRelatedItemCount === 0 && (
+                    <span className="px-2 py-0.5 rounded bg-amber-400 text-amber-950 font-bold text-[10px]">
+                      ⚠️ Sin tareas asociadas
+                    </span>
+                  )}
                 </div>
-                <button
-                  type="button"
-                  data-testid="exit-focus-mode-btn"
-                  onClick={handleExitFocusMode}
-                  className="px-3 py-1 rounded-[3px] bg-white text-indigo-900 font-bold hover:bg-zinc-100 transition cursor-pointer text-xs flex items-center gap-1.5 shrink-0"
-                >
-                  <X className="w-3.5 h-3.5" />
-                  <span>Salir del Enfoque</span>
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  {focusRelatedItemCount === 0 && focusEntity.type === 'project' && (
+                    <button
+                      type="button"
+                      data-testid="focus-empty-create-task-btn"
+                      onClick={() => handleOpenCreateModal('task', focusEntity.id)}
+                      className="px-2.5 py-1 rounded-[3px] bg-amber-300 text-amber-950 font-bold hover:bg-amber-200 transition cursor-pointer text-xs flex items-center gap-1 shrink-0"
+                      title="Crear primera tarea en este proyecto"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>+ Crear Tarea</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    data-testid="exit-focus-mode-btn"
+                    onClick={handleExitFocusMode}
+                    className="px-3 py-1 rounded-[3px] bg-white text-indigo-900 font-bold hover:bg-zinc-100 transition cursor-pointer text-xs flex items-center gap-1.5 shrink-0"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>Salir del Enfoque</span>
+                  </button>
+                </div>
               </div>
             )}
 
@@ -2553,6 +2607,7 @@ export function App({
               onUpdateProject={handleUpdateProject}
               onDeleteProject={handleDeleteProject}
               onCreateProject={handleCreateProject}
+              onCreateDigiTask={handleCreateDigiTask}
               scrollContainerRef={scrollContainerRef}
               showTable={showTable}
               onToggleShowTable={() => setShowTable((prev) => !prev)}
