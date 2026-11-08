@@ -2266,7 +2266,55 @@ export function computeWheelZoomDayWidth(currentDayWidth: number, deltaY: number
 }
 
 /**
- * Computes the overall timeline start and end dates (including padding around all items and today)
+ * Collects all start, end, and milestone anchor dates from visible projects, releases, and tasks
+ * so that the calendar header and grid columns cover the full span of every visible release bar
+ * and empty-project release window on the diagram.
+ */
+export function collectTimelineAnchorDates(options: {
+  projects?: GanttProject[];
+  releases?: Release[];
+  items?: Array<GanttItem | ComputedGanttItem>;
+  hiddenReleaseIds?: string[];
+}): string[] {
+  const releaseMap = new Map<string, Release>();
+  for (const rel of options.releases || []) {
+    if (rel && rel.id) {
+      releaseMap.set(rel.id, rel);
+    }
+  }
+  const hiddenSet = new Set<string>(options.hiddenReleaseIds || []);
+  const dates = new Set<string>();
+
+  const addReleaseDates = (relId?: string | null) => {
+    if (!relId || hiddenSet.has(relId)) return;
+    const rel = releaseMap.get(relId);
+    if (!rel) return;
+    const span = getReleaseDateSpan(rel);
+    if (span.startDate) dates.add(span.startDate);
+    if (span.endDate) dates.add(span.endDate);
+    for (const m of rel.milestones || []) {
+      if (m && m.date) dates.add(m.date);
+    }
+  };
+
+  for (const p of options.projects || []) {
+    if (p && p.releaseId) {
+      addReleaseDates(p.releaseId);
+    }
+  }
+
+  for (const it of options.items || []) {
+    if (!it || it.hidden) continue;
+    if (it.releaseId) {
+      addReleaseDates(it.releaseId);
+    }
+  }
+
+  return Array.from(dates);
+}
+
+/**
+ * Computes the overall timeline start and end dates (including padding around all items, releases, and today)
  * so timeline rendering and scroll-to-fit calculations share the exact same coordinate origin.
  */
 export function computeTimelineBounds(
@@ -2275,7 +2323,11 @@ export function computeTimelineBounds(
   extraDates?: Array<string | Date | null | undefined>
 ): { timelineStart: Date; timelineEnd: Date; totalDays: number } {
   const today = startOfDay(referenceToday || new Date());
-  if ((!items || items.length === 0) && (!extraDates || extraDates.length === 0)) {
+  const validExtraDates = (extraDates || []).filter(
+    (d): d is string | Date => d != null && d !== ''
+  );
+
+  if ((!items || items.length === 0) && validExtraDates.length === 0) {
     const start = addDays(today, -5);
     const end = addDays(today, 25);
     return {
@@ -2285,12 +2337,21 @@ export function computeTimelineBounds(
     };
   }
 
-  let minDate = items && items.length > 0 ? parseDateSafe(items[0].startDate) : today;
-  let maxDate = items && items.length > 0
-    ? parseDateSafe(
-        ('slackEndDate' in items[0] && items[0].slackEndDate) || items[0].endDate
-      )
-    : today;
+  const firstExtraParsed =
+    validExtraDates.length > 0
+      ? typeof validExtraDates[0] === 'string'
+        ? parseDateSafe(validExtraDates[0])
+        : startOfDay(validExtraDates[0])
+      : today;
+
+  let minDate =
+    items && items.length > 0 ? parseDateSafe(items[0].startDate) : firstExtraParsed;
+  let maxDate =
+    items && items.length > 0
+      ? parseDateSafe(
+          ('slackEndDate' in items[0] && items[0].slackEndDate) || items[0].endDate
+        )
+      : firstExtraParsed;
 
   if (items && items.length > 0) {
     for (const it of items) {
@@ -2312,10 +2373,9 @@ export function computeTimelineBounds(
     }
   }
 
-  if (extraDates && extraDates.length > 0) {
-    for (const d of extraDates) {
-      if (!d) continue;
-      const parsed = typeof d === 'string' ? parseDateSafe(d) : d;
+  if (validExtraDates.length > 0) {
+    for (const d of validExtraDates) {
+      const parsed = typeof d === 'string' ? parseDateSafe(d) : startOfDay(d);
       if (parsed < minDate) minDate = parsed;
       if (parsed > maxDate) maxDate = parsed;
     }
@@ -2348,8 +2408,11 @@ export function computeFitToProjectScale(
 ): FitToProjectResult {
   const todayStr = formatDateISO(startOfDay(options?.referenceToday || new Date()));
   const requestedProjectId = options?.projectId || 'all';
+  const validExtraDates = (options?.extraDates || []).filter(
+    (d): d is string | Date => d != null && d !== ''
+  );
 
-  if (!items || items.length === 0) {
+  if ((!items || items.length === 0) && validExtraDates.length === 0) {
     return {
       dayWidth: DEFAULT_DAY_WIDTH,
       scrollLeft: 0,
@@ -2362,12 +2425,21 @@ export function computeFitToProjectScale(
 
   const filtered =
     requestedProjectId !== 'all'
-      ? items.filter((it) => it.projectId === requestedProjectId)
-      : items;
-  const targetItems = filtered.length > 0 ? filtered : items;
+      ? (items || []).filter((it) => it.projectId === requestedProjectId)
+      : items || [];
+  const targetItems = filtered.length > 0 ? filtered : items || [];
 
-  let minStart = parseDateSafe(targetItems[0].startDate);
-  let maxEnd = parseDateSafe(targetItems[0].endDate);
+  const firstExtraParsed =
+    validExtraDates.length > 0
+      ? typeof validExtraDates[0] === 'string'
+        ? parseDateSafe(validExtraDates[0])
+        : startOfDay(validExtraDates[0])
+      : parseDateSafe(todayStr);
+
+  let minStart =
+    targetItems.length > 0 ? parseDateSafe(targetItems[0].startDate) : firstExtraParsed;
+  let maxEnd =
+    targetItems.length > 0 ? parseDateSafe(targetItems[0].endDate) : firstExtraParsed;
 
   for (const it of targetItems) {
     const s = parseDateSafe(it.startDate);
@@ -2377,10 +2449,9 @@ export function computeFitToProjectScale(
     if (withSlack > maxEnd) maxEnd = withSlack;
   }
 
-  if (options?.extraDates && options.extraDates.length > 0) {
-    for (const d of options.extraDates) {
-      if (!d) continue;
-      const parsed = typeof d === 'string' ? parseDateSafe(d) : d;
+  if (validExtraDates.length > 0) {
+    for (const d of validExtraDates) {
+      const parsed = typeof d === 'string' ? parseDateSafe(d) : startOfDay(d);
       if (parsed < minStart) minStart = parsed;
       if (parsed > maxEnd) maxEnd = parsed;
     }

@@ -10,10 +10,22 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.8.5',
+    date: '08 Nov 2026',
+    title: 'Cobertura completa del calendario hasta el fin de todas las barras de Release visibles',
+    isLatest: true,
+    features: [
+      'Cobertura automática de Releases en el calendario: el cálculo de límites temporales incluye siempre el inicio, fin e hitos de todas las barras de release visibles y ventanas de proyectos vacíos.',
+    ],
+    fixes: [
+      'Corrección de corte prematuro del calendario: se solucionó el problema por el cual la barra del calendario y las columnas de días se detenían en la última tarea (p. ej. 15 de marzo) cuando existían barras de release posteriores (p. ej. T_27.3.1 o T_27.4.1 hasta finales de marzo o abril).',
+    ],
+  },
+  {
     version: '1.8.4',
     date: '08 Nov 2026',
     title: 'Barra de calendario sticky, panel de herramientas visible, ID fijo de proyectos, tareas SCR con Release y propagación Proyecto → Hijos',
-    isLatest: true,
+    isLatest: false,
     features: [
       'Tareas SCR asociadas a Release: al igual que las tareas DIGI, las tareas de tipo SCR están asociadas a una release y ajustan automáticamente sus fechas al rango de dicha release.',
       'Propagación de Release y Plataforma a hijos con sobreescritura individual: al cambiar la release o la plataforma en un proyecto, los valores se propagan automáticamente a todas sus tareas hijas, permitiendo después que cada tarea sobreescriba su propia release o plataforma.',

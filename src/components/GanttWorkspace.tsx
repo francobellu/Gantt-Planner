@@ -73,6 +73,7 @@ import {
   calculateDurationFromDates,
   calculateEndDateFromDuration,
   clampDayWidth,
+  collectTimelineAnchorDates,
   computeFitToProjectScale,
   computeTimelineBounds,
   computeWheelZoomDayWidth,
@@ -1952,25 +1953,69 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     return items;
   }, [items, selectedProjectIds, allProjectGroups.length, visibleProjectGroups]);
 
-  // Extra date anchors from assigned releases and projects so timeline bounds cover schedules when projects have 0 tasks
+  // Extra date anchors from visible release bars, assigned project releases, and task releases
+  // so timeline calendar bounds and grid columns always cover every visible release bar and project window
   const timelineDates = useMemo(() => {
-    if (timelineScopedItems.length > 0) return undefined;
-    const dates: string[] = [];
+    const includeStartDates =
+      timelineScopedItems.length === 0 ||
+      visibleProjectGroups.some((g) => !g.project.isDemo || g.items.length === 0);
+
+    const dates = new Set<string>();
+
+    if (includeStartDates) {
+      for (const d of collectTimelineAnchorDates({
+        projects: visibleProjectGroups.map((g) => g.project),
+        releases,
+        items: timelineScopedItems,
+        hiddenReleaseIds,
+      })) {
+        dates.add(d);
+      }
+    }
+
     for (const group of visibleProjectGroups) {
+      if (includeStartDates && group.startDate) dates.add(group.startDate);
+      if (group.endDate) dates.add(group.endDate);
+      if (group.slackEndDate) dates.add(group.slackEndDate);
       if (group.project.releaseId) {
         const rel = releases.find((r) => r.id === group.project.releaseId);
         if (rel) {
           const span = getReleaseDateSpan(rel);
-          dates.push(span.startDate, span.endDate);
+          if (includeStartDates && span.startDate) dates.add(span.startDate);
+          if (span.endDate) dates.add(span.endDate);
         }
       }
-      if (group.startDate) dates.push(group.startDate);
-      if (group.endDate) dates.push(group.endDate);
     }
-    return dates.length > 0 ? dates : undefined;
-  }, [timelineScopedItems.length, visibleProjectGroups, releases]);
 
-  // Compute timeline date range with padding before and after project
+    for (const row of displayRows) {
+      if (row.kind === 'release') {
+        const rg = row.group;
+        if (includeStartDates && rg.startDate) dates.add(rg.startDate);
+        if (rg.endDate) dates.add(rg.endDate);
+        if (rg.release.id !== '__unassigned__') {
+          const span = getReleaseDateSpan(rg.release);
+          if (includeStartDates && span.startDate) dates.add(span.startDate);
+          if (span.endDate) dates.add(span.endDate);
+        }
+      } else if (row.kind === 'project' || row.kind === 'empty-project') {
+        if (includeStartDates && row.group.startDate) dates.add(row.group.startDate);
+        if (row.group.endDate) dates.add(row.group.endDate);
+        if (row.group.slackEndDate) dates.add(row.group.slackEndDate);
+        if (row.group.project.releaseId) {
+          const rel = releases.find((r) => r.id === row.group.project.releaseId);
+          if (rel) {
+            const span = getReleaseDateSpan(rel);
+            if (includeStartDates && span.startDate) dates.add(span.startDate);
+            if (span.endDate) dates.add(span.endDate);
+          }
+        }
+      }
+    }
+
+    return dates.size > 0 ? Array.from(dates) : undefined;
+  }, [visibleProjectGroups, releases, timelineScopedItems, hiddenReleaseIds, displayRows]);
+
+  // Compute timeline date range with padding before and after project and visible releases
   const { timelineDays, timelineStart, monthGroups, todayIndex } = useMemo(() => {
     const today = startOfDay(new Date());
     const { timelineStart: paddedStart, timelineEnd: paddedEnd } =
@@ -1999,7 +2044,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       monthGroups: groups,
       todayIndex: tIdx,
     };
-  }, [timelineScopedItems]);
+  }, [timelineScopedItems, timelineDates]);
 
   // Handle mouse drag for task bars on timeline
   const handleBarMouseDown = (

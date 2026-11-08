@@ -64,6 +64,7 @@ import {
 import {
   cascadeDependencies,
   clampDayWidth,
+  collectTimelineAnchorDates,
   computeFitToProjectScale,
   computeGanttMetrics,
   computeTimelineBounds,
@@ -1602,6 +1603,15 @@ export function App({
     const viewportW = container && container.clientWidth > 0 ? container.clientWidth : 980;
     const pid = targetProjectId || selectedProjectId || 'all';
     const selectedSet = new Set(selectedProjectIds);
+    const projectsToFit =
+      targetProjectId && targetProjectId !== 'all'
+        ? effectiveProjects.filter((p) => p.id === targetProjectId)
+        : !targetProjectId &&
+          pid === 'all' &&
+          selectedSet.size > 0 &&
+          selectedSet.size < effectiveProjects.length
+        ? effectiveProjects.filter((p) => selectedSet.has(p.id))
+        : effectiveProjects;
     const itemsToFit =
       !targetProjectId &&
       pid === 'all' &&
@@ -1611,11 +1621,18 @@ export function App({
             selectedSet.has(it.projectId || effectiveProjects[0]?.id || 'proj-default')
           )
         : computedItems;
+    const extraDates = collectTimelineAnchorDates({
+      projects: projectsToFit,
+      releases,
+      items: itemsToFit,
+      hiddenReleaseIds,
+    });
     const fit = computeFitToProjectScale(
       itemsToFit.length > 0 ? itemsToFit : computedItems,
       viewportW,
       {
         projectId: pid,
+        extraDates,
       }
     );
     setDayWidth(fit.dayWidth);
