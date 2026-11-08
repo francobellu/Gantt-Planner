@@ -10,10 +10,23 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.8.3',
+    date: '08 Nov 2026',
+    title: 'Reubicación del botón de exportación Excel a la vista de Informes y simplificación de barra superior',
+    isLatest: true,
+    features: [
+      'Descarga de Excel centralizada en Informes: botón de acción con icono de descarga exclusivo en la vista de hojas de cálculo (.xlsx) para exportar el libro con sus 3 pestañas.',
+    ],
+    improvements: [
+      'Barra superior simplificada: eliminación del botón directo de Excel de la barra superior para evitar duplicidad de iconos y separar claramente el respaldo técnico (JSON) de la exportación de reportes (Excel).',
+      'Acceso rápido a Informes y Excel: tooltip clarificado en el botón de Informes de la cabecera para acceder directamente a las tablas y a la descarga de Excel.',
+    ],
+  },
+  {
     version: '1.8.2',
     date: '04 Nov 2026',
     title: 'Corrección de barra de búsqueda y eliminación de sombras de fines de semana en barras de tareas',
-    isLatest: true,
+    isLatest: false,
     features: [
       'Búsqueda y filtro de plataforma optimizados en la barra superior del cronograma, garantizando visibilidad continua y total claridad de las filas de release.',
     ],
