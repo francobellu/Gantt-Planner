@@ -197,6 +197,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             onClick={handleDownloadExcel}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition shadow-xs cursor-pointer"
             title="Exportar libro completo (.xlsx) con las 3 pestañas"
+            aria-label="Descargar Excel (.xlsx)"
           >
             <Download className="w-3.5 h-3.5" />
             <span>Descargar Excel (.xlsx)</span>

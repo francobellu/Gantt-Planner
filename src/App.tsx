@@ -107,7 +107,6 @@ import {
   checkTaskReleaseCompliance,
   getReleaseDateSpan,
 } from './utils/releaseEngine';
-import { downloadGanttExcelFile } from './utils/excelExportEngine';
 
 const STORAGE_KEY = 'ganttflow_pro_state_v2';
 const LEGACY_STORAGE_KEY_V1 = 'ganttflow_pro_state_v1';
@@ -2113,24 +2112,6 @@ export function App({
             >
               <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
             </button>
-            <div className="w-px h-3.5 bg-[#E2E2DC] dark:bg-zinc-800" />
-            <button
-              type="button"
-              data-testid="header-export-excel-btn"
-              onClick={() => {
-                try {
-                  downloadGanttExcelFile(releases, effectiveProjects, computedItems);
-                  showToast('Descargando archivo Excel completo con jerarquía...');
-                } catch {
-                  showToast('Error al exportar a Excel');
-                }
-              }}
-              className="p-1.5 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 transition cursor-pointer flex items-center justify-center"
-              title="Exportar jerarquía completa (Releases, Proyectos, Tareas) a archivo Excel (.xlsx)"
-              aria-label="Exportar Excel"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-            </button>
           </div>
 
           {/* Botón para restablecer releases ocultas cuando hay alguna oculta (Icon-Only) */}
@@ -2157,7 +2138,7 @@ export function App({
                 ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
                 : 'bg-white dark:bg-zinc-900 border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800'
             }`}
-            title="Consultar tablas completas tipo Excel (Cronograma Completo, Resumen Proyectos, Catálogo Releases)"
+            title="Informes y descarga Excel (.xlsx)"
             aria-label="Informes"
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />

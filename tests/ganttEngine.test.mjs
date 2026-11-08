@@ -5588,7 +5588,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     const appHtml = renderToString(React.createElement(mod.App));
     assert.ok(appHtml.includes('data-testid="platform-filter-select"'), 'App header must contain platform-filter-select');
     assert.ok(appHtml.includes('data-testid="header-toggle-focus-mode-btn"'), 'App header must contain header-toggle-focus-mode-btn');
-    assert.ok(appHtml.includes('data-testid="header-export-excel-btn"'), 'App header must contain header-export-excel-btn');
+    assert.ok(appHtml.includes('data-testid="header-reports-btn"'), 'App header must contain header-reports-btn');
     assert.ok(appHtml.includes('v1.8.2'), 'App header must display version v1.8.2');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
@@ -6191,7 +6191,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     // 7. Verify secondary buttons are rendered inside the menu
     assert.ok(appHtml.includes('data-testid="header-import-btn"'), 'Dropdown contains header-import-btn');
     assert.ok(appHtml.includes('data-testid="header-export-btn"'), 'Dropdown contains header-export-btn');
-    assert.ok(appHtml.includes('data-testid="header-export-excel-btn"'), 'Dropdown contains header-export-excel-btn');
+    assert.ok(appHtml.includes('data-testid="header-reports-btn"'), 'Header contains header-reports-btn');
     assert.ok(appHtml.includes('data-testid="header-history-btn"'), 'Dropdown contains header-history-btn');
     assert.ok(appHtml.includes('data-testid="header-help-btn"'), 'Dropdown contains header-help-btn');
     assert.ok(appHtml.includes('data-testid="header-settings-btn"'), 'Dropdown contains header-settings-btn');
@@ -6520,8 +6520,8 @@ test('Test 62: Diagram project/release selection, contextual focus, moved import
       'App header must contain direct Export JSON button'
     );
     assert.ok(
-      appHtml.includes('data-testid="header-export-excel-btn"'),
-      'App header must contain direct Export Excel button'
+      appHtml.includes('data-testid="header-reports-btn"'),
+      'App header must contain Reports button leading to Excel download'
     );
     assert.ok(
       appHtml.includes('data-testid="header-releases-btn"'),
