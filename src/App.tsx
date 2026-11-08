@@ -2178,22 +2178,6 @@ export function App({
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
           </button>
 
-          {/* Selector de Plataforma (iOS, Android, iOS/Android) */}
-          <div className="flex items-center gap-1 shrink-0">
-            <select
-              data-testid="platform-filter-select"
-              value={selectedPlatform}
-              onChange={(e) => setSelectedPlatform(e.target.value as any)}
-              className="px-2.5 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-medium text-[#0C0C09] dark:text-zinc-200 outline-none cursor-pointer hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 transition"
-              title="Filtrar proyectos por tecnología o plataforma destino"
-            >
-              <option value="all">Plataformas: Todas</option>
-              <option value="iOS">Plataforma: iOS</option>
-              <option value="Android">Plataforma: Android</option>
-              <option value="iOS/Android">iOS/Android</option>
-            </select>
-          </div>
-
           {/* Modo Enfoque Toggle (Contextual al elemento seleccionado - Icon-Only) */}
           <button
             type="button"
@@ -2657,6 +2641,7 @@ export function App({
               selectedEntity={selectedEntity}
               onSelectEntity={setSelectedEntity}
               selectedPlatform={selectedPlatform}
+              onChangeSelectedPlatform={setSelectedPlatform}
             />
           </>
         )}

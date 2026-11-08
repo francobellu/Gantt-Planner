@@ -240,6 +240,7 @@ interface GanttWorkspaceProps {
   selectedEntity?: FocusEntity | null;
   onSelectEntity?: (entity: FocusEntity | null) => void;
   selectedPlatform?: 'all' | 'iOS' | 'Android' | 'iOS/Android' | 'Multiplataforma';
+  onChangeSelectedPlatform?: (platform: 'all' | ProjectPlatform) => void;
   truncateCharLimit?: number;
   onChangeTruncateCharLimit?: (limit: number) => void;
 }
@@ -602,12 +603,28 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   selectedEntity = null,
   onSelectEntity,
   selectedPlatform = 'all',
+  onChangeSelectedPlatform,
   truncateCharLimit,
   onChangeTruncateCharLimit,
 }) => {
   const [focusedProjectInputId, setFocusedProjectInputId] = useState<string | null>(null);
   const [tableSearchQuery, setTableSearchQuery] = useState<string>('');
   const [tablePlatformFilter, setTablePlatformFilter] = useState<'all' | ProjectPlatform>('all');
+  const [showPlatformFilterMenu, setShowPlatformFilterMenu] = useState<boolean>(false);
+  const platformFilterMenuRef = useRef<HTMLDivElement>(null);
+
+  const activePlatformFilter: 'all' | ProjectPlatform =
+    tablePlatformFilter !== 'all'
+      ? tablePlatformFilter
+      : selectedPlatform && selectedPlatform !== 'all'
+      ? normalizePlatform(selectedPlatform) || 'iOS/Android'
+      : 'all';
+
+  const handleSelectPlatformFilter = (next: 'all' | ProjectPlatform) => {
+    setTablePlatformFilter(next);
+    onChangeSelectedPlatform?.(next);
+    setShowPlatformFilterMenu(false);
+  };
   const [hoveredNameId, setHoveredNameId] = useState<string | null>(null);
   const [activeColorPickerProjId, setActiveColorPickerProjId] = useState<string | null>(null);
   const [collapsedReleaseIds, setCollapsedReleaseIds] = useState<Set<string>>(() => {
@@ -925,6 +942,29 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [showColumnsMenu]);
+
+  useEffect(() => {
+    if (!showPlatformFilterMenu) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (
+        platformFilterMenuRef.current &&
+        !platformFilterMenuRef.current.contains(e.target as Node)
+      ) {
+        setShowPlatformFilterMenu(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowPlatformFilterMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showPlatformFilterMenu]);
 
   // Configurable text truncation limit (controlled via prop or local fallback)
   const [internalTruncateLimit, setInternalTruncateLimit] = useState<number>(() => {
@@ -3506,29 +3546,138 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               )}
             </div>
 
-            <div className="flex items-center gap-1 shrink-0">
-              <Smartphone className="w-3 h-3 text-zinc-500 shrink-0 hidden md:block" />
-              <select
+            <div ref={platformFilterMenuRef} className="relative flex items-center shrink-0">
+              <button
+                type="button"
                 data-testid="table-platform-filter"
-                value={tablePlatformFilter}
-                onChange={(e) => setTablePlatformFilter(e.target.value as any)}
-                className="px-1.5 py-0.5 text-[10px] font-sans font-medium normal-case rounded-[3px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 outline-none cursor-pointer h-6.5"
+                data-selected-platform={activePlatformFilter}
+                onClick={() => setShowPlatformFilterMenu((prev) => !prev)}
+                className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-sans font-medium normal-case rounded-[3px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700/70 outline-none cursor-pointer h-6.5 transition"
                 title="Filtrar por plataforma"
               >
-                <option value="all">Todas las plataformas</option>
-                <option value="iOS">iOS</option>
-                <option value="Android">Android</option>
-                <option value="iOS/Android">iOS/Android</option>
-              </select>
+                {activePlatformFilter === 'all' ? (
+                  <>
+                    <Smartphone className="w-3 h-3 text-zinc-500 shrink-0" />
+                    <span>Todas</span>
+                  </>
+                ) : activePlatformFilter === 'iOS' ? (
+                  <AppleIosIcon
+                    testId="active-filter-icon-ios"
+                    className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400"
+                  />
+                ) : activePlatformFilter === 'Android' ? (
+                  <AndroidIcon
+                    testId="active-filter-icon-android"
+                    className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400"
+                  />
+                ) : (
+                  <span className="inline-flex items-center gap-1">
+                    <AppleIosIcon
+                      testId="active-filter-icon-both-ios"
+                      className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400"
+                    />
+                    <AndroidIcon
+                      testId="active-filter-icon-both-android"
+                      className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400"
+                    />
+                  </span>
+                )}
+                <ChevronDown className="w-3 h-3 text-zinc-500 shrink-0" />
+              </button>
+
+              <div
+                data-testid="table-platform-filter-menu"
+                className={`absolute left-0 top-full mt-1 z-50 min-w-[84px] rounded-[4px] border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg py-1 ${
+                  showPlatformFilterMenu ? 'flex flex-col' : 'hidden'
+                }`}
+              >
+                <button
+                  type="button"
+                  data-testid="platform-filter-option-all"
+                  onClick={() => {
+                    handleSelectPlatformFilter('all');
+                    setShowPlatformFilterMenu(false);
+                  }}
+                  className={`flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-[10px] font-sans font-medium cursor-pointer transition ${
+                    activePlatformFilter === 'all'
+                      ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                      : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                  }`}
+                  title="Todas las plataformas"
+                >
+                  <span>Todas</span>
+                </button>
+                <button
+                  type="button"
+                  data-testid="platform-filter-option-iOS"
+                  onClick={() => {
+                    handleSelectPlatformFilter('iOS');
+                    setShowPlatformFilterMenu(false);
+                  }}
+                  className={`flex items-center justify-center px-2.5 py-1.5 cursor-pointer transition ${
+                    activePlatformFilter === 'iOS'
+                      ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                      : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                  }`}
+                  title="iOS"
+                >
+                  <AppleIosIcon
+                    testId="filter-option-icon-ios"
+                    className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400"
+                  />
+                </button>
+                <button
+                  type="button"
+                  data-testid="platform-filter-option-Android"
+                  onClick={() => {
+                    handleSelectPlatformFilter('Android');
+                    setShowPlatformFilterMenu(false);
+                  }}
+                  className={`flex items-center justify-center px-2.5 py-1.5 cursor-pointer transition ${
+                    activePlatformFilter === 'Android'
+                      ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                      : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                  }`}
+                  title="Android"
+                >
+                  <AndroidIcon
+                    testId="filter-option-icon-android"
+                    className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400"
+                  />
+                </button>
+                <button
+                  type="button"
+                  data-testid="platform-filter-option-iOS/Android"
+                  onClick={() => {
+                    handleSelectPlatformFilter('iOS/Android');
+                    setShowPlatformFilterMenu(false);
+                  }}
+                  className={`flex items-center justify-center gap-1 px-2.5 py-1.5 cursor-pointer transition ${
+                    activePlatformFilter === 'iOS/Android'
+                      ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                      : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                  }`}
+                  title="iOS/Android"
+                >
+                  <AppleIosIcon
+                    testId="filter-option-icon-both-ios"
+                    className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400"
+                  />
+                  <AndroidIcon
+                    testId="filter-option-icon-both-android"
+                    className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400"
+                  />
+                </button>
+              </div>
             </div>
 
-            {(tableSearchQuery || tablePlatformFilter !== 'all') && (
+            {(tableSearchQuery || activePlatformFilter !== 'all') && (
               <button
                 type="button"
                 data-testid="table-clear-filters-btn"
                 onClick={() => {
                   setTableSearchQuery('');
-                  setTablePlatformFilter('all');
+                  handleSelectPlatformFilter('all');
                 }}
                 className="text-[9px] font-sans font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer shrink-0"
               >
@@ -4148,11 +4297,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                   <ChevronDown className="w-4 h-4" />
                                 )}
                               </button>
-                              <Rocket className="w-4 h-4 shrink-0 text-amber-400 dark:text-indigo-600" />
                               <span className="font-mono text-xs px-1.5 py-0.5 rounded bg-white/20 dark:bg-black/10 shrink-0">
                                 {rGroup.release.code}
                               </span>
-                              <span className="truncate">{rGroup.release.name}</span>
                               <span
                                 data-release-duration-badge={rGroup.release.id}
                                 className="px-1.5 py-0.5 rounded font-mono text-[10px] font-bold bg-white/20 dark:bg-black/10 shrink-0"

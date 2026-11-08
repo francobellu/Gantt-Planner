@@ -10,10 +10,23 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.8.8',
+    date: '08 Nov 2026',
+    title: 'Filtro desplegable de plataforma con iconos, limpieza de barras de Release en tabla y eliminación de selector duplicado',
+    isLatest: true,
+    features: [
+      'Menú desplegable de filtro por plataforma con iconos nativos: el selector de plataforma en la barra del cronograma muestra directamente los iconos de iOS, Android y ambos iconos juntos (para filtrar proyectos y tareas multiplataforma).',
+    ],
+    improvements: [
+      'Barras de Release minimalistas en la tabla: se eliminaron el icono de cohete y el nombre largo de la release en las cabeceras de la tabla izquierda, mostrando únicamente el código que empieza por T_.',
+      'Eliminación del selector de plataforma duplicado en la barra superior principal, centralizando el filtrado en la barra de herramientas del cronograma.',
+    ],
+  },
+  {
     version: '1.8.7',
     date: '08 Nov 2026',
     title: 'Detalle exacto de estados en el Historial, plataforma iOS/Android con iconos e iconos limpios en Releases',
-    isLatest: true,
+    isLatest: false,
     features: [
       'Descripción exacta de cambios de estado en el Historial: cada entrada muestra explícitamente qué campos cambiaron (Antes → Después) en proyectos, tareas e hitos tanto en la tarjeta principal como en una nueva tabla de «Cambios exactos en esta versión».',
       'Plataforma «iOS/Android» e iconos nativos en la tabla: se sustituyó el valor «Multiplataforma» por «iOS/Android» y se representa visualmente la plataforma en las filas de proyecto de la tabla con los iconos de iOS y Android.',

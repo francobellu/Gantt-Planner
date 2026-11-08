@@ -3512,12 +3512,20 @@ export function describeProjectStateChanges(
       after: resolveReleaseCodeLabel(nextProj.releaseId, releases),
     });
   }
-  const prevPlat = normalizePlatform(prevProj.platform) || 'iOS/Android';
-  const nextPlat = normalizePlatform(nextProj.platform) || 'iOS/Android';
+  const prevPlatRaw = prevProj.platform;
+  const nextPlatRaw = nextProj.platform;
+  const prevPlat = normalizePlatform(prevPlatRaw) || 'iOS/Android';
+  const nextPlat = normalizePlatform(nextPlatRaw) || 'iOS/Android';
   if (prevPlat !== nextPlat) {
     diffs.push({
       field: 'Plataforma',
       before: prevPlat,
+      after: nextPlat,
+    });
+  } else if (!prevPlatRaw && nextPlatRaw) {
+    diffs.push({
+      field: 'Plataforma',
+      before: 'Sin definir',
       after: nextPlat,
     });
   }
@@ -3537,6 +3545,13 @@ export function describeProjectStateChanges(
       field: 'Descripción',
       before: prevDesc || 'Vacía',
       after: nextDesc || 'Vacía',
+    });
+  }
+  if (Boolean(prevProj.collapsed) !== Boolean(nextProj.collapsed)) {
+    diffs.push({
+      field: 'Vista',
+      before: prevProj.collapsed ? 'Colapsado' : 'Expandido',
+      after: nextProj.collapsed ? 'Colapsado' : 'Expandido',
     });
   }
   return diffs;
@@ -3718,7 +3733,8 @@ export function formatFieldDiffsInline(changes: HistoryFieldDiff[]): string {
 export function computeHistoryEntryDiff(
   prevSnapshot: { items: GanttItem[]; projects: GanttProject[] } | undefined,
   currentSnapshot: { items: GanttItem[]; projects: GanttProject[] },
-  releases?: Release[]
+  releases?: Release[],
+  entryMeta?: { actionType?: string; description?: string }
 ): HistoryEntityChange[] {
   if (!prevSnapshot) return [];
 
@@ -3895,6 +3911,38 @@ export function computeHistoryEntryDiff(
             ],
           });
         }
+      }
+    }
+  }
+
+  // 7. Fallback for legacy project/item edit entries where snapshots had no field delta
+  if (result.length === 0 && entryMeta) {
+    const desc = entryMeta.description || '';
+    const projMatch = desc.match(/proyecto\s+'([^']+)'/i);
+    if (
+      projMatch ||
+      entryMeta.actionType === 'edit_project' ||
+      entryMeta.actionType === 'update_project'
+    ) {
+      const targetName = projMatch ? projMatch[1] : undefined;
+      const targetProj =
+        (targetName && currentSnapshot.projects.find((p) => p.name === targetName)) ||
+        currentSnapshot.projects[currentSnapshot.projects.length - 1];
+      if (targetProj) {
+        const relLabel = resolveReleaseCodeLabel(targetProj.releaseId, releases);
+        const platLabel = normalizePlatform(targetProj.platform) || 'iOS/Android';
+        const colorLabel = targetProj.color || 'indigo';
+        result.push({
+          entityType: 'project',
+          changeType: 'updated',
+          id: targetProj.id,
+          name: targetProj.name,
+          changes: [
+            { field: 'Release', before: relLabel, after: relLabel },
+            { field: 'Plataforma', before: platLabel, after: platLabel },
+            { field: 'Color', before: colorLabel, after: colorLabel },
+          ],
+        });
       }
     }
   }

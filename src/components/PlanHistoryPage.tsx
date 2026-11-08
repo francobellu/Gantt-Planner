@@ -156,7 +156,12 @@ export const PlanHistoryPage: React.FC<PlanHistoryPageProps> = ({
   const indexedEntries = useMemo(() => {
     return history.map((entry, index) => {
       const prevSnapshot = index > 0 ? history[index - 1]?.snapshot : undefined;
-      const entityChanges = computeHistoryEntryDiff(prevSnapshot, entry.snapshot, releases);
+      const entityChanges = computeHistoryEntryDiff(
+        prevSnapshot,
+        entry.snapshot,
+        releases,
+        { actionType: entry.actionType, description: entry.description }
+      );
       return { entry, originalIndex: index, entityChanges };
     });
   }, [history, releases]);

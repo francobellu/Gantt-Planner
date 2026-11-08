@@ -4524,7 +4524,7 @@ test('Help page, version control v1.2.0, release selection on project creation, 
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version control consistency
-  assert.equal(pkg.version, '1.8.7', 'package.json version must be 1.8.7');
+  assert.equal(pkg.version, '1.8.8', 'package.json version must be 1.8.8');
   assert.ok(pkg.scripts['version:patch'], 'package.json must contain version:patch script');
   assert.ok(pkg.scripts['version:minor'], 'package.json must contain version:minor script');
   assert.ok(pkg.scripts['release:patch'], 'package.json must contain release:patch script');
@@ -5305,10 +5305,10 @@ test('Task name positioning, configurable row separators, 37 char truncation, v1
     const htmlWithoutWeekendShading = renderToString(mod.renderWorkspaceWithWeekendShading(false));
     assert.ok(!htmlWithoutWeekendShading.includes('bg-[#E5E5DF]'), 'Canvas and header must NOT render weekend shading when showWeekendShading is false (clean uniform background)');
 
-    // 9. App Header displays v1.8.7 badge, row-separators-btn, and weekend-shading-btn
+    // 9. App Header displays v1.8.8 badge, row-separators-btn, and weekend-shading-btn
     const appHtml = renderToString(mod.renderAppHeader());
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'Header must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.8.7'), 'Header badge must display v1.8.7');
+    assert.ok(appHtml.includes('v1.8.8'), 'Header badge must display v1.8.8');
     assert.ok(appHtml.includes('data-testid="header-toggle-row-separators-btn"'), 'Header must contain header-toggle-row-separators-btn');
     assert.ok(appHtml.includes('data-testid="header-toggle-weekend-shading-btn"'), 'Header must contain header-toggle-weekend-shading-btn');
 
@@ -5338,7 +5338,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version Bump Verification
-  assert.equal(pkg.version, '1.8.7', 'package.json version must equal 1.8.7');
+  assert.equal(pkg.version, '1.8.8', 'package.json version must equal 1.8.8');
 
   // Verify scripts/bump-version.mjs works properly
   const bumpScript = await fs.readFile(path.resolve(__dirname, '../scripts/bump-version.mjs'), 'utf8');
@@ -5511,8 +5511,8 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    // A. APP_VERSION equals 1.8.7
-    assert.equal(mod.APP_VERSION, '1.8.7', 'APP_VERSION must be 1.8.7');
+    // A. APP_VERSION equals 1.8.8
+    assert.equal(mod.APP_VERSION, '1.8.8', 'APP_VERSION must be 1.8.8');
 
     // A2. Excel Export Unit Test
     const sampleReleases = [
@@ -5586,10 +5586,10 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
 
     // E. Header controls in App SSR
     const appHtml = renderToString(React.createElement(mod.App));
-    assert.ok(appHtml.includes('data-testid="platform-filter-select"'), 'App header must contain platform-filter-select');
+    assert.ok(appHtml.includes('data-testid="table-platform-filter"'), 'App must contain unified table-platform-filter');
     assert.ok(appHtml.includes('data-testid="header-toggle-focus-mode-btn"'), 'App header must contain header-toggle-focus-mode-btn');
     assert.ok(appHtml.includes('data-testid="header-reports-btn"'), 'App header must contain header-reports-btn');
-    assert.ok(appHtml.includes('v1.8.7'), 'App header must display version v1.8.7');
+    assert.ok(appHtml.includes('v1.8.8'), 'App header must display version v1.8.8');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6041,8 +6041,8 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
-  // 1. Version Bump Verification v1.8.7
-  assert.equal(pkg.version, '1.8.7', 'package.json version must equal 1.8.7');
+  // 1. Version Bump Verification v1.8.8
+  assert.equal(pkg.version, '1.8.8', 'package.json version must equal 1.8.8');
 
   // 2. SSR Bundle verification for TaskFormModal, App Header, and sanitizeGanttItem
   const tmpFile = path.resolve(__dirname, `tmp_test59_bundle_${Date.now()}.mjs`);
@@ -6140,7 +6140,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.equal(mod.APP_VERSION, '1.8.7', 'mod.APP_VERSION must equal 1.8.7');
+    assert.equal(mod.APP_VERSION, '1.8.8', 'mod.APP_VERSION must equal 1.8.8');
 
     // sanitizeGanttItem preserves platform
     const sanitizedIos = mod.sanitizeGanttItem({
@@ -6185,7 +6185,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     assert.ok(appHtml.includes('data-testid="header-more-menu-btn"'), 'App header must render header-more-menu-btn');
     assert.ok(appHtml.includes('data-testid="header-more-menu-dropdown"'), 'App must render header-more-menu-dropdown');
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'More menu must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.8.7'), 'Version badge must display v1.8.7');
+    assert.ok(appHtml.includes('v1.8.8'), 'Version badge must display v1.8.8');
     assert.ok(appHtml.includes('data-testid="force-reload-btn"'), 'More menu must contain force-reload-btn');
 
     // 7. Verify secondary buttons are rendered inside the menu
@@ -6207,7 +6207,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
       hiddenReleaseCount: 0,
     }));
     assert.ok(settingsHtml.includes('data-testid="settings-version-badge"'), 'SettingsModal must contain settings-version-badge');
-    assert.ok(settingsHtml.includes('1.8.7') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.8.7');
+    assert.ok(settingsHtml.includes('1.8.8') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.8.8');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6361,14 +6361,14 @@ test('Test 61: Version button, compiled release notes modal and changelog across
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
 
     // 1. Check RELEASE_NOTES compiled data
-    assert.strictEqual(mod.APP_VERSION, '1.8.7');
+    assert.strictEqual(mod.APP_VERSION, '1.8.8');
     assert.ok(Array.isArray(mod.RELEASE_NOTES), 'RELEASE_NOTES must be an array');
     assert.ok(mod.RELEASE_NOTES.length >= 9, 'RELEASE_NOTES must have at least 9 releases');
 
     const latest = mod.RELEASE_NOTES[0];
-    assert.strictEqual(latest.version, '1.8.7', 'First release note must be 1.8.7');
+    assert.strictEqual(latest.version, '1.8.8', 'First release note must be 1.8.8');
     assert.strictEqual(latest.isLatest, true, 'First release note must be isLatest: true');
-    assert.ok(latest.features.length > 0, 'v1.8.7 must contain features');
+    assert.ok(latest.features.length > 0, 'v1.8.8 must contain features');
 
     // 2. Render App and verify version button exists in dropdown menu and is NOT duplicated in top header
     const appHtml = renderToString(React.createElement(mod.App));
@@ -6381,8 +6381,8 @@ test('Test 61: Version button, compiled release notes modal and changelog across
       'App dropdown must contain data-testid="app-version-badge"'
     );
     assert.ok(
-      appHtml.includes('<button') && appHtml.includes('data-testid="app-version-badge"') && appHtml.includes('v1.8.7'),
-      'app-version-badge in tools dropdown must be an interactive button showing v1.8.7'
+      appHtml.includes('<button') && appHtml.includes('data-testid="app-version-badge"') && appHtml.includes('v1.8.8'),
+      'app-version-badge in tools dropdown must be an interactive button showing v1.8.8'
     );
 
     // 3. Render ReleaseNotesModal
@@ -7771,16 +7771,189 @@ test('Test 70: v1.8.7 Exact state change diffs in PlanHistoryPage, icon-only foc
   }
 });
 
+// ============================================================================
+// TEST 71: v1.8.8 Minimalist Table Release Header Bar (Only T_ Code, No Icon/Name),
+// Deduplicated Platform Filter, and Custom Icon-Only Platform Filter Dropdown
+// ============================================================================
+test('Test 71: v1.8.8 table release bar shows only T_ code without icon/name, duplicate header platform filter is removed, and custom platform filter uses iOS/Android icons', async () => {
+  const fs = await import('node:fs/promises');
+  const ReactMod = await import('react');
+  const React = ReactMod.default || ReactMod;
+  const ReactDOMServer = await import('react-dom/server');
+  const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
+  const tmpFile = path.resolve(__dirname, `tmp_test71_bundle_${Date.now()}.mjs`);
+  try {
+    await build({
+      stdin: {
+        contents: `
+          import React from 'react';
+          import { App } from './src/App.tsx';
+          import { GanttWorkspace } from './src/components/GanttWorkspace.tsx';
+          import { computeGanttMetrics } from './src/utils/ganttEngine.ts';
+          export { App, GanttWorkspace, computeGanttMetrics };
+        `,
+        resolveDir: path.resolve(__dirname, '..'),
+        sourcefile: 'test71_entry.tsx',
+        loader: 'tsx',
+      },
+      bundle: true,
+      format: 'esm',
+      outfile: tmpFile,
+      platform: 'neutral',
+      target: 'es2022',
+      jsx: 'automatic',
+      external: [
+        'react',
+        'react-dom',
+        'react-dom/server',
+        'lucide-react',
+        'date-fns',
+        'date-fns/locale',
+        'xlsx',
+        'canvas-confetti',
+      ],
+      define: {
+        'process.env.NODE_ENV': '"production"',
+      },
+    });
 
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
 
+    // 1. Verify duplicate platform-filter-select is removed from App top header
+    const appHtml = renderToString(React.createElement(mod.App));
+    assert.ok(
+      !appHtml.includes('data-testid="platform-filter-select"'),
+      'Duplicate platform-filter-select in top App header must be removed'
+    );
+    assert.ok(
+      appHtml.includes('data-testid="table-platform-filter"'),
+      'Unified table-platform-filter must be rendered in the Cronograma toolbar'
+    );
 
+    // 2. Verify table release header row displays ONLY the T_ code (no Rocket icon, no release name)
+    const releases = [
+      {
+        id: 'rel-dec',
+        code: 'T_26.12.1',
+        name: 'DICIEMBRE',
+        year: 2026,
+        milestones: [
+          { id: 'm1', key: 'qg1', code: 'QG1', name: 'QG1', date: '2026-10-06' },
+          { id: 'm2', key: 'iop', code: 'IOP', name: 'IOP', date: '2026-12-10' },
+        ],
+      },
+    ];
+    const projects = [
+      { id: 'p-dual', projectIndex: 1, name: 'Proyecto Dual', color: 'indigo', releaseId: 'rel-dec', platform: 'iOS/Android' },
+      { id: 'p-ios', projectIndex: 2, name: 'Proyecto Solo iOS', color: 'sky', releaseId: 'rel-dec', platform: 'iOS' },
+      { id: 'p-and', projectIndex: 3, name: 'Proyecto Solo Android', color: 'emerald', releaseId: 'rel-dec', platform: 'Android' },
+    ];
+    const items = mod.computeGanttMetrics([
+      { id: 't-dual', projectId: 'p-dual', name: 'Tarea Multi', type: 'task', startDate: '2026-10-06', endDate: '2026-10-12', duration: 7, slack: 0, dependencies: [], progress: 0, color: 'indigo' },
+      { id: 't-ios', projectId: 'p-ios', name: 'Tarea Apple', type: 'task', startDate: '2026-10-06', endDate: '2026-10-12', duration: 7, slack: 0, dependencies: [], progress: 0, color: 'sky' },
+      { id: 't-and', projectId: 'p-and', name: 'Tarea Google', type: 'task', startDate: '2026-10-06', endDate: '2026-10-12', duration: 7, slack: 0, dependencies: [], progress: 0, color: 'emerald' },
+    ]);
 
+    const wsAllHtml = renderToString(
+      React.createElement(mod.GanttWorkspace, {
+        items,
+        projects,
+        releases,
+        groupingMode: 'release',
+        groupByProject: true,
+        showTable: true,
+        zoom: 'week',
+        scrollContainerRef: { current: null },
+        onToggleHideRelease: () => {},
+        onSetFocusEntity: () => {},
+        onUpdateItem: () => {},
+        onDeleteItem: () => {},
+        onEditModal: () => {},
+        onDuplicateItem: () => {},
+        onQuickAdd: () => {},
+      })
+    );
 
+    const tableReleaseRowMatch = wsAllHtml.match(
+      /<div[^>]*data-release-group="rel-dec"[^>]*>([\s\S]*?)data-release-duration-badge="rel-dec"/
+    );
+    assert.ok(tableReleaseRowMatch, 'Table release row data-release-group="rel-dec" must exist');
+    const tableReleaseRowHtml = tableReleaseRowMatch[1];
+    assert.ok(
+      tableReleaseRowHtml.includes('T_26.12.1'),
+      'Table release row must display the T_ release code (T_26.12.1)'
+    );
+    assert.ok(
+      !tableReleaseRowHtml.includes('DICIEMBRE'),
+      'Table release row must NOT display the full release name (DICIEMBRE)'
+    );
+    assert.ok(
+      !tableReleaseRowHtml.includes('lucide-rocket'),
+      'Table release row must NOT display the Rocket icon'
+    );
 
+    // 3. Verify custom platform filter dropdown options use icons instead of text (and 2 icons for iOS/Android)
+    assert.ok(
+      wsAllHtml.includes('data-testid="table-platform-filter-menu"'),
+      'Custom platform filter menu must be present in DOM'
+    );
+    const optIosMatch = wsAllHtml.match(/<button[^>]*data-testid="platform-filter-option-iOS"[^>]*>([\s\S]*?)<\/button>/);
+    assert.ok(optIosMatch, 'platform-filter-option-iOS must exist');
+    assert.ok(
+      optIosMatch[1].includes('data-testid="filter-option-icon-ios"') && !optIosMatch[1].includes('>iOS<'),
+      'iOS filter option must render the iOS icon instead of text'
+    );
 
+    const optAndroidMatch = wsAllHtml.match(/<button[^>]*data-testid="platform-filter-option-Android"[^>]*>([\s\S]*?)<\/button>/);
+    assert.ok(optAndroidMatch, 'platform-filter-option-Android must exist');
+    assert.ok(
+      optAndroidMatch[1].includes('data-testid="filter-option-icon-android"') && !optAndroidMatch[1].includes('>Android<'),
+      'Android filter option must render the Android icon instead of text'
+    );
 
+    const optBothMatch = wsAllHtml.match(/<button[^>]*data-testid="platform-filter-option-iOS\/Android"[^>]*>([\s\S]*?)<\/button>/);
+    assert.ok(optBothMatch, 'platform-filter-option-iOS/Android must exist');
+    assert.ok(
+      optBothMatch[1].includes('data-testid="filter-option-icon-both-ios"') &&
+        optBothMatch[1].includes('data-testid="filter-option-icon-both-android"') &&
+        !optBothMatch[1].includes('>iOS/Android<'),
+      'iOS/Android filter option must render both iOS and Android icons together without text'
+    );
 
-
-
-
+    // 4. Verify filtering by 'iOS/Android' filters multiplatform elements and displays both icons in the trigger button
+    const wsMultiHtml = renderToString(
+      React.createElement(mod.GanttWorkspace, {
+        items,
+        projects,
+        releases,
+        selectedPlatform: 'iOS/Android',
+        groupingMode: 'release',
+        groupByProject: true,
+        showTable: true,
+        zoom: 'week',
+        scrollContainerRef: { current: null },
+        onUpdateItem: () => {},
+        onDeleteItem: () => {},
+        onEditModal: () => {},
+        onDuplicateItem: () => {},
+        onQuickAdd: () => {},
+      })
+    );
+    assert.ok(
+      wsMultiHtml.includes('data-testid="active-filter-icon-both-ios"') &&
+        wsMultiHtml.includes('data-testid="active-filter-icon-both-android"'),
+      'Active filter trigger button must display both iOS and Android icons when iOS/Android is selected'
+    );
+    assert.ok(
+      wsMultiHtml.includes('Proyecto Dual') && wsMultiHtml.includes('Tarea Multi'),
+      'iOS/Android filter must keep multiplatform projects and tasks'
+    );
+    assert.ok(
+      !wsMultiHtml.includes('Proyecto Solo iOS') && !wsMultiHtml.includes('Proyecto Solo Android'),
+      'iOS/Android filter must exclude single-platform iOS-only and Android-only projects'
+    );
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
