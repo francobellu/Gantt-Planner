@@ -10,10 +10,25 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.8.4',
+    date: '08 Nov 2026',
+    title: 'Barra de calendario sticky, panel de herramientas visible, ID fijo de proyectos, tareas SCR con Release y propagación Proyecto → Hijos',
+    isLatest: true,
+    features: [
+      'Tareas SCR asociadas a Release: al igual que las tareas DIGI, las tareas de tipo SCR están asociadas a una release y ajustan automáticamente sus fechas al rango de dicha release.',
+      'Propagación de Release y Plataforma a hijos con sobreescritura individual: al cambiar la release o la plataforma en un proyecto, los valores se propagan automáticamente a todas sus tareas hijas, permitiendo después que cada tarea sobreescriba su propia release o plataforma.',
+      'ID único y fijo por proyecto: cada proyecto conserva su código identificador (P1, P2, etc. y prefijo WBS) de forma invariante aunque se reordenen los proyectos hacia arriba o hacia abajo.',
+    ],
+    fixes: [
+      'Barra de calendario sticky durante el scroll vertical: sincronización de desplazamiento vertical y apilamiento z-index para que la cabecera del calendario permanezca fija justo debajo de la barra del cronograma.',
+      'Visibilidad completa del panel de herramientas: elevación del apilamiento de la barra superior (z-50) sobre la barra del cronograma (z-30) para evitar que el menú desplegable de herramientas quede oculto.',
+    ],
+  },
+  {
     version: '1.8.3',
     date: '08 Nov 2026',
     title: 'Reubicación del botón de exportación Excel a la vista de Informes y simplificación de barra superior',
-    isLatest: true,
+    isLatest: false,
     features: [
       'Descarga de Excel centralizada en Informes: botón de acción con icono de descarga exclusivo en la vista de hojas de cálculo (.xlsx) para exportar el libro con sus 3 pestañas.',
     ],

@@ -4524,7 +4524,7 @@ test('Help page, version control v1.2.0, release selection on project creation, 
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version control consistency
-  assert.equal(pkg.version, '1.8.3', 'package.json version must be 1.8.3');
+  assert.equal(pkg.version, '1.8.4', 'package.json version must be 1.8.4');
   assert.ok(pkg.scripts['version:patch'], 'package.json must contain version:patch script');
   assert.ok(pkg.scripts['version:minor'], 'package.json must contain version:minor script');
   assert.ok(pkg.scripts['release:patch'], 'package.json must contain release:patch script');
@@ -5305,10 +5305,10 @@ test('Task name positioning, configurable row separators, 37 char truncation, v1
     const htmlWithoutWeekendShading = renderToString(mod.renderWorkspaceWithWeekendShading(false));
     assert.ok(!htmlWithoutWeekendShading.includes('bg-[#E5E5DF]'), 'Canvas and header must NOT render weekend shading when showWeekendShading is false (clean uniform background)');
 
-    // 9. App Header displays v1.8.3 badge, row-separators-btn, and weekend-shading-btn
+    // 9. App Header displays v1.8.4 badge, row-separators-btn, and weekend-shading-btn
     const appHtml = renderToString(mod.renderAppHeader());
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'Header must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.8.3'), 'Header badge must display v1.8.3');
+    assert.ok(appHtml.includes('v1.8.4'), 'Header badge must display v1.8.4');
     assert.ok(appHtml.includes('data-testid="header-toggle-row-separators-btn"'), 'Header must contain header-toggle-row-separators-btn');
     assert.ok(appHtml.includes('data-testid="header-toggle-weekend-shading-btn"'), 'Header must contain header-toggle-weekend-shading-btn');
 
@@ -5338,7 +5338,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version Bump Verification
-  assert.equal(pkg.version, '1.8.3', 'package.json version must equal 1.8.3');
+  assert.equal(pkg.version, '1.8.4', 'package.json version must equal 1.8.4');
 
   // Verify scripts/bump-version.mjs works properly
   const bumpScript = await fs.readFile(path.resolve(__dirname, '../scripts/bump-version.mjs'), 'utf8');
@@ -5511,8 +5511,8 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    // A. APP_VERSION equals 1.8.3
-    assert.equal(mod.APP_VERSION, '1.8.3', 'APP_VERSION must be 1.8.3');
+    // A. APP_VERSION equals 1.8.4
+    assert.equal(mod.APP_VERSION, '1.8.4', 'APP_VERSION must be 1.8.4');
 
     // A2. Excel Export Unit Test
     const sampleReleases = [
@@ -5589,7 +5589,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     assert.ok(appHtml.includes('data-testid="platform-filter-select"'), 'App header must contain platform-filter-select');
     assert.ok(appHtml.includes('data-testid="header-toggle-focus-mode-btn"'), 'App header must contain header-toggle-focus-mode-btn');
     assert.ok(appHtml.includes('data-testid="header-reports-btn"'), 'App header must contain header-reports-btn');
-    assert.ok(appHtml.includes('v1.8.3'), 'App header must display version v1.8.3');
+    assert.ok(appHtml.includes('v1.8.4'), 'App header must display version v1.8.4');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6041,8 +6041,8 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
-  // 1. Version Bump Verification v1.8.3
-  assert.equal(pkg.version, '1.8.3', 'package.json version must equal 1.8.3');
+  // 1. Version Bump Verification v1.8.4
+  assert.equal(pkg.version, '1.8.4', 'package.json version must equal 1.8.4');
 
   // 2. SSR Bundle verification for TaskFormModal, App Header, and sanitizeGanttItem
   const tmpFile = path.resolve(__dirname, `tmp_test59_bundle_${Date.now()}.mjs`);
@@ -6140,7 +6140,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.equal(mod.APP_VERSION, '1.8.3', 'mod.APP_VERSION must equal 1.8.3');
+    assert.equal(mod.APP_VERSION, '1.8.4', 'mod.APP_VERSION must equal 1.8.4');
 
     // sanitizeGanttItem preserves platform
     const sanitizedIos = mod.sanitizeGanttItem({
@@ -6185,7 +6185,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     assert.ok(appHtml.includes('data-testid="header-more-menu-btn"'), 'App header must render header-more-menu-btn');
     assert.ok(appHtml.includes('data-testid="header-more-menu-dropdown"'), 'App must render header-more-menu-dropdown');
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'More menu must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.8.3'), 'Version badge must display v1.8.3');
+    assert.ok(appHtml.includes('v1.8.4'), 'Version badge must display v1.8.4');
     assert.ok(appHtml.includes('data-testid="force-reload-btn"'), 'More menu must contain force-reload-btn');
 
     // 7. Verify secondary buttons are rendered inside the menu
@@ -6207,7 +6207,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
       hiddenReleaseCount: 0,
     }));
     assert.ok(settingsHtml.includes('data-testid="settings-version-badge"'), 'SettingsModal must contain settings-version-badge');
-    assert.ok(settingsHtml.includes('1.8.3') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.8.3');
+    assert.ok(settingsHtml.includes('1.8.4') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.8.4');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6361,14 +6361,14 @@ test('Test 61: Version button, compiled release notes modal and changelog across
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
 
     // 1. Check RELEASE_NOTES compiled data
-    assert.strictEqual(mod.APP_VERSION, '1.8.3');
+    assert.strictEqual(mod.APP_VERSION, '1.8.4');
     assert.ok(Array.isArray(mod.RELEASE_NOTES), 'RELEASE_NOTES must be an array');
-    assert.ok(mod.RELEASE_NOTES.length >= 8, 'RELEASE_NOTES must have at least 8 releases');
+    assert.ok(mod.RELEASE_NOTES.length >= 9, 'RELEASE_NOTES must have at least 9 releases');
 
     const latest = mod.RELEASE_NOTES[0];
-    assert.strictEqual(latest.version, '1.8.3', 'First release note must be 1.8.3');
+    assert.strictEqual(latest.version, '1.8.4', 'First release note must be 1.8.4');
     assert.strictEqual(latest.isLatest, true, 'First release note must be isLatest: true');
-    assert.ok(latest.features.length > 0, 'v1.8.3 must contain features');
+    assert.ok(latest.features.length > 0, 'v1.8.4 must contain features');
 
     // 2. Render App and verify version button exists in dropdown menu and is NOT duplicated in top header
     const appHtml = renderToString(React.createElement(mod.App));
@@ -6381,8 +6381,8 @@ test('Test 61: Version button, compiled release notes modal and changelog across
       'App dropdown must contain data-testid="app-version-badge"'
     );
     assert.ok(
-      appHtml.includes('<button') && appHtml.includes('data-testid="app-version-badge"') && appHtml.includes('v1.8.3'),
-      'app-version-badge in tools dropdown must be an interactive button showing v1.8.3'
+      appHtml.includes('<button') && appHtml.includes('data-testid="app-version-badge"') && appHtml.includes('v1.8.4'),
+      'app-version-badge in tools dropdown must be an interactive button showing v1.8.4'
     );
 
     // 3. Render ReleaseNotesModal
@@ -7018,6 +7018,213 @@ test('Test 66: v1.8.3 Search bar placement in cronograma-toolbar preventing rele
     await fs.unlink(tmpFile).catch(() => {});
   }
 });
+
+test('Test 67: Sticky calendar bar, tools dropdown z-50 elevation, invariant project ID on reorder, SCR release association, and project-to-children release/platform propagation with override', async () => {
+  const fs = await import('node:fs/promises');
+  const ReactMod = await import('react');
+  const React = ReactMod.default || ReactMod;
+  const ReactDOMServer = await import('react-dom/server');
+  const { renderToString } = ReactDOMServer.default || ReactDOMServer;
+
+  const tmpFile = path.resolve(__dirname, `tmp_test67_bundle_${Date.now()}.mjs`);
+  try {
+    await build({
+      stdin: {
+        contents: `
+          import React from 'react';
+          import { App } from './src/App.tsx';
+          import { GanttWorkspace } from './src/components/GanttWorkspace.tsx';
+          import { TaskFormModal } from './src/components/TaskFormModal.tsx';
+          import {
+            computeGanttMetrics,
+            groupItemsByProject,
+            isReleaseAssociatedTask,
+            propagateProjectChangesToItems,
+            reorderProject,
+            sanitizeGanttItem,
+            sanitizeProject,
+          } from './src/utils/ganttEngine.ts';
+          export {
+            App,
+            GanttWorkspace,
+            TaskFormModal,
+            computeGanttMetrics,
+            groupItemsByProject,
+            isReleaseAssociatedTask,
+            propagateProjectChangesToItems,
+            reorderProject,
+            sanitizeGanttItem,
+            sanitizeProject,
+          };
+        `,
+        resolveDir: path.resolve(__dirname, '..'),
+        sourcefile: 'test67_entry.tsx',
+        loader: 'tsx',
+      },
+      bundle: true,
+      format: 'esm',
+      outfile: tmpFile,
+      platform: 'neutral',
+      target: 'es2022',
+      jsx: 'automatic',
+      external: [
+        'react',
+        'react-dom',
+        'react-dom/server',
+        'lucide-react',
+        'date-fns',
+        'date-fns/locale',
+        'xlsx',
+        'canvas-confetti',
+      ],
+      define: {
+        'process.env.NODE_ENV': '"production"',
+      },
+    });
+
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+
+    // 1. Top header is z-50 so tools dropdown (header-more-menu-dropdown) is never occluded by cronograma-toolbar (z-30)
+    const appHtml = renderToString(React.createElement(mod.App));
+    assert.ok(
+      appHtml.includes('<header class="sticky top-0 z-50'),
+      'Top header must have z-50 stacking context above cronograma-toolbar (z-30)'
+    );
+    assert.ok(
+      appHtml.includes('data-testid="header-more-menu-dropdown"'),
+      'Tools dropdown menu must render inside header'
+    );
+
+    // 2. Fixed & Unique Project ID: reordering projects keeps projectIndex (P1, P2) and task WBS codes (1.1, 2.1) invariant
+    const initialProjects = [
+      { id: 'proj-alpha', projectIndex: 1, name: 'Proyecto Alpha', color: 'indigo', releaseId: 'rel-1', platform: 'iOS' },
+      { id: 'proj-beta', projectIndex: 2, name: 'Proyecto Beta', color: 'emerald', releaseId: 'rel-1', platform: 'Android' },
+    ];
+    const sampleItems = mod.computeGanttMetrics([
+      { id: 't-alpha', projectId: 'proj-alpha', name: 'Tarea A', type: 'task', startDate: '2026-10-05', endDate: '2026-10-10', duration: 6, slack: 0, dependencies: [], progress: 0, color: 'indigo' },
+      { id: 't-beta', projectId: 'proj-beta', name: 'Tarea B', type: 'task', startDate: '2026-10-06', endDate: '2026-10-12', duration: 7, slack: 0, dependencies: [], progress: 0, color: 'emerald' },
+    ]);
+
+    const reorderedProjects = mod.reorderProject(initialProjects, 'proj-beta', 'up');
+    assert.strictEqual(reorderedProjects[0].id, 'proj-beta', 'Project Beta should move to first position');
+    assert.strictEqual(reorderedProjects[1].id, 'proj-alpha', 'Project Alpha should move to second position');
+    assert.strictEqual(reorderedProjects[0].projectIndex, 2, 'Project Beta must retain its fixed projectIndex = 2');
+    assert.strictEqual(reorderedProjects[1].projectIndex, 1, 'Project Alpha must retain its fixed projectIndex = 1');
+
+    const groupedAfterReorder = mod.groupItemsByProject(sampleItems, reorderedProjects);
+    assert.strictEqual(groupedAfterReorder[0].project.id, 'proj-beta');
+    assert.strictEqual(groupedAfterReorder[0].projectIndex, 2, 'Group projectIndex for Beta must stay 2 (P2)');
+    assert.strictEqual(groupedAfterReorder[0].items[0].wbsCode, '2.1', 'Task WBS code for Beta must stay 2.1');
+    assert.strictEqual(groupedAfterReorder[1].project.id, 'proj-alpha');
+    assert.strictEqual(groupedAfterReorder[1].projectIndex, 1, 'Group projectIndex for Alpha must stay 1 (P1)');
+    assert.strictEqual(groupedAfterReorder[1].items[0].wbsCode, '1.1', 'Task WBS code for Alpha must stay 1.1');
+
+    // 3. SCR tasks are associated with a release just like DIGI tasks
+    assert.strictEqual(mod.isReleaseAssociatedTask({ name: 'DIGI' }), true, 'DIGI task is release-associated');
+    assert.strictEqual(mod.isReleaseAssociatedTask({ name: 'SCR' }), true, 'SCR task is release-associated');
+    assert.strictEqual(mod.isReleaseAssociatedTask({ name: 'scr' }), true, 'scr task (lowercase) is release-associated');
+    assert.strictEqual(mod.isReleaseAssociatedTask({ name: 'Tarea Normal', assignee: 'SCR' }), true, 'Task with SCR assignee is release-associated');
+    assert.strictEqual(mod.isReleaseAssociatedTask({ name: 'Backend API' }), false, 'Regular task is not auto release-associated');
+
+    // 4. Propagate project releaseId & platform changes to children, and allow child override
+    const releases = [
+      { id: 'rel-1', code: 'T_26.10.1', name: 'OCTUBRE', month: 'OCTUBRE', year: 2026, startDate: '2026-10-01', endDate: '2026-10-20', milestones: [] },
+      { id: 'rel-2', code: 'T_26.12.1', name: 'DICIEMBRE', month: 'DICIEMBRE', year: 2026, startDate: '2026-12-01', endDate: '2026-12-22', milestones: [] },
+    ];
+    const prevProj = initialProjects[0]; // releaseId: 'rel-1', platform: 'iOS'
+    const childTasks = [
+      mod.sanitizeGanttItem({ id: 'c-digi', projectId: 'proj-alpha', name: 'DIGI', type: 'task', startDate: '2026-10-01', endDate: '2026-10-20', duration: 20, releaseId: 'rel-1', platform: 'iOS' }),
+      mod.sanitizeGanttItem({ id: 'c-scr', projectId: 'proj-alpha', name: 'SCR', type: 'task', startDate: '2026-10-01', endDate: '2026-10-20', duration: 20, releaseId: 'rel-1', platform: 'iOS' }),
+      mod.sanitizeGanttItem({ id: 'c-dev', projectId: 'proj-alpha', name: 'Desarrollo UI', type: 'task', startDate: '2026-10-05', endDate: '2026-10-10', duration: 6, releaseId: 'rel-1', platform: 'iOS' }),
+    ];
+
+    const updatedProj = { ...prevProj, releaseId: 'rel-2', platform: 'Android' };
+    const propagatedTasks = mod.propagateProjectChangesToItems(prevProj, updatedProj, childTasks, releases);
+
+    for (const t of propagatedTasks) {
+      assert.strictEqual(t.releaseId, 'rel-2', `Task ${t.id} should receive propagated releaseId 'rel-2'`);
+      assert.strictEqual(t.platform, 'Android', `Task ${t.id} should receive propagated platform 'Android'`);
+    }
+    const digiAfter = propagatedTasks.find((t) => t.id === 'c-digi');
+    const scrAfter = propagatedTasks.find((t) => t.id === 'c-scr');
+    const devAfter = propagatedTasks.find((t) => t.id === 'c-dev');
+    assert.strictEqual(digiAfter.startDate, '2026-12-01', 'DIGI startDate must align to new release span');
+    assert.strictEqual(digiAfter.endDate, '2026-12-22', 'DIGI endDate must align to new release span');
+    assert.strictEqual(scrAfter.startDate, '2026-12-01', 'SCR startDate must align to new release span');
+    assert.strictEqual(scrAfter.endDate, '2026-12-22', 'SCR endDate must align to new release span');
+    assert.strictEqual(devAfter.startDate, '2026-10-05', 'Regular task dates remain untouched on release propagation');
+
+    // Child can override its own releaseId and platform independently
+    const childOverridden = mod.sanitizeGanttItem({
+      ...scrAfter,
+      releaseId: 'rel-1',
+      platform: 'Multiplataforma',
+    });
+    assert.strictEqual(childOverridden.releaseId, 'rel-1', 'Child task can override releaseId');
+    assert.strictEqual(childOverridden.platform, 'Multiplataforma', 'Child task can override platform');
+
+    // 5. Verify sticky calendar header and SCR/release UI controls in GanttWorkspace and TaskFormModal
+    const wsHtml = renderToString(
+      React.createElement(mod.GanttWorkspace, {
+        items: mod.computeGanttMetrics([childOverridden]),
+        projects: [updatedProj, { id: 'proj-empty', projectIndex: 5, name: 'Proyecto Vacío', color: 'blue', releaseId: 'rel-2' }],
+        releases,
+        showTable: true,
+        zoom: 'week',
+        scrollContainerRef: { current: null },
+        initialSelectedItemId: 'c-scr',
+        onCreateDigiTask: () => {},
+        onUpdateItem: () => {},
+        onDeleteItem: () => {},
+        onEditModal: () => {},
+        onDuplicateItem: () => {},
+        onQuickAdd: () => {},
+      })
+    );
+    assert.ok(
+      wsHtml.includes('data-testid="timeline-calendar-header"'),
+      'GanttWorkspace must render timeline-calendar-header with sticky support'
+    );
+    assert.ok(
+      wsHtml.includes('data-testid="project-empty-add-scr-btn-proj-empty"'),
+      'Empty project row must offer + Tarea SCR quick button'
+    );
+    assert.ok(
+      wsHtml.includes('data-testid="task-release-badge-c-scr"'),
+      'SCR task row must display its associated release badge'
+    );
+    assert.ok(
+      wsHtml.includes('data-testid="panel-release-badge-c-scr"'),
+      'Inspection panel must display the task release badge'
+    );
+    assert.ok(
+      wsHtml.includes('>P5</button>'),
+      'Project with fixed projectIndex=5 must render badge P5 regardless of array index'
+    );
+
+    const modalHtml = renderToString(
+      React.createElement(mod.TaskFormModal, {
+        isOpen: true,
+        onClose: () => {},
+        onSave: () => {},
+        projects: [updatedProj],
+        allItems: [],
+        releases,
+      })
+    );
+    assert.ok(
+      modalHtml.includes('data-testid="task-release-select"'),
+      'TaskFormModal must render task-release-select for overriding or inheriting release'
+    );
+    assert.ok(
+      modalHtml.includes('data-testid="task-preset-scr-btn"'),
+      'TaskFormModal must render SCR quick preset button'
+    );
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
 
 
 

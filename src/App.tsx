@@ -85,6 +85,8 @@ import {
   parseCSVToGanttData,
   parseDateSafe,
   preserveActiveWorkspaceInScenarios,
+  propagateProjectChangesToItems,
+  reorderProject,
   reorderTaskItem,
   resolveZoomPresetFromDayWidth,
   sanitizeGanttItem,
@@ -1322,11 +1324,14 @@ export function App({
   };
 
   const handleCreateProject = (newProj?: Partial<GanttProject>) => {
+    const nextProjectIndex =
+      effectiveProjects.reduce((max, p, i) => Math.max(max, p.projectIndex || i + 1), 0) + 1;
     const clean = {
       ...sanitizeProject(
         {
           id: `proj-${Date.now()}`,
-          name: newProj?.name || `Proyecto ${effectiveProjects.length + 1}`,
+          projectIndex: nextProjectIndex,
+          name: newProj?.name || `Proyecto ${nextProjectIndex}`,
           color: newProj?.color || 'indigo',
           releaseId: newProj?.releaseId || releases[0]?.id || 'rel-t-26-12-1',
           platform: newProj?.platform || 'Multiplataforma',
@@ -1361,6 +1366,8 @@ export function App({
       dependencies: [],
       slack: 0,
       color: clean.color || 'indigo',
+      releaseId: clean.releaseId,
+      platform: clean.platform,
     };
     const nextItems = [...items, digiTask];
     setItems(nextItems);
@@ -1374,13 +1381,13 @@ export function App({
     );
   };
 
-  const handleCreateDigiTask = (project: GanttProject) => {
+  const handleCreateDigiTask = (project: GanttProject, taskType: 'DIGI' | 'SCR' = 'DIGI') => {
     const targetRelease = releases.find((r) => r.id === project.releaseId) || releases[0];
     const span = getReleaseDateSpan(targetRelease);
-    const digiTask: GanttItem = {
+    const relTask: GanttItem = {
       id: `task-${Date.now()}`,
       projectId: project.id,
-      name: 'DIGI',
+      name: taskType,
       type: 'task',
       startDate: span.startDate,
       endDate: span.endDate,
@@ -1389,29 +1396,38 @@ export function App({
       dependencies: [],
       slack: 0,
       color: project.color || 'indigo',
+      releaseId: project.releaseId || targetRelease?.id,
+      platform: project.platform,
     };
-    const nextItems = [...items, digiTask];
+    const nextItems = [...items, relTask];
     setItems(nextItems);
-    showToast(`Tarea DIGI creada para '${project.name}' (${targetRelease?.code || ''})`);
+    showToast(`Tarea ${taskType} creada para '${project.name}' (${targetRelease?.code || ''})`);
     recordPlanChange(
       'create_item',
-      'Creación Tarea DIGI',
-      `Crear tarea DIGI en proyecto '${project.name}'`,
+      `Creación Tarea ${taskType}`,
+      `Crear tarea ${taskType} en proyecto '${project.name}'`,
       nextItems,
       effectiveProjects
     );
   };
 
   const handleUpdateProject = (updatedProj: GanttProject) => {
+    const prevProj = effectiveProjects.find((p) => p.id === updatedProj.id);
     const nextProjects = effectiveProjects.map((p) =>
-      p.id === updatedProj.id ? updatedProj : p
+      p.id === updatedProj.id
+        ? { ...updatedProj, projectIndex: updatedProj.projectIndex ?? p.projectIndex }
+        : p
     );
+    const nextItems = propagateProjectChangesToItems(prevProj, updatedProj, items, releases);
     setProjects(nextProjects);
+    if (nextItems !== items) {
+      setItems(nextItems);
+    }
     recordPlanChange(
       'edit_project',
       'Edición Proyecto',
       `Actualizar proyecto '${updatedProj.name}'`,
-      items,
+      nextItems,
       nextProjects,
       updatedProj.id
     );
@@ -1421,24 +1437,8 @@ export function App({
     const targetProj = effectiveProjects.find((p) => p.id === projectId);
     if (!targetProj) return;
 
-    // Filter projects sharing the same release (or unassigned if no release)
-    const sameReleaseProjs = effectiveProjects.filter(
-      (p) => (p.releaseId || '') === (targetProj.releaseId || '')
-    );
-    const currentIndex = sameReleaseProjs.findIndex((p) => p.id === projectId);
-    if (currentIndex < 0) return;
-
-    const swapIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-    if (swapIndex < 0 || swapIndex >= sameReleaseProjs.length) return;
-
-    const otherProj = sameReleaseProjs[swapIndex];
-    const projIndexA = effectiveProjects.findIndex((p) => p.id === targetProj.id);
-    const projIndexB = effectiveProjects.findIndex((p) => p.id === otherProj.id);
-    if (projIndexA < 0 || projIndexB < 0) return;
-
-    const nextProjects = [...effectiveProjects];
-    nextProjects[projIndexA] = otherProj;
-    nextProjects[projIndexB] = targetProj;
+    const nextProjects = reorderProject(effectiveProjects, projectId, direction);
+    if (nextProjects === effectiveProjects) return;
 
     setProjects(nextProjects);
     recordPlanChange(
@@ -1523,41 +1523,31 @@ export function App({
   };
 
   const handleAssignProjectToRelease = (projectId: string, releaseId?: string) => {
+    const prevProj = effectiveProjects.find((p) => p.id === projectId);
+    const updatedProj: GanttProject | undefined = prevProj
+      ? { ...prevProj, releaseId: releaseId || undefined }
+      : undefined;
     const nextProjects = effectiveProjects.map((p) =>
       p.id === projectId ? { ...p, releaseId: releaseId || undefined } : p
     );
     setProjects(nextProjects);
-    const proj = effectiveProjects.find((p) => p.id === projectId);
     const rel = releases.find((r) => r.id === releaseId);
 
-    // If project contains a DIGI task and a release was assigned, align DIGI to the new release span
-    let nextItems = items;
-    if (rel) {
-      const span = getReleaseDateSpan(rel);
-      let digiModified = false;
-      nextItems = items.map((it) => {
-        if (it.projectId === projectId && it.name.trim().toUpperCase() === 'DIGI') {
-          digiModified = true;
-          return {
-            ...it,
-            startDate: span.startDate,
-            endDate: span.endDate,
-            duration: span.duration,
-          };
-        }
-        return it;
-      });
-      if (digiModified) {
-        setItems(nextItems);
-      }
+    const nextItems = updatedProj
+      ? propagateProjectChangesToItems(prevProj, updatedProj, items, releases, {
+          release: true,
+        })
+      : items;
+    if (nextItems !== items) {
+      setItems(nextItems);
     }
 
     recordPlanChange(
       'edit_project',
       'Release',
       releaseId
-        ? `Asignar proyecto '${proj?.name || projectId}' a release '${rel?.code || releaseId}'`
-        : `Desasignar release de proyecto '${proj?.name || projectId}'`,
+        ? `Asignar proyecto '${prevProj?.name || projectId}' a release '${rel?.code || releaseId}'`
+        : `Desasignar release de proyecto '${prevProj?.name || projectId}'`,
       nextItems,
       nextProjects,
       projectId
@@ -1913,7 +1903,7 @@ export function App({
       onDrop={handleDrop}
     >
       {/* Top Navigation Bar — Single Clean 48px Bar */}
-      <header className="sticky top-0 z-30 h-12 px-4 bg-[#F4F4F1] dark:bg-[#0C0C09] border-b border-[#0C0C09] dark:border-zinc-800 flex items-center justify-between gap-3 select-none">
+      <header className="sticky top-0 z-50 h-12 px-4 bg-[#F4F4F1] dark:bg-[#0C0C09] border-b border-[#0C0C09] dark:border-zinc-800 flex items-center justify-between gap-3 select-none">
         
         {/* LEFT: Primary Workflow Controls */}
         <div className="flex items-center gap-2.5 min-w-0 flex-wrap">
@@ -2786,6 +2776,7 @@ export function App({
         projects={effectiveProjects}
         onCreateProject={handleCreateProject}
         allItems={computedItems}
+        releases={releases}
       />
 
       {/* Releases Management Modal Hub */}

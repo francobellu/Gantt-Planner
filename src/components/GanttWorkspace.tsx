@@ -87,6 +87,7 @@ import {
   getTeamColor,
   groupItemsByProject,
   groupItemsByReleaseAndProject,
+  isReleaseAssociatedTask,
   MAX_DAY_WIDTH,
   MIN_DAY_WIDTH,
   moveDependencyLink,
@@ -172,7 +173,7 @@ interface GanttWorkspaceProps {
   onChangeProjectColor?: (projectId: string, newColor: TaskColor) => void;
   onDeleteProject?: (projectId: string) => void;
   onCreateProject?: (project: GanttProject) => void;
-  onCreateDigiTask?: (project: GanttProject) => void;
+  onCreateDigiTask?: (project: GanttProject, taskType?: 'DIGI' | 'SCR') => void;
   scrollContainerRef: React.RefObject<HTMLDivElement>;
   initialSelectedItemId?: string;
   initialHoveredItemId?: string;
@@ -753,6 +754,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   } | null>(initialSelectedDepLink || null);
   const inspectionPanelRef = useRef<HTMLElement>(null);
   const depPopoverRef = useRef<HTMLElement>(null);
+  const cronogramaToolbarRef = useRef<HTMLDivElement>(null);
+  const splitPaneRef = useRef<HTMLDivElement>(null);
+  const tableHeaderRef = useRef<HTMLDivElement>(null);
+  const calendarHeaderRef = useRef<HTMLDivElement>(null);
+
   const [hoveredDepKey, setHoveredDepKey] = useState<string | null>(
     initialHoveredDepKey || null
   );
@@ -792,6 +798,50 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   const [splitWidth, setSplitWidth] = useState<number>(480);
   const [internalShowTable, setInternalShowTable] = useState<boolean>(true);
   const showTable = showTableProp !== undefined ? showTableProp : internalShowTable;
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let rafId: number | null = null;
+
+    const syncStickyHeaders = () => {
+      rafId = null;
+      const splitEl = splitPaneRef.current;
+      if (!splitEl) return;
+      const splitRect = splitEl.getBoundingClientRect();
+      const toolbarEl = cronogramaToolbarRef.current;
+      const anchorTop = toolbarEl ? toolbarEl.getBoundingClientRect().bottom : 88;
+      const maxOffset = Math.max(0, splitRect.height - HEADER_HEIGHT);
+      const offsetY =
+        splitRect.top < anchorTop
+          ? Math.min(maxOffset, Math.max(0, Math.round(anchorTop - splitRect.top)))
+          : 0;
+      const transformVal = offsetY > 0 ? `translateY(${offsetY}px)` : '';
+      if (calendarHeaderRef.current) {
+        calendarHeaderRef.current.style.transform = transformVal;
+      }
+      if (tableHeaderRef.current) {
+        tableHeaderRef.current.style.transform = transformVal;
+      }
+    };
+
+    const handleScrollOrResize = () => {
+      if (rafId === null) {
+        rafId = window.requestAnimationFrame(syncStickyHeaders);
+      }
+    };
+
+    syncStickyHeaders();
+    window.addEventListener('scroll', handleScrollOrResize, { passive: true });
+    window.addEventListener('resize', handleScrollOrResize, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScrollOrResize);
+      window.removeEventListener('resize', handleScrollOrResize);
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+      }
+    };
+  }, [showTable, items.length, projects.length]);
+
   const [wheelZoomEnabled, setWheelZoomEnabled] = useState<boolean>(true);
   const [visibleColumns, setVisibleColumns] = useState<{
     team: boolean;
@@ -3301,6 +3351,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     <div className="flex flex-col flex-1 min-h-0 bg-white dark:bg-[#0C0C09] rounded-[8px] border border-[#0C0C09] dark:border-zinc-800 shadow-none">
       {/* Barra de Herramientas Dedicada del Cronograma (Icon-Only con Hints, Sticky) */}
       <div
+        ref={cronogramaToolbarRef}
         data-testid="cronograma-toolbar"
         className="sticky top-12 z-30 h-10 px-3 bg-[#F4F4F1] dark:bg-zinc-900 border-b border-[#0C0C09] dark:border-zinc-800 flex items-center justify-between shrink-0 select-none gap-2 shadow-xs"
       >
@@ -3545,7 +3596,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       </div>
 
       {/* Main Synchronized Split View */}
-      <div className="flex flex-1 min-h-0 overflow-hidden relative">
+      <div ref={splitPaneRef} className="flex flex-1 min-h-0 overflow-hidden relative">
         {/* LEFT PANE: WBS Editable Data Grid */}
         {showTable && (
           <>
@@ -3557,6 +3608,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                 <div className="min-w-full flex-1 flex flex-col">
                   {/* Minimalist Table Header (matches timeline HEADER_HEIGHT = 60px) */}
                   <div
+                    ref={tableHeaderRef}
                     style={{ height: HEADER_HEIGHT, minWidth: tableMinWidth }}
                     className="flex items-center justify-between px-3 bg-[#F4F4F1] dark:bg-[#18181b] border-b border-[#0C0C09] dark:border-zinc-800 text-[10px] font-mono font-bold uppercase tracking-wider text-[#0C0C09] dark:text-zinc-300 shrink-0 select-none shadow-xs sticky top-0 z-20"
                   >
@@ -3881,7 +3933,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   )}
 
                   {/* Table Body Rows */}
-                  <div className={showRowSeparators ? 'divide-y divide-[#E2E2DC] dark:divide-zinc-800/60' : ''}>
+                  <div className={`relative z-10 ${showRowSeparators ? 'divide-y divide-[#E2E2DC] dark:divide-zinc-800/60' : ''}`}>
                     {visibleProjectGroups.length === 0 && (
                       <div
                         data-empty-selected-projects="true"
@@ -4236,11 +4288,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
                               <button
                                 type="button"
+                                data-testid={`project-id-badge-${group.project.id}`}
                                 onClick={() => setInspectingProject(group.project)}
                                 className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold text-white shrink-0 hover:opacity-85 transition cursor-pointer ${projTheme.badge}`}
                                 title={`Configuración de ${group.project.name} (Release, descripción, color)`}
                               >
-                                P{group.projectIndex}
+                                {`P${group.projectIndex}`}
                               </button>
 
                               {group.project.platform && (
@@ -4548,16 +4601,28 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 <span>+ Nueva Tarea</span>
                               </button>
                               {group.project.releaseId && onCreateDigiTask && (
-                                <button
-                                  type="button"
-                                  data-testid={`project-empty-add-digi-btn-${group.project.id}`}
-                                  onClick={() => onCreateDigiTask(group.project)}
-                                  className="px-2.5 py-1 text-[11px] font-semibold rounded bg-[#0C0C09] hover:bg-[#312C85] dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-[#0C0C09] transition cursor-pointer flex items-center gap-1 shadow-xs font-mono"
-                                  title="Crear tarea DIGI automática cubriendo toda la release asignada"
-                                >
-                                  <span>🚀</span>
-                                  <span>+ Tarea DIGI ({targetRel?.code || group.project.releaseId})</span>
-                                </button>
+                                <>
+                                  <button
+                                    type="button"
+                                    data-testid={`project-empty-add-digi-btn-${group.project.id}`}
+                                    onClick={() => onCreateDigiTask(group.project, 'DIGI')}
+                                    className="px-2.5 py-1 text-[11px] font-semibold rounded bg-[#0C0C09] hover:bg-[#312C85] dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-[#0C0C09] transition cursor-pointer flex items-center gap-1 shadow-xs font-mono"
+                                    title="Crear tarea DIGI automática cubriendo toda la release asignada"
+                                  >
+                                    <span>🚀</span>
+                                    <span>+ Tarea DIGI ({targetRel?.code || group.project.releaseId})</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    data-testid={`project-empty-add-scr-btn-${group.project.id}`}
+                                    onClick={() => onCreateDigiTask(group.project, 'SCR')}
+                                    className="px-2.5 py-1 text-[11px] font-semibold rounded bg-indigo-600 hover:bg-indigo-500 text-white transition cursor-pointer flex items-center gap-1 shadow-xs font-mono"
+                                    title="Crear tarea SCR automática cubriendo toda la release asignada"
+                                  >
+                                    <span>🚀</span>
+                                    <span>+ Tarea SCR ({targetRel?.code || group.project.releaseId})</span>
+                                  </button>
+                                </>
                               )}
                             </div>
                           </div>
@@ -4579,8 +4644,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       const isBeingDragged = draggingRowId === item.id;
                       const isDropBefore = dragOverRow?.id === item.id && dragOverRow.position === 'before';
                       const isDropAfter = dragOverRow?.id === item.id && dragOverRow.position === 'after';
-                      const itemRelease = group.project.releaseId
-                        ? releases?.find((r) => r.id === group.project.releaseId)
+                      const effectiveReleaseId = item.releaseId || group.project.releaseId;
+                      const itemRelease = effectiveReleaseId
+                        ? releases?.find((r) => r.id === effectiveReleaseId)
                         : undefined;
                       const releaseViolations = itemRelease
                         ? checkTaskReleaseCompliance(item, group.project, itemRelease)
@@ -4753,8 +4819,29 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                           },
                                           false
                                         );
-                                      } else if (trimmed !== item.name) {
-                                        onUpdateItem({ ...item, name: trimmed }, false);
+                                      } else if (trimmed !== item.name || isReleaseAssociatedTask({ name: trimmed, assignee: item.assignee })) {
+                                        if (isReleaseAssociatedTask({ name: trimmed, assignee: item.assignee })) {
+                                          const targetRelId = item.releaseId || group.project.releaseId || releases?.[0]?.id;
+                                          const targetRelObj = targetRelId ? releases?.find((r) => r.id === targetRelId) : undefined;
+                                          const span = targetRelObj ? getReleaseDateSpan(targetRelObj) : null;
+                                          onUpdateItem(
+                                            {
+                                              ...item,
+                                              name: trimmed,
+                                              releaseId: targetRelId || item.releaseId,
+                                              ...(span
+                                                ? {
+                                                    startDate: span.startDate,
+                                                    endDate: span.endDate,
+                                                    duration: Math.max(1, span.duration),
+                                                  }
+                                                : {}),
+                                            },
+                                            false
+                                          );
+                                        } else {
+                                          onUpdateItem({ ...item, name: trimmed }, false);
+                                        }
                                       }
                                     }}
                                     className={`col-start-1 row-start-1 w-full min-w-[24px] bg-transparent text-xs font-medium text-[#0C0C09] dark:text-zinc-100 focus:bg-white dark:focus:bg-zinc-800 px-1.5 py-0.5 rounded-[2px] outline-none focus:ring-1 focus:ring-[#0C0C09] ${
@@ -4774,6 +4861,15 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 className="px-1 py-0.5 rounded-[2px] bg-zinc-200/80 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-[9px] font-mono shrink-0 border border-zinc-300 dark:border-zinc-700"
                               >
                                 Oculta
+                              </span>
+                            )}
+                            {itemRelease && (Boolean(item.releaseId) || isReleaseAssociatedTask(item)) && (
+                              <span
+                                data-testid={`task-release-badge-${item.id}`}
+                                title={`Release asociada: ${itemRelease.code}`}
+                                className="px-1.5 py-0.5 rounded-[2px] text-[9px] font-mono font-semibold shrink-0 border bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-300 dark:border-indigo-700"
+                              >
+                                {itemRelease.code}
                               </span>
                             )}
                             {item.platform && (
@@ -5234,6 +5330,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
             {/* Minimalist Linear-Style Timeline Header (60px total height) */}
             <div
+              ref={calendarHeaderRef}
+              data-testid="timeline-calendar-header"
               style={{ height: HEADER_HEIGHT }}
               className="sticky top-0 z-20 bg-[#F4F4F1] dark:bg-[#18181b] border-b-2 border-[#0C0C09] dark:border-zinc-700 shadow-xs flex flex-col select-none"
             >
@@ -5314,7 +5412,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             </div>
 
             {/* Canvas Body: Background Columns + Horizontal Rows + SVG Dependencies + Project Summary & Task/Slack/Milestone Bars */}
-            <div className="relative" style={{ height: displayRows.length * ROW_HEIGHT + 52 }}>
+            <div className="relative z-10" style={{ height: displayRows.length * ROW_HEIGHT + 52 }}>
               {/* Vertical Day Columns & Weekend Shading (configurable) */}
               <div className="absolute inset-0 flex pointer-events-none z-[1]">
                 {timelineDays.map((day, idx) => {
@@ -6863,6 +6961,25 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             Oculta en diagrama
                           </span>
                         )}
+                        {(() => {
+                          const itemProj = projects.find((p) => p.id === selectedItem.projectId);
+                          const effRelId = selectedItem.releaseId || itemProj?.releaseId;
+                          const effRel = effRelId ? releases?.find((r) => r.id === effRelId) : undefined;
+                          if (!effRel) return null;
+                          return (
+                            <span
+                              data-testid={`panel-release-badge-${selectedItem.id}`}
+                              className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded-[2px] border bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/20"
+                              title={`Release: ${effRel.code}${
+                                selectedItem.releaseId
+                                  ? ' (específica de la tarea)'
+                                  : ' (heredada del proyecto)'
+                              }`}
+                            >
+                              {effRel.code}
+                            </span>
+                          );
+                        })()}
                         {(() => {
                           const itemProj = projects.find((p) => p.id === selectedItem.projectId);
                           const effPlatform = selectedItem.platform || itemProj?.platform;

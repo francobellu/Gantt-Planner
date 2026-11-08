@@ -20,6 +20,7 @@ import {
   GanttItem,
   GanttProject,
   ProjectPlatform,
+  Release,
   TaskColor,
   TaskType,
 } from '../types/gantt';
@@ -30,9 +31,11 @@ import {
   formatDateISO,
   getEarliestStartFromPredecessors,
   getTeamColor,
+  isReleaseAssociatedTask,
   parseDateSafe,
   wouldCreateCycle,
 } from '../utils/ganttEngine';
+import { DEFAULT_PREDEFINED_RELEASES, getReleaseDateSpan } from '../utils/releaseEngine';
 import { addDays } from 'date-fns';
 
 interface TaskFormModalProps {
@@ -45,6 +48,7 @@ interface TaskFormModalProps {
   projects?: GanttProject[];
   onCreateProject?: (project: GanttProject) => void;
   allItems: ComputedGanttItem[];
+  releases?: Release[];
 }
 
 const COLOR_OPTIONS: { value: TaskColor; label: string; bg: string; ring: string }[] = [
@@ -105,6 +109,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
   projects = [],
   onCreateProject,
   allItems,
+  releases = DEFAULT_PREDEFINED_RELEASES,
 }) => {
   const todayStr = formatDateISO(new Date());
 
@@ -146,6 +151,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
   );
   const [assignee, setAssignee] = useState(initialItem?.assignee || '');
   const [platform, setPlatform] = useState<ProjectPlatform | ''>(initialItem?.platform || '');
+  const [releaseId, setReleaseId] = useState<string>(initialItem?.releaseId || '');
   const [notes, setNotes] = useState(initialItem?.notes || '');
   const [hidden, setHidden] = useState(Boolean(initialItem?.hidden));
   const [isExternal, setIsExternal] = useState(Boolean(initialItem?.isExternal));
@@ -163,6 +169,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
       setName(initialItem.name);
       setProjectId(initialItem.projectId || fallbackPid);
       setPlatform(initialItem.platform || '');
+      setReleaseId(initialItem.releaseId || '');
       setStartDate(initialItem.startDate);
       setEndDate(initialItem.endDate);
       setDuration(initialItem.type === 'milestone' ? 0 : Math.max(1, initialItem.duration));
@@ -214,6 +221,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
       setColor(isMilestone ? 'amber' : 'indigo');
       setAssignee('');
       setPlatform('');
+      setReleaseId('');
       setNotes('');
       setHidden(false);
       setIsExternal(false);
@@ -415,6 +423,27 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
     setIsCreatingNewProject(false);
   };
 
+  const syncReleaseSpanIfAssociated = (
+    nextName: string,
+    nextAssignee: string,
+    nextReleaseId: string,
+    nextProjId: string
+  ) => {
+    if (!isReleaseAssociatedTask({ name: nextName, assignee: nextAssignee })) return;
+    const currentProj = projects.find((p) => p.id === (nextProjId || defaultProjectId || ''));
+    const effectiveRelId = nextReleaseId || currentProj?.releaseId || releases[0]?.id || '';
+    if (!nextReleaseId && effectiveRelId) {
+      setReleaseId(effectiveRelId);
+    }
+    const targetRel = releases.find((r) => r.id === effectiveRelId);
+    if (targetRel) {
+      const span = getReleaseDateSpan(targetRel);
+      setStartDate(span.startDate);
+      setEndDate(span.endDate);
+      setDuration(Math.max(1, span.duration));
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     let finalProjectId = projectId || projects[0]?.id || undefined;
@@ -431,6 +460,14 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
 
     const trimmedName =
       name.trim() || (type === 'milestone' ? 'Nuevo Hito' : 'Nueva Tarea');
+    const currentProj = projects.find((p) => p.id === finalProjectId);
+    const effectiveReleaseId =
+      releaseId ||
+      (isReleaseAssociatedTask({ name: trimmedName, assignee })
+        ? currentProj?.releaseId || releases[0]?.id
+        : undefined) ||
+      undefined;
+
     const newItem: GanttItem = {
       id: initialItem?.id || `${type === 'milestone' ? 'm' : 't'}-${Date.now()}`,
       name: trimmedName,
@@ -447,6 +484,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
       customColor: userChosenCustomColor.current,
       assignee: assignee.trim() || undefined,
       platform: platform || undefined,
+      releaseId: effectiveReleaseId,
       notes: notes.trim() || undefined,
       hidden: Boolean(hidden),
       isExternal: type === 'milestone' ? Boolean(isExternal) : false,
@@ -588,7 +626,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                 >
                   {projects.map((p, idx) => (
                     <option key={p.id} value={p.id}>
-                      {idx + 1}. {p.name}
+                      {p.projectIndex || idx + 1}. {p.name}
                     </option>
                   ))}
                 </select>
@@ -627,21 +665,63 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
             </div>
           )}
 
-          {/* Name, Assignee & Platform */}
+          {/* Name, Assignee, Release & Platform */}
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
-            <div className="sm:col-span-6">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1.5">
-                Nombre {type === 'milestone' ? 'del Hito' : 'de la Tarea'} *
-              </label>
+            <div className="sm:col-span-5">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                  Nombre {type === 'milestone' ? 'del Hito' : 'de la Tarea'} *
+                </label>
+                {type === 'task' && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      data-testid="task-preset-digi-btn"
+                      onClick={() => {
+                        setName('DIGI');
+                        syncReleaseSpanIfAssociated('DIGI', assignee, releaseId, projectId);
+                      }}
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border transition cursor-pointer ${
+                        name.trim().toUpperCase() === 'DIGI'
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:border-indigo-500'
+                      }`}
+                      title="Tarea tipo DIGI (asociada a Release)"
+                    >
+                      DIGI
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="task-preset-scr-btn"
+                      onClick={() => {
+                        setName('SCR');
+                        syncReleaseSpanIfAssociated('SCR', assignee, releaseId, projectId);
+                      }}
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border transition cursor-pointer ${
+                        name.trim().toUpperCase() === 'SCR'
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:border-indigo-500'
+                      }`}
+                      title="Tarea tipo SCR (asociada a Release)"
+                    >
+                      SCR
+                    </button>
+                  </div>
+                )}
+              </div>
               <input
                 type="text"
                 required
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => {
+                  const nextVal = e.target.value;
+                  setName(nextVal);
+                  syncReleaseSpanIfAssociated(nextVal, assignee, releaseId, projectId);
+                }}
                 placeholder={
                   type === 'milestone'
                     ? 'Ej. Hito: Lanzamiento Beta Pública'
-                    : 'Ej. Desarrollo de API & Autenticación'
+                    : 'Ej. DIGI, SCR o Desarrollo API'
                 }
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
               />
@@ -661,13 +741,55 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                     if (!userChosenCustomColor.current && type === 'task') {
                       setColor(getTeamColor(nextVal));
                     }
+                    syncReleaseSpanIfAssociated(name, nextVal, releaseId, projectId);
                   }}
                   placeholder="Ej. Frontend Team"
                   className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                 />
               </div>
             </div>
-            <div className="sm:col-span-3">
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1.5">
+                Release
+              </label>
+              {(() => {
+                const currentProj = projects.find((p) => p.id === (projectId || defaultProjectId || ''));
+                const inheritedRel = releases.find((r) => r.id === currentProj?.releaseId);
+                return (
+                  <select
+                    data-testid="task-release-select"
+                    value={releaseId}
+                    onChange={(e) => {
+                      const nextRelId = e.target.value;
+                      setReleaseId(nextRelId);
+                      if (isReleaseAssociatedTask({ name, assignee })) {
+                        const targetRel = releases.find(
+                          (r) => r.id === (nextRelId || currentProj?.releaseId || '')
+                        );
+                        if (targetRel) {
+                          const span = getReleaseDateSpan(targetRel);
+                          setStartDate(span.startDate);
+                          setEndDate(span.endDate);
+                          setDuration(Math.max(1, span.duration));
+                        }
+                      }
+                    }}
+                    className="w-full px-2.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer"
+                    title="Release asociada a la tarea (heredada del proyecto o sobreescrita)"
+                  >
+                    <option value="">
+                      {inheritedRel ? `Heredar (${inheritedRel.code})` : 'Heredar del proyecto'}
+                    </option>
+                    {releases.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.code}
+                      </option>
+                    ))}
+                  </select>
+                );
+              })()}
+            </div>
+            <div className="sm:col-span-2">
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1.5">
                 Plataforma
               </label>
@@ -678,7 +800,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                     data-testid="task-platform-select"
                     value={platform}
                     onChange={(e) => setPlatform(e.target.value as ProjectPlatform | '')}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer"
+                    className="w-full px-2.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer"
                     title="Plataforma de la tarea (iOS, Android, Multiplataforma o heredar del proyecto)"
                   >
                     <option value="">

@@ -190,7 +190,12 @@ export function generateCronogramaCompletoRows(
           const isCritical = Boolean(item.isCritical);
           const isExternal = Boolean(item.isExternal);
 
-          const violations = checkTaskReleaseCompliance(item, pg.project, rg.release);
+          const effectiveRel = item.releaseId
+            ? releases.find((r) => r.id === item.releaseId) || rg.release
+            : rg.release;
+          const effectiveReleaseCode = effectiveRel?.code || rg.release.code;
+
+          const violations = checkTaskReleaseCompliance(item, pg.project, effectiveRel);
           const complianceLabel =
             violations.length === 0
               ? 'Conforme'
@@ -204,7 +209,7 @@ export function generateCronogramaCompletoRows(
               hierarchyLabel: levelLabel,
               wbsCode,
               name: item.name,
-              releaseCode: rg.release.code,
+              releaseCode: effectiveReleaseCode,
               projectName: pg.project.name,
               platform: item.platform || platformLabel,
               type: typeLabel,
@@ -233,7 +238,7 @@ export function generateCronogramaCompletoRows(
                 hierarchyLabel: dIdx === 0 ? levelLabel : `${levelLabel} (Dep. ${dIdx + 1})`,
                 wbsCode,
                 name: item.name,
-                releaseCode: rg.release.code,
+                releaseCode: effectiveReleaseCode,
                 projectName: pg.project.name,
                 platform: item.platform || platformLabel,
                 type: typeLabel,

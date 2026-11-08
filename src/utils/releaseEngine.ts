@@ -873,7 +873,7 @@ export function getReleaseDateSpan(release?: Release | null): {
   duration: number;
 } {
   const defaultToday = new Date().toISOString().slice(0, 10);
-  if (!release || !release.milestones || release.milestones.length === 0) {
+  if (!release) {
     return {
       startDate: defaultToday,
       endDate: defaultToday,
@@ -881,21 +881,19 @@ export function getReleaseDateSpan(release?: Release | null): {
     };
   }
 
-  const validMilestoneDates = release.milestones
+  const validMilestoneDates = (release.milestones || [])
     .map((m) => m.date)
     .filter((d): d is string => Boolean(d && typeof d === 'string'))
     .sort();
 
-  if (validMilestoneDates.length === 0) {
-    return {
-      startDate: defaultToday,
-      endDate: defaultToday,
-      duration: 1,
-    };
-  }
-
-  const startDate = validMilestoneDates[0];
-  const endDate = validMilestoneDates[validMilestoneDates.length - 1];
+  const startDate =
+    validMilestoneDates.length > 0
+      ? validMilestoneDates[0]
+      : release.startDate || defaultToday;
+  const endDate =
+    validMilestoneDates.length > 0
+      ? validMilestoneDates[validMilestoneDates.length - 1]
+      : release.endDate || startDate;
 
   const d1 = new Date(startDate + 'T00:00:00Z').getTime();
   const d2 = new Date(endDate + 'T00:00:00Z').getTime();

@@ -1,4 +1,4 @@
-export const APP_VERSION = '1.8.3';
+export const APP_VERSION = '1.8.4';
 
 export const DEFAULT_TRUNCATE_CHAR_LIMIT = 37;
 export const TRUNCATE_LIMIT_STORAGE_KEY = 'ganttflow_truncate_char_limit';
@@ -66,6 +66,7 @@ export interface GanttProject {
   collapsed?: boolean;
   isDemo?: boolean;
   platform?: ProjectPlatform;
+  projectIndex?: number; // Unique, fixed project identifier number (e.g. 1 -> P1) that does not change on reorder
 }
 
 export interface GanttItem {
@@ -87,6 +88,7 @@ export interface GanttItem {
   hidden?: boolean;
   isExternal?: boolean; // When true, milestone/task is external (does not belong to or get constrained by the release)
   platform?: ProjectPlatform; // Optional task-level platform override (iOS, Android, Multiplataforma)
+  releaseId?: string; // Optional task-level release association (propagated from project or overridden; used by DIGI, SCR, etc.)
 }
 
 export interface ComputedGanttItem extends GanttItem {
@@ -199,6 +201,8 @@ export interface Release {
   name: string; // e.g. 'T_26.12.1 DICIEMBRE 2026'
   month?: string;
   year?: number;
+  startDate?: string;
+  endDate?: string;
   color: TaskColor;
   milestones: ReleaseMilestone[];
   projectIds?: string[];

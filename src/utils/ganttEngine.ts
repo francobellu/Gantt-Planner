@@ -291,8 +291,26 @@ export function sanitizeProject(
       ? (raw.platform as ProjectPlatform)
       : undefined;
 
+  let projectIndex: number | undefined;
+  if (
+    typeof raw.projectIndex === 'number' &&
+    Number.isFinite(raw.projectIndex) &&
+    raw.projectIndex >= 1
+  ) {
+    projectIndex = Math.round(raw.projectIndex);
+  } else {
+    const idMatch = rawId.match(/^(?:proj-|p)(\d+)$/i);
+    if (idMatch) {
+      const parsedIdx = Number(idMatch[1]);
+      if (Number.isFinite(parsedIdx) && parsedIdx >= 1 && parsedIdx <= 9999) {
+        projectIndex = parsedIdx;
+      }
+    }
+  }
+
   return {
     id,
+    ...(projectIndex ? { projectIndex } : {}),
     name: rawName || `Proyecto ${fallbackIndex + 1}`,
     color,
     description: raw.description != null ? String(raw.description).trim() : undefined,
@@ -301,6 +319,140 @@ export function sanitizeProject(
     collapsed: Boolean(raw.collapsed),
     isDemo: isDemoProject({ ...raw, id }),
   };
+}
+
+/**
+ * Returns true if a task is of type DIGI or SCR (by task name or assignee),
+ * meaning it is associated with a release and aligns with its release dates.
+ */
+export function isReleaseAssociatedTask(
+  item: { name?: string; assignee?: string } | null | undefined
+): boolean {
+  if (!item) return false;
+  const normName = String(item.name || '').trim().toUpperCase();
+  const normAssignee = String(item.assignee || '').trim().toUpperCase();
+  return (
+    normName === 'DIGI' ||
+    normName === 'SCR' ||
+    normAssignee === 'DIGI' ||
+    normAssignee === 'SCR'
+  );
+}
+
+/**
+ * Propagates releaseId and/or platform changes from a parent project to its child tasks.
+ * Child tasks can subsequently override their own releaseId or platform independently.
+ */
+export function propagateProjectChangesToItems(
+  prevProject: GanttProject | undefined,
+  updatedProject: GanttProject,
+  items: GanttItem[],
+  releases: Release[] = [],
+  forcePropagate?: { release?: boolean; platform?: boolean }
+): GanttItem[] {
+  const prevReleaseId = prevProject?.releaseId || undefined;
+  const nextReleaseId = updatedProject.releaseId || undefined;
+  const prevPlatform = prevProject?.platform || undefined;
+  const nextPlatform = updatedProject.platform || undefined;
+
+  const releaseChanged = forcePropagate?.release ?? prevReleaseId !== nextReleaseId;
+  const platformChanged = forcePropagate?.platform ?? prevPlatform !== nextPlatform;
+
+  if (!releaseChanged && !platformChanged) {
+    return items;
+  }
+
+  const targetRel = nextReleaseId
+    ? releases.find((r) => r.id === nextReleaseId)
+    : undefined;
+  const relSpan = targetRel ? getReleaseDateSpan(targetRel) : null;
+
+  let anyModified = false;
+  const nextItems = items.map((it) => {
+    if (it.projectId !== updatedProject.id) return it;
+    let updated: GanttItem = { ...it };
+    let changed = false;
+
+    if (releaseChanged) {
+      updated.releaseId = nextReleaseId;
+      changed = true;
+      if (relSpan && isReleaseAssociatedTask(updated)) {
+        updated.startDate = relSpan.startDate;
+        updated.endDate = relSpan.endDate;
+        updated.duration = Math.max(
+          1,
+          calculateDurationFromDates(relSpan.startDate, relSpan.endDate, 'task')
+        );
+      }
+    }
+
+    if (platformChanged) {
+      updated.platform = nextPlatform;
+      changed = true;
+    }
+
+    if (changed) {
+      anyModified = true;
+      return updated;
+    }
+    return it;
+  });
+
+  return anyModified ? nextItems : items;
+}
+
+/**
+ * Reorders a project up or down within its release group while keeping every project's
+ * unique ID and fixed projectIndex completely invariant.
+ */
+export function reorderProject(
+  projects: GanttProject[],
+  projectId: string,
+  direction: 'up' | 'down'
+): GanttProject[] {
+  const usedIndices = new Set<number>();
+  for (const p of projects) {
+    if (typeof p.projectIndex === 'number' && p.projectIndex >= 1) {
+      usedIndices.add(Math.round(p.projectIndex));
+    }
+  }
+  let nextIdx = 1;
+  const stamped = projects.map((p) => {
+    if (typeof p.projectIndex === 'number' && p.projectIndex >= 1) {
+      return p;
+    }
+    while (usedIndices.has(nextIdx)) {
+      nextIdx++;
+    }
+    usedIndices.add(nextIdx);
+    return { ...p, projectIndex: nextIdx };
+  });
+
+  const idx = stamped.findIndex((p) => p.id === projectId);
+  if (idx === -1) return stamped;
+
+  const targetProj = stamped[idx];
+  const targetRelId = targetProj.releaseId || '';
+
+  const sameReleaseIndices: number[] = [];
+  stamped.forEach((p, i) => {
+    if ((p.releaseId || '') === targetRelId) {
+      sameReleaseIndices.push(i);
+    }
+  });
+
+  const posInRel = sameReleaseIndices.indexOf(idx);
+  if (posInRel === -1) return stamped;
+
+  const swapPosInRel = direction === 'up' ? posInRel - 1 : posInRel + 1;
+  if (swapPosInRel < 0 || swapPosInRel >= sameReleaseIndices.length) return stamped;
+
+  const swapGlobalIdx = sameReleaseIndices[swapPosInRel];
+  const next = [...stamped];
+  const temp = next[idx];
+  next[idx] = next[swapGlobalIdx];
+  next[swapGlobalIdx] = temp;
+  return next;
 }
 
 /**
@@ -422,9 +574,14 @@ export function sanitizeGanttItem(
     assignee: raw.assignee != null ? String(raw.assignee).trim() : undefined,
     notes: raw.notes != null ? String(raw.notes).trim() : undefined,
     hidden: Boolean(raw.hidden),
+    ...(raw.isExternal ? { isExternal: true } : {}),
     platform:
       raw.platform === 'iOS' || raw.platform === 'Android' || raw.platform === 'Multiplataforma'
         ? raw.platform
+        : undefined,
+    releaseId:
+      raw.releaseId != null && String(raw.releaseId).trim()
+        ? String(raw.releaseId).trim()
         : undefined,
   };
 
@@ -968,10 +1125,29 @@ export function groupItemsByProject(
     bucketMap.get(targetPid)!.push(item);
   }
 
+  const usedIndices = new Set<number>();
+  for (const p of effectiveProjects) {
+    if (typeof p.projectIndex === 'number' && p.projectIndex >= 1) {
+      usedIndices.add(Math.round(p.projectIndex));
+    }
+  }
+  let nextAvailableIdx = 1;
+  for (const p of effectiveProjects) {
+    if (typeof p.projectIndex === 'number' && p.projectIndex >= 1) {
+      p.projectIndex = Math.round(p.projectIndex);
+    } else {
+      while (usedIndices.has(nextAvailableIdx)) {
+        nextAvailableIdx++;
+      }
+      p.projectIndex = nextAvailableIdx;
+      usedIndices.add(nextAvailableIdx);
+    }
+  }
+
   const todayStr = formatDateISO(new Date());
 
   return effectiveProjects.map((project, pIdx) => {
-    const projectIndex = pIdx + 1;
+    const projectIndex = project.projectIndex || pIdx + 1;
     const rawGroupItems = bucketMap.get(project.id) || [];
 
     const enrichedItems: ComputedGanttItem[] = rawGroupItems.map((it, itemIdx) => ({
