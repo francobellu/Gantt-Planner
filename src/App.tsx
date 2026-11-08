@@ -303,6 +303,8 @@ export function App({
   initialReleasesModalOpen = false,
   initialGroupingMode = 'release',
   initialReleaseGuideVisibility = 'selected',
+  initialProjects,
+  initialItems,
 }: {
   initialScenarioId?: string;
   initialView?: 'gantt' | 'history' | 'projects';
@@ -313,6 +315,8 @@ export function App({
   initialReleasesModalOpen?: boolean;
   initialGroupingMode?: GroupingMode;
   initialReleaseGuideVisibility?: ReleaseGuideVisibility;
+  initialProjects?: GanttProject[];
+  initialItems?: GanttItem[];
 } = {}) {
   const templates = useMemo(() => getProjectTemplates(), []);
   const defaultScenarios = useMemo(() => getDefaultSavedScenarios(), []);
@@ -329,9 +333,9 @@ export function App({
     () => initialState.projectName
   );
   const [projects, setProjects] = useState<GanttProject[]>(
-    () => initialState.projects
+    () => initialProjects || initialState.projects
   );
-  const [items, setItems] = useState<GanttItem[]>(() => initialState.items);
+  const [items, setItems] = useState<GanttItem[]>(() => initialItems || initialState.items);
 
   const [history, setHistory] = useState<PlanHistoryEntry[]>(() => {
     try {
@@ -1040,6 +1044,9 @@ export function App({
         ? activeGroups.flatMap((g) => g.items)
         : computedItems;
 
+    const projectMap = new Map(projectGroups.map((g) => [g.project.id, g.project.name]));
+    const itemMapById = new Map(computedItems.map((it) => [it.id, it]));
+
     if (activeItems.length === 0) {
       return {
         startStr: formatDateISO(new Date()),
@@ -1052,6 +1059,17 @@ export function App({
         totalSlackDays: 0,
         avgProgress: 0,
         conflictCount: 0,
+        conflictItems: [] as Array<{
+          id: string;
+          name: string;
+          type: TaskType;
+          projectId?: string;
+          projectName?: string;
+          startDate: string;
+          endDate: string;
+          conflictMessage?: string;
+          predecessorNames: string[];
+        }>,
       };
     }
 
@@ -1063,6 +1081,17 @@ export function App({
     let totalSlackDays = 0;
     let progressSum = 0;
     let conflictCount = 0;
+    const conflictItems: Array<{
+      id: string;
+      name: string;
+      type: TaskType;
+      projectId?: string;
+      projectName?: string;
+      startDate: string;
+      endDate: string;
+      conflictMessage?: string;
+      predecessorNames: string[];
+    }> = [];
 
     for (const it of activeItems) {
       const s = parseDateSafe(it.startDate);
@@ -1079,7 +1108,23 @@ export function App({
       }
 
       if (it.isCritical) criticalCount++;
-      if (it.hasConflict) conflictCount++;
+      if (it.hasConflict) {
+        conflictCount++;
+        const predNames = (it.dependencies || [])
+          .map((pid) => itemMapById.get(pid)?.name)
+          .filter((n): n is string => Boolean(n));
+        conflictItems.push({
+          id: it.id,
+          name: it.name,
+          type: it.type,
+          projectId: it.projectId,
+          projectName: it.projectId ? projectMap.get(it.projectId) : undefined,
+          startDate: it.startDate,
+          endDate: it.endDate,
+          conflictMessage: it.conflictMessage,
+          predecessorNames: predNames,
+        });
+      }
     }
 
     const totalDays = Math.max(1, differenceInCalendarDays(maxEnd, minStart) + 1);
@@ -1096,6 +1141,7 @@ export function App({
       totalSlackDays,
       avgProgress,
       conflictCount,
+      conflictItems,
     };
   }, [computedItems, projectGroups, selectedProjectIds]);
 
@@ -1599,6 +1645,104 @@ export function App({
       next,
       effectiveProjects
     );
+  };
+
+  const handleNavigateToConflictItem = (conflictItem: {
+    id: string;
+    name: string;
+    type: TaskType;
+    projectId?: string;
+    projectName?: string;
+    startDate: string;
+  }) => {
+    // 1. Expand parent project if collapsed
+    if (conflictItem.projectId) {
+      setProjects((prev) =>
+        prev.map((p) => (p.id === conflictItem.projectId ? { ...p, collapsed: false } : p))
+      );
+      setSelectedProjectIds((prev) =>
+        prev.includes(conflictItem.projectId!) ? prev : [...prev, conflictItem.projectId!]
+      );
+    }
+
+    // 2. Unhide parent release if hidden
+    const fullItem = computedItems.find((it) => it.id === conflictItem.id);
+    const parentProj = effectiveProjects.find((p) => p.id === conflictItem.projectId);
+    const targetReleaseId = fullItem?.releaseId || parentProj?.releaseId;
+    if (targetReleaseId && hiddenReleaseIds.includes(targetReleaseId)) {
+      setHiddenReleaseIds((prev) => prev.filter((id) => id !== targetReleaseId));
+    }
+
+    // 3. Reset platform filter if active so the item is guaranteed visible
+    if (selectedPlatform !== 'all') {
+      setSelectedPlatform('all');
+    }
+
+    // 4. Select the item so it highlights and opens its inspection panel
+    setSelectedEntity({
+      type: 'task',
+      id: conflictItem.id,
+      name: conflictItem.name,
+    });
+
+    // 5. Scroll vertically and horizontally to the item in the table & timeline
+    const scrollToElement = () => {
+      if (typeof document === 'undefined') return;
+      const rowEl = document.querySelector(
+        `[data-task-row="${conflictItem.id}"]`
+      ) as HTMLElement | null;
+      const barEl = document.querySelector(
+        `[data-timeline-task="${conflictItem.id}"], [data-timeline-milestone="${conflictItem.id}"]`
+      ) as HTMLElement | null;
+
+      if (rowEl && typeof rowEl.scrollIntoView === 'function') {
+        rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else if (barEl && typeof barEl.scrollIntoView === 'function') {
+        barEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+
+      const container = scrollContainerRef.current;
+      if (container) {
+        if (barEl) {
+          const wrapper = barEl.closest('[style*="left:"]') as HTMLElement | null;
+          const rawLeft = wrapper
+            ? parseFloat(wrapper.style.left || '0')
+            : parseFloat(barEl.style.left || '0');
+          if (Number.isFinite(rawLeft)) {
+            const targetScrollLeft = Math.max(0, rawLeft - container.clientWidth / 3);
+            container.scrollTo({ left: targetScrollLeft, behavior: 'smooth' });
+            return;
+          }
+        }
+        const extraDates = collectTimelineAnchorDates({
+          projects: effectiveProjects,
+          releases,
+          items: computedItems,
+          hiddenReleaseIds,
+        });
+        const { timelineStart } = computeTimelineBounds(
+          computedItems,
+          new Date(),
+          extraDates
+        );
+        const startOffsetDays = differenceInCalendarDays(
+          parseDateSafe(conflictItem.startDate),
+          timelineStart
+        );
+        const targetScrollLeft = Math.max(
+          0,
+          Math.round(startOffsetDays * dayWidth - container.clientWidth / 3)
+        );
+        container.scrollTo({ left: targetScrollLeft, behavior: 'smooth' });
+      }
+    };
+
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(() => {
+        scrollToElement();
+        setTimeout(scrollToElement, 80);
+      });
+    }
   };
 
   const handleSelectZoomPreset = (preset: ZoomLevel) => {
@@ -2517,18 +2661,45 @@ export function App({
           <>
             {/* Conflict Banner if any task violates predecessor dependencies */}
             {metrics.conflictCount > 0 && (
-              <div className="flex items-center justify-between gap-4 px-4 py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-800 dark:text-rose-200 text-xs">
-                <div className="flex items-center gap-2">
+              <div
+                data-testid="conflict-warning-banner"
+                className="flex items-center justify-between gap-4 px-4 py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-800 dark:text-rose-200 text-xs flex-wrap"
+              >
+                <div className="flex items-center gap-2 flex-wrap">
                   <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
                   <span>
                     Detectamos <strong>{metrics.conflictCount}</strong> tarea(s) cuya fecha inicial
-                    es anterior a la fecha final de sus tareas predecesoras.
+                    es anterior a la fecha final de sus tareas predecesoras:
                   </span>
+                  <div
+                    data-testid="conflict-items-list"
+                    className="inline-flex items-center gap-1.5 flex-wrap"
+                  >
+                    {metrics.conflictItems.map((cItem) => (
+                      <button
+                        key={cItem.id}
+                        type="button"
+                        data-testid={`conflict-item-btn-${cItem.id}`}
+                        onClick={() => handleNavigateToConflictItem(cItem)}
+                        title={
+                          cItem.conflictMessage
+                            ? `${cItem.name}: ${cItem.conflictMessage} — Haz clic para ir al elemento`
+                            : `Haz clic para ir a ${cItem.name}`
+                        }
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-rose-900 dark:text-rose-100 font-semibold underline decoration-rose-500/60 underline-offset-2 cursor-pointer transition"
+                      >
+                        {cItem.projectName && (
+                          <span className="opacity-75 font-normal">{`${cItem.projectName} ›`}</span>
+                        )}
+                        <span>{cItem.name}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <button
                   type="button"
                   onClick={handleResolveAllConflicts}
-                  className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold flex items-center gap-1.5 shrink-0"
+                  className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
                   Reprogramar en cascada automáticamente

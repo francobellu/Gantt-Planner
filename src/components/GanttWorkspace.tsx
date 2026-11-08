@@ -760,6 +760,32 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       : null
     : selectedDiagramReleaseId;
 
+  useEffect(() => {
+    if (selectedEntity?.type === 'task') {
+      setSelectedItemId(selectedEntity.id);
+      setSelectedDiagramProjectId(null);
+      setSelectedDiagramReleaseId(null);
+      const targetItem = items.find((it) => it.id === selectedEntity.id);
+      if (targetItem) {
+        const targetProj = projects.find((p) => p.id === targetItem.projectId);
+        const relId = targetItem.releaseId || targetProj?.releaseId;
+        if (relId && collapsedReleaseIds.has(relId)) {
+          setCollapsedReleaseIds((prev) => {
+            const next = new Set(prev);
+            next.delete(relId);
+            return next;
+          });
+        }
+      }
+      if (tableSearchQuery) {
+        setTableSearchQuery('');
+      }
+      if (tablePlatformFilter !== 'all') {
+        setTablePlatformFilter('all');
+      }
+    }
+  }, [selectedEntity]);
+
   const handleSelectProject = (proj: GanttProject) => {
     const isCurrent = effectiveSelectedProjectId === proj.id;
     const next = isCurrent
@@ -1118,22 +1144,28 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
   // Outside click & escape handlers to dismiss task inspection panel
   useEffect(() => {
-    if (!selectedItemId) return;
+    if (!effectiveSelectedItemId) return;
     const handleOutsideClick = (e: MouseEvent) => {
       if (
         inspectionPanelRef.current &&
         !inspectionPanelRef.current.contains(e.target as Node)
       ) {
         const target = e.target as HTMLElement | null;
-        if (target?.closest('[data-timeline-task], [data-timeline-milestone], [data-task-row]')) {
+        if (
+          target?.closest(
+            '[data-timeline-task], [data-timeline-milestone], [data-task-row], [data-testid^="conflict-item-btn-"]'
+          )
+        ) {
           return;
         }
         setSelectedItemId(null);
+        onSelectEntity?.(null);
       }
     };
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setSelectedItemId(null);
+        onSelectEntity?.(null);
       }
     };
     document.addEventListener('mousedown', handleOutsideClick);
@@ -1142,7 +1174,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       document.removeEventListener('mousedown', handleOutsideClick);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [selectedItemId]);
+  }, [effectiveSelectedItemId, onSelectEntity]);
 
   // Outside click & escape handlers to dismiss dependency details popover
   useEffect(() => {
@@ -2776,8 +2808,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
   // Selected item and project metadata for the docked top-right inspection panel
   const selectedItem = useMemo(
-    () => (selectedItemId ? enrichedItemById.get(selectedItemId) || null : null),
-    [enrichedItemById, selectedItemId]
+    () =>
+      effectiveSelectedItemId
+        ? enrichedItemById.get(effectiveSelectedItemId) || null
+        : null,
+    [enrichedItemById, effectiveSelectedItemId]
   );
 
   const selectedGroup = useMemo(() => {
@@ -2813,7 +2848,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       set.add(selectedDepLink.predId);
       set.add(selectedDepLink.succId);
     }
-    const activeId = hoveredId || selectedItemId;
+    const activeId = hoveredId || effectiveSelectedItemId;
     if (!activeId) return set;
     set.add(activeId);
     for (const it of items) {
@@ -2825,7 +2860,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       }
     }
     return set;
-  }, [hoveredId, selectedItemId, selectedDepLink, items]);
+  }, [hoveredId, effectiveSelectedItemId, selectedDepLink, items]);
 
   // Memoized dependency links with channel separation (multi-lane routing),
   // unified left-anchor entrance, smooth rounded corners (fillet curves), and density/visibility filtering
@@ -4908,10 +4943,13 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         ? checkTaskReleaseCompliance(item, group.project, itemRelease)
                         : [];
 
+                      const isRowSelected = effectiveSelectedItemId === item.id;
+
                       return (
                         <div
                           key={row.rowId}
                           data-task-row={item.id}
+                          data-selected-task-row={isRowSelected ? 'true' : undefined}
                           draggable={true}
                           style={{ height: ROW_HEIGHT, minWidth: tableMinWidth }}
                           onMouseEnter={() => setHoveredId(item.id)}
@@ -4933,7 +4971,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               ? 'border-b-2 border-b-[#0C0C09] bg-[#F4F4F1] dark:bg-zinc-800'
                               : ''
                           } ${
-                            item.hidden
+                            isRowSelected
+                              ? item.hasConflict
+                                ? 'ring-2 ring-inset ring-rose-500 bg-rose-50/70 dark:bg-rose-950/30 text-[#0C0C09] dark:text-zinc-100'
+                                : 'ring-2 ring-inset ring-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/30 text-[#0C0C09] dark:text-zinc-100'
+                              : item.hidden
                               ? 'opacity-60 bg-zinc-50/70 dark:bg-zinc-900/30'
                               : isBeingDragged
                               ? 'opacity-40 bg-[#F4F4F1] dark:bg-zinc-800/60'
@@ -7282,7 +7324,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   <button
                     type="button"
                     data-close-inspection-panel="true"
-                    onClick={() => setSelectedItemId(null)}
+                    onClick={() => {
+                      setSelectedItemId(null);
+                      onSelectEntity?.(null);
+                    }}
                     className="p-1 rounded-[2px] hover:bg-black/5 dark:hover:bg-white/10 text-slate-400 hover:text-[#0C0C09] dark:hover:text-white transition shrink-0 cursor-pointer"
                     title="Cerrar panel de detalles"
                   >
@@ -7291,6 +7336,22 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                 </div>
               );
             })()}
+
+            {selectedItem.hasConflict && (
+              <div
+                data-testid={`panel-conflict-alert-${selectedItem.id}`}
+                className="flex items-start gap-2 p-2.5 rounded-[4px] bg-rose-500/10 border border-rose-500/30 text-rose-800 dark:text-rose-200 text-[11px]"
+              >
+                <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold block">Conflicto de dependencia</span>
+                  <span>
+                    {selectedItem.conflictMessage ||
+                      'La fecha inicial es anterior a la fecha final de sus tareas predecesoras.'}
+                  </span>
+                </div>
+              </div>
+            )}
 
             {/* Descripción / Notas (Inmediatamente después del nombre) */}
             <div className="flex flex-col gap-1 p-2.5 rounded-[4px] bg-[#F4F4F1]/60 dark:bg-zinc-900/60 border border-[#E2E2DC] dark:border-zinc-800 text-[11px]">

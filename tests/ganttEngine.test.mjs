@@ -4524,7 +4524,7 @@ test('Help page, version control v1.2.0, release selection on project creation, 
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version control consistency
-  assert.equal(pkg.version, '1.8.8', 'package.json version must be 1.8.8');
+  assert.equal(pkg.version, '1.8.9', 'package.json version must be 1.8.9');
   assert.ok(pkg.scripts['version:patch'], 'package.json must contain version:patch script');
   assert.ok(pkg.scripts['version:minor'], 'package.json must contain version:minor script');
   assert.ok(pkg.scripts['release:patch'], 'package.json must contain release:patch script');
@@ -5305,10 +5305,10 @@ test('Task name positioning, configurable row separators, 37 char truncation, v1
     const htmlWithoutWeekendShading = renderToString(mod.renderWorkspaceWithWeekendShading(false));
     assert.ok(!htmlWithoutWeekendShading.includes('bg-[#E5E5DF]'), 'Canvas and header must NOT render weekend shading when showWeekendShading is false (clean uniform background)');
 
-    // 9. App Header displays v1.8.8 badge, row-separators-btn, and weekend-shading-btn
+    // 9. App Header displays v1.8.9 badge, row-separators-btn, and weekend-shading-btn
     const appHtml = renderToString(mod.renderAppHeader());
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'Header must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.8.8'), 'Header badge must display v1.8.8');
+    assert.ok(appHtml.includes('v1.8.9'), 'Header badge must display v1.8.9');
     assert.ok(appHtml.includes('data-testid="header-toggle-row-separators-btn"'), 'Header must contain header-toggle-row-separators-btn');
     assert.ok(appHtml.includes('data-testid="header-toggle-weekend-shading-btn"'), 'Header must contain header-toggle-weekend-shading-btn');
 
@@ -5338,7 +5338,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version Bump Verification
-  assert.equal(pkg.version, '1.8.8', 'package.json version must equal 1.8.8');
+  assert.equal(pkg.version, '1.8.9', 'package.json version must equal 1.8.9');
 
   // Verify scripts/bump-version.mjs works properly
   const bumpScript = await fs.readFile(path.resolve(__dirname, '../scripts/bump-version.mjs'), 'utf8');
@@ -5511,8 +5511,8 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    // A. APP_VERSION equals 1.8.8
-    assert.equal(mod.APP_VERSION, '1.8.8', 'APP_VERSION must be 1.8.8');
+    // A. APP_VERSION equals 1.8.9
+    assert.equal(mod.APP_VERSION, '1.8.9', 'APP_VERSION must be 1.8.9');
 
     // A2. Excel Export Unit Test
     const sampleReleases = [
@@ -5589,7 +5589,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     assert.ok(appHtml.includes('data-testid="table-platform-filter"'), 'App must contain unified table-platform-filter');
     assert.ok(appHtml.includes('data-testid="header-toggle-focus-mode-btn"'), 'App header must contain header-toggle-focus-mode-btn');
     assert.ok(appHtml.includes('data-testid="header-reports-btn"'), 'App header must contain header-reports-btn');
-    assert.ok(appHtml.includes('v1.8.8'), 'App header must display version v1.8.8');
+    assert.ok(appHtml.includes('v1.8.9'), 'App header must display version v1.8.9');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6041,8 +6041,8 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
-  // 1. Version Bump Verification v1.8.8
-  assert.equal(pkg.version, '1.8.8', 'package.json version must equal 1.8.8');
+  // 1. Version Bump Verification v1.8.9
+  assert.equal(pkg.version, '1.8.9', 'package.json version must equal 1.8.9');
 
   // 2. SSR Bundle verification for TaskFormModal, App Header, and sanitizeGanttItem
   const tmpFile = path.resolve(__dirname, `tmp_test59_bundle_${Date.now()}.mjs`);
@@ -6140,7 +6140,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.equal(mod.APP_VERSION, '1.8.8', 'mod.APP_VERSION must equal 1.8.8');
+    assert.equal(mod.APP_VERSION, '1.8.9', 'mod.APP_VERSION must equal 1.8.9');
 
     // sanitizeGanttItem preserves platform
     const sanitizedIos = mod.sanitizeGanttItem({
@@ -6185,7 +6185,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     assert.ok(appHtml.includes('data-testid="header-more-menu-btn"'), 'App header must render header-more-menu-btn');
     assert.ok(appHtml.includes('data-testid="header-more-menu-dropdown"'), 'App must render header-more-menu-dropdown');
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'More menu must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.8.8'), 'Version badge must display v1.8.8');
+    assert.ok(appHtml.includes('v1.8.9'), 'Version badge must display v1.8.9');
     assert.ok(appHtml.includes('data-testid="force-reload-btn"'), 'More menu must contain force-reload-btn');
 
     // 7. Verify secondary buttons are rendered inside the menu
@@ -6207,7 +6207,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
       hiddenReleaseCount: 0,
     }));
     assert.ok(settingsHtml.includes('data-testid="settings-version-badge"'), 'SettingsModal must contain settings-version-badge');
-    assert.ok(settingsHtml.includes('1.8.8') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.8.8');
+    assert.ok(settingsHtml.includes('1.8.9') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.8.9');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6361,14 +6361,14 @@ test('Test 61: Version button, compiled release notes modal and changelog across
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
 
     // 1. Check RELEASE_NOTES compiled data
-    assert.strictEqual(mod.APP_VERSION, '1.8.8');
+    assert.strictEqual(mod.APP_VERSION, '1.8.9');
     assert.ok(Array.isArray(mod.RELEASE_NOTES), 'RELEASE_NOTES must be an array');
     assert.ok(mod.RELEASE_NOTES.length >= 9, 'RELEASE_NOTES must have at least 9 releases');
 
     const latest = mod.RELEASE_NOTES[0];
-    assert.strictEqual(latest.version, '1.8.8', 'First release note must be 1.8.8');
+    assert.strictEqual(latest.version, '1.8.9', 'First release note must be 1.8.9');
     assert.strictEqual(latest.isLatest, true, 'First release note must be isLatest: true');
-    assert.ok(latest.features.length > 0, 'v1.8.8 must contain features');
+    assert.ok(latest.features.length > 0, 'v1.8.9 must contain features');
 
     // 2. Render App and verify version button exists in dropdown menu and is NOT duplicated in top header
     const appHtml = renderToString(React.createElement(mod.App));
@@ -6381,8 +6381,8 @@ test('Test 61: Version button, compiled release notes modal and changelog across
       'App dropdown must contain data-testid="app-version-badge"'
     );
     assert.ok(
-      appHtml.includes('<button') && appHtml.includes('data-testid="app-version-badge"') && appHtml.includes('v1.8.8'),
-      'app-version-badge in tools dropdown must be an interactive button showing v1.8.8'
+      appHtml.includes('<button') && appHtml.includes('data-testid="app-version-badge"') && appHtml.includes('v1.8.9'),
+      'app-version-badge in tools dropdown must be an interactive button showing v1.8.9'
     );
 
     // 3. Render ReleaseNotesModal
@@ -7952,6 +7952,173 @@ test('Test 71: v1.8.8 table release bar shows only T_ code without icon/name, du
     assert.ok(
       !wsMultiHtml.includes('Proyecto Solo iOS') && !wsMultiHtml.includes('Proyecto Solo Android'),
       'iOS/Android filter must exclude single-platform iOS-only and Android-only projects'
+    );
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
+// ============================================================================
+// TEST 72: v1.8.9 Conflict Warning Banner Item Identification and Click-to-Navigate
+// ============================================================================
+test('Test 72: v1.8.9 conflict warning banner displays conflicting elements and clicking/selecting navigates to and highlights the element', async () => {
+  const fs = await import('node:fs/promises');
+  const ReactMod = await import('react');
+  const React = ReactMod.default || ReactMod;
+  const ReactDOMServer = await import('react-dom/server');
+  const { renderToString } = ReactDOMServer.default || ReactDOMServer;
+
+  const tmpFile = path.resolve(__dirname, `tmp_test72_bundle_${Date.now()}.mjs`);
+  try {
+    await build({
+      stdin: {
+        contents: `
+          import React from 'react';
+          import { App } from './src/App.tsx';
+          import { GanttWorkspace } from './src/components/GanttWorkspace.tsx';
+          import { computeGanttMetrics } from './src/utils/ganttEngine.ts';
+          export { App, GanttWorkspace, computeGanttMetrics };
+        `,
+        resolveDir: path.resolve(__dirname, '..'),
+        sourcefile: 'test72_entry.tsx',
+        loader: 'tsx',
+      },
+      bundle: true,
+      format: 'esm',
+      outfile: tmpFile,
+      platform: 'neutral',
+      target: 'es2022',
+      jsx: 'automatic',
+      external: [
+        'react',
+        'react-dom',
+        'react-dom/server',
+        'lucide-react',
+        'date-fns',
+        'date-fns/locale',
+        'xlsx',
+        'canvas-confetti',
+      ],
+      define: {
+        'process.env.NODE_ENV': '"production"',
+      },
+    });
+
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+
+    const sampleProjects = [
+      {
+        id: 'proj-conf',
+        projectIndex: 1,
+        name: 'Migración Xcode 27',
+        color: 'indigo',
+        releaseId: 'rel-t-26-12-1',
+        platform: 'iOS/Android',
+      },
+    ];
+    const sampleItems = [
+      {
+        id: 't-pred',
+        projectId: 'proj-conf',
+        name: 'Desarrollo SDK Base',
+        type: 'task',
+        startDate: '2026-10-10',
+        endDate: '2026-10-20',
+        duration: 11,
+        slack: 0,
+        dependencies: [],
+        progress: 50,
+        color: 'indigo',
+      },
+      {
+        id: 't-succ-conflict',
+        projectId: 'proj-conf',
+        name: 'Integración Biometría',
+        type: 'task',
+        startDate: '2026-10-15',
+        endDate: '2026-10-22',
+        duration: 8,
+        slack: 0,
+        dependencies: ['t-pred'],
+        dependencyTypes: { 't-pred': 'FS' },
+        progress: 0,
+        color: 'indigo',
+      },
+    ];
+
+    // 1. Verify App renders the conflict warning banner with interactive button for the conflicting task
+    const appHtml = renderToString(
+      React.createElement(mod.App, {
+        initialProjects: sampleProjects,
+        initialItems: sampleItems,
+      })
+    );
+    assert.ok(
+      appHtml.includes('data-testid="conflict-warning-banner"'),
+      'App must render data-testid="conflict-warning-banner" when a task violates predecessor dates'
+    );
+    assert.ok(
+      appHtml.includes('data-testid="conflict-items-list"'),
+      'Conflict banner must render data-testid="conflict-items-list"'
+    );
+    assert.ok(
+      appHtml.includes('data-testid="conflict-item-btn-t-succ-conflict"'),
+      'Conflict banner must render an interactive button for the conflicting element (conflict-item-btn-t-succ-conflict)'
+    );
+    assert.ok(
+      appHtml.includes('Migración Xcode 27 ›') && appHtml.includes('Integración Biometría'),
+      'Conflict button must display the parent project name and the conflicting task name'
+    );
+
+    // 2. Verify selecting the conflicting element highlights its row and opens the inspection panel with conflict alert
+    const computed = mod.computeGanttMetrics(sampleItems);
+    const wsHtml = renderToString(
+      React.createElement(mod.GanttWorkspace, {
+        items: computed,
+        projects: sampleProjects,
+        releases: [
+          {
+            id: 'rel-t-26-12-1',
+            code: 'T_26.12.1',
+            name: 'DICIEMBRE',
+            year: 2026,
+            milestones: [
+              { id: 'm1', key: 'qg1', code: 'QG1', name: 'QG1', date: '2026-10-06' },
+              { id: 'm2', key: 'iop', code: 'IOP', name: 'IOP', date: '2026-12-10' },
+            ],
+          },
+        ],
+        selectedEntity: {
+          type: 'task',
+          id: 't-succ-conflict',
+          name: 'Integración Biometría',
+        },
+        groupingMode: 'release',
+        groupByProject: true,
+        showTable: true,
+        zoom: 'week',
+        scrollContainerRef: { current: null },
+        onUpdateItem: () => {},
+        onDeleteItem: () => {},
+        onEditModal: () => {},
+        onDuplicateItem: () => {},
+        onQuickAdd: () => {},
+      })
+    );
+
+    assert.ok(
+      wsHtml.includes('data-task-row="t-succ-conflict"') &&
+        wsHtml.includes('data-selected-task-row="true"'),
+      'Selected conflicting task row must have data-selected-task-row="true"'
+    );
+    assert.ok(
+      wsHtml.includes('id="gantt-inspection-panel"') &&
+        wsHtml.includes('data-selected-item-id="t-succ-conflict"'),
+      'Inspection panel must open for the selected conflicting task when selectedEntity is set'
+    );
+    assert.ok(
+      wsHtml.includes('data-testid="panel-conflict-alert-t-succ-conflict"'),
+      'Inspection panel must display the detailed dependency conflict alert box'
     );
   } finally {
     await fs.unlink(tmpFile).catch(() => {});

@@ -10,10 +10,22 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.8.9',
+    date: '08 Nov 2026',
+    title: 'Identificación de elementos en avisos de conflicto y navegación directa con un clic',
+    isLatest: true,
+    features: [
+      'Identificación y navegación interactiva desde el aviso de conflicto: cuando existen tareas o hitos con fechas anteriores al fin de sus predecesoras, el banner indica explícitamente cada elemento afectado (con su proyecto) y al hacer clic navega, despliega, centra y abre automáticamente el detalle del elemento en el cronograma.',
+    ],
+    improvements: [
+      'Alerta detallada de conflicto de predecesoras dentro del panel lateral de inspección del elemento seleccionado.',
+    ],
+  },
+  {
     version: '1.8.8',
     date: '08 Nov 2026',
     title: 'Filtro desplegable de plataforma con iconos, limpieza de barras de Release en tabla y eliminación de selector duplicado',
-    isLatest: true,
+    isLatest: false,
     features: [
       'Menú desplegable de filtro por plataforma con iconos nativos: el selector de plataforma en la barra del cronograma muestra directamente los iconos de iOS, Android y ambos iconos juntos (para filtrar proyectos y tareas multiplataforma).',
     ],
