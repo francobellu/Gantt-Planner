@@ -1,4 +1,4 @@
-export const APP_VERSION = '1.8.6';
+export const APP_VERSION = '1.8.7';
 
 export const DEFAULT_TRUNCATE_CHAR_LIMIT = 37;
 export const TRUNCATE_LIMIT_STORAGE_KEY = 'ganttflow_truncate_char_limit';
@@ -7,7 +7,7 @@ export type TaskType = 'task' | 'milestone';
 
 export type DependencyType = 'FS' | 'SS' | 'FF' | 'SF';
 
-export type ProjectPlatform = 'iOS' | 'Android' | 'Multiplataforma';
+export type ProjectPlatform = 'iOS' | 'Android' | 'iOS/Android';
 
 export interface FocusEntity {
   type: 'task' | 'project' | 'release';

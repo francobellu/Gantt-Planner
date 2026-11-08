@@ -309,7 +309,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 <option value="all">Todas</option>
                 <option value="iOS">iOS</option>
                 <option value="Android">Android</option>
-                <option value="Multiplataforma">Multiplataforma</option>
+                <option value="iOS/Android">iOS/Android</option>
               </select>
             </div>
           )}

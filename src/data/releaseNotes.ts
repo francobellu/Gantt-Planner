@@ -10,10 +10,23 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.8.7',
+    date: '08 Nov 2026',
+    title: 'Detalle exacto de estados en el Historial, plataforma iOS/Android con iconos e iconos limpios en Releases',
+    isLatest: true,
+    features: [
+      'Descripción exacta de cambios de estado en el Historial: cada entrada muestra explícitamente qué campos cambiaron (Antes → Después) en proyectos, tareas e hitos tanto en la tarjeta principal como en una nueva tabla de «Cambios exactos en esta versión».',
+      'Plataforma «iOS/Android» e iconos nativos en la tabla: se sustituyó el valor «Multiplataforma» por «iOS/Android» y se representa visualmente la plataforma en las filas de proyecto de la tabla con los iconos de iOS y Android.',
+    ],
+    improvements: [
+      'Botones compactos solo-icono en barras de Release: los botones de Ocultar y Enfocar en las cabeceras de release muestran únicamente su icono con tooltip descriptivo para ahorrar espacio horizontal.',
+    ],
+  },
+  {
     version: '1.8.6',
     date: '08 Nov 2026',
     title: 'Limpieza visual de nombres de proyecto en el diagrama Gantt y columna Proyecto en Historial',
-    isLatest: true,
+    isLatest: false,
     features: [
       'Columna Proyecto en el Historial de Cambios: en el desglose de tareas de cada versión del historial se sustituyó el ID técnico interno (t-17936...) por el nombre legible del Proyecto al que pertenece cada tarea.',
     ],

@@ -16,7 +16,8 @@ import {
   Trash2,
   Undo2,
 } from 'lucide-react';
-import { PlanHistoryActionType, PlanHistoryEntry } from '../types/gantt';
+import { PlanHistoryActionType, PlanHistoryEntry, Release } from '../types/gantt';
+import { computeHistoryEntryDiff } from '../utils/ganttEngine';
 
 export interface PlanHistoryPageProps {
   history: PlanHistoryEntry[];
@@ -29,6 +30,7 @@ export interface PlanHistoryPageProps {
   onBackToGantt: () => void;
   onClearHistory?: () => void;
   initialExpandedEntryId?: string | null;
+  releases?: Release[];
 }
 
 const ACTION_BADGE_CONFIG: Record<
@@ -144,18 +146,23 @@ export const PlanHistoryPage: React.FC<PlanHistoryPageProps> = ({
   onBackToGantt,
   onClearHistory,
   initialExpandedEntryId = null,
+  releases,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [expandedEntryId, setExpandedEntryId] = useState<string | null>(initialExpandedEntryId);
 
-  // Filter entries while preserving original indices for restore actions
+  // Filter entries while preserving original indices and computed exact diffs against the preceding snapshot
   const indexedEntries = useMemo(() => {
-    return history.map((entry, index) => ({ entry, originalIndex: index }));
-  }, [history]);
+    return history.map((entry, index) => {
+      const prevSnapshot = index > 0 ? history[index - 1]?.snapshot : undefined;
+      const entityChanges = computeHistoryEntryDiff(prevSnapshot, entry.snapshot, releases);
+      return { entry, originalIndex: index, entityChanges };
+    });
+  }, [history, releases]);
 
   const filteredEntries = useMemo(() => {
-    return indexedEntries.filter(({ entry }) => {
+    return indexedEntries.filter(({ entry, entityChanges }) => {
       if (filterType !== 'all') {
         if (filterType === 'move' && entry.actionType !== 'drag_move') return false;
         if (filterType === 'resize' && entry.actionType !== 'drag_resize') return false;
@@ -166,10 +173,21 @@ export const PlanHistoryPage: React.FC<PlanHistoryPageProps> = ({
       }
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
+        const matchesDiff = entityChanges.some(
+          (ec) =>
+            ec.name.toLowerCase().includes(q) ||
+            ec.changes.some(
+              (c) =>
+                c.field.toLowerCase().includes(q) ||
+                c.before.toLowerCase().includes(q) ||
+                c.after.toLowerCase().includes(q)
+            )
+        );
         return (
           entry.description.toLowerCase().includes(q) ||
           entry.actionLabel.toLowerCase().includes(q) ||
-          entry.formattedDate.toLowerCase().includes(q)
+          entry.formattedDate.toLowerCase().includes(q) ||
+          matchesDiff
         );
       }
       return true;
@@ -368,7 +386,7 @@ export const PlanHistoryPage: React.FC<PlanHistoryPageProps> = ({
               No se encontraron modificaciones que coincidan con los criterios seleccionados.
             </div>
           ) : (
-            displayList.map(({ entry, originalIndex }) => {
+            displayList.map(({ entry, originalIndex, entityChanges }) => {
               const isCurrent = originalIndex === currentIndex;
               const badge =
                 ACTION_BADGE_CONFIG[entry.actionType] ||
@@ -388,7 +406,7 @@ export const PlanHistoryPage: React.FC<PlanHistoryPageProps> = ({
                   }`}
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    {/* Left: Tag + Time + Description */}
+                    {/* Left: Tag + Time + Description + Exact State Diffs */}
                     <div className="flex items-start gap-3 min-w-0">
                       <div className="flex flex-col items-center shrink-0 pt-0.5">
                         <span
@@ -414,6 +432,47 @@ export const PlanHistoryPage: React.FC<PlanHistoryPageProps> = ({
                           )}
                         </div>
 
+                        {/* Exact State Changes Summary on the Entry Card */}
+                        {entityChanges.length > 0 && (
+                          <div
+                            data-testid={`history-entry-diff-summary-${entry.id}`}
+                            className="mt-1.5 flex flex-col gap-1"
+                          >
+                            {entityChanges.map((ec) => (
+                              <div
+                                key={`${ec.entityType}-${ec.id}`}
+                                className="flex items-center gap-1.5 flex-wrap text-[11px] font-mono"
+                              >
+                                <span className="px-1.5 py-0.5 rounded-[2px] bg-[#F4F4F1] dark:bg-zinc-800 border border-[#E2E2DC] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 font-semibold">
+                                  {ec.entityType === 'project'
+                                    ? `Proyecto '${ec.name}'`
+                                    : ec.entityType === 'milestone'
+                                    ? `Hito '${ec.name}'`
+                                    : `Tarea '${ec.name}'`}
+                                </span>
+                                {ec.changes.map((chg, cIdx) => (
+                                  <span
+                                    key={`${chg.field}-${cIdx}`}
+                                    data-testid={`history-diff-pill-${entry.id}-${chg.field}`}
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/70 text-[#0C0C09] dark:text-zinc-200"
+                                  >
+                                    <span className="font-semibold text-[#312C85] dark:text-indigo-300">
+                                      {`${chg.field}:`}
+                                    </span>
+                                    <span className="line-through opacity-70 text-rose-700 dark:text-rose-300">
+                                      {chg.before}
+                                    </span>
+                                    <span className="text-[#6B6B66]">→</span>
+                                    <span className="font-bold text-emerald-700 dark:text-emerald-400">
+                                      {chg.after}
+                                    </span>
+                                  </span>
+                                ))}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
                         <div className="flex items-center gap-3 text-[11px] font-mono text-[#6B6B66] dark:text-zinc-400 mt-1">
                           <span className="inline-flex items-center gap-1">
                             <Clock className="w-3 h-3" />
@@ -435,7 +494,7 @@ export const PlanHistoryPage: React.FC<PlanHistoryPageProps> = ({
                           setExpandedEntryId(isExpanded ? null : entry.id)
                         }
                         className="px-2 py-1 rounded-[2px] border border-[#E2E2DC] dark:border-zinc-800 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 text-[11px] font-mono text-[#6B6B66] dark:text-zinc-400 flex items-center gap-1 transition cursor-pointer"
-                        title="Ver tareas incluidas en esta versión"
+                        title="Ver detalles de los cambios y estado de esta versión"
                       >
                         {isExpanded ? (
                           <>
@@ -472,55 +531,113 @@ export const PlanHistoryPage: React.FC<PlanHistoryPageProps> = ({
 
                   {/* Expanded Snapshot Details Table */}
                   {isExpanded && (
-                    <div className="mt-3 pt-3 border-t border-[#E2E2DC] dark:border-zinc-800">
-                      <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400 mb-2">
-                        Tareas en esta versión ({entry.snapshot.items.length})
-                      </div>
-                      <div className="max-h-48 overflow-y-auto border border-[#E2E2DC] dark:border-zinc-800 rounded-[2px]">
-                        <table className="w-full text-left text-xs">
-                          <thead className="bg-[#F4F4F1] dark:bg-zinc-800 text-[10px] font-mono uppercase text-[#6B6B66] dark:text-zinc-400 border-b border-[#E2E2DC] dark:border-zinc-800">
-                            <tr>
-                              <th className="px-2.5 py-1">Proyecto</th>
-                              <th className="px-2.5 py-1">Tarea</th>
-                              <th className="px-2.5 py-1">Inicio</th>
-                              <th className="px-2.5 py-1">Fin</th>
-                              <th className="px-2.5 py-1">Duración</th>
-                              <th className="px-2.5 py-1">Equipo</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-[#E2E2DC] dark:divide-zinc-800 font-mono text-[11px]">
-                            {entry.snapshot.items.map((it) => {
-                              const projName =
-                                entry.snapshot.projects.find((p) => p.id === it.projectId)?.name ||
-                                entry.snapshot.projects[0]?.name ||
-                                '—';
-                              return (
-                                <tr
-                                  key={it.id}
-                                  className="hover:bg-[#F4F4F1]/60 dark:hover:bg-zinc-800/40"
-                                >
-                                  <td
-                                    data-testid={`history-item-project-${it.id}`}
-                                    className="px-2.5 py-1 font-sans text-[#6B6B66] dark:text-zinc-400"
-                                  >
-                                    {projName}
-                                  </td>
-                                  <td className="px-2.5 py-1 font-sans font-medium text-[#0C0C09] dark:text-white">
-                                    {it.name}
-                                  </td>
-                                  <td className="px-2.5 py-1">{it.startDate}</td>
-                                  <td className="px-2.5 py-1">{it.endDate}</td>
-                                  <td className="px-2.5 py-1">
-                                    {it.type === 'milestone' ? 'Hito' : `${it.duration}d`}
-                                  </td>
-                                  <td className="px-2.5 py-1 text-[#6B6B66]">
-                                    {it.assignee || '—'}
-                                  </td>
+                    <div className="mt-3 pt-3 border-t border-[#E2E2DC] dark:border-zinc-800 space-y-3">
+                      {entityChanges.length > 0 && (
+                        <div data-testid={`history-exact-changes-${entry.id}`}>
+                          <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#312C85] dark:text-indigo-400 mb-1.5">
+                            Cambios exactos en esta versión ({entityChanges.length})
+                          </div>
+                          <div className="overflow-x-auto border border-[#E2E2DC] dark:border-zinc-800 rounded-[2px]">
+                            <table className="w-full text-left text-xs">
+                              <thead className="bg-[#F4F4F1] dark:bg-zinc-800 text-[10px] font-mono uppercase text-[#6B6B66] dark:text-zinc-400 border-b border-[#E2E2DC] dark:border-zinc-800">
+                                <tr>
+                                  <th className="px-2.5 py-1">Tipo</th>
+                                  <th className="px-2.5 py-1">Elemento</th>
+                                  <th className="px-2.5 py-1">Campo Modificado</th>
+                                  <th className="px-2.5 py-1">Estado Anterior</th>
+                                  <th className="px-2.5 py-1">Estado Nuevo</th>
                                 </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
+                              </thead>
+                              <tbody className="divide-y divide-[#E2E2DC] dark:divide-zinc-800 font-mono text-[11px]">
+                                {entityChanges.flatMap((ec) =>
+                                  ec.changes.map((chg, idx) => (
+                                    <tr
+                                      key={`${ec.id}-${chg.field}-${idx}`}
+                                      className="hover:bg-[#F4F4F1]/60 dark:hover:bg-zinc-800/40"
+                                    >
+                                      <td className="px-2.5 py-1 text-[#6B6B66] dark:text-zinc-400">
+                                        {ec.entityType === 'project'
+                                          ? 'Proyecto'
+                                          : ec.entityType === 'milestone'
+                                          ? 'Hito'
+                                          : 'Tarea'}
+                                      </td>
+                                      <td className="px-2.5 py-1 font-sans font-medium text-[#0C0C09] dark:text-white">
+                                        {ec.name}
+                                        {ec.projectName ? (
+                                          <span className="ml-1.5 text-[10px] text-[#6B6B66] dark:text-zinc-400">
+                                            ({ec.projectName})
+                                          </span>
+                                        ) : null}
+                                      </td>
+                                      <td className="px-2.5 py-1 font-semibold text-[#312C85] dark:text-indigo-300">
+                                        {chg.field}
+                                      </td>
+                                      <td className="px-2.5 py-1 text-rose-700 dark:text-rose-300 line-through opacity-80">
+                                        {chg.before}
+                                      </td>
+                                      <td className="px-2.5 py-1 font-bold text-emerald-700 dark:text-emerald-400">
+                                        {chg.after}
+                                      </td>
+                                    </tr>
+                                  ))
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+
+                      <div>
+                        <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400 mb-2">
+                          Tareas en esta versión ({entry.snapshot.items.length})
+                        </div>
+                        <div className="max-h-48 overflow-y-auto border border-[#E2E2DC] dark:border-zinc-800 rounded-[2px]">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-[#F4F4F1] dark:bg-zinc-800 text-[10px] font-mono uppercase text-[#6B6B66] dark:text-zinc-400 border-b border-[#E2E2DC] dark:border-zinc-800">
+                              <tr>
+                                <th className="px-2.5 py-1">Proyecto</th>
+                                <th className="px-2.5 py-1">Tarea</th>
+                                <th className="px-2.5 py-1">Inicio</th>
+                                <th className="px-2.5 py-1">Fin</th>
+                                <th className="px-2.5 py-1">Duración</th>
+                                <th className="px-2.5 py-1">Equipo</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-[#E2E2DC] dark:divide-zinc-800 font-mono text-[11px]">
+                              {entry.snapshot.items.map((it) => {
+                                const projName =
+                                  entry.snapshot.projects.find((p) => p.id === it.projectId)?.name ||
+                                  entry.snapshot.projects[0]?.name ||
+                                  '—';
+                                return (
+                                  <tr
+                                    key={it.id}
+                                    className="hover:bg-[#F4F4F1]/60 dark:hover:bg-zinc-800/40"
+                                  >
+                                    <td
+                                      data-testid={`history-item-project-${it.id}`}
+                                      className="px-2.5 py-1 font-sans text-[#6B6B66] dark:text-zinc-400"
+                                    >
+                                      {projName}
+                                    </td>
+                                    <td className="px-2.5 py-1 font-sans font-medium text-[#0C0C09] dark:text-white">
+                                      {it.name}
+                                    </td>
+                                    <td className="px-2.5 py-1">{it.startDate}</td>
+                                    <td className="px-2.5 py-1">{it.endDate}</td>
+                                    <td className="px-2.5 py-1">
+                                      {it.type === 'milestone' ? 'Hito' : `${it.duration}d`}
+                                    </td>
+                                    <td className="px-2.5 py-1 text-[#6B6B66]">
+                                      {it.assignee || '—'}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
                     </div>
                   )}

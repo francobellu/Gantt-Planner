@@ -795,20 +795,24 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
               </label>
               {(() => {
                 const currentProj = projects.find((p) => p.id === (projectId || defaultProjectId || ''));
+                const projPlat =
+                  currentProj?.platform === ('Multiplataforma' as any)
+                    ? 'iOS/Android'
+                    : currentProj?.platform;
                 return (
                   <select
                     data-testid="task-platform-select"
-                    value={platform}
+                    value={platform === ('Multiplataforma' as any) ? 'iOS/Android' : platform}
                     onChange={(e) => setPlatform(e.target.value as ProjectPlatform | '')}
                     className="w-full px-2.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer"
-                    title="Plataforma de la tarea (iOS, Android, Multiplataforma o heredar del proyecto)"
+                    title="Plataforma de la tarea (iOS, Android, iOS/Android o heredar del proyecto)"
                   >
                     <option value="">
-                      {currentProj?.platform ? `Por defecto (${currentProj.platform})` : 'Por defecto (Heredar)'}
+                      {projPlat ? `Por defecto (${projPlat})` : 'Por defecto (Heredar)'}
                     </option>
                     <option value="iOS">iOS</option>
                     <option value="Android">Android</option>
-                    <option value="Multiplataforma">Multiplataforma</option>
+                    <option value="iOS/Android">iOS/Android</option>
                   </select>
                 );
               })()}

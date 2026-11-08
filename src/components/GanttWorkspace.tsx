@@ -92,6 +92,7 @@ import {
   MAX_DAY_WIDTH,
   MIN_DAY_WIDTH,
   moveDependencyLink,
+  normalizePlatform,
   OrthogonalPoint,
   parseDateSafe,
   removeDependencyLink,
@@ -104,6 +105,38 @@ import {
   getReleaseDateSpan,
   RELEASE_MILESTONE_DEFINITIONS,
 } from '../utils/releaseEngine';
+
+const AppleIosIcon: React.FC<{ className?: string; testId?: string }> = ({
+  className = 'w-3 h-3',
+  testId,
+}) => (
+  <svg
+    data-testid={testId}
+    data-platform-icon="iOS"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    className={className}
+    aria-label="iOS"
+  >
+    <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.33c.64-.78 1.08-1.86.96-2.94-.93.04-2.06.62-2.72 1.4-.58.68-1.1 1.79-.96 2.84 1.04.08 2.08-.52 2.72-1.3Z" />
+  </svg>
+);
+
+const AndroidIcon: React.FC<{ className?: string; testId?: string }> = ({
+  className = 'w-3 h-3',
+  testId,
+}) => (
+  <svg
+    data-testid={testId}
+    data-platform-icon="Android"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    className={className}
+    aria-label="Android"
+  >
+    <path d="M17.523 15.341a.96.96 0 0 1-.958-.958.96.96 0 0 1 .958-.958.96.96 0 0 1 .958.958.96.96 0 0 1-.958.958m-11.046 0a.96.96 0 0 1-.958-.958.96.96 0 0 1 .958-.958.96.96 0 0 1 .958.958.96.96 0 0 1-.958.958m11.4-6.02 1.996-3.459a.416.416 0 0 0-.152-.567.416.416 0 0 0-.568.152L17.132 8.95c-1.484-.676-3.153-1.053-5.132-1.053-1.979 0-3.648.377-5.132 1.053L4.847 5.447a.416.416 0 0 0-.568-.152.416.416 0 0 0-.152.567l1.996 3.459C2.688 11.186.443 14.658 0 18.761h24c-.443-4.103-2.688-7.575-6.123-9.44" />
+  </svg>
+);
 
 function computePolylineMidpoint(pts: OrthogonalPoint[]): OrthogonalPoint {
   if (pts.length === 0) return { x: 0, y: 0 };
@@ -206,7 +239,7 @@ interface GanttWorkspaceProps {
   onSetFocusEntity?: (entity: FocusEntity | null) => void;
   selectedEntity?: FocusEntity | null;
   onSelectEntity?: (entity: FocusEntity | null) => void;
-  selectedPlatform?: 'all' | 'iOS' | 'Android' | 'Multiplataforma';
+  selectedPlatform?: 'all' | 'iOS' | 'Android' | 'iOS/Android' | 'Multiplataforma';
   truncateCharLimit?: number;
   onChangeTruncateCharLimit?: (limit: number) => void;
 }
@@ -1726,21 +1759,28 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       );
     }
 
-    const effectivePlatform =
+    const rawEffectivePlatform =
       tablePlatformFilter !== 'all'
         ? tablePlatformFilter
         : selectedPlatform && selectedPlatform !== 'all'
         ? selectedPlatform
         : 'all';
+    const effectivePlatform =
+      rawEffectivePlatform === 'all'
+        ? 'all'
+        : normalizePlatform(rawEffectivePlatform) || 'iOS/Android';
 
     if (effectivePlatform !== 'all') {
-      filtered = filtered.filter(
-        (g) =>
-          (g.project.platform || 'Multiplataforma') === effectivePlatform ||
-          g.items.some(
-            (it) => (it.platform || g.project.platform || 'Multiplataforma') === effectivePlatform
-          )
-      );
+      filtered = filtered.filter((g) => {
+        const projPlat = normalizePlatform(g.project.platform) || 'iOS/Android';
+        return (
+          projPlat === effectivePlatform ||
+          g.items.some((it) => {
+            const itPlat = normalizePlatform(it.platform || g.project.platform) || 'iOS/Android';
+            return itPlat === effectivePlatform;
+          })
+        );
+      });
     }
 
     const query = tableSearchQuery.trim().toLowerCase();
@@ -3478,7 +3518,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                 <option value="all">Todas las plataformas</option>
                 <option value="iOS">iOS</option>
                 <option value="Android">Android</option>
-                <option value="Multiplataforma">Multiplataforma</option>
+                <option value="iOS/Android">iOS/Android</option>
               </select>
             </div>
 
@@ -4129,11 +4169,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                     e.stopPropagation();
                                     onToggleHideRelease(rGroup.release.id);
                                   }}
-                                  className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-sans font-medium bg-white/20 hover:bg-white/30 text-white dark:bg-black/10 dark:hover:bg-black/20 dark:text-black transition cursor-pointer shrink-0"
+                                  className="p-1 rounded-[2px] flex items-center justify-center bg-white/20 hover:bg-white/30 text-white dark:bg-black/10 dark:hover:bg-black/20 dark:text-black transition cursor-pointer shrink-0"
                                   title={`Ocultar release ${rGroup.release.code} y todos sus proyectos asociados`}
+                                  aria-label={`Ocultar release ${rGroup.release.code}`}
                                 >
-                                  <EyeOff className="w-3 h-3" />
-                                  <span>Ocultar</span>
+                                  <EyeOff className="w-3.5 h-3.5" />
                                 </button>
                               )}
                               {onSetFocusEntity && (() => {
@@ -4155,19 +4195,23 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                         });
                                       }
                                     }}
-                                    className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-sans transition cursor-pointer shrink-0 ${
+                                    className={`p-1 rounded-[2px] flex items-center justify-center transition cursor-pointer shrink-0 ${
                                       isCurrentRelFocused
                                         ? 'bg-amber-400 text-black font-bold ring-2 ring-amber-300 shadow-xs'
-                                        : 'bg-white/20 hover:bg-white/30 text-white dark:bg-black/10 dark:hover:bg-black/20 dark:text-black font-medium'
+                                        : 'bg-white/20 hover:bg-white/30 text-white dark:bg-black/10 dark:hover:bg-black/20 dark:text-black'
                                     }`}
                                     title={
                                       isCurrentRelFocused
                                         ? `Salir de la modalidad enfoque de ${rGroup.release.code} (clic o tecla ESC)`
                                         : `Enfocar release ${rGroup.release.code} y sus proyectos`
                                     }
+                                    aria-label={
+                                      isCurrentRelFocused
+                                        ? `Salir de enfoque ${rGroup.release.code}`
+                                        : `Enfocar release ${rGroup.release.code}`
+                                    }
                                   >
-                                    <Sparkles className={`w-3 h-3 ${isCurrentRelFocused ? 'text-black fill-current' : 'text-amber-300'}`} />
-                                    <span>{isCurrentRelFocused ? 'Enfocado (Salir)' : 'Enfoque'}</span>
+                                    <Sparkles className={`w-3.5 h-3.5 ${isCurrentRelFocused ? 'text-black fill-current' : 'text-amber-300'}`} />
                                   </button>
                                 );
                               })()}
@@ -4341,21 +4385,41 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 {`P${group.projectIndex}`}
                               </button>
 
-                              {group.project.platform && (
-                                <span
-                                  data-testid={`project-platform-badge-${group.project.id}`}
-                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold shrink-0 border ${
-                                    group.project.platform === 'iOS'
-                                      ? 'bg-sky-50 text-sky-700 border-sky-300 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800'
-                                      : group.project.platform === 'Android'
-                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
-                                      : 'bg-zinc-100 text-zinc-700 border-zinc-300 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700'
-                                  }`}
-                                  title={`Plataforma: ${group.project.platform}`}
-                                >
-                                  {group.project.platform}
-                                </span>
-                              )}
+                              {(() => {
+                                const projPlatform = normalizePlatform(group.project.platform);
+                                if (!projPlatform) return null;
+                                const showIos = projPlatform === 'iOS' || projPlatform === 'iOS/Android';
+                                const showAndroid =
+                                  projPlatform === 'Android' || projPlatform === 'iOS/Android';
+                                return (
+                                  <span
+                                    data-testid={`project-platform-badge-${group.project.id}`}
+                                    data-platform={projPlatform}
+                                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold shrink-0 border ${
+                                      projPlatform === 'iOS'
+                                        ? 'bg-sky-50 text-sky-700 border-sky-300 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800'
+                                        : projPlatform === 'Android'
+                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
+                                        : 'bg-zinc-100 text-zinc-700 border-zinc-300 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700'
+                                    }`}
+                                    title={`Plataforma: ${projPlatform}`}
+                                    aria-label={`Plataforma: ${projPlatform}`}
+                                  >
+                                    {showIos && (
+                                      <AppleIosIcon
+                                        testId={`platform-icon-ios-${group.project.id}`}
+                                        className="w-3 h-3 shrink-0"
+                                      />
+                                    )}
+                                    {showAndroid && (
+                                      <AndroidIcon
+                                        testId={`platform-icon-android-${group.project.id}`}
+                                        className="w-3 h-3 shrink-0"
+                                      />
+                                    )}
+                                  </span>
+                                );
+                              })()}
 
                               <div
                                 className="inline-grid items-center shrink-0 max-w-full transition-all duration-150"
@@ -4917,21 +4981,25 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 {itemRelease.code}
                               </span>
                             )}
-                            {item.platform && (
-                              <span
-                                data-testid={`task-platform-badge-${item.id}`}
-                                title={`Plataforma específica de tarea: ${item.platform}`}
-                                className={`px-1.5 py-0.5 rounded-[2px] text-[9px] font-mono font-semibold shrink-0 border ${
-                                  item.platform === 'iOS'
-                                    ? 'bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border-sky-300 dark:border-sky-700'
-                                    : item.platform === 'Android'
-                                    ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
-                                    : 'bg-violet-50 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300 border-violet-300 dark:border-violet-700'
-                                }`}
-                              >
-                                {item.platform}
-                              </span>
-                            )}
+                            {(() => {
+                              const taskPlatform = normalizePlatform(item.platform);
+                              if (!taskPlatform) return null;
+                              return (
+                                <span
+                                  data-testid={`task-platform-badge-${item.id}`}
+                                  title={`Plataforma específica de tarea: ${taskPlatform}`}
+                                  className={`px-1.5 py-0.5 rounded-[2px] text-[9px] font-mono font-semibold shrink-0 border ${
+                                    taskPlatform === 'iOS'
+                                      ? 'bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border-sky-300 dark:border-sky-700'
+                                      : taskPlatform === 'Android'
+                                      ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
+                                      : 'bg-violet-50 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300 border-violet-300 dark:border-violet-700'
+                                  }`}
+                                >
+                                  {taskPlatform}
+                                </span>
+                              );
+                            })()}
                             {isCrit && (
                               <span
                                 title="En Ruta Crítica (Slack = 0)"
@@ -6238,20 +6306,24 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           <span className="whitespace-nowrap font-semibold">
                             {group.project.name}
                           </span>
-                          {group.project.platform && (
-                            <span
-                              data-timeline-project-platform={group.project.platform}
-                              className={`px-1.5 py-0.2 rounded text-[9px] font-bold border ${
-                                group.project.platform === 'iOS'
-                                  ? 'bg-sky-50 text-sky-700 border-sky-300 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800'
-                                  : group.project.platform === 'Android'
-                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
-                                  : 'bg-zinc-100 text-zinc-700 border-zinc-300 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700'
-                              }`}
-                            >
-                              {group.project.platform}
-                            </span>
-                          )}
+                          {(() => {
+                            const projPlatform = normalizePlatform(group.project.platform);
+                            if (!projPlatform) return null;
+                            return (
+                              <span
+                                data-timeline-project-platform={projPlatform}
+                                className={`px-1.5 py-0.2 rounded text-[9px] font-bold border ${
+                                  projPlatform === 'iOS'
+                                    ? 'bg-sky-50 text-sky-700 border-sky-300 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800'
+                                    : projPlatform === 'Android'
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
+                                    : 'bg-zinc-100 text-zinc-700 border-zinc-300 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700'
+                                }`}
+                              >
+                                {projPlatform}
+                              </span>
+                            );
+                          })()}
                           <span className="text-zinc-500 dark:text-zinc-400 font-normal">
                             ({group.duration}d)
                           </span>
@@ -7027,7 +7099,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         })()}
                         {(() => {
                           const itemProj = projects.find((p) => p.id === selectedItem.projectId);
-                          const effPlatform = selectedItem.platform || itemProj?.platform;
+                          const effPlatform = normalizePlatform(
+                            selectedItem.platform || itemProj?.platform
+                          );
                           if (!effPlatform) return null;
                           return (
                             <span
@@ -7322,7 +7396,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   </label>
                   <select
                     data-testid="project-modal-platform-select"
-                    value={inspectingProject.platform || 'Multiplataforma'}
+                    value={normalizePlatform(inspectingProject.platform) || 'iOS/Android'}
                     onChange={(e) =>
                       setInspectingProject({
                         ...inspectingProject,
@@ -7331,7 +7405,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     }
                     className="w-full px-2.5 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs text-[#0C0C09] dark:text-zinc-200 outline-none focus:ring-1 focus:ring-indigo-500 font-mono"
                   >
-                    <option value="Multiplataforma">Multiplataforma</option>
+                    <option value="iOS/Android">iOS/Android</option>
                     <option value="iOS">iOS</option>
                     <option value="Android">Android</option>
                   </select>

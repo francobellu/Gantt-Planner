@@ -24,7 +24,11 @@ import {
   TaskColor,
   ZoomLevel,
 } from '../types/gantt';
-import { checkTaskReleaseCompliance, getReleaseDateSpan } from './releaseEngine';
+import {
+  checkTaskReleaseCompliance,
+  DEFAULT_PREDEFINED_RELEASES,
+  getReleaseDateSpan,
+} from './releaseEngine';
 
 export function parseDateSafe(dateInput: unknown): Date {
   if (dateInput == null) {
@@ -272,6 +276,17 @@ export function isDemoScenario(raw?: Partial<SavedScenario> | null): boolean {
   return false;
 }
 
+export function normalizePlatform(
+  raw?: string | null
+): ProjectPlatform | undefined {
+  if (!raw) return undefined;
+  const trimmed = String(raw).trim();
+  if (trimmed === 'iOS') return 'iOS';
+  if (trimmed === 'Android') return 'Android';
+  if (trimmed === 'iOS/Android' || trimmed === 'Multiplataforma') return 'iOS/Android';
+  return undefined;
+}
+
 export function sanitizeProject(
   raw: Partial<GanttProject>,
   fallbackIndex = 0
@@ -285,11 +300,7 @@ export function sanitizeProject(
   const rawId = raw.id != null ? String(raw.id).trim() : '';
   const rawName = raw.name != null ? String(raw.name).trim() : '';
   const id = rawId || `proj-${fallbackIndex + 1}-${Date.now()}`;
-  const validPlatforms: ProjectPlatform[] = ['iOS', 'Android', 'Multiplataforma'];
-  const platform =
-    raw.platform && validPlatforms.includes(raw.platform as ProjectPlatform)
-      ? (raw.platform as ProjectPlatform)
-      : undefined;
+  const platform = normalizePlatform(raw.platform as string | undefined);
 
   let projectIndex: number | undefined;
   if (
@@ -575,10 +586,7 @@ export function sanitizeGanttItem(
     notes: raw.notes != null ? String(raw.notes).trim() : undefined,
     hidden: Boolean(raw.hidden),
     ...(raw.isExternal ? { isExternal: true } : {}),
-    platform:
-      raw.platform === 'iOS' || raw.platform === 'Android' || raw.platform === 'Multiplataforma'
-        ? raw.platform
-        : undefined,
+    platform: normalizePlatform(raw.platform as string | undefined),
     releaseId:
       raw.releaseId != null && String(raw.releaseId).trim()
         ? String(raw.releaseId).trim()
@@ -3449,6 +3457,449 @@ export function getRelatedFocusEntityIds(
     projectIds: Array.from(relatedProjectIds),
     releaseIds: Array.from(relatedReleaseIds),
   };
+}
+
+export interface HistoryFieldDiff {
+  field: string;
+  before: string;
+  after: string;
+}
+
+export interface HistoryEntityChange {
+  entityType: 'project' | 'task' | 'milestone';
+  changeType: 'created' | 'updated' | 'deleted' | 'reordered';
+  id: string;
+  name: string;
+  projectName?: string;
+  changes: HistoryFieldDiff[];
+}
+
+export function resolveReleaseCodeLabel(
+  releaseId?: string,
+  releases?: Release[]
+): string {
+  if (!releaseId) return 'Sin release';
+  const catalog = releases && releases.length > 0 ? releases : DEFAULT_PREDEFINED_RELEASES;
+  const found = catalog.find((r) => r.id === releaseId);
+  if (found) return found.code;
+  return releaseId;
+}
+
+export function describeProjectStateChanges(
+  prevProj: GanttProject | undefined,
+  nextProj: GanttProject,
+  releases?: Release[]
+): HistoryFieldDiff[] {
+  if (!prevProj) {
+    return [
+      { field: 'Release', before: '—', after: resolveReleaseCodeLabel(nextProj.releaseId, releases) },
+      { field: 'Plataforma', before: '—', after: normalizePlatform(nextProj.platform) || 'iOS/Android' },
+      { field: 'Color', before: '—', after: nextProj.color || 'indigo' },
+    ];
+  }
+  const diffs: HistoryFieldDiff[] = [];
+  if ((prevProj.name || '') !== (nextProj.name || '')) {
+    diffs.push({
+      field: 'Nombre',
+      before: prevProj.name || '—',
+      after: nextProj.name || '—',
+    });
+  }
+  if ((prevProj.releaseId || '') !== (nextProj.releaseId || '')) {
+    diffs.push({
+      field: 'Release',
+      before: resolveReleaseCodeLabel(prevProj.releaseId, releases),
+      after: resolveReleaseCodeLabel(nextProj.releaseId, releases),
+    });
+  }
+  const prevPlat = normalizePlatform(prevProj.platform) || 'iOS/Android';
+  const nextPlat = normalizePlatform(nextProj.platform) || 'iOS/Android';
+  if (prevPlat !== nextPlat) {
+    diffs.push({
+      field: 'Plataforma',
+      before: prevPlat,
+      after: nextPlat,
+    });
+  }
+  const prevColor = prevProj.color || 'indigo';
+  const nextColor = nextProj.color || 'indigo';
+  if (prevColor !== nextColor) {
+    diffs.push({
+      field: 'Color',
+      before: prevColor,
+      after: nextColor,
+    });
+  }
+  const prevDesc = (prevProj.description || '').trim();
+  const nextDesc = (nextProj.description || '').trim();
+  if (prevDesc !== nextDesc) {
+    diffs.push({
+      field: 'Descripción',
+      before: prevDesc || 'Vacía',
+      after: nextDesc || 'Vacía',
+    });
+  }
+  return diffs;
+}
+
+function formatItemDependenciesLabel(
+  item: GanttItem,
+  allItems: GanttItem[]
+): string {
+  if (!Array.isArray(item.dependencies) || item.dependencies.length === 0) {
+    return 'Ninguna';
+  }
+  return item.dependencies
+    .map((depId) => {
+      const pred = allItems.find((x) => x.id === depId);
+      const depType = item.dependencyTypes?.[depId] || 'FS';
+      return `${pred?.name || depId} (${depType})`;
+    })
+    .join(', ');
+}
+
+export function describeItemStateChanges(
+  prevItem: GanttItem | undefined,
+  nextItem: GanttItem,
+  projects?: GanttProject[],
+  allItems?: GanttItem[],
+  releases?: Release[]
+): HistoryFieldDiff[] {
+  const resolveProjName = (pid?: string) =>
+    projects?.find((p) => p.id === pid)?.name || projects?.[0]?.name || 'General';
+
+  if (!prevItem) {
+    const diffs: HistoryFieldDiff[] = [
+      {
+        field: 'Proyecto',
+        before: '—',
+        after: resolveProjName(nextItem.projectId),
+      },
+      {
+        field: nextItem.type === 'milestone' ? 'Fecha' : 'Fechas',
+        before: '—',
+        after:
+          nextItem.type === 'milestone'
+            ? nextItem.startDate
+            : `${nextItem.startDate} → ${nextItem.endDate} (${nextItem.duration}d)`,
+      },
+    ];
+    if (nextItem.platform) {
+      diffs.push({ field: 'Plataforma', before: '—', after: nextItem.platform });
+    }
+    if (nextItem.releaseId) {
+      diffs.push({
+        field: 'Release',
+        before: '—',
+        after: resolveReleaseCodeLabel(nextItem.releaseId, releases),
+      });
+    }
+    if (nextItem.assignee) {
+      diffs.push({ field: 'Equipo', before: '—', after: nextItem.assignee });
+    }
+    return diffs;
+  }
+
+  const diffs: HistoryFieldDiff[] = [];
+  if (prevItem.name !== nextItem.name) {
+    diffs.push({ field: 'Nombre', before: prevItem.name, after: nextItem.name });
+  }
+  if ((prevItem.projectId || '') !== (nextItem.projectId || '')) {
+    diffs.push({
+      field: 'Proyecto',
+      before: resolveProjName(prevItem.projectId),
+      after: resolveProjName(nextItem.projectId),
+    });
+  }
+  if (prevItem.startDate !== nextItem.startDate) {
+    diffs.push({
+      field: nextItem.type === 'milestone' ? 'Fecha' : 'Inicio',
+      before: prevItem.startDate,
+      after: nextItem.startDate,
+    });
+  }
+  if (nextItem.type !== 'milestone' && prevItem.endDate !== nextItem.endDate) {
+    diffs.push({
+      field: 'Fin',
+      before: prevItem.endDate,
+      after: nextItem.endDate,
+    });
+  }
+  if (nextItem.type !== 'milestone' && prevItem.duration !== nextItem.duration) {
+    diffs.push({
+      field: 'Duración',
+      before: `${prevItem.duration}d`,
+      after: `${nextItem.duration}d`,
+    });
+  }
+  if ((prevItem.progress || 0) !== (nextItem.progress || 0)) {
+    diffs.push({
+      field: 'Progreso',
+      before: `${prevItem.progress || 0}%`,
+      after: `${nextItem.progress || 0}%`,
+    });
+  }
+  if ((prevItem.assignee || '') !== (nextItem.assignee || '')) {
+    diffs.push({
+      field: 'Equipo',
+      before: prevItem.assignee || 'Sin asignar',
+      after: nextItem.assignee || 'Sin asignar',
+    });
+  }
+  if ((prevItem.platform || '') !== (nextItem.platform || '')) {
+    diffs.push({
+      field: 'Plataforma',
+      before: prevItem.platform || 'Heredada',
+      after: nextItem.platform || 'Heredada',
+    });
+  }
+  if ((prevItem.releaseId || '') !== (nextItem.releaseId || '')) {
+    diffs.push({
+      field: 'Release',
+      before: prevItem.releaseId ? resolveReleaseCodeLabel(prevItem.releaseId, releases) : 'Heredada',
+      after: nextItem.releaseId ? resolveReleaseCodeLabel(nextItem.releaseId, releases) : 'Heredada',
+    });
+  }
+  if ((prevItem.color || 'indigo') !== (nextItem.color || 'indigo')) {
+    diffs.push({
+      field: 'Color',
+      before: prevItem.color || 'indigo',
+      after: nextItem.color || 'indigo',
+    });
+  }
+  if ((prevItem.slack || 0) !== (nextItem.slack || 0)) {
+    diffs.push({
+      field: 'Holgura',
+      before: `${prevItem.slack || 0}d`,
+      after: `${nextItem.slack || 0}d`,
+    });
+  }
+  if (Boolean(prevItem.hidden) !== Boolean(nextItem.hidden)) {
+    diffs.push({
+      field: 'Visibilidad',
+      before: prevItem.hidden ? 'Oculta' : 'Visible',
+      after: nextItem.hidden ? 'Oculta' : 'Visible',
+    });
+  }
+  if (Boolean(prevItem.isExternal) !== Boolean(nextItem.isExternal)) {
+    diffs.push({
+      field: 'Externo',
+      before: prevItem.isExternal ? 'Sí' : 'No',
+      after: nextItem.isExternal ? 'Sí' : 'No',
+    });
+  }
+  const itemsLookup = allItems || [prevItem, nextItem];
+  const prevDepsLabel = formatItemDependenciesLabel(prevItem, itemsLookup);
+  const nextDepsLabel = formatItemDependenciesLabel(nextItem, itemsLookup);
+  if (prevDepsLabel !== nextDepsLabel) {
+    diffs.push({
+      field: 'Dependencias',
+      before: prevDepsLabel,
+      after: nextDepsLabel,
+    });
+  }
+  const prevNotes = (prevItem.notes || '').trim();
+  const nextNotes = (nextItem.notes || '').trim();
+  if (prevNotes !== nextNotes) {
+    diffs.push({
+      field: 'Notas',
+      before: prevNotes || 'Vacías',
+      after: nextNotes || 'Vacías',
+    });
+  }
+  return diffs;
+}
+
+export function formatFieldDiffsInline(changes: HistoryFieldDiff[]): string {
+  if (!changes || changes.length === 0) return '';
+  return changes.map((c) => `${c.field}: ${c.before} → ${c.after}`).join(' · ');
+}
+
+export function computeHistoryEntryDiff(
+  prevSnapshot: { items: GanttItem[]; projects: GanttProject[] } | undefined,
+  currentSnapshot: { items: GanttItem[]; projects: GanttProject[] },
+  releases?: Release[]
+): HistoryEntityChange[] {
+  if (!prevSnapshot) return [];
+
+  const result: HistoryEntityChange[] = [];
+  const prevProjMap = new Map(prevSnapshot.projects.map((p) => [p.id, p]));
+  const currProjMap = new Map(currentSnapshot.projects.map((p) => [p.id, p]));
+
+  // 1. Created or updated projects
+  for (const currP of currentSnapshot.projects) {
+    const prevP = prevProjMap.get(currP.id);
+    if (!prevP) {
+      result.push({
+        entityType: 'project',
+        changeType: 'created',
+        id: currP.id,
+        name: currP.name,
+        changes: describeProjectStateChanges(undefined, currP, releases),
+      });
+    } else {
+      const pDiffs = describeProjectStateChanges(prevP, currP, releases);
+      if (pDiffs.length > 0) {
+        result.push({
+          entityType: 'project',
+          changeType: 'updated',
+          id: currP.id,
+          name: currP.name,
+          changes: pDiffs,
+        });
+      }
+    }
+  }
+
+  // 2. Deleted projects
+  for (const prevP of prevSnapshot.projects) {
+    if (!currProjMap.has(prevP.id)) {
+      result.push({
+        entityType: 'project',
+        changeType: 'deleted',
+        id: prevP.id,
+        name: prevP.name,
+        changes: [{ field: 'Estado', before: 'Activo', after: 'Eliminado' }],
+      });
+    }
+  }
+
+  // 3. Reordered projects (when set of project IDs is identical)
+  if (
+    prevSnapshot.projects.length === currentSnapshot.projects.length &&
+    prevSnapshot.projects.every((p) => currProjMap.has(p.id))
+  ) {
+    const prevIds = prevSnapshot.projects.map((p) => p.id);
+    const currIds = currentSnapshot.projects.map((p) => p.id);
+    if (prevIds.join(',') !== currIds.join(',')) {
+      for (let i = 0; i < currentSnapshot.projects.length; i++) {
+        const p = currentSnapshot.projects[i];
+        const prevIdx = prevIds.indexOf(p.id);
+        if (prevIdx !== i) {
+          result.push({
+            entityType: 'project',
+            changeType: 'reordered',
+            id: p.id,
+            name: p.name,
+            changes: [
+              {
+                field: 'Posición',
+                before: `#${prevIdx + 1}`,
+                after: `#${i + 1}`,
+              },
+            ],
+          });
+        }
+      }
+    }
+  }
+
+  const prevItemMap = new Map(prevSnapshot.items.map((it) => [it.id, it]));
+  const currItemMap = new Map(currentSnapshot.items.map((it) => [it.id, it]));
+  const combinedItems = [...prevSnapshot.items, ...currentSnapshot.items];
+  const combinedProjects = [...currentSnapshot.projects, ...prevSnapshot.projects];
+  const resolveProjName = (pid?: string) =>
+    combinedProjects.find((p) => p.id === pid)?.name ||
+    currentSnapshot.projects[0]?.name ||
+    'General';
+
+  // 4. Created or updated items
+  for (const currIt of currentSnapshot.items) {
+    const prevIt = prevItemMap.get(currIt.id);
+    const eType = currIt.type === 'milestone' ? 'milestone' : 'task';
+    if (!prevIt) {
+      result.push({
+        entityType: eType,
+        changeType: 'created',
+        id: currIt.id,
+        name: currIt.name,
+        projectName: resolveProjName(currIt.projectId),
+        changes: describeItemStateChanges(
+          undefined,
+          currIt,
+          combinedProjects,
+          combinedItems,
+          releases
+        ),
+      });
+    } else {
+      const iDiffs = describeItemStateChanges(
+        prevIt,
+        currIt,
+        combinedProjects,
+        combinedItems,
+        releases
+      );
+      if (iDiffs.length > 0) {
+        result.push({
+          entityType: eType,
+          changeType: 'updated',
+          id: currIt.id,
+          name: currIt.name,
+          projectName: resolveProjName(currIt.projectId),
+          changes: iDiffs,
+        });
+      }
+    }
+  }
+
+  // 5. Deleted items
+  for (const prevIt of prevSnapshot.items) {
+    if (!currItemMap.has(prevIt.id)) {
+      const eType = prevIt.type === 'milestone' ? 'milestone' : 'task';
+      result.push({
+        entityType: eType,
+        changeType: 'deleted',
+        id: prevIt.id,
+        name: prevIt.name,
+        projectName: resolveProjName(prevIt.projectId),
+        changes: [
+          {
+            field: 'Estado',
+            before:
+              prevIt.type === 'milestone'
+                ? prevIt.startDate
+                : `${prevIt.startDate} → ${prevIt.endDate} (${prevIt.duration}d)`,
+            after: 'Eliminado',
+          },
+        ],
+      });
+    }
+  }
+
+  // 6. Reordered items (if no other item changes were detected and order changed)
+  if (
+    result.length === 0 &&
+    prevSnapshot.items.length === currentSnapshot.items.length &&
+    prevSnapshot.items.every((it) => currItemMap.has(it.id))
+  ) {
+    const prevIds = prevSnapshot.items.map((it) => it.id);
+    const currIds = currentSnapshot.items.map((it) => it.id);
+    if (prevIds.join(',') !== currIds.join(',')) {
+      for (let i = 0; i < currentSnapshot.items.length; i++) {
+        const it = currentSnapshot.items[i];
+        const prevIdx = prevIds.indexOf(it.id);
+        if (prevIdx !== i) {
+          result.push({
+            entityType: it.type === 'milestone' ? 'milestone' : 'task',
+            changeType: 'reordered',
+            id: it.id,
+            name: it.name,
+            projectName: resolveProjName(it.projectId),
+            changes: [
+              {
+                field: 'Posición',
+                before: `#${prevIdx + 1}`,
+                after: `#${i + 1}`,
+              },
+            ],
+          });
+        }
+      }
+    }
+  }
+
+  return result;
 }
 
 

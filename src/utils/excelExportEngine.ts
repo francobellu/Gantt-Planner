@@ -5,7 +5,7 @@ import {
   Release,
 } from '../types/gantt';
 import { checkTaskReleaseCompliance, getReleaseDateSpan } from './releaseEngine';
-import { groupItemsByProject, groupItemsByReleaseAndProject } from './ganttEngine';
+import { groupItemsByProject, groupItemsByReleaseAndProject, normalizePlatform } from './ganttEngine';
 
 export interface CronogramaReportRow {
   rowId: string;
@@ -158,7 +158,7 @@ export function generateCronogramaCompletoRows(
       });
 
       for (const pg of rg.projectGroups) {
-        const platformLabel = pg.project.platform || 'Multiplataforma';
+        const platformLabel = normalizePlatform(pg.project.platform) || 'iOS/Android';
         // Project Row
         rows.push({
           rowId: `proj-${pg.project.id}`,
@@ -211,7 +211,7 @@ export function generateCronogramaCompletoRows(
               name: item.name,
               releaseCode: effectiveReleaseCode,
               projectName: pg.project.name,
-              platform: item.platform || platformLabel,
+              platform: normalizePlatform(item.platform) || platformLabel,
               type: typeLabel,
               startDate: item.startDate,
               endDate: item.endDate,
@@ -240,7 +240,7 @@ export function generateCronogramaCompletoRows(
                 name: item.name,
                 releaseCode: effectiveReleaseCode,
                 projectName: pg.project.name,
-                platform: item.platform || platformLabel,
+                platform: normalizePlatform(item.platform) || platformLabel,
                 type: typeLabel,
                 startDate: item.startDate,
                 endDate: item.endDate,
@@ -263,7 +263,7 @@ export function generateCronogramaCompletoRows(
     // Fallback: group by projects only
     const projectGroups = groupItemsByProject(items, projects);
     for (const pg of projectGroups) {
-      const platformLabel = pg.project.platform || 'Multiplataforma';
+      const platformLabel = normalizePlatform(pg.project.platform) || 'iOS/Android';
       rows.push({
         rowId: `proj-${pg.project.id}`,
         level: 'PROYECTO',
@@ -304,7 +304,7 @@ export function generateCronogramaCompletoRows(
             name: item.name,
             releaseCode: '—',
             projectName: pg.project.name,
-            platform: item.platform || platformLabel,
+            platform: normalizePlatform(item.platform) || platformLabel,
             type: typeLabel,
             startDate: item.startDate,
             endDate: item.endDate,
@@ -332,7 +332,7 @@ export function generateCronogramaCompletoRows(
               name: item.name,
               releaseCode: '—',
               projectName: pg.project.name,
-              platform: item.platform || platformLabel,
+              platform: normalizePlatform(item.platform) || platformLabel,
               type: typeLabel,
               startDate: item.startDate,
               endDate: item.endDate,
@@ -374,7 +374,7 @@ export function generateProjectSummaryRows(
     rows.push({
       code: `P${pg.projectIndex}`,
       projectName: pg.project.name,
-      platform: pg.project.platform || 'Multiplataforma',
+      platform: normalizePlatform(pg.project.platform) || 'iOS/Android',
       releaseCode: assignedRelease ? assignedRelease.code : 'Sin asignar',
       startDate: pg.startDate,
       endDate: pg.endDate,

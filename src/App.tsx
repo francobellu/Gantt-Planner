@@ -70,9 +70,12 @@ import {
   computeTimelineBounds,
   createNewScenario,
   DEFAULT_DAY_WIDTH,
+  describeItemStateChanges,
+  describeProjectStateChanges,
   filterGroupsBySelectedProjects,
   formatDateDisplay,
   formatDateISO,
+  formatFieldDiffsInline,
   getDayWidthForPreset,
   getDefaultSavedScenarios,
   getProjectTemplates,
@@ -817,9 +820,9 @@ export function App({
     );
   };
 
-  // Platform Filter state ('all' | 'iOS' | 'Android' | 'Multiplataforma')
+  // Platform Filter state ('all' | 'iOS' | 'Android' | 'iOS/Android')
   const [selectedPlatform, setSelectedPlatform] = useState<
-    'all' | 'iOS' | 'Android' | 'Multiplataforma'
+    'all' | 'iOS' | 'Android' | 'iOS/Android'
   >('all');
 
   const [scenarioSavedToast, setScenarioSavedToast] = useState<string | null>(null);
@@ -832,7 +835,7 @@ export function App({
   const [newProjectFormName, setNewProjectFormName] = useState<string>('');
   const [newProjectFormReleaseId, setNewProjectFormReleaseId] = useState<string>('');
   const [newProjectFormColor, setNewProjectFormColor] = useState<string>('indigo');
-  const [newProjectFormPlatform, setNewProjectFormPlatform] = useState<ProjectPlatform>('Multiplataforma');
+  const [newProjectFormPlatform, setNewProjectFormPlatform] = useState<ProjectPlatform>('iOS/Android');
 
   const projectMenuRef = useRef<HTMLDivElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
@@ -1124,7 +1127,8 @@ export function App({
       ...savedItem,
       projectId: savedItem.projectId || effectiveProjects[0]?.id,
     });
-    const exists = items.some((it) => it.id === cleanItem.id);
+    const prevItem = items.find((it) => it.id === cleanItem.id);
+    const exists = Boolean(prevItem);
     const nextRaw = exists
       ? items.map((it) => (it.id === cleanItem.id ? cleanItem : it))
       : [...items, cleanItem];
@@ -1133,9 +1137,18 @@ export function App({
     const isM = cleanItem.type === 'milestone';
     const actionType: PlanHistoryActionType = exists ? 'edit_item' : 'create_item';
     const actionLabel = exists ? 'Edición' : 'Creación';
-    const desc = exists
+    const itemDiffs = describeItemStateChanges(
+      prevItem,
+      cleanItem,
+      effectiveProjects,
+      next,
+      releases
+    );
+    const diffSummary = formatFieldDiffsInline(itemDiffs);
+    const baseDesc = exists
       ? `Editar ${isM ? 'hito' : 'tarea'} '${cleanItem.name}'`
       : `Crear ${isM ? 'hito' : 'tarea'} '${cleanItem.name}'`;
+    const desc = diffSummary ? `${baseDesc} (${diffSummary})` : baseDesc;
     recordPlanChange(actionType, actionLabel, desc, next, effectiveProjects);
   };
 
@@ -1148,7 +1161,17 @@ export function App({
 
     let actionType: PlanHistoryActionType = 'edit_item';
     let actionLabel = 'Edición';
-    let desc = `Actualizar '${cleanItem.name}'`;
+    const itemDiffs = describeItemStateChanges(
+      prevItem,
+      cleanItem,
+      effectiveProjects,
+      next,
+      releases
+    );
+    const diffSummary = formatFieldDiffsInline(itemDiffs);
+    let desc = diffSummary
+      ? `Actualizar '${cleanItem.name}' (${diffSummary})`
+      : `Actualizar '${cleanItem.name}'`;
 
     if (prevItem) {
       if (prevItem.startDate !== cleanItem.startDate) {
@@ -1158,23 +1181,23 @@ export function App({
       } else if (prevItem.duration !== cleanItem.duration) {
         actionType = 'drag_resize';
         actionLabel = 'Redimensión';
-        desc = `Cambiar duración de '${cleanItem.name}' a ${cleanItem.duration}d`;
+        desc = `Cambiar duración de '${cleanItem.name}' de ${prevItem.duration}d a ${cleanItem.duration}d`;
       } else if (prevItem.name !== cleanItem.name) {
         actionType = 'edit_item';
         actionLabel = 'Edición';
-        desc = `Renombrar a '${cleanItem.name}'`;
+        desc = `Renombrar '${prevItem.name}' a '${cleanItem.name}'`;
       } else if (prevItem.progress !== cleanItem.progress) {
         actionType = 'edit_item';
         actionLabel = 'Edición';
-        desc = `Progreso de '${cleanItem.name}' al ${cleanItem.progress}%`;
+        desc = `Progreso de '${cleanItem.name}': ${prevItem.progress || 0}% → ${cleanItem.progress}%`;
       } else if (prevItem.assignee !== cleanItem.assignee) {
         actionType = 'edit_item';
         actionLabel = 'Edición';
-        desc = `Asignar '${cleanItem.name}' a ${cleanItem.assignee || 'sin asignar'}`;
+        desc = `Equipo de '${cleanItem.name}': ${prevItem.assignee || 'Sin asignar'} → ${cleanItem.assignee || 'Sin asignar'}`;
       } else if (prevItem.color !== cleanItem.color) {
         actionType = 'edit_item';
         actionLabel = 'Edición';
-        desc = `Cambiar color de '${cleanItem.name}'`;
+        desc = `Color de '${cleanItem.name}': ${prevItem.color} → ${cleanItem.color}`;
       } else if (Boolean(prevItem.hidden) !== Boolean(cleanItem.hidden)) {
         actionType = 'edit_item';
         actionLabel = 'Visibilidad';
@@ -1335,7 +1358,7 @@ export function App({
           name: newProj?.name || `Proyecto ${nextProjectIndex}`,
           color: newProj?.color || 'indigo',
           releaseId: newProj?.releaseId || releases[0]?.id || 'rel-t-26-12-1',
-          platform: newProj?.platform || 'Multiplataforma',
+          platform: newProj?.platform || 'iOS/Android',
           ...newProj,
           isDemo: false,
         },
@@ -1424,10 +1447,14 @@ export function App({
     if (nextItems !== items) {
       setItems(nextItems);
     }
+    const projDiffs = describeProjectStateChanges(prevProj, updatedProj, releases);
+    const diffSummary = formatFieldDiffsInline(projDiffs);
+    const baseDesc = `Actualizar proyecto '${updatedProj.name}'`;
+    const desc = diffSummary ? `${baseDesc} (${diffSummary})` : baseDesc;
     recordPlanChange(
       'edit_project',
       'Edición Proyecto',
-      `Actualizar proyecto '${updatedProj.name}'`,
+      desc,
       nextItems,
       nextProjects,
       updatedProj.id
@@ -2151,7 +2178,7 @@ export function App({
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
           </button>
 
-          {/* Selector de Plataforma (iOS, Android, Multiplataforma) */}
+          {/* Selector de Plataforma (iOS, Android, iOS/Android) */}
           <div className="flex items-center gap-1 shrink-0">
             <select
               data-testid="platform-filter-select"
@@ -2163,7 +2190,7 @@ export function App({
               <option value="all">Plataformas: Todas</option>
               <option value="iOS">Plataforma: iOS</option>
               <option value="Android">Plataforma: Android</option>
-              <option value="Multiplataforma">Multiplataforma</option>
+              <option value="iOS/Android">iOS/Android</option>
             </select>
           </div>
 
@@ -2493,6 +2520,7 @@ export function App({
             onRestoreSnapshot={handleRestoreSnapshot}
             onBackToGantt={() => setCurrentView('gantt')}
             onClearHistory={handleClearHistory}
+            releases={releases}
           />
         ) : currentView === 'reports' ? (
           <ReportsView
@@ -2673,7 +2701,7 @@ export function App({
                   releaseId: newProjectFormReleaseId || releases[0]?.id || 'rel-t-26-12-1',
                   platform: newProjectFormPlatform,
                 });
-                setNewProjectFormPlatform('Multiplataforma');
+                setNewProjectFormPlatform('iOS/Android');
                 setCreateProjectModalOpen(false);
               }}
               className="mt-4 space-y-4"
@@ -2725,7 +2753,7 @@ export function App({
                   onChange={(e) => setNewProjectFormPlatform(e.target.value as ProjectPlatform)}
                   className="w-full px-3 py-2 text-xs rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-100 outline-none focus:ring-1 focus:ring-indigo-500 font-mono"
                 >
-                  <option value="Multiplataforma">Multiplataforma (General)</option>
+                  <option value="iOS/Android">iOS/Android</option>
                   <option value="iOS">iOS</option>
                   <option value="Android">Android</option>
                 </select>

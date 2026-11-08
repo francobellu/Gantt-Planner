@@ -4524,7 +4524,7 @@ test('Help page, version control v1.2.0, release selection on project creation, 
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version control consistency
-  assert.equal(pkg.version, '1.8.6', 'package.json version must be 1.8.6');
+  assert.equal(pkg.version, '1.8.7', 'package.json version must be 1.8.7');
   assert.ok(pkg.scripts['version:patch'], 'package.json must contain version:patch script');
   assert.ok(pkg.scripts['version:minor'], 'package.json must contain version:minor script');
   assert.ok(pkg.scripts['release:patch'], 'package.json must contain release:patch script');
@@ -5305,10 +5305,10 @@ test('Task name positioning, configurable row separators, 37 char truncation, v1
     const htmlWithoutWeekendShading = renderToString(mod.renderWorkspaceWithWeekendShading(false));
     assert.ok(!htmlWithoutWeekendShading.includes('bg-[#E5E5DF]'), 'Canvas and header must NOT render weekend shading when showWeekendShading is false (clean uniform background)');
 
-    // 9. App Header displays v1.8.6 badge, row-separators-btn, and weekend-shading-btn
+    // 9. App Header displays v1.8.7 badge, row-separators-btn, and weekend-shading-btn
     const appHtml = renderToString(mod.renderAppHeader());
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'Header must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.8.6'), 'Header badge must display v1.8.6');
+    assert.ok(appHtml.includes('v1.8.7'), 'Header badge must display v1.8.7');
     assert.ok(appHtml.includes('data-testid="header-toggle-row-separators-btn"'), 'Header must contain header-toggle-row-separators-btn');
     assert.ok(appHtml.includes('data-testid="header-toggle-weekend-shading-btn"'), 'Header must contain header-toggle-weekend-shading-btn');
 
@@ -5338,7 +5338,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version Bump Verification
-  assert.equal(pkg.version, '1.8.6', 'package.json version must equal 1.8.6');
+  assert.equal(pkg.version, '1.8.7', 'package.json version must equal 1.8.7');
 
   // Verify scripts/bump-version.mjs works properly
   const bumpScript = await fs.readFile(path.resolve(__dirname, '../scripts/bump-version.mjs'), 'utf8');
@@ -5511,8 +5511,8 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    // A. APP_VERSION equals 1.8.6
-    assert.equal(mod.APP_VERSION, '1.8.6', 'APP_VERSION must be 1.8.6');
+    // A. APP_VERSION equals 1.8.7
+    assert.equal(mod.APP_VERSION, '1.8.7', 'APP_VERSION must be 1.8.7');
 
     // A2. Excel Export Unit Test
     const sampleReleases = [
@@ -5589,7 +5589,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     assert.ok(appHtml.includes('data-testid="platform-filter-select"'), 'App header must contain platform-filter-select');
     assert.ok(appHtml.includes('data-testid="header-toggle-focus-mode-btn"'), 'App header must contain header-toggle-focus-mode-btn');
     assert.ok(appHtml.includes('data-testid="header-reports-btn"'), 'App header must contain header-reports-btn');
-    assert.ok(appHtml.includes('v1.8.6'), 'App header must display version v1.8.6');
+    assert.ok(appHtml.includes('v1.8.7'), 'App header must display version v1.8.7');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6041,8 +6041,8 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
-  // 1. Version Bump Verification v1.8.6
-  assert.equal(pkg.version, '1.8.6', 'package.json version must equal 1.8.6');
+  // 1. Version Bump Verification v1.8.7
+  assert.equal(pkg.version, '1.8.7', 'package.json version must equal 1.8.7');
 
   // 2. SSR Bundle verification for TaskFormModal, App Header, and sanitizeGanttItem
   const tmpFile = path.resolve(__dirname, `tmp_test59_bundle_${Date.now()}.mjs`);
@@ -6061,7 +6061,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
           export { App, TaskFormModal, GanttWorkspace, SettingsModal, APP_VERSION, sanitizeGanttItem };
 
           export function renderTaskFormModalWithPlatform(platform) {
-            const project = { id: 'p1', name: 'Mobile Banking', color: 'indigo', platform: 'Multiplataforma' };
+            const project = { id: 'p1', name: 'Mobile Banking', color: 'indigo', platform: 'iOS/Android' };
             const item = {
               id: 't1',
               name: 'Tarea Test Plataforma',
@@ -6083,7 +6083,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
           }
 
           export function renderWorkspaceWithTaskPlatform() {
-            const project = { id: 'p1', name: 'Mobile App', color: 'indigo', platform: 'Multiplataforma', releaseId: 'rel-1' };
+            const project = { id: 'p1', name: 'Mobile App', color: 'indigo', platform: 'iOS/Android', releaseId: 'rel-1' };
             const item = {
               id: 't1',
               name: 'Tarea Nativa iOS',
@@ -6140,7 +6140,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.equal(mod.APP_VERSION, '1.8.6', 'mod.APP_VERSION must equal 1.8.6');
+    assert.equal(mod.APP_VERSION, '1.8.7', 'mod.APP_VERSION must equal 1.8.7');
 
     // sanitizeGanttItem preserves platform
     const sanitizedIos = mod.sanitizeGanttItem({
@@ -6169,10 +6169,10 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     const modalHtml = renderToString(mod.renderTaskFormModalWithPlatform('iOS'));
     assert.ok(modalHtml.includes('data-testid="task-platform-select"'), 'TaskFormModal must render task-platform-select dropdown');
     assert.ok(modalHtml.includes('Plataforma'), 'TaskFormModal must have Plataforma label');
-    assert.ok(modalHtml.includes('Por defecto (Multiplataforma)'), 'TaskFormModal must display project platform fallback');
+    assert.ok(modalHtml.includes('Por defecto (iOS/Android)'), 'TaskFormModal must display project platform fallback');
     assert.ok(modalHtml.includes('value="iOS"'), 'TaskFormModal must have iOS option');
     assert.ok(modalHtml.includes('value="Android"'), 'TaskFormModal must have Android option');
-    assert.ok(modalHtml.includes('value="Multiplataforma"'), 'TaskFormModal must have Multiplataforma option');
+    assert.ok(modalHtml.includes('value="iOS/Android"'), 'TaskFormModal must have iOS/Android option');
 
     // 5. GanttWorkspace inspection panel and table row render platform badges
     const wsHtml = renderToString(mod.renderWorkspaceWithTaskPlatform());
@@ -6185,7 +6185,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     assert.ok(appHtml.includes('data-testid="header-more-menu-btn"'), 'App header must render header-more-menu-btn');
     assert.ok(appHtml.includes('data-testid="header-more-menu-dropdown"'), 'App must render header-more-menu-dropdown');
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'More menu must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.8.6'), 'Version badge must display v1.8.6');
+    assert.ok(appHtml.includes('v1.8.7'), 'Version badge must display v1.8.7');
     assert.ok(appHtml.includes('data-testid="force-reload-btn"'), 'More menu must contain force-reload-btn');
 
     // 7. Verify secondary buttons are rendered inside the menu
@@ -6207,7 +6207,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
       hiddenReleaseCount: 0,
     }));
     assert.ok(settingsHtml.includes('data-testid="settings-version-badge"'), 'SettingsModal must contain settings-version-badge');
-    assert.ok(settingsHtml.includes('1.8.6') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.8.6');
+    assert.ok(settingsHtml.includes('1.8.7') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.8.7');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6361,14 +6361,14 @@ test('Test 61: Version button, compiled release notes modal and changelog across
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
 
     // 1. Check RELEASE_NOTES compiled data
-    assert.strictEqual(mod.APP_VERSION, '1.8.6');
+    assert.strictEqual(mod.APP_VERSION, '1.8.7');
     assert.ok(Array.isArray(mod.RELEASE_NOTES), 'RELEASE_NOTES must be an array');
     assert.ok(mod.RELEASE_NOTES.length >= 9, 'RELEASE_NOTES must have at least 9 releases');
 
     const latest = mod.RELEASE_NOTES[0];
-    assert.strictEqual(latest.version, '1.8.6', 'First release note must be 1.8.6');
+    assert.strictEqual(latest.version, '1.8.7', 'First release note must be 1.8.7');
     assert.strictEqual(latest.isLatest, true, 'First release note must be isLatest: true');
-    assert.ok(latest.features.length > 0, 'v1.8.6 must contain features');
+    assert.ok(latest.features.length > 0, 'v1.8.7 must contain features');
 
     // 2. Render App and verify version button exists in dropdown menu and is NOT duplicated in top header
     const appHtml = renderToString(React.createElement(mod.App));
@@ -6381,8 +6381,8 @@ test('Test 61: Version button, compiled release notes modal and changelog across
       'App dropdown must contain data-testid="app-version-badge"'
     );
     assert.ok(
-      appHtml.includes('<button') && appHtml.includes('data-testid="app-version-badge"') && appHtml.includes('v1.8.6'),
-      'app-version-badge in tools dropdown must be an interactive button showing v1.8.6'
+      appHtml.includes('<button') && appHtml.includes('data-testid="app-version-badge"') && appHtml.includes('v1.8.7'),
+      'app-version-badge in tools dropdown must be an interactive button showing v1.8.7'
     );
 
     // 3. Render ReleaseNotesModal
@@ -7158,10 +7158,10 @@ test('Test 67: Sticky calendar bar, tools dropdown z-50 elevation, invariant pro
     const childOverridden = mod.sanitizeGanttItem({
       ...scrAfter,
       releaseId: 'rel-1',
-      platform: 'Multiplataforma',
+      platform: 'iOS/Android',
     });
     assert.strictEqual(childOverridden.releaseId, 'rel-1', 'Child task can override releaseId');
-    assert.strictEqual(childOverridden.platform, 'Multiplataforma', 'Child task can override platform');
+    assert.strictEqual(childOverridden.platform, 'iOS/Android', 'Child task can override platform');
 
     // 5. Verify sticky calendar header and SCR/release UI controls in GanttWorkspace and TaskFormModal
     const wsHtml = renderToString(
@@ -7537,6 +7537,234 @@ test('Test 69: Clean project names on Gantt timeline bars and Proyecto column in
     assert.ok(
       !historyHtml.includes('>t-1793617423630</td>'),
       'PlanHistoryPage expanded snapshot table must NOT render the raw technical timestamp ID in the cell'
+    );
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
+test('Test 70: v1.8.7 Exact state change diffs in PlanHistoryPage, icon-only focus/hide buttons on Release bars, and iOS/Android platform with icons on table project rows', async () => {
+  const fs = await import('node:fs/promises');
+  const ReactMod = await import('react');
+  const React = ReactMod.default || ReactMod;
+  const ReactDOMServer = await import('react-dom/server');
+  const { renderToString } = ReactDOMServer.default || ReactDOMServer;
+
+  const tmpFile = path.resolve(__dirname, `tmp_test70_bundle_${Date.now()}.mjs`);
+  try {
+    await build({
+      stdin: {
+        contents: `
+          import React from 'react';
+          import { GanttWorkspace } from './src/components/GanttWorkspace.tsx';
+          import { PlanHistoryPage } from './src/components/PlanHistoryPage.tsx';
+          import {
+            computeGanttMetrics,
+            computeHistoryEntryDiff,
+            describeProjectStateChanges,
+            describeItemStateChanges,
+            normalizePlatform,
+          } from './src/utils/ganttEngine.ts';
+          export {
+            GanttWorkspace,
+            PlanHistoryPage,
+            computeGanttMetrics,
+            computeHistoryEntryDiff,
+            describeProjectStateChanges,
+            describeItemStateChanges,
+            normalizePlatform,
+          };
+        `,
+        resolveDir: path.resolve(__dirname, '..'),
+        sourcefile: 'test70_entry.tsx',
+        loader: 'tsx',
+      },
+      bundle: true,
+      format: 'esm',
+      outfile: tmpFile,
+      platform: 'neutral',
+      target: 'es2022',
+      jsx: 'automatic',
+      external: [
+        'react',
+        'react-dom',
+        'react-dom/server',
+        'lucide-react',
+        'date-fns',
+        'date-fns/locale',
+        'xlsx',
+        'canvas-confetti',
+      ],
+      define: {
+        'process.env.NODE_ENV': '"production"',
+      },
+    });
+
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+
+    // 1. normalizePlatform maps 'Multiplataforma' and 'iOS/Android' to 'iOS/Android'
+    assert.strictEqual(mod.normalizePlatform('Multiplataforma'), 'iOS/Android', 'Legacy Multiplataforma must normalize to iOS/Android');
+    assert.strictEqual(mod.normalizePlatform('iOS/Android'), 'iOS/Android', 'iOS/Android must normalize to iOS/Android');
+    assert.strictEqual(mod.normalizePlatform('iOS'), 'iOS', 'iOS must stay iOS');
+    assert.strictEqual(mod.normalizePlatform('Android'), 'Android', 'Android must stay Android');
+
+    // 2. Exact state change diff computation for project & task updates
+    const releases = [
+      { id: 'rel-1', code: 'T_26.12.1', name: 'DICIEMBRE', month: 'DICIEMBRE', year: 2026, startDate: '2026-10-05', endDate: '2026-12-25', milestones: [] },
+      { id: 'rel-2', code: 'T_27.01.1', name: 'ENERO', month: 'ENERO', year: 2027, startDate: '2027-01-05', endDate: '2027-01-25', milestones: [] },
+    ];
+
+    const projBefore = {
+      id: 'proj-xcode',
+      projectIndex: 10,
+      name: 'HDEV-747747: Xcode 27',
+      color: 'indigo',
+      releaseId: 'rel-1',
+      platform: 'iOS',
+    };
+    const projAfter = {
+      ...projBefore,
+      releaseId: 'rel-2',
+      platform: 'iOS/Android',
+      color: 'emerald',
+    };
+    const projDiffs = mod.describeProjectStateChanges(projBefore, projAfter, releases);
+    assert.strictEqual(projDiffs.length, 3, 'Should detect 3 exact changed fields on project');
+    assert.deepStrictEqual(
+      projDiffs.map((d) => ({ field: d.field, before: d.before, after: d.after })),
+      [
+        { field: 'Release', before: 'T_26.12.1', after: 'T_27.01.1' },
+        { field: 'Plataforma', before: 'iOS', after: 'iOS/Android' },
+        { field: 'Color', before: 'indigo', after: 'emerald' },
+      ]
+    );
+
+    const prevSnapshot = {
+      projects: [projBefore],
+      items: [
+        { id: 't-1', projectId: 'proj-xcode', name: 'Compilar SDK', type: 'task', startDate: '2026-10-05', endDate: '2026-10-10', duration: 6, slack: 0, progress: 20, dependencies: [], color: 'indigo', platform: 'iOS', releaseId: 'rel-1' },
+      ],
+    };
+    const nextSnapshot = {
+      projects: [projAfter],
+      items: [
+        { id: 't-1', projectId: 'proj-xcode', name: 'Compilar SDK', type: 'task', startDate: '2026-10-05', endDate: '2026-10-12', duration: 8, slack: 0, progress: 60, dependencies: [], color: 'indigo', platform: 'iOS/Android', releaseId: 'rel-2' },
+      ],
+    };
+
+    const historyEntries = [
+      {
+        id: 'hist-1',
+        timestamp: '2026-11-08T20:10:00.000Z',
+        formattedDate: '08/11/2026, 21:10:00',
+        actionType: 'initial',
+        actionLabel: 'Estado Inicial',
+        description: 'Plan inicial cargado',
+        itemsCount: 1,
+        projectsCount: 1,
+        snapshot: prevSnapshot,
+      },
+      {
+        id: 'hist-2',
+        timestamp: '2026-11-08T20:22:18.000Z',
+        formattedDate: '08/11/2026, 21:22:18',
+        actionType: 'update_project',
+        actionLabel: 'Edición de Proyecto',
+        description: "Actualizar proyecto 'HDEV-747747: Xcode 27'",
+        itemsCount: 1,
+        projectsCount: 1,
+        snapshot: nextSnapshot,
+      },
+    ];
+
+    const historyHtml = renderToString(
+      React.createElement(mod.PlanHistoryPage, {
+        history: historyEntries,
+        currentIndex: 1,
+        canUndo: true,
+        canRedo: false,
+        onUndo: () => {},
+        onRedo: () => {},
+        onRestoreSnapshot: () => {},
+        onBackToGantt: () => {},
+        releases,
+        initialExpandedEntryId: 'hist-2',
+      })
+    );
+
+    // Verify inline diff pills on card and exact changes table in expanded details
+    assert.ok(
+      historyHtml.includes('data-testid="history-entry-diff-summary-hist-2"'),
+      'PlanHistoryPage card must render inline diff summary pills'
+    );
+    assert.ok(
+      historyHtml.includes('data-testid="history-exact-changes-hist-2"'),
+      'PlanHistoryPage expanded view must render exact state changes section'
+    );
+    assert.ok(
+      historyHtml.includes('T_26.12.1') && historyHtml.includes('T_27.01.1'),
+      'PlanHistoryPage must display exact before and after Release values (T_26.12.1 → T_27.01.1)'
+    );
+    assert.ok(
+      historyHtml.includes('Plataforma:') && historyHtml.includes('iOS/Android'),
+      'PlanHistoryPage must display exact before and after Plataforma values (iOS → iOS/Android)'
+    );
+
+    // 3. Icon-only focus and hide buttons on Release header bars & iOS/Android icons on table project rows
+    const wsProjects = [
+      { id: 'proj-both', projectIndex: 1, name: 'App Dual', color: 'indigo', releaseId: 'rel-1', platform: 'iOS/Android' },
+      { id: 'proj-ios', projectIndex: 2, name: 'App Apple', color: 'sky', releaseId: 'rel-1', platform: 'iOS' },
+      { id: 'proj-and', projectIndex: 3, name: 'App Robot', color: 'emerald', releaseId: 'rel-1', platform: 'Android' },
+    ];
+    const wsItems = mod.computeGanttMetrics([
+      { id: 't-b', projectId: 'proj-both', name: 'Tarea Dual', type: 'task', startDate: '2026-10-06', endDate: '2026-10-12', duration: 7, slack: 0, dependencies: [], progress: 0, color: 'indigo' },
+    ]);
+
+    const wsHtml = renderToString(
+      React.createElement(mod.GanttWorkspace, {
+        items: wsItems,
+        projects: wsProjects,
+        releases,
+        groupingMode: 'release',
+        groupByProject: true,
+        showTable: true,
+        zoom: 'week',
+        scrollContainerRef: { current: null },
+        onToggleHideRelease: () => {},
+        onSetFocusEntity: () => {},
+        onUpdateItem: () => {},
+        onDeleteItem: () => {},
+        onEditModal: () => {},
+        onDuplicateItem: () => {},
+        onQuickAdd: () => {},
+      })
+    );
+
+    // Verify release hide and focus buttons are icon-only (no text spans inside)
+    const hideBtnMatch = wsHtml.match(/data-testid="hide-release-rel-1"[^>]*>([\s\S]*?)<\/button>/);
+    assert.ok(hideBtnMatch, 'hide-release-rel-1 button must be rendered on release header bar');
+    assert.ok(!hideBtnMatch[1].includes('Ocultar'), 'hide-release button must be icon-only without "Ocultar" text');
+
+    const focusBtnMatch = wsHtml.match(/data-testid="focus-release-rel-1"[^>]*>([\s\S]*?)<\/button>/);
+    assert.ok(focusBtnMatch, 'focus-release-rel-1 button must be rendered on release header bar');
+    assert.ok(!focusBtnMatch[1].includes('Enfoque'), 'focus-release button must be icon-only without "Enfoque" text');
+
+    // Verify project rows in table render iOS and Android SVG icons according to platform
+    assert.ok(
+      wsHtml.includes('data-testid="project-platform-badge-proj-both"') &&
+        wsHtml.includes('data-testid="platform-icon-ios-proj-both"') &&
+        wsHtml.includes('data-testid="platform-icon-android-proj-both"'),
+      'Project with iOS/Android platform must render both iOS and Android icons in table row'
+    );
+    assert.ok(
+      wsHtml.includes('data-testid="platform-icon-ios-proj-ios"') &&
+        !wsHtml.includes('data-testid="platform-icon-android-proj-ios"'),
+      'Project with iOS platform must render only iOS icon in table row'
+    );
+    assert.ok(
+      wsHtml.includes('data-testid="platform-icon-android-proj-and"') &&
+        !wsHtml.includes('data-testid="platform-icon-ios-proj-and"'),
+      'Project with Android platform must render only Android icon in table row'
     );
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
