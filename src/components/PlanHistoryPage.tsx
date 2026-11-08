@@ -28,6 +28,7 @@ export interface PlanHistoryPageProps {
   onRestoreSnapshot: (entry: PlanHistoryEntry, index: number) => void;
   onBackToGantt: () => void;
   onClearHistory?: () => void;
+  initialExpandedEntryId?: string | null;
 }
 
 const ACTION_BADGE_CONFIG: Record<
@@ -142,10 +143,11 @@ export const PlanHistoryPage: React.FC<PlanHistoryPageProps> = ({
   onRestoreSnapshot,
   onBackToGantt,
   onClearHistory,
+  initialExpandedEntryId = null,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
-  const [expandedEntryId, setExpandedEntryId] = useState<string | null>(null);
+  const [expandedEntryId, setExpandedEntryId] = useState<string | null>(initialExpandedEntryId);
 
   // Filter entries while preserving original indices for restore actions
   const indexedEntries = useMemo(() => {
@@ -478,7 +480,7 @@ export const PlanHistoryPage: React.FC<PlanHistoryPageProps> = ({
                         <table className="w-full text-left text-xs">
                           <thead className="bg-[#F4F4F1] dark:bg-zinc-800 text-[10px] font-mono uppercase text-[#6B6B66] dark:text-zinc-400 border-b border-[#E2E2DC] dark:border-zinc-800">
                             <tr>
-                              <th className="px-2.5 py-1">ID</th>
+                              <th className="px-2.5 py-1">Proyecto</th>
                               <th className="px-2.5 py-1">Tarea</th>
                               <th className="px-2.5 py-1">Inicio</th>
                               <th className="px-2.5 py-1">Fin</th>
@@ -487,25 +489,36 @@ export const PlanHistoryPage: React.FC<PlanHistoryPageProps> = ({
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-[#E2E2DC] dark:divide-zinc-800 font-mono text-[11px]">
-                            {entry.snapshot.items.map((it) => (
-                              <tr
-                                key={it.id}
-                                className="hover:bg-[#F4F4F1]/60 dark:hover:bg-zinc-800/40"
-                              >
-                                <td className="px-2.5 py-1 text-[#6B6B66]">{it.id}</td>
-                                <td className="px-2.5 py-1 font-sans font-medium text-[#0C0C09] dark:text-white">
-                                  {it.name}
-                                </td>
-                                <td className="px-2.5 py-1">{it.startDate}</td>
-                                <td className="px-2.5 py-1">{it.endDate}</td>
-                                <td className="px-2.5 py-1">
-                                  {it.type === 'milestone' ? 'Hito' : `${it.duration}d`}
-                                </td>
-                                <td className="px-2.5 py-1 text-[#6B6B66]">
-                                  {it.assignee || '—'}
-                                </td>
-                              </tr>
-                            ))}
+                            {entry.snapshot.items.map((it) => {
+                              const projName =
+                                entry.snapshot.projects.find((p) => p.id === it.projectId)?.name ||
+                                entry.snapshot.projects[0]?.name ||
+                                '—';
+                              return (
+                                <tr
+                                  key={it.id}
+                                  className="hover:bg-[#F4F4F1]/60 dark:hover:bg-zinc-800/40"
+                                >
+                                  <td
+                                    data-testid={`history-item-project-${it.id}`}
+                                    className="px-2.5 py-1 font-sans text-[#6B6B66] dark:text-zinc-400"
+                                  >
+                                    {projName}
+                                  </td>
+                                  <td className="px-2.5 py-1 font-sans font-medium text-[#0C0C09] dark:text-white">
+                                    {it.name}
+                                  </td>
+                                  <td className="px-2.5 py-1">{it.startDate}</td>
+                                  <td className="px-2.5 py-1">{it.endDate}</td>
+                                  <td className="px-2.5 py-1">
+                                    {it.type === 'milestone' ? 'Hito' : `${it.duration}d`}
+                                  </td>
+                                  <td className="px-2.5 py-1 text-[#6B6B66]">
+                                    {it.assignee || '—'}
+                                  </td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>

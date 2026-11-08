@@ -6172,7 +6172,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             className="flex items-center gap-1.5 text-[10px] font-bold text-slate-700 dark:text-slate-200 mb-1 px-0.5 whitespace-nowrap overflow-visible z-10 pointer-events-none"
                           >
                             <span className="whitespace-nowrap font-semibold">
-                              P{group.projectIndex}: {group.project.name}
+                              {group.project.name}
                             </span>
                             <span className="px-1 py-0.2 rounded text-[9px] font-mono bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
                               0 tareas
@@ -6236,7 +6236,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           className="flex items-center gap-1.5 text-[10px] font-bold text-slate-700 dark:text-slate-200 mb-1 px-0.5 whitespace-nowrap overflow-visible z-10 pointer-events-none"
                         >
                           <span className="whitespace-nowrap font-semibold">
-                            P{group.projectIndex}: {group.project.name}
+                            {group.project.name}
                           </span>
                           {group.project.platform && (
                             <span

@@ -2042,7 +2042,7 @@ export function App({
                         />
                         <span className={`w-2 h-2 rounded-full shrink-0 ${colorDot}`} />
                         <span className="truncate max-w-[120px] font-display">
-                          P{group.projectIndex}: {group.project.name}
+                          {group.project.name}
                         </span>
                         {isReleaseHidden && (
                           <span

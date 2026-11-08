@@ -624,9 +624,9 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                   onChange={(e) => handleProjectSelectChange(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
                 >
-                  {projects.map((p, idx) => (
+                  {projects.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.projectIndex || idx + 1}. {p.name}
+                      {p.name}
                     </option>
                   ))}
                 </select>

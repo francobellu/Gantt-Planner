@@ -4524,7 +4524,7 @@ test('Help page, version control v1.2.0, release selection on project creation, 
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version control consistency
-  assert.equal(pkg.version, '1.8.5', 'package.json version must be 1.8.5');
+  assert.equal(pkg.version, '1.8.6', 'package.json version must be 1.8.6');
   assert.ok(pkg.scripts['version:patch'], 'package.json must contain version:patch script');
   assert.ok(pkg.scripts['version:minor'], 'package.json must contain version:minor script');
   assert.ok(pkg.scripts['release:patch'], 'package.json must contain release:patch script');
@@ -5305,10 +5305,10 @@ test('Task name positioning, configurable row separators, 37 char truncation, v1
     const htmlWithoutWeekendShading = renderToString(mod.renderWorkspaceWithWeekendShading(false));
     assert.ok(!htmlWithoutWeekendShading.includes('bg-[#E5E5DF]'), 'Canvas and header must NOT render weekend shading when showWeekendShading is false (clean uniform background)');
 
-    // 9. App Header displays v1.8.5 badge, row-separators-btn, and weekend-shading-btn
+    // 9. App Header displays v1.8.6 badge, row-separators-btn, and weekend-shading-btn
     const appHtml = renderToString(mod.renderAppHeader());
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'Header must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.8.5'), 'Header badge must display v1.8.5');
+    assert.ok(appHtml.includes('v1.8.6'), 'Header badge must display v1.8.6');
     assert.ok(appHtml.includes('data-testid="header-toggle-row-separators-btn"'), 'Header must contain header-toggle-row-separators-btn');
     assert.ok(appHtml.includes('data-testid="header-toggle-weekend-shading-btn"'), 'Header must contain header-toggle-weekend-shading-btn');
 
@@ -5338,7 +5338,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version Bump Verification
-  assert.equal(pkg.version, '1.8.5', 'package.json version must equal 1.8.5');
+  assert.equal(pkg.version, '1.8.6', 'package.json version must equal 1.8.6');
 
   // Verify scripts/bump-version.mjs works properly
   const bumpScript = await fs.readFile(path.resolve(__dirname, '../scripts/bump-version.mjs'), 'utf8');
@@ -5511,8 +5511,8 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    // A. APP_VERSION equals 1.8.5
-    assert.equal(mod.APP_VERSION, '1.8.5', 'APP_VERSION must be 1.8.5');
+    // A. APP_VERSION equals 1.8.6
+    assert.equal(mod.APP_VERSION, '1.8.6', 'APP_VERSION must be 1.8.6');
 
     // A2. Excel Export Unit Test
     const sampleReleases = [
@@ -5589,7 +5589,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     assert.ok(appHtml.includes('data-testid="platform-filter-select"'), 'App header must contain platform-filter-select');
     assert.ok(appHtml.includes('data-testid="header-toggle-focus-mode-btn"'), 'App header must contain header-toggle-focus-mode-btn');
     assert.ok(appHtml.includes('data-testid="header-reports-btn"'), 'App header must contain header-reports-btn');
-    assert.ok(appHtml.includes('v1.8.5'), 'App header must display version v1.8.5');
+    assert.ok(appHtml.includes('v1.8.6'), 'App header must display version v1.8.6');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6041,8 +6041,8 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
-  // 1. Version Bump Verification v1.8.5
-  assert.equal(pkg.version, '1.8.5', 'package.json version must equal 1.8.5');
+  // 1. Version Bump Verification v1.8.6
+  assert.equal(pkg.version, '1.8.6', 'package.json version must equal 1.8.6');
 
   // 2. SSR Bundle verification for TaskFormModal, App Header, and sanitizeGanttItem
   const tmpFile = path.resolve(__dirname, `tmp_test59_bundle_${Date.now()}.mjs`);
@@ -6140,7 +6140,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.equal(mod.APP_VERSION, '1.8.5', 'mod.APP_VERSION must equal 1.8.5');
+    assert.equal(mod.APP_VERSION, '1.8.6', 'mod.APP_VERSION must equal 1.8.6');
 
     // sanitizeGanttItem preserves platform
     const sanitizedIos = mod.sanitizeGanttItem({
@@ -6185,7 +6185,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     assert.ok(appHtml.includes('data-testid="header-more-menu-btn"'), 'App header must render header-more-menu-btn');
     assert.ok(appHtml.includes('data-testid="header-more-menu-dropdown"'), 'App must render header-more-menu-dropdown');
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'More menu must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.8.5'), 'Version badge must display v1.8.5');
+    assert.ok(appHtml.includes('v1.8.6'), 'Version badge must display v1.8.6');
     assert.ok(appHtml.includes('data-testid="force-reload-btn"'), 'More menu must contain force-reload-btn');
 
     // 7. Verify secondary buttons are rendered inside the menu
@@ -6207,7 +6207,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
       hiddenReleaseCount: 0,
     }));
     assert.ok(settingsHtml.includes('data-testid="settings-version-badge"'), 'SettingsModal must contain settings-version-badge');
-    assert.ok(settingsHtml.includes('1.8.5') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.8.5');
+    assert.ok(settingsHtml.includes('1.8.6') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.8.6');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6361,14 +6361,14 @@ test('Test 61: Version button, compiled release notes modal and changelog across
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
 
     // 1. Check RELEASE_NOTES compiled data
-    assert.strictEqual(mod.APP_VERSION, '1.8.5');
+    assert.strictEqual(mod.APP_VERSION, '1.8.6');
     assert.ok(Array.isArray(mod.RELEASE_NOTES), 'RELEASE_NOTES must be an array');
     assert.ok(mod.RELEASE_NOTES.length >= 9, 'RELEASE_NOTES must have at least 9 releases');
 
     const latest = mod.RELEASE_NOTES[0];
-    assert.strictEqual(latest.version, '1.8.5', 'First release note must be 1.8.5');
+    assert.strictEqual(latest.version, '1.8.6', 'First release note must be 1.8.6');
     assert.strictEqual(latest.isLatest, true, 'First release note must be isLatest: true');
-    assert.ok(latest.features.length > 0, 'v1.8.5 must contain features');
+    assert.ok(latest.features.length > 0, 'v1.8.6 must contain features');
 
     // 2. Render App and verify version button exists in dropdown menu and is NOT duplicated in top header
     const appHtml = renderToString(React.createElement(mod.App));
@@ -6381,8 +6381,8 @@ test('Test 61: Version button, compiled release notes modal and changelog across
       'App dropdown must contain data-testid="app-version-badge"'
     );
     assert.ok(
-      appHtml.includes('<button') && appHtml.includes('data-testid="app-version-badge"') && appHtml.includes('v1.8.5'),
-      'app-version-badge in tools dropdown must be an interactive button showing v1.8.5'
+      appHtml.includes('<button') && appHtml.includes('data-testid="app-version-badge"') && appHtml.includes('v1.8.6'),
+      'app-version-badge in tools dropdown must be an interactive button showing v1.8.6'
     );
 
     // 3. Render ReleaseNotesModal
@@ -7396,6 +7396,153 @@ test('Test 68: Timeline calendar covers all days up to the latest visible releas
     await fs.unlink(tmpFile).catch(() => {});
   }
 });
+
+test('Test 69: Clean project names on Gantt timeline bars and Proyecto column in PlanHistoryPage expanded table', async () => {
+  const fs = await import('node:fs/promises');
+  const ReactMod = await import('react');
+  const React = ReactMod.default || ReactMod;
+  const ReactDOMServer = await import('react-dom/server');
+  const { renderToString } = ReactDOMServer.default || ReactDOMServer;
+
+  const tmpFile = path.resolve(__dirname, `tmp_test69_bundle_${Date.now()}.mjs`);
+  try {
+    await build({
+      stdin: {
+        contents: `
+          import React from 'react';
+          import { GanttWorkspace } from './src/components/GanttWorkspace.tsx';
+          import { PlanHistoryPage } from './src/components/PlanHistoryPage.tsx';
+          import { computeGanttMetrics } from './src/utils/ganttEngine.ts';
+          export { GanttWorkspace, PlanHistoryPage, computeGanttMetrics };
+        `,
+        resolveDir: path.resolve(__dirname, '..'),
+        sourcefile: 'test69_entry.tsx',
+        loader: 'tsx',
+      },
+      bundle: true,
+      format: 'esm',
+      outfile: tmpFile,
+      platform: 'neutral',
+      target: 'es2022',
+      jsx: 'automatic',
+      external: [
+        'react',
+        'react-dom',
+        'react-dom/server',
+        'lucide-react',
+        'date-fns',
+        'date-fns/locale',
+        'xlsx',
+        'canvas-confetti',
+      ],
+      define: {
+        'process.env.NODE_ENV': '"production"',
+      },
+    });
+
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+
+    const projects = [
+      { id: 'proj-9', projectIndex: 9, name: 'TEST', color: 'indigo' },
+      { id: 'proj-10', projectIndex: 10, name: 'Release SDK ARQ', color: 'emerald' },
+    ];
+    const items = mod.computeGanttMetrics([
+      {
+        id: 't-1793617423630',
+        projectId: 'proj-10',
+        name: 'SSM: HDEV-775252 Creación de pipeline subida a Arxan',
+        type: 'task',
+        startDate: '2026-11-01',
+        endDate: '2026-11-15',
+        duration: 15,
+        slack: 0,
+        dependencies: [],
+        progress: 0,
+        color: 'emerald',
+      },
+    ]);
+
+    const wsHtml = renderToString(
+      React.createElement(mod.GanttWorkspace, {
+        items,
+        projects,
+        releases: [],
+        groupingMode: 'project',
+        groupByProject: true,
+        showTable: true,
+        zoom: 'week',
+        scrollContainerRef: { current: null },
+        onUpdateItem: () => {},
+        onDeleteItem: () => {},
+        onEditModal: () => {},
+        onDuplicateItem: () => {},
+        onQuickAdd: () => {},
+      })
+    );
+
+    // 1. Timeline project summary bars must display clean project names without "P9: " or "P10: "
+    assert.ok(
+      !wsHtml.includes('P9: TEST') && !wsHtml.includes('P10: Release SDK ARQ'),
+      'Timeline project summary bar labels must not include noisy P9: or P10: prefix'
+    );
+    assert.ok(
+      wsHtml.includes('>TEST</span>') && wsHtml.includes('>Release SDK ARQ</span>'),
+      'Timeline project summary bar labels must display clean project names'
+    );
+
+    // 2. Left WBS table still displays P9 / P10 and hierarchical WBS 10.1
+    assert.ok(wsHtml.includes('>P9</button>'), 'Left WBS table must still display P9 badge');
+    assert.ok(wsHtml.includes('>P10</button>'), 'Left WBS table must still display P10 badge');
+    assert.ok(wsHtml.includes('10.1'), 'Left WBS table must still display hierarchical task WBS 10.1');
+
+    // 3. PlanHistoryPage expanded table displays Proyecto column and project name instead of raw technical ID
+    const historyEntry = {
+      id: 'hist-80',
+      timestamp: '2026-11-08T20:02:19.000Z',
+      formattedDate: '08/11/2026, 21:02:19',
+      actionType: 'reorder_item',
+      actionLabel: 'Reordenación',
+      description: "Mover 'SSM: HDEV-775252' hacia arriba",
+      itemsCount: 1,
+      projectsCount: 2,
+      snapshot: {
+        items,
+        projects,
+      },
+    };
+
+    const historyHtml = renderToString(
+      React.createElement(mod.PlanHistoryPage, {
+        history: [historyEntry],
+        currentIndex: 0,
+        canUndo: false,
+        canRedo: false,
+        onUndo: () => {},
+        onRedo: () => {},
+        onRestoreSnapshot: () => {},
+        onBackToGantt: () => {},
+        initialExpandedEntryId: 'hist-80',
+      })
+    );
+
+    assert.ok(
+      historyHtml.includes('<th class="px-2.5 py-1">Proyecto</th>'),
+      'PlanHistoryPage expanded snapshot table must have Proyecto column header instead of ID'
+    );
+    assert.ok(
+      historyHtml.includes('data-testid="history-item-project-t-1793617423630"') &&
+        historyHtml.includes('>Release SDK ARQ</td>'),
+      'PlanHistoryPage expanded snapshot table must render the project name for each task'
+    );
+    assert.ok(
+      !historyHtml.includes('>t-1793617423630</td>'),
+      'PlanHistoryPage expanded snapshot table must NOT render the raw technical timestamp ID in the cell'
+    );
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
 
 
 

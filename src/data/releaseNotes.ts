@@ -10,10 +10,22 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.8.6',
+    date: '08 Nov 2026',
+    title: 'Limpieza visual de nombres de proyecto en el diagrama Gantt y columna Proyecto en Historial',
+    isLatest: true,
+    features: [
+      'Columna Proyecto en el Historial de Cambios: en el desglose de tareas de cada versión del historial se sustituyó el ID técnico interno (t-17936...) por el nombre legible del Proyecto al que pertenece cada tarea.',
+    ],
+    improvements: [
+      'Nombres de proyecto limpios en el diagrama Gantt y selectores: se eliminó el prefijo técnico P1:, P9: encima de las barras del cronograma y en los desplegables de filtro/modal, manteniendo los códigos WBS únicamente en la columna WBS de la tabla izquierda.',
+    ],
+  },
+  {
     version: '1.8.5',
     date: '08 Nov 2026',
     title: 'Cobertura completa del calendario hasta el fin de todas las barras de Release visibles',
-    isLatest: true,
+    isLatest: false,
     features: [
       'Cobertura automática de Releases en el calendario: el cálculo de límites temporales incluye siempre el inicio, fin e hitos de todas las barras de release visibles y ventanas de proyectos vacíos.',
     ],
