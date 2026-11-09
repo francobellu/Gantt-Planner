@@ -10,10 +10,25 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.9.0',
+    date: '08 Nov 2026',
+    title: 'Campo Nivel de Alerta (0 a 3) en proyectos y filtrado multinivel en la barra de herramientas',
+    isLatest: true,
+    features: [
+      'Nivel de Alerta (0 a 3) en proyectos: cada proyecto dispone de un nuevo atributo de nivel de alerta configurable (0 = Normal/Sin alerta, 1 = Baja, 2 = Media, 3 = Alta/Crítica), visible mediante un badge indicador en la fila del proyecto en la tabla WBS.',
+      'Filtro por Nivel de Alerta en la barra del Cronograma: nuevo menú desplegable de filtro que permite aislar proyectos según su nivel de alerta (Todas, Nivel 0, Nivel 1, Nivel 2, Nivel 3) combinable simultáneamente con el filtro de plataforma y el buscador por texto.',
+      'Columna Nivel de Alerta y descripciones compuestas en Informes de plan (Resumen Proyectos): la pestaña «Resumen Proyectos» tanto en pantalla como en la exportación Excel incluye la columna «Nivel de Alerta» y desglosa en la columna «Descripción» la descripción del proyecto junto con cada una de sus subtareas en formato «<nombre tarea> <descripción tarea>» separadas por salto de línea.',
+    ],
+    improvements: [
+      'Configuración del Nivel de Alerta tanto en la ventana modal de nuevo proyecto como en la modal de edición e inspección del proyecto existente.',
+      'Registro del cambio de Nivel de Alerta en las diferencias de estado del Historial de Versiones del plan.',
+    ],
+  },
+  {
     version: '1.8.9',
     date: '08 Nov 2026',
     title: 'Identificación de elementos en avisos de conflicto y navegación directa con un clic',
-    isLatest: true,
+    isLatest: false,
     features: [
       'Identificación y navegación interactiva desde el aviso de conflicto: cuando existen tareas o hitos con fechas anteriores al fin de sus predecesoras, el banner indica explícitamente cada elemento afectado (con su proyecto) y al hacer clic navega, despliega, centra y abre automáticamente el detalle del elemento en el cronograma.',
     ],

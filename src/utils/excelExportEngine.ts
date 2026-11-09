@@ -34,6 +34,8 @@ export interface ProjectSummaryReportRow {
   code: string;
   projectName: string;
   platform: string;
+  alertLevel: number;
+  alertLevelLabel: string;
   releaseCode: string;
   startDate: string;
   endDate: string;
@@ -78,6 +80,7 @@ export const PROJECT_SUMMARY_HEADER = [
   'Código',
   'Proyecto',
   'Plataforma',
+  'Nivel de Alerta',
   'Release Asignada',
   'Fecha Inicio',
   'Fecha Fin',
@@ -370,11 +373,29 @@ export function generateProjectSummaryRows(
     const assignedRelease = releases.find((r) => r.id === pg.project.releaseId);
     const taskCount = pg.items.filter((it) => it.type !== 'milestone').length;
     const milestoneCount = pg.items.filter((it) => it.type === 'milestone').length;
+    const alertLevel = pg.project.alertLevel ?? 0;
+
+    const descLines: string[] = [];
+    const projDesc = (pg.project.description || '').trim();
+    if (projDesc) {
+      descLines.push(projDesc);
+    }
+    for (const it of pg.items) {
+      const itDesc = (it.notes || (it as any).description || '').trim().replace(/\r?\n+/g, ' ');
+      if (itDesc) {
+        descLines.push(`${it.name} ${itDesc}`);
+      } else {
+        descLines.push(it.name);
+      }
+    }
+    const description = descLines.join('\n');
 
     rows.push({
       code: `P${pg.projectIndex}`,
       projectName: pg.project.name,
       platform: normalizePlatform(pg.project.platform) || 'iOS/Android',
+      alertLevel,
+      alertLevelLabel: `Nivel ${alertLevel}`,
       releaseCode: assignedRelease ? assignedRelease.code : 'Sin asignar',
       startDate: pg.startDate,
       endDate: pg.endDate,
@@ -382,7 +403,7 @@ export function generateProjectSummaryRows(
       progress: pg.progress,
       tasksCount: taskCount,
       milestonesCount: milestoneCount,
-      description: pg.project.description || '',
+      description,
     });
   }
 
@@ -486,6 +507,7 @@ export function exportFullGanttToWorkbook(
       r.code,
       r.projectName,
       r.platform,
+      `Nivel ${r.alertLevel}`,
       r.releaseCode,
       r.startDate,
       r.endDate,
@@ -501,6 +523,7 @@ export function exportFullGanttToWorkbook(
     { wch: 10 },
     { wch: 32 },
     { wch: 18 },
+    { wch: 16 },
     { wch: 18 },
     { wch: 14 },
     { wch: 14 },
@@ -508,7 +531,7 @@ export function exportFullGanttToWorkbook(
     { wch: 14 },
     { wch: 14 },
     { wch: 14 },
-    { wch: 40 },
+    { wch: 45 },
   ];
   XLSX.utils.book_append_sheet(wb, wsProjects, 'Resumen Proyectos');
 

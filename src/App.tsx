@@ -49,6 +49,7 @@ import {
   GanttProject,
   GroupingMode,
   PROJECT_COLORS,
+  ProjectAlertLevel,
   ProjectPlatform,
   ProjectTemplate,
   PlanHistoryActionType,
@@ -139,6 +140,7 @@ const CLEAN_DEFAULT_PROJECT: GanttProject = {
   color: 'indigo',
   collapsed: false,
   isDemo: false,
+  alertLevel: 0,
   releaseId: DEFAULT_PREDEFINED_RELEASES[0].id,
 };
 
@@ -840,6 +842,7 @@ export function App({
   const [newProjectFormReleaseId, setNewProjectFormReleaseId] = useState<string>('');
   const [newProjectFormColor, setNewProjectFormColor] = useState<string>('indigo');
   const [newProjectFormPlatform, setNewProjectFormPlatform] = useState<ProjectPlatform>('iOS/Android');
+  const [newProjectFormAlertLevel, setNewProjectFormAlertLevel] = useState<ProjectAlertLevel>(0);
 
   const projectMenuRef = useRef<HTMLDivElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
@@ -2856,8 +2859,10 @@ export function App({
                   color: newProjectFormColor as any,
                   releaseId: newProjectFormReleaseId || releases[0]?.id || 'rel-t-26-12-1',
                   platform: newProjectFormPlatform,
+                  alertLevel: newProjectFormAlertLevel,
                 });
                 setNewProjectFormPlatform('iOS/Android');
+                setNewProjectFormAlertLevel(0);
                 setCreateProjectModalOpen(false);
               }}
               className="mt-4 space-y-4"
@@ -2915,6 +2920,26 @@ export function App({
                 </select>
                 <p className="text-[10px] text-[#6B6B66] dark:text-zinc-400 mt-1">
                   Identifica la tecnología destino para filtrar en el cronograma.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#0C0C09] dark:text-zinc-300 mb-1">
+                  Nivel de Alerta
+                </label>
+                <select
+                  data-testid="create-project-modal-alert-select"
+                  value={newProjectFormAlertLevel}
+                  onChange={(e) => setNewProjectFormAlertLevel(Number(e.target.value) as ProjectAlertLevel)}
+                  className="w-full px-3 py-2 text-xs rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-100 outline-none focus:ring-1 focus:ring-indigo-500 font-sans"
+                >
+                  <option value={0}>Nivel 0 — Normal (Sin alerta)</option>
+                  <option value={1}>Nivel 1 — Baja (Alerta leve)</option>
+                  <option value={2}>Nivel 2 — Media (Alerta moderada)</option>
+                  <option value={3}>Nivel 3 — Alta (Alerta crítica)</option>
+                </select>
+                <p className="text-[10px] text-[#6B6B66] dark:text-zinc-400 mt-1">
+                  Permite categorizar la urgencia o riesgo del proyecto (0 a 3) para seguimiento y filtrado.
                 </p>
               </div>
 

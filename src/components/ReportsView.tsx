@@ -107,7 +107,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         const matchesCode = row.code.toLowerCase().includes(q);
         const matchesRel = row.releaseCode.toLowerCase().includes(q);
         const matchesDesc = row.description.toLowerCase().includes(q);
-        if (!matchesName && !matchesCode && !matchesRel && !matchesDesc) {
+        const matchesAlert = `nivel ${row.alertLevel}`.includes(q) || String(row.alertLevel) === q;
+        if (!matchesName && !matchesCode && !matchesRel && !matchesDesc && !matchesAlert) {
           return false;
         }
       }
@@ -612,6 +613,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     Plataforma
                   </th>
                   <th className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-700 whitespace-nowrap">
+                    Nivel de Alerta
+                  </th>
+                  <th className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-700 whitespace-nowrap">
                     Release Asignada
                   </th>
                   <th className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-700 whitespace-nowrap">
@@ -640,7 +644,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               <tbody className="divide-y divide-[#E2E2DC] dark:divide-zinc-800 font-mono text-[11px]">
                 {filteredProjectRows.length === 0 ? (
                   <tr>
-                    <td colSpan={12} className="px-4 py-8 text-center text-[#6B6B66] dark:text-zinc-400 font-sans">
+                    <td colSpan={13} className="px-4 py-8 text-center text-[#6B6B66] dark:text-zinc-400 font-sans">
                       No se encontraron proyectos que coincidan con los filtros.
                     </td>
                   </tr>
@@ -672,6 +676,33 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                           {row.platform}
                         </span>
                       </td>
+                      <td className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap">
+                        <span
+                          data-testid={`report-project-alert-badge-${row.code}`}
+                          className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border ${
+                            row.alertLevel === 1
+                              ? 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
+                              : row.alertLevel === 2
+                              ? 'bg-orange-50 text-orange-800 border-orange-300 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800'
+                              : row.alertLevel === 3
+                              ? 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
+                              : 'bg-zinc-100 text-zinc-600 border-zinc-300 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700'
+                          }`}
+                        >
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                              row.alertLevel === 1
+                                ? 'bg-amber-500'
+                                : row.alertLevel === 2
+                                ? 'bg-orange-500'
+                                : row.alertLevel === 3
+                                ? 'bg-rose-500'
+                                : 'bg-zinc-400'
+                            }`}
+                          />
+                          <span>Nivel {row.alertLevel}</span>
+                        </span>
+                      </td>
                       <td className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-[#0C0C09] dark:text-zinc-300">
                         {row.releaseCode}
                       </td>
@@ -701,7 +732,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                       <td className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-right font-semibold text-amber-600 dark:text-amber-400">
                         {row.milestonesCount}
                       </td>
-                      <td className="px-3 py-2 font-sans text-xs text-[#6B6B66] dark:text-zinc-400">
+                      <td className="px-3 py-2 font-sans text-xs text-[#6B6B66] dark:text-zinc-400 whitespace-pre-line leading-relaxed min-w-[240px]">
                         {row.description || '—'}
                       </td>
                     </tr>

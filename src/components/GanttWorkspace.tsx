@@ -60,6 +60,7 @@ import {
   GanttProject,
   GroupingMode,
   PROJECT_COLORS,
+  ProjectAlertLevel,
   ProjectPlatform,
   Release,
   ReleaseGuideVisibility,
@@ -613,6 +614,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   const [showPlatformFilterMenu, setShowPlatformFilterMenu] = useState<boolean>(false);
   const platformFilterMenuRef = useRef<HTMLDivElement>(null);
 
+  const [tableAlertFilter, setTableAlertFilter] = useState<'all' | ProjectAlertLevel>('all');
+  const [showAlertFilterMenu, setShowAlertFilterMenu] = useState<boolean>(false);
+  const alertFilterMenuRef = useRef<HTMLDivElement>(null);
+
   const activePlatformFilter: 'all' | ProjectPlatform =
     tablePlatformFilter !== 'all'
       ? tablePlatformFilter
@@ -782,6 +787,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       }
       if (tablePlatformFilter !== 'all') {
         setTablePlatformFilter('all');
+      }
+      if (tableAlertFilter !== 'all') {
+        setTableAlertFilter('all');
       }
     }
   }, [selectedEntity]);
@@ -991,6 +999,29 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [showPlatformFilterMenu]);
+
+  useEffect(() => {
+    if (!showAlertFilterMenu) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (
+        alertFilterMenuRef.current &&
+        !alertFilterMenuRef.current.contains(e.target as Node)
+      ) {
+        setShowAlertFilterMenu(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowAlertFilterMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showAlertFilterMenu]);
 
   // Configurable text truncation limit (controlled via prop or local fallback)
   const [internalTruncateLimit, setInternalTruncateLimit] = useState<number>(() => {
@@ -1855,6 +1886,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       });
     }
 
+    if (tableAlertFilter !== 'all') {
+      filtered = filtered.filter(
+        (g) => (g.project.alertLevel ?? 0) === tableAlertFilter
+      );
+    }
+
     const query = tableSearchQuery.trim().toLowerCase();
     if (query) {
       filtered = filtered.filter((g) => {
@@ -1885,6 +1922,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     hiddenReleaseIds,
     selectedPlatform,
     tablePlatformFilter,
+    tableAlertFilter,
     tableSearchQuery,
     focusRelatedSets,
   ]);
@@ -3706,13 +3744,132 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               </div>
             </div>
 
-            {(tableSearchQuery || activePlatformFilter !== 'all') && (
+            <div ref={alertFilterMenuRef} className="relative flex items-center shrink-0">
+              <button
+                type="button"
+                data-testid="table-alert-filter"
+                data-selected-alert={tableAlertFilter}
+                onClick={() => setShowAlertFilterMenu((prev) => !prev)}
+                className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-sans font-medium normal-case rounded-[3px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700/70 outline-none cursor-pointer h-6.5 transition"
+                title="Filtrar por nivel de alerta"
+              >
+                <AlertTriangle
+                  className={`w-3 h-3 shrink-0 ${
+                    tableAlertFilter === 'all'
+                      ? 'text-zinc-500'
+                      : tableAlertFilter === 0
+                      ? 'text-zinc-400'
+                      : tableAlertFilter === 1
+                      ? 'text-amber-500'
+                      : tableAlertFilter === 2
+                      ? 'text-orange-500'
+                      : 'text-rose-500'
+                  }`}
+                />
+                <span>
+                  {tableAlertFilter === 'all'
+                    ? 'Alerta'
+                    : `Nivel ${tableAlertFilter}`}
+                </span>
+                <ChevronDown className="w-3 h-3 text-zinc-500 shrink-0" />
+              </button>
+
+              <div
+                data-testid="table-alert-filter-menu"
+                className={`absolute left-0 top-full mt-1 z-50 min-w-[140px] rounded-[4px] border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg py-1 ${
+                  showAlertFilterMenu ? 'flex flex-col' : 'hidden'
+                }`}
+              >
+                <button
+                  type="button"
+                  data-testid="alert-filter-option-all"
+                  onClick={() => {
+                    setTableAlertFilter('all');
+                    setShowAlertFilterMenu(false);
+                  }}
+                  className={`flex items-center gap-2 px-2.5 py-1.5 text-[10px] font-sans font-medium cursor-pointer transition text-left ${
+                    tableAlertFilter === 'all'
+                      ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                      : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                  }`}
+                >
+                  <span>Todas las alertas</span>
+                </button>
+                <button
+                  type="button"
+                  data-testid="alert-filter-option-0"
+                  onClick={() => {
+                    setTableAlertFilter(0);
+                    setShowAlertFilterMenu(false);
+                  }}
+                  className={`flex items-center gap-2 px-2.5 py-1.5 text-[10px] font-sans font-medium cursor-pointer transition text-left ${
+                    tableAlertFilter === 0
+                      ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                      : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                  }`}
+                >
+                  <span className="w-2 h-2 rounded-full bg-zinc-400 shrink-0" />
+                  <span>Nivel 0 (Normal)</span>
+                </button>
+                <button
+                  type="button"
+                  data-testid="alert-filter-option-1"
+                  onClick={() => {
+                    setTableAlertFilter(1);
+                    setShowAlertFilterMenu(false);
+                  }}
+                  className={`flex items-center gap-2 px-2.5 py-1.5 text-[10px] font-sans font-medium cursor-pointer transition text-left ${
+                    tableAlertFilter === 1
+                      ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                      : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                  }`}
+                >
+                  <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                  <span>Nivel 1 (Baja)</span>
+                </button>
+                <button
+                  type="button"
+                  data-testid="alert-filter-option-2"
+                  onClick={() => {
+                    setTableAlertFilter(2);
+                    setShowAlertFilterMenu(false);
+                  }}
+                  className={`flex items-center gap-2 px-2.5 py-1.5 text-[10px] font-sans font-medium cursor-pointer transition text-left ${
+                    tableAlertFilter === 2
+                      ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                      : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                  }`}
+                >
+                  <span className="w-2 h-2 rounded-full bg-orange-500 shrink-0" />
+                  <span>Nivel 2 (Media)</span>
+                </button>
+                <button
+                  type="button"
+                  data-testid="alert-filter-option-3"
+                  onClick={() => {
+                    setTableAlertFilter(3);
+                    setShowAlertFilterMenu(false);
+                  }}
+                  className={`flex items-center gap-2 px-2.5 py-1.5 text-[10px] font-sans font-medium cursor-pointer transition text-left ${
+                    tableAlertFilter === 3
+                      ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                      : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                  }`}
+                >
+                  <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+                  <span>Nivel 3 (Alta)</span>
+                </button>
+              </div>
+            </div>
+
+            {(tableSearchQuery || activePlatformFilter !== 'all' || tableAlertFilter !== 'all') && (
               <button
                 type="button"
                 data-testid="table-clear-filters-btn"
                 onClick={() => {
                   setTableSearchQuery('');
                   handleSelectPlatformFilter('all');
+                  setTableAlertFilter('all');
                 }}
                 className="text-[9px] font-sans font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer shrink-0"
               >
@@ -4209,14 +4366,14 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         style={{ minWidth: tableMinWidth }}
                         className="flex flex-col items-center justify-center py-12 px-6 text-center bg-slate-50/40 dark:bg-zinc-900/30"
                       >
-                        {tableSearchQuery.trim() || tablePlatformFilter !== 'all' ? (
+                        {tableSearchQuery.trim() || tablePlatformFilter !== 'all' || tableAlertFilter !== 'all' ? (
                           <>
                             <Search className="w-8 h-8 text-slate-400 dark:text-zinc-500 mb-2" />
                             <p className="text-sm font-bold text-slate-700 dark:text-zinc-200">
                               No se encontraron proyectos o tareas coincidentes
                             </p>
                             <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1 max-w-md">
-                              Ningún elemento coincide con la búsqueda o la plataforma seleccionada.
+                              Ningún elemento coincide con la búsqueda o los filtros seleccionados.
                             </p>
                             <button
                               type="button"
@@ -4224,6 +4381,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               onClick={() => {
                                 setTableSearchQuery('');
                                 setTablePlatformFilter('all');
+                                setTableAlertFilter('all');
                               }}
                               className="mt-3 px-3.5 py-1.5 rounded-[4px] bg-[#0C0C09] hover:bg-[#312C85] dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-[#0C0C09] text-xs font-semibold shadow-sm transition cursor-pointer flex items-center gap-1.5"
                             >
@@ -4600,6 +4758,55 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                       />
                                     )}
                                   </span>
+                                );
+                              })()}
+
+                              {(() => {
+                                const alertLevel = group.project.alertLevel ?? 0;
+                                const alertConfig = {
+                                  0: {
+                                    label: 'Nivel 0',
+                                    title: 'Nivel de Alerta 0: Normal / Sin alerta',
+                                    className:
+                                      'bg-zinc-100 text-zinc-600 border-zinc-300 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700',
+                                    dotColor: 'bg-zinc-400',
+                                  },
+                                  1: {
+                                    label: 'Nivel 1',
+                                    title: 'Nivel de Alerta 1: Baja / Leve',
+                                    className:
+                                      'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800',
+                                    dotColor: 'bg-amber-500',
+                                  },
+                                  2: {
+                                    label: 'Nivel 2',
+                                    title: 'Nivel de Alerta 2: Media / Moderada',
+                                    className:
+                                      'bg-orange-50 text-orange-800 border-orange-300 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800',
+                                    dotColor: 'bg-orange-500',
+                                  },
+                                  3: {
+                                    label: 'Nivel 3',
+                                    title: 'Nivel de Alerta 3: Alta / Crítica',
+                                    className:
+                                      'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800',
+                                    dotColor: 'bg-rose-500',
+                                  },
+                                }[alertLevel];
+
+                                return (
+                                  <button
+                                    type="button"
+                                    data-testid={`project-alert-badge-${group.project.id}`}
+                                    data-alert-level={alertLevel}
+                                    onClick={() => setInspectingProject(group.project)}
+                                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold shrink-0 border cursor-pointer hover:opacity-85 transition ${alertConfig.className}`}
+                                    title={`${alertConfig.title} (clic para configurar)`}
+                                    aria-label={alertConfig.title}
+                                  >
+                                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${alertConfig.dotColor}`} />
+                                    <span>{alertConfig.label}</span>
+                                  </button>
                                 );
                               })()}
 
@@ -7616,6 +7823,28 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     <option value="iOS/Android">iOS/Android</option>
                     <option value="iOS">iOS</option>
                     <option value="Android">Android</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-mono font-bold uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400 mb-1">
+                    Nivel de Alerta
+                  </label>
+                  <select
+                    data-testid="project-modal-alert-select"
+                    value={inspectingProject.alertLevel ?? 0}
+                    onChange={(e) =>
+                      setInspectingProject({
+                        ...inspectingProject,
+                        alertLevel: Number(e.target.value) as ProjectAlertLevel,
+                      })
+                    }
+                    className="w-full px-2.5 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs text-[#0C0C09] dark:text-zinc-200 outline-none focus:ring-1 focus:ring-indigo-500 font-sans"
+                  >
+                    <option value={0}>Nivel 0 — Normal (Sin alerta)</option>
+                    <option value={1}>Nivel 1 — Baja (Alerta leve)</option>
+                    <option value={2}>Nivel 2 — Media (Alerta moderada)</option>
+                    <option value={3}>Nivel 3 — Alta (Alerta crítica)</option>
                   </select>
                 </div>
 

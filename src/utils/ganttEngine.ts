@@ -17,6 +17,7 @@ import {
   GanttImportResult,
   GanttItem,
   GanttProject,
+  ProjectAlertLevel,
   ProjectPlatform,
   ProjectTemplate,
   Release,
@@ -302,6 +303,14 @@ export function sanitizeProject(
   const id = rawId || `proj-${fallbackIndex + 1}-${Date.now()}`;
   const platform = normalizePlatform(raw.platform as string | undefined);
 
+  let alertLevel: ProjectAlertLevel | undefined;
+  if (raw.alertLevel !== undefined && raw.alertLevel !== null) {
+    const parsedAlert = Number(raw.alertLevel);
+    if (parsedAlert === 0 || parsedAlert === 1 || parsedAlert === 2 || parsedAlert === 3) {
+      alertLevel = parsedAlert as ProjectAlertLevel;
+    }
+  }
+
   let projectIndex: number | undefined;
   if (
     typeof raw.projectIndex === 'number' &&
@@ -327,6 +336,7 @@ export function sanitizeProject(
     description: raw.description != null ? String(raw.description).trim() : undefined,
     releaseId: raw.releaseId != null ? String(raw.releaseId).trim() || undefined : undefined,
     platform,
+    ...(alertLevel !== undefined ? { alertLevel } : {}),
     collapsed: Boolean(raw.collapsed),
     isDemo: isDemoProject({ ...raw, id }),
   };
@@ -3494,6 +3504,7 @@ export function describeProjectStateChanges(
     return [
       { field: 'Release', before: '—', after: resolveReleaseCodeLabel(nextProj.releaseId, releases) },
       { field: 'Plataforma', before: '—', after: normalizePlatform(nextProj.platform) || 'iOS/Android' },
+      { field: 'Alerta', before: '—', after: `Nivel ${nextProj.alertLevel ?? 0}` },
       { field: 'Color', before: '—', after: nextProj.color || 'indigo' },
     ];
   }
@@ -3527,6 +3538,15 @@ export function describeProjectStateChanges(
       field: 'Plataforma',
       before: 'Sin definir',
       after: nextPlat,
+    });
+  }
+  const prevAlert = prevProj.alertLevel ?? 0;
+  const nextAlert = nextProj.alertLevel ?? 0;
+  if (prevAlert !== nextAlert) {
+    diffs.push({
+      field: 'Alerta',
+      before: `Nivel ${prevAlert}`,
+      after: `Nivel ${nextAlert}`,
     });
   }
   const prevColor = prevProj.color || 'indigo';

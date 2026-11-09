@@ -1,4 +1,4 @@
-export const APP_VERSION = '1.8.9';
+export const APP_VERSION = '1.9.0';
 
 export const DEFAULT_TRUNCATE_CHAR_LIMIT = 37;
 export const TRUNCATE_LIMIT_STORAGE_KEY = 'ganttflow_truncate_char_limit';
@@ -8,6 +8,8 @@ export type TaskType = 'task' | 'milestone';
 export type DependencyType = 'FS' | 'SS' | 'FF' | 'SF';
 
 export type ProjectPlatform = 'iOS' | 'Android' | 'iOS/Android';
+
+export type ProjectAlertLevel = 0 | 1 | 2 | 3;
 
 export interface FocusEntity {
   type: 'task' | 'project' | 'release';
@@ -67,6 +69,7 @@ export interface GanttProject {
   isDemo?: boolean;
   platform?: ProjectPlatform;
   projectIndex?: number; // Unique, fixed project identifier number (e.g. 1 -> P1) that does not change on reorder
+  alertLevel?: ProjectAlertLevel; // Alert level 0 (Normal), 1 (Baja), 2 (Media), 3 (Alta)
 }
 
 export interface GanttItem {
