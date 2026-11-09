@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   ArrowLeft,
   FileSpreadsheet,
@@ -15,8 +15,17 @@ import {
   Calendar,
   Sparkles,
   X,
+  ChevronDown,
+  Smartphone,
 } from 'lucide-react';
-import { ComputedGanttItem, GanttProject, Release } from '../types/gantt';
+import {
+  ComputedGanttItem,
+  GanttProject,
+  Release,
+  ProjectPlatform,
+  ProjectAlertLevel,
+} from '../types/gantt';
+import { AppleIosIcon, AndroidIcon } from './PlatformIcons';
 import {
   generateCronogramaCompletoRows,
   generateProjectSummaryRows,
@@ -44,9 +53,48 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'cronograma' | 'projects' | 'releases'>(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedPlatform, setSelectedPlatform] = useState<string>('all');
+  const [selectedPlatform, setSelectedPlatform] = useState<'all' | ProjectPlatform>('all');
+  const [showPlatformFilterMenu, setShowPlatformFilterMenu] = useState<boolean>(false);
+  const platformFilterMenuRef = useRef<HTMLDivElement>(null);
+
+  const [selectedAlert, setSelectedAlert] = useState<'all' | ProjectAlertLevel>('all');
+  const [showAlertFilterMenu, setShowAlertFilterMenu] = useState<boolean>(false);
+  const alertFilterMenuRef = useRef<HTMLDivElement>(null);
+
   const [selectedRelease, setSelectedRelease] = useState<string>('all');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (
+        platformFilterMenuRef.current &&
+        !platformFilterMenuRef.current.contains(e.target as Node)
+      ) {
+        setShowPlatformFilterMenu(false);
+      }
+      if (
+        alertFilterMenuRef.current &&
+        !alertFilterMenuRef.current.contains(e.target as Node)
+      ) {
+        setShowAlertFilterMenu(false);
+      }
+    };
+    document.addEventListener('pointerdown', handleOutsideClick);
+    return () => {
+      document.removeEventListener('pointerdown', handleOutsideClick);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowPlatformFilterMenu(false);
+        setShowAlertFilterMenu(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // 1. Generate full dataset for each tab
   const cronoRows = useMemo(
@@ -66,14 +114,28 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
   // 2. Filter Tab 1: Cronograma Completo
   const filteredCronoRows = useMemo(() => {
-    return cronoRows.filter((row) => {
-      // Platform filter
-      if (selectedPlatform !== 'all' && row.platform !== '—' && row.platform !== selectedPlatform) {
-        return false;
-      }
+    const matchesNonReleaseRow = (row: CronogramaReportRow): boolean => {
       // Release filter
       if (selectedRelease !== 'all' && row.releaseCode !== selectedRelease) {
         return false;
+      }
+      // Alert level filter
+      if (selectedAlert !== 'all') {
+        if (row.alertLevel !== selectedAlert) {
+          return false;
+        }
+      }
+      // Platform filter
+      if (selectedPlatform !== 'all') {
+        if (row.platform !== '—') {
+          if (selectedPlatform === 'iOS/Android') {
+            if (row.platform !== 'iOS/Android' && row.platform !== 'Multiplataforma') {
+              return false;
+            }
+          } else if (row.platform !== selectedPlatform) {
+            return false;
+          }
+        }
       }
       // Search query
       if (searchQuery.trim()) {
@@ -84,18 +146,78 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         const matchesRelease = row.releaseCode.toLowerCase().includes(q);
         const matchesDep = row.dependency.toLowerCase().includes(q);
         const matchesType = row.type.toLowerCase().includes(q);
-        if (!matchesName && !matchesWbs && !matchesProject && !matchesRelease && !matchesDep && !matchesType) {
+        const matchesPlatform = row.platform.toLowerCase().includes(q);
+        const matchesAlert =
+          row.alertLevel !== undefined &&
+          (`nivel ${row.alertLevel}`.includes(q) || String(row.alertLevel) === q);
+        if (
+          !matchesName &&
+          !matchesWbs &&
+          !matchesProject &&
+          !matchesRelease &&
+          !matchesDep &&
+          !matchesType &&
+          !matchesPlatform &&
+          !matchesAlert
+        ) {
           return false;
         }
       }
       return true;
+    };
+
+    const hasFilters =
+      selectedRelease !== 'all' ||
+      selectedAlert !== 'all' ||
+      selectedPlatform !== 'all' ||
+      Boolean(searchQuery.trim());
+
+    if (!hasFilters) {
+      return cronoRows;
+    }
+
+    const matchingRowIds = new Set<string>();
+    const matchingProjectIds = new Set<string>();
+    const matchingReleaseCodes = new Set<string>();
+
+    for (const r of cronoRows) {
+      if (r.level !== 'RELEASE') {
+        if (matchesNonReleaseRow(r)) {
+          matchingRowIds.add(r.rowId);
+          if (r.projectId) matchingProjectIds.add(r.projectId);
+          if (r.releaseCode && r.releaseCode !== '—') matchingReleaseCodes.add(r.releaseCode);
+        }
+      }
+    }
+
+    return cronoRows.filter((row) => {
+      if (row.level === 'RELEASE') {
+        if (selectedRelease !== 'all' && row.releaseCode !== selectedRelease) {
+          return false;
+        }
+        return matchingReleaseCodes.has(row.releaseCode);
+      }
+      if (row.level === 'PROYECTO') {
+        if (matchingRowIds.has(row.rowId)) return true;
+        return row.projectId ? matchingProjectIds.has(row.projectId) : false;
+      }
+      return matchingRowIds.has(row.rowId);
     });
-  }, [cronoRows, selectedPlatform, selectedRelease, searchQuery]);
+  }, [cronoRows, selectedPlatform, selectedAlert, selectedRelease, searchQuery]);
 
   // 3. Filter Tab 2: Resumen Proyectos
   const filteredProjectRows = useMemo(() => {
     return projectRows.filter((row) => {
-      if (selectedPlatform !== 'all' && row.platform !== selectedPlatform) {
+      if (selectedPlatform !== 'all') {
+        if (selectedPlatform === 'iOS/Android') {
+          if (row.platform !== 'iOS/Android' && row.platform !== 'Multiplataforma') {
+            return false;
+          }
+        } else if (row.platform !== selectedPlatform) {
+          return false;
+        }
+      }
+      if (selectedAlert !== 'all' && row.alertLevel !== selectedAlert) {
         return false;
       }
       if (selectedRelease !== 'all' && row.releaseCode !== selectedRelease) {
@@ -107,31 +229,54 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         const matchesCode = row.code.toLowerCase().includes(q);
         const matchesRel = row.releaseCode.toLowerCase().includes(q);
         const matchesDesc = row.description.toLowerCase().includes(q);
+        const matchesPlatform = row.platform.toLowerCase().includes(q);
         const matchesAlert = `nivel ${row.alertLevel}`.includes(q) || String(row.alertLevel) === q;
-        if (!matchesName && !matchesCode && !matchesRel && !matchesDesc && !matchesAlert) {
+        if (!matchesName && !matchesCode && !matchesRel && !matchesDesc && !matchesPlatform && !matchesAlert) {
           return false;
         }
       }
       return true;
     });
-  }, [projectRows, selectedPlatform, selectedRelease, searchQuery]);
+  }, [projectRows, selectedPlatform, selectedAlert, selectedRelease, searchQuery]);
 
   // 4. Filter Tab 3: Catálogo Releases
   const filteredReleaseRows = useMemo(() => {
     return releaseRows.filter((row) => {
+      if (selectedRelease !== 'all' && row.code !== selectedRelease) {
+        return false;
+      }
+      if (selectedPlatform !== 'all') {
+        const plats = row.platforms || [];
+        if (selectedPlatform === 'iOS/Android') {
+          const hasMulti = plats.some((p) => p === 'iOS/Android' || p === 'Multiplataforma');
+          if (!hasMulti) return false;
+        } else {
+          if (!plats.includes(selectedPlatform)) return false;
+        }
+      }
+      if (selectedAlert !== 'all') {
+        const alerts = row.alertLevels || [];
+        if (!alerts.includes(selectedAlert)) return false;
+      }
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchesCode = row.code.toLowerCase().includes(q);
         const matchesName = row.name.toLowerCase().includes(q);
         const matchesMonth = row.month.toLowerCase().includes(q);
         const matchesProjs = row.assignedProjects.toLowerCase().includes(q);
-        if (!matchesCode && !matchesName && !matchesMonth && !matchesProjs) {
+        const matchesAlert =
+          row.alertLevels &&
+          row.alertLevels.some((al) => `nivel ${al}`.includes(q) || String(al) === q);
+        const matchesPlat =
+          row.platforms &&
+          row.platforms.some((pl) => pl.toLowerCase().includes(q));
+        if (!matchesCode && !matchesName && !matchesMonth && !matchesProjs && !matchesAlert && !matchesPlat) {
           return false;
         }
       }
       return true;
     });
-  }, [releaseRows, searchQuery]);
+  }, [releaseRows, selectedPlatform, selectedAlert, selectedRelease, searchQuery]);
 
   const handleDownloadExcel = () => {
     try {
@@ -297,33 +442,275 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Platform Filter */}
-          {(activeTab === 'cronograma' || activeTab === 'projects') && (
-            <div className="flex items-center gap-1">
-              <span className="text-[11px] font-mono text-[#6B6B66] dark:text-zinc-400">Plataforma:</span>
-              <select
-                data-testid="reports-platform-select"
-                value={selectedPlatform}
-                onChange={(e) => setSelectedPlatform(e.target.value)}
-                className="px-2 py-1 rounded-[3px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs text-[#0C0C09] dark:text-zinc-200 outline-none cursor-pointer"
+          {/* Platform Filter (Custom UI with Icons) */}
+          <div ref={platformFilterMenuRef} className="relative flex items-center shrink-0">
+            <button
+              type="button"
+              data-testid="reports-platform-filter"
+              data-selected-platform={selectedPlatform}
+              onClick={() => setShowPlatformFilterMenu((prev) => !prev)}
+              className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-sans font-medium normal-case rounded-[3px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700/70 outline-none cursor-pointer h-6.5 transition"
+              title="Filtrar por plataforma"
+            >
+              {selectedPlatform === 'all' ? (
+                <>
+                  <Smartphone className="w-3 h-3 text-zinc-500 shrink-0" />
+                  <span>Todas</span>
+                </>
+              ) : selectedPlatform === 'iOS' ? (
+                <AppleIosIcon
+                  testId="reports-active-filter-icon-ios"
+                  className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400"
+                />
+              ) : selectedPlatform === 'Android' ? (
+                <AndroidIcon
+                  testId="reports-active-filter-icon-android"
+                  className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400"
+                />
+              ) : (
+                <span className="inline-flex items-center gap-1">
+                  <AppleIosIcon
+                    testId="reports-active-filter-icon-both-ios"
+                    className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400"
+                  />
+                  <AndroidIcon
+                    testId="reports-active-filter-icon-both-android"
+                    className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400"
+                  />
+                </span>
+              )}
+              <ChevronDown className="w-3 h-3 text-zinc-500 shrink-0" />
+            </button>
+
+            <div
+              data-testid="reports-platform-filter-menu"
+              className={`absolute left-0 top-full mt-1 z-50 min-w-[84px] rounded-[4px] border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg py-1 ${
+                showPlatformFilterMenu ? 'flex flex-col' : 'hidden'
+              }`}
+            >
+              <button
+                type="button"
+                data-testid="reports-platform-filter-option-all"
+                onClick={() => {
+                  setSelectedPlatform('all');
+                  setShowPlatformFilterMenu(false);
+                }}
+                className={`flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-[10px] font-sans font-medium cursor-pointer transition ${
+                  selectedPlatform === 'all'
+                    ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                    : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                }`}
+                title="Todas las plataformas"
               >
-                <option value="all">Todas</option>
-                <option value="iOS">iOS</option>
-                <option value="Android">Android</option>
-                <option value="iOS/Android">iOS/Android</option>
-              </select>
+                <span>Todas</span>
+              </button>
+              <button
+                type="button"
+                data-testid="reports-platform-filter-option-iOS"
+                onClick={() => {
+                  setSelectedPlatform('iOS');
+                  setShowPlatformFilterMenu(false);
+                }}
+                className={`flex items-center justify-center px-2.5 py-1.5 cursor-pointer transition ${
+                  selectedPlatform === 'iOS'
+                    ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                    : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                }`}
+                title="iOS"
+              >
+                <AppleIosIcon
+                  testId="reports-filter-option-icon-ios"
+                  className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400"
+                />
+              </button>
+              <button
+                type="button"
+                data-testid="reports-platform-filter-option-Android"
+                onClick={() => {
+                  setSelectedPlatform('Android');
+                  setShowPlatformFilterMenu(false);
+                }}
+                className={`flex items-center justify-center px-2.5 py-1.5 cursor-pointer transition ${
+                  selectedPlatform === 'Android'
+                    ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                    : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                }`}
+                title="Android"
+              >
+                <AndroidIcon
+                  testId="reports-filter-option-icon-android"
+                  className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400"
+                />
+              </button>
+              <button
+                type="button"
+                data-testid="reports-platform-filter-option-iOS/Android"
+                onClick={() => {
+                  setSelectedPlatform('iOS/Android');
+                  setShowPlatformFilterMenu(false);
+                }}
+                className={`flex items-center justify-center gap-1 px-2.5 py-1.5 cursor-pointer transition ${
+                  selectedPlatform === 'iOS/Android'
+                    ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                    : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                }`}
+                title="iOS/Android"
+              >
+                <AppleIosIcon
+                  testId="reports-filter-option-icon-both-ios"
+                  className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400"
+                />
+                <AndroidIcon
+                  testId="reports-filter-option-icon-both-android"
+                  className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400"
+                />
+              </button>
             </div>
-          )}
+
+            {/* Hidden fallback select for backward compatibility with existing tests */}
+            <select
+              data-testid="reports-platform-select"
+              value={selectedPlatform}
+              onChange={(e) => setSelectedPlatform(e.target.value as any)}
+              className="sr-only"
+              tabIndex={-1}
+              aria-hidden="true"
+            >
+              <option value="all">Todas</option>
+              <option value="iOS">iOS</option>
+              <option value="Android">Android</option>
+              <option value="iOS/Android">iOS/Android</option>
+            </select>
+          </div>
+
+          {/* Alert Level Filter */}
+          <div ref={alertFilterMenuRef} className="relative flex items-center shrink-0">
+            <button
+              type="button"
+              data-testid="reports-alert-filter"
+              data-selected-alert={selectedAlert}
+              onClick={() => setShowAlertFilterMenu((prev) => !prev)}
+              className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-sans font-medium normal-case rounded-[3px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700/70 outline-none cursor-pointer h-6.5 transition"
+              title="Filtrar por nivel de alerta"
+            >
+              <AlertTriangle
+                className={`w-3 h-3 shrink-0 ${
+                  selectedAlert === 'all'
+                    ? 'text-zinc-500'
+                    : selectedAlert === 0
+                    ? 'text-zinc-400'
+                    : selectedAlert === 1
+                    ? 'text-amber-500'
+                    : selectedAlert === 2
+                    ? 'text-orange-500'
+                    : 'text-rose-500'
+                }`}
+              />
+              <span>
+                {selectedAlert === 'all'
+                  ? 'Alerta'
+                  : `Nivel ${selectedAlert}`}
+              </span>
+              <ChevronDown className="w-3 h-3 text-zinc-500 shrink-0" />
+            </button>
+
+            <div
+              data-testid="reports-alert-filter-menu"
+              className={`absolute left-0 top-full mt-1 z-50 min-w-[140px] rounded-[4px] border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg py-1 ${
+                showAlertFilterMenu ? 'flex flex-col' : 'hidden'
+              }`}
+            >
+              <button
+                type="button"
+                data-testid="reports-alert-filter-option-all"
+                onClick={() => {
+                  setSelectedAlert('all');
+                  setShowAlertFilterMenu(false);
+                }}
+                className={`flex items-center gap-2 px-2.5 py-1.5 text-[10px] font-sans font-medium cursor-pointer transition text-left ${
+                  selectedAlert === 'all'
+                    ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                    : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                }`}
+              >
+                <span>Todas las alertas</span>
+              </button>
+              <button
+                type="button"
+                data-testid="reports-alert-filter-option-0"
+                onClick={() => {
+                  setSelectedAlert(0);
+                  setShowAlertFilterMenu(false);
+                }}
+                className={`flex items-center gap-2 px-2.5 py-1.5 text-[10px] font-sans font-medium cursor-pointer transition text-left ${
+                  selectedAlert === 0
+                    ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                    : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-zinc-400 shrink-0" />
+                <span>Nivel 0 (Normal)</span>
+              </button>
+              <button
+                type="button"
+                data-testid="reports-alert-filter-option-1"
+                onClick={() => {
+                  setSelectedAlert(1);
+                  setShowAlertFilterMenu(false);
+                }}
+                className={`flex items-center gap-2 px-2.5 py-1.5 text-[10px] font-sans font-medium cursor-pointer transition text-left ${
+                  selectedAlert === 1
+                    ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                    : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                <span>Nivel 1 (Baja)</span>
+              </button>
+              <button
+                type="button"
+                data-testid="reports-alert-filter-option-2"
+                onClick={() => {
+                  setSelectedAlert(2);
+                  setShowAlertFilterMenu(false);
+                }}
+                className={`flex items-center gap-2 px-2.5 py-1.5 text-[10px] font-sans font-medium cursor-pointer transition text-left ${
+                  selectedAlert === 2
+                    ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                    : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-orange-500 shrink-0" />
+                <span>Nivel 2 (Media)</span>
+              </button>
+              <button
+                type="button"
+                data-testid="reports-alert-filter-option-3"
+                onClick={() => {
+                  setSelectedAlert(3);
+                  setShowAlertFilterMenu(false);
+                }}
+                className={`flex items-center gap-2 px-2.5 py-1.5 text-[10px] font-sans font-medium cursor-pointer transition text-left ${
+                  selectedAlert === 3
+                    ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                    : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+                <span>Nivel 3 (Alta)</span>
+              </button>
+            </div>
+          </div>
 
           {/* Release Filter */}
-          {(activeTab === 'cronograma' || activeTab === 'projects') && releases.length > 0 && (
-            <div className="flex items-center gap-1">
+          {releases.length > 0 && (
+            <div className="flex items-center gap-1 shrink-0">
               <span className="text-[11px] font-mono text-[#6B6B66] dark:text-zinc-400">Release:</span>
               <select
                 data-testid="reports-release-select"
                 value={selectedRelease}
                 onChange={(e) => setSelectedRelease(e.target.value)}
-                className="px-2 py-1 rounded-[3px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs text-[#0C0C09] dark:text-zinc-200 outline-none cursor-pointer max-w-[160px] truncate"
+                className="px-2 py-0.5 rounded-[3px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[10px] text-zinc-800 dark:text-zinc-200 outline-none cursor-pointer max-w-[160px] truncate h-6.5 font-sans"
               >
                 <option value="all">Todas las releases</option>
                 {releases.map((r) => (
@@ -336,15 +723,17 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           )}
 
           {/* Clear Filters Button */}
-          {(searchQuery || selectedPlatform !== 'all' || selectedRelease !== 'all') && (
+          {(searchQuery || selectedPlatform !== 'all' || selectedAlert !== 'all' || selectedRelease !== 'all') && (
             <button
               type="button"
+              data-testid="reports-clear-filters-btn"
               onClick={() => {
                 setSearchQuery('');
                 setSelectedPlatform('all');
+                setSelectedAlert('all');
                 setSelectedRelease('all');
               }}
-              className="px-2 py-1 text-[11px] text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09] dark:hover:text-white underline cursor-pointer"
+              className="px-2 py-0.5 text-[11px] text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09] dark:hover:text-white underline cursor-pointer"
             >
               Limpiar filtros
             </button>
@@ -486,7 +875,37 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
                         {/* Project */}
                         <td className="px-3 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap font-sans text-xs text-[#0C0C09] dark:text-zinc-200">
-                          {row.projectName}
+                          <div className="flex items-center gap-1.5">
+                            <span>{row.projectName}</span>
+                            {isProject && row.alertLevel !== undefined && (
+                              <span
+                                data-testid={`cronograma-project-alert-badge-${row.wbsCode}`}
+                                className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-mono font-bold border ${
+                                  row.alertLevel === 1
+                                    ? 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
+                                    : row.alertLevel === 2
+                                    ? 'bg-orange-50 text-orange-800 border-orange-300 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800'
+                                    : row.alertLevel === 3
+                                    ? 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
+                                    : 'bg-zinc-100 text-zinc-600 border-zinc-300 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700'
+                                }`}
+                                title={`Nivel de alerta: ${row.alertLevel}`}
+                              >
+                                <span
+                                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                    row.alertLevel === 1
+                                      ? 'bg-amber-500'
+                                      : row.alertLevel === 2
+                                      ? 'bg-orange-500'
+                                      : row.alertLevel === 3
+                                      ? 'bg-rose-500'
+                                      : 'bg-zinc-400'
+                                  }`}
+                                />
+                                <span>{row.alertLevel}</span>
+                              </span>
+                            )}
+                          </div>
                         </td>
 
                         {/* Platform */}
@@ -782,7 +1201,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 {filteredReleaseRows.length === 0 ? (
                   <tr>
                     <td colSpan={9} className="px-4 py-8 text-center text-[#6B6B66] dark:text-zinc-400 font-sans">
-                      No hay releases registradas o ninguna coincide con la búsqueda.
+                      No hay releases registradas o ninguna coincide con los filtros aplicados.
                     </td>
                   </tr>
                 ) : (

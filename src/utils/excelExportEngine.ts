@@ -14,8 +14,11 @@ export interface CronogramaReportRow {
   wbsCode: string;
   name: string;
   releaseCode: string;
+  releaseId?: string;
   projectName: string;
+  projectId?: string;
   platform: string;
+  alertLevel?: number;
   type: string;
   startDate: string;
   endDate: string;
@@ -55,6 +58,10 @@ export interface ReleaseSummaryReportRow {
   duration: number;
   assignedProjects: string;
   keyMilestones: string;
+  releaseId?: string;
+  projectIds?: string[];
+  platforms?: string[];
+  alertLevels?: number[];
 }
 
 export const CRONOGRAMA_HEADER = [
@@ -145,8 +152,10 @@ export function generateCronogramaCompletoRows(
         wbsCode: rg.release.code,
         name: rg.release.name,
         releaseCode: rg.release.code,
+        releaseId: rg.release.id,
         projectName: '—',
         platform: '—',
+        alertLevel: undefined,
         type: 'Release',
         startDate: rg.startDate,
         endDate: rg.endDate,
@@ -170,8 +179,11 @@ export function generateCronogramaCompletoRows(
           wbsCode: `P${pg.projectIndex}`,
           name: pg.project.name,
           releaseCode: rg.release.code,
+          releaseId: rg.release.id,
           projectName: pg.project.name,
+          projectId: pg.project.id,
           platform: platformLabel,
+          alertLevel: pg.project.alertLevel ?? 0,
           type: 'Proyecto',
           startDate: pg.startDate,
           endDate: pg.endDate,
@@ -197,6 +209,7 @@ export function generateCronogramaCompletoRows(
             ? releases.find((r) => r.id === item.releaseId) || rg.release
             : rg.release;
           const effectiveReleaseCode = effectiveRel?.code || rg.release.code;
+          const effectiveReleaseId = effectiveRel?.id || rg.release.id;
 
           const violations = checkTaskReleaseCompliance(item, pg.project, effectiveRel);
           const complianceLabel =
@@ -213,8 +226,11 @@ export function generateCronogramaCompletoRows(
               wbsCode,
               name: item.name,
               releaseCode: effectiveReleaseCode,
+              releaseId: effectiveReleaseId,
               projectName: pg.project.name,
+              projectId: pg.project.id,
               platform: normalizePlatform(item.platform) || platformLabel,
+              alertLevel: pg.project.alertLevel ?? 0,
               type: typeLabel,
               startDate: item.startDate,
               endDate: item.endDate,
@@ -242,8 +258,11 @@ export function generateCronogramaCompletoRows(
                 wbsCode,
                 name: item.name,
                 releaseCode: effectiveReleaseCode,
+                releaseId: effectiveReleaseId,
                 projectName: pg.project.name,
+                projectId: pg.project.id,
                 platform: normalizePlatform(item.platform) || platformLabel,
+                alertLevel: pg.project.alertLevel ?? 0,
                 type: typeLabel,
                 startDate: item.startDate,
                 endDate: item.endDate,
@@ -275,7 +294,9 @@ export function generateCronogramaCompletoRows(
         name: pg.project.name,
         releaseCode: '—',
         projectName: pg.project.name,
+        projectId: pg.project.id,
         platform: platformLabel,
+        alertLevel: pg.project.alertLevel ?? 0,
         type: 'Proyecto',
         startDate: pg.startDate,
         endDate: pg.endDate,
@@ -307,7 +328,9 @@ export function generateCronogramaCompletoRows(
             name: item.name,
             releaseCode: '—',
             projectName: pg.project.name,
+            projectId: pg.project.id,
             platform: normalizePlatform(item.platform) || platformLabel,
+            alertLevel: pg.project.alertLevel ?? 0,
             type: typeLabel,
             startDate: item.startDate,
             endDate: item.endDate,
@@ -335,7 +358,9 @@ export function generateCronogramaCompletoRows(
               name: item.name,
               releaseCode: '—',
               projectName: pg.project.name,
+              projectId: pg.project.id,
               platform: normalizePlatform(item.platform) || platformLabel,
+              alertLevel: pg.project.alertLevel ?? 0,
               type: typeLabel,
               startDate: item.startDate,
               endDate: item.endDate,
@@ -375,20 +400,25 @@ export function generateProjectSummaryRows(
     const milestoneCount = pg.items.filter((it) => it.type === 'milestone').length;
     const alertLevel = pg.project.alertLevel ?? 0;
 
-    const descLines: string[] = [];
     const projDesc = (pg.project.description || '').trim();
-    if (projDesc) {
-      descLines.push(projDesc);
-    }
+    const taskLines: string[] = [];
     for (const it of pg.items) {
       const itDesc = (it.notes || (it as any).description || '').trim().replace(/\r?\n+/g, ' ');
       if (itDesc) {
-        descLines.push(`${it.name} ${itDesc}`);
+        taskLines.push(`* ${it.name} ${itDesc}`);
       } else {
-        descLines.push(it.name);
+        taskLines.push(`* ${it.name}`);
       }
     }
-    const description = descLines.join('\n');
+
+    let description = '';
+    if (projDesc && taskLines.length > 0) {
+      description = `${projDesc}\n\n${taskLines.join('\n')}`;
+    } else if (projDesc) {
+      description = projDesc;
+    } else if (taskLines.length > 0) {
+      description = taskLines.join('\n');
+    }
 
     rows.push({
       code: `P${pg.projectIndex}`,
@@ -420,8 +450,8 @@ export function generateReleaseSummaryRows(
   const rows: ReleaseSummaryReportRow[] = [];
 
   for (const rel of releases) {
-    const assignedProjs = projects
-      .filter((p) => p.releaseId === rel.id)
+    const relProjects = projects.filter((p) => p.releaseId === rel.id);
+    const assignedProjs = relProjects
       .map((p) => p.name)
       .join(', ');
     const keyMilestones = rel.milestones
@@ -438,6 +468,10 @@ export function generateReleaseSummaryRows(
       duration: span.duration || 0,
       assignedProjects: assignedProjs || 'Ninguno',
       keyMilestones: keyMilestones || 'Sin hitos',
+      releaseId: rel.id,
+      projectIds: relProjects.map((p) => p.id),
+      platforms: relProjects.map((p) => normalizePlatform(p.platform) || 'iOS/Android'),
+      alertLevels: relProjects.map((p) => p.alertLevel ?? 0),
     });
   }
 

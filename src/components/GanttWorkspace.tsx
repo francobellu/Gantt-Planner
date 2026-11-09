@@ -107,37 +107,8 @@ import {
   RELEASE_MILESTONE_DEFINITIONS,
 } from '../utils/releaseEngine';
 
-const AppleIosIcon: React.FC<{ className?: string; testId?: string }> = ({
-  className = 'w-3 h-3',
-  testId,
-}) => (
-  <svg
-    data-testid={testId}
-    data-platform-icon="iOS"
-    viewBox="0 0 24 24"
-    fill="currentColor"
-    className={className}
-    aria-label="iOS"
-  >
-    <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.33c.64-.78 1.08-1.86.96-2.94-.93.04-2.06.62-2.72 1.4-.58.68-1.1 1.79-.96 2.84 1.04.08 2.08-.52 2.72-1.3Z" />
-  </svg>
-);
+import { AppleIosIcon, AndroidIcon } from './PlatformIcons';
 
-const AndroidIcon: React.FC<{ className?: string; testId?: string }> = ({
-  className = 'w-3 h-3',
-  testId,
-}) => (
-  <svg
-    data-testid={testId}
-    data-platform-icon="Android"
-    viewBox="0 0 24 24"
-    fill="currentColor"
-    className={className}
-    aria-label="Android"
-  >
-    <path d="M17.523 15.341a.96.96 0 0 1-.958-.958.96.96 0 0 1 .958-.958.96.96 0 0 1 .958.958.96.96 0 0 1-.958.958m-11.046 0a.96.96 0 0 1-.958-.958.96.96 0 0 1 .958-.958.96.96 0 0 1 .958.958.96.96 0 0 1-.958.958m11.4-6.02 1.996-3.459a.416.416 0 0 0-.152-.567.416.416 0 0 0-.568.152L17.132 8.95c-1.484-.676-3.153-1.053-5.132-1.053-1.979 0-3.648.377-5.132 1.053L4.847 5.447a.416.416 0 0 0-.568-.152.416.416 0 0 0-.152.567l1.996 3.459C2.688 11.186.443 14.658 0 18.761h24c-.443-4.103-2.688-7.575-6.123-9.44" />
-  </svg>
-);
 
 function computePolylineMidpoint(pts: OrthogonalPoint[]): OrthogonalPoint {
   if (pts.length === 0) return { x: 0, y: 0 };

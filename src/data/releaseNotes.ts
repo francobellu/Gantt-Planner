@@ -10,10 +10,24 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.9.1',
+    date: '09 Nov 2026',
+    title: 'Filtros unificados de plataforma y alerta en todos los informes y nuevo formato con viñetas en Resumen Proyectos',
+    isLatest: true,
+    features: [
+      'Filtros completos en todos los informes de plan: las 3 pestañas de informes («Cronograma Completo», «Resumen Proyectos» y «Catálogo Releases») incorporan los mismos controles interactivos que la tabla principal: filtro visual por plataforma (con iconos iOS y Android) y filtro por nivel de alerta (0 a 3 con indicadores por color), aplicados de forma coherente.',
+      'Formato estructurado de descripción compuesta en Resumen Proyectos: la columna de descripción combina la descripción general del proyecto seguida de una línea en blanco y la lista de subtareas con viñetas en formato «* <nombre tarea> <descripción tarea>».',
+    ],
+    improvements: [
+      'Badges indicadores del nivel de alerta en las filas de proyecto del informe «Cronograma Completo».',
+      'Filtrado sincronizado en «Catálogo Releases» que filtra automáticamente aquellas releases asociadas a proyectos que coincidan con la plataforma o el nivel de alerta seleccionado.',
+    ],
+  },
+  {
     version: '1.9.0',
     date: '08 Nov 2026',
     title: 'Campo Nivel de Alerta (0 a 3) en proyectos y filtrado multinivel en la barra de herramientas',
-    isLatest: true,
+    isLatest: false,
     features: [
       'Nivel de Alerta (0 a 3) en proyectos: cada proyecto dispone de un nuevo atributo de nivel de alerta configurable (0 = Normal/Sin alerta, 1 = Baja, 2 = Media, 3 = Alta/Crítica), visible mediante un badge indicador en la fila del proyecto en la tabla WBS.',
       'Filtro por Nivel de Alerta en la barra del Cronograma: nuevo menú desplegable de filtro que permite aislar proyectos según su nivel de alerta (Todas, Nivel 0, Nivel 1, Nivel 2, Nivel 3) combinable simultáneamente con el filtro de plataforma y el buscador por texto.',
