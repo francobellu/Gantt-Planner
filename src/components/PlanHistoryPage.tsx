@@ -103,6 +103,12 @@ const ACTION_BADGE_CONFIG: Record<
     text: 'text-purple-700 dark:text-purple-300',
     border: 'border-purple-200 dark:border-purple-800',
   },
+  toggle_project_lock: {
+    label: 'Bloqueo Proyecto',
+    bg: 'bg-amber-50 dark:bg-amber-950/60',
+    text: 'text-amber-800 dark:text-amber-300',
+    border: 'border-amber-300 dark:border-amber-700',
+  },
   delete_project: {
     label: 'Eliminar Proyecto',
     bg: 'bg-rose-50 dark:bg-rose-950/60',

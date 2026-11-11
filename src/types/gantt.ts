@@ -1,4 +1,4 @@
-export const APP_VERSION = '1.9.1';
+export const APP_VERSION = '1.9.2';
 
 export const DEFAULT_TRUNCATE_CHAR_LIMIT = 37;
 export const TRUNCATE_LIMIT_STORAGE_KEY = 'ganttflow_truncate_char_limit';
@@ -70,6 +70,7 @@ export interface GanttProject {
   platform?: ProjectPlatform;
   projectIndex?: number; // Unique, fixed project identifier number (e.g. 1 -> P1) that does not change on reorder
   alertLevel?: ProjectAlertLevel; // Alert level 0 (Normal), 1 (Baja), 2 (Media), 3 (Alta)
+  locked?: boolean; // When true, project items and structure are locked in the schedule against accidental moves/edits
 }
 
 export interface GanttItem {
@@ -159,6 +160,7 @@ export type PlanHistoryActionType =
   | 'change_project_color'
   | 'create_project'
   | 'edit_project'
+  | 'toggle_project_lock'
   | 'delete_project'
   | 'dependency_change'
   | 'resolve_conflicts'

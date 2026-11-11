@@ -619,17 +619,27 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
               </div>
 
               {!isCreatingNewProject ? (
-                <select
-                  value={projectId}
-                  onChange={(e) => handleProjectSelectChange(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
-                >
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                <>
+                  <select
+                    value={projectId}
+                    onChange={(e) => handleProjectSelectChange(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
+                  >
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.locked ? `🔒 ${p.name} (Bloqueado)` : p.name}
+                      </option>
+                    ))}
+                  </select>
+                  {projects.find((p) => p.id === projectId)?.locked && (
+                    <p
+                      data-testid="task-modal-locked-project-warning"
+                      className="text-[11px] font-medium text-amber-700 dark:text-amber-300 mt-1"
+                    >
+                      🔒 Este proyecto está bloqueado en el cronograma. Desbloquéalo antes de guardar cambios.
+                    </p>
+                  )}
+                </>
               ) : (
                 <div className="flex flex-wrap items-center gap-2">
                   <input

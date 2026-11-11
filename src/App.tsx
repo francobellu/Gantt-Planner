@@ -22,6 +22,7 @@ import {
   HelpCircle,
   History,
   Layers,
+  Lock,
   Maximize2,
   Moon,
   Plus,
@@ -79,6 +80,7 @@ import {
   formatFieldDiffsInline,
   getDayWidthForPreset,
   getDefaultSavedScenarios,
+  getLockedProjectForItem,
   getProjectTemplates,
   getRelatedFocusEntityIds,
   groupItemsByProject,
@@ -109,6 +111,7 @@ import { ReleasesModal } from './components/ReleasesModal';
 import { SettingsModal } from './components/SettingsModal';
 import { ReleaseNotesModal } from './components/ReleaseNotesModal';
 import { ReportsView } from './components/ReportsView';
+import { ProjectLockedAlertModal } from './components/ProjectLockedAlertModal';
 import {
   DEFAULT_PREDEFINED_RELEASES,
   checkTaskReleaseCompliance,
@@ -832,6 +835,10 @@ export function App({
   >('all');
 
   const [scenarioSavedToast, setScenarioSavedToast] = useState<string | null>(null);
+  const [appLockedAlert, setAppLockedAlert] = useState<{
+    project: GanttProject;
+    attemptedAction?: string;
+  } | null>(null);
 
   // Minimalist UI toggles and menus
   const [showMetricsDrawer, setShowMetricsDrawer] = useState<boolean>(false);
@@ -1178,10 +1185,25 @@ export function App({
     });
     const prevItem = items.find((it) => it.id === cleanItem.id);
     const exists = Boolean(prevItem);
+    const lockedSourceProj = prevItem
+      ? getLockedProjectForItem(prevItem, effectiveProjects)
+      : undefined;
+    const lockedTargetProj = getLockedProjectForItem(cleanItem, effectiveProjects);
+    const blockedProj = lockedSourceProj || lockedTargetProj;
+    if (blockedProj) {
+      setAppLockedAlert({
+        project: blockedProj,
+        attemptedAction: exists
+          ? `guardar cambios en «${cleanItem.name}»`
+          : `crear «${cleanItem.name}» en proyecto bloqueado`,
+      });
+      return;
+    }
+
     const nextRaw = exists
       ? items.map((it) => (it.id === cleanItem.id ? cleanItem : it))
       : [...items, cleanItem];
-    const next = cascade ? cascadeDependencies(nextRaw) : nextRaw;
+    const next = cascade ? cascadeDependencies(nextRaw, effectiveProjects) : nextRaw;
     setItems(next);
     const isM = cleanItem.type === 'milestone';
     const actionType: PlanHistoryActionType = exists ? 'edit_item' : 'create_item';
@@ -1205,7 +1227,7 @@ export function App({
     const cleanItem = sanitizeGanttItem(updatedItem);
     const prevItem = items.find((it) => it.id === cleanItem.id);
     const nextRaw = items.map((it) => (it.id === cleanItem.id ? cleanItem : it));
-    const next = cascade ? cascadeDependencies(nextRaw) : nextRaw;
+    const next = cascade ? cascadeDependencies(nextRaw, effectiveProjects) : nextRaw;
     setItems(next);
 
     let actionType: PlanHistoryActionType = 'edit_item';
@@ -1484,8 +1506,27 @@ export function App({
     );
   };
 
+  const guardAppProjectUnlocked = (
+    projectId: string,
+    attemptedAction: string
+  ): GanttProject | undefined => {
+    const target = effectiveProjects.find((p) => p.id === projectId);
+    if (target?.locked) {
+      setAppLockedAlert({ project: target, attemptedAction });
+      return undefined;
+    }
+    return target;
+  };
+
   const handleUpdateProject = (updatedProj: GanttProject) => {
     const prevProj = effectiveProjects.find((p) => p.id === updatedProj.id);
+    if (prevProj?.locked && updatedProj.locked) {
+      setAppLockedAlert({
+        project: prevProj,
+        attemptedAction: 'editar las propiedades del proyecto',
+      });
+      return;
+    }
     const nextProjects = effectiveProjects.map((p) =>
       p.id === updatedProj.id
         ? { ...updatedProj, projectIndex: updatedProj.projectIndex ?? p.projectIndex }
@@ -1497,6 +1538,22 @@ export function App({
       setItems(nextItems);
     }
     const projDiffs = describeProjectStateChanges(prevProj, updatedProj, releases);
+    const prevLocked = Boolean(prevProj?.locked);
+    const nextLocked = Boolean(updatedProj.locked);
+    if (prevProj && prevLocked !== nextLocked && projDiffs.length === 1) {
+      recordPlanChange(
+        'toggle_project_lock',
+        'Bloqueo Proyecto',
+        nextLocked
+          ? `Bloquear proyecto '${updatedProj.name}'`
+          : `Desbloquear proyecto '${updatedProj.name}'`,
+        nextItems,
+        nextProjects,
+        updatedProj.id
+      );
+      return;
+    }
+
     const diffSummary = formatFieldDiffsInline(projDiffs);
     const baseDesc = `Actualizar proyecto '${updatedProj.name}'`;
     const desc = diffSummary ? `${baseDesc} (${diffSummary})` : baseDesc;
@@ -1511,7 +1568,7 @@ export function App({
   };
 
   const handleReorderProject = (projectId: string, direction: 'up' | 'down') => {
-    const targetProj = effectiveProjects.find((p) => p.id === projectId);
+    const targetProj = guardAppProjectUnlocked(projectId, 'reordenar el proyecto');
     if (!targetProj) return;
 
     const nextProjects = reorderProject(effectiveProjects, projectId, direction);
@@ -1529,6 +1586,8 @@ export function App({
   };
 
   const handleChangeProjectColor = (projectId: string, newColor: TaskColor) => {
+    if (!guardAppProjectUnlocked(projectId, 'cambiar el color del proyecto')) return;
+
     const nextProjects = effectiveProjects.map((p) =>
       p.id === projectId ? { ...p, color: newColor } : p
     );
@@ -1568,8 +1627,9 @@ export function App({
   };
 
   const handleDeleteProject = (projectId: string, skipConfirm = false) => {
-    const proj = effectiveProjects.find((p) => p.id === projectId);
-    const projectName = proj?.name || 'este proyecto';
+    const proj = guardAppProjectUnlocked(projectId, 'eliminar el proyecto');
+    if (!proj) return;
+    const projectName = proj.name || 'este proyecto';
     const taskCount = items.filter((it) => it.projectId === projectId).length;
     if (!skipConfirm && typeof window !== 'undefined' && window.confirm) {
       const confirmed = window.confirm(
@@ -1593,28 +1653,28 @@ export function App({
     recordPlanChange(
       'delete_project',
       'Eliminar Proyecto',
-      `Eliminar proyecto '${proj?.name || projectId}'`,
+      `Eliminar proyecto '${proj.name || projectId}'`,
       nextItems,
       remaining
     );
   };
 
   const handleAssignProjectToRelease = (projectId: string, releaseId?: string) => {
-    const prevProj = effectiveProjects.find((p) => p.id === projectId);
-    const updatedProj: GanttProject | undefined = prevProj
-      ? { ...prevProj, releaseId: releaseId || undefined }
-      : undefined;
+    const prevProj = guardAppProjectUnlocked(projectId, 'asignar una release al proyecto');
+    if (!prevProj) return;
+    const updatedProj: GanttProject = {
+      ...prevProj,
+      releaseId: releaseId || undefined,
+    };
     const nextProjects = effectiveProjects.map((p) =>
       p.id === projectId ? { ...p, releaseId: releaseId || undefined } : p
     );
     setProjects(nextProjects);
     const rel = releases.find((r) => r.id === releaseId);
 
-    const nextItems = updatedProj
-      ? propagateProjectChangesToItems(prevProj, updatedProj, items, releases, {
-          release: true,
-        })
-      : items;
+    const nextItems = propagateProjectChangesToItems(prevProj, updatedProj, items, releases, {
+      release: true,
+    });
     if (nextItems !== items) {
       setItems(nextItems);
     }
@@ -1623,8 +1683,8 @@ export function App({
       'edit_project',
       'Release',
       releaseId
-        ? `Asignar proyecto '${prevProj?.name || projectId}' a release '${rel?.code || releaseId}'`
-        : `Desasignar release de proyecto '${prevProj?.name || projectId}'`,
+        ? `Asignar proyecto '${prevProj.name || projectId}' a release '${rel?.code || releaseId}'`
+        : `Desasignar release de proyecto '${prevProj.name || projectId}'`,
       nextItems,
       nextProjects,
       projectId
@@ -1639,7 +1699,28 @@ export function App({
   };
 
   const handleResolveAllConflicts = () => {
-    const next = cascadeDependencies(items);
+    const next = cascadeDependencies(items, effectiveProjects);
+    const hasChanges = next.some(
+      (it, idx) => it.startDate !== items[idx]?.startDate || it.endDate !== items[idx]?.endDate
+    );
+
+    if (!hasChanges) {
+      const unconstrained = cascadeDependencies(items);
+      const blockedItem = items.find(
+        (it, idx) =>
+          unconstrained[idx] &&
+          (unconstrained[idx].startDate !== it.startDate || unconstrained[idx].endDate !== it.endDate)
+      );
+      const lockedProj = getLockedProjectForItem(blockedItem, effectiveProjects);
+      if (lockedProj) {
+        setAppLockedAlert({
+          project: lockedProj,
+          attemptedAction: 'reprogramar automáticamente las dependencias en conflicto',
+        });
+      }
+      return;
+    }
+
     setItems(next);
     recordPlanChange(
       'resolve_conflicts',
@@ -1648,6 +1729,20 @@ export function App({
       next,
       effectiveProjects
     );
+
+    const remainingAfter = cascadeDependencies(next);
+    const stillBlockedItem = next.find(
+      (it, idx) =>
+        remainingAfter[idx] &&
+        (remainingAfter[idx].startDate !== it.startDate ||
+          remainingAfter[idx].endDate !== it.endDate)
+    );
+    const remainingLockedProj = getLockedProjectForItem(stillBlockedItem, effectiveProjects);
+    if (remainingLockedProj) {
+      showToast(
+        `Cascada aplicada en proyectos activos. '${remainingLockedProj.name}' está bloqueado y no se modificó.`
+      );
+    }
   };
 
   const handleNavigateToConflictItem = (conflictItem: {
@@ -2218,6 +2313,14 @@ export function App({
                         <span className="truncate max-w-[120px] font-display">
                           {group.project.name}
                         </span>
+                        {group.project.locked && (
+                          <span
+                            title="Proyecto bloqueado en el cronograma"
+                            className="inline-flex items-center shrink-0 text-amber-600 dark:text-amber-400"
+                          >
+                            <Lock className="w-3 h-3" />
+                          </span>
+                        )}
                         {isReleaseHidden && (
                           <span
                             className="text-[9px] px-1 py-0.2 rounded bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 font-mono shrink-0"
@@ -3040,6 +3143,17 @@ export function App({
       <ReleaseNotesModal
         isOpen={showReleaseNotesModal}
         onClose={() => setShowReleaseNotesModal(false)}
+      />
+
+      <ProjectLockedAlertModal
+        project={appLockedAlert?.project ?? null}
+        attemptedAction={appLockedAlert?.attemptedAction}
+        onUnlock={(proj) => {
+          setAppLockedAlert(null);
+          handleUpdateProject({ ...proj, locked: false });
+          showToast(`Proyecto "${proj.name}" desbloqueado.`);
+        }}
+        onClose={() => setAppLockedAlert(null)}
       />
 
       {/* Hidden File Input for JSON / CSV Import */}

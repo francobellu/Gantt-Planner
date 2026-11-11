@@ -337,6 +337,7 @@ export function sanitizeProject(
     releaseId: raw.releaseId != null ? String(raw.releaseId).trim() || undefined : undefined,
     platform,
     ...(alertLevel !== undefined ? { alertLevel } : {}),
+    ...(raw.locked ? { locked: true } : {}),
     collapsed: Boolean(raw.collapsed),
     isDemo: isDemoProject({ ...raw, id }),
   };
@@ -691,10 +692,45 @@ export function getEarliestStartFromPredecessors(
 }
 
 /**
- * Propagates schedule changes forward through dependents when auto-cascade is enabled
- * or when the user clicks "Auto-Ajustar Dependencias".
+ * Resolves the set of locked project IDs from a project array or explicit ID set.
  */
-export function cascadeDependencies(items: GanttItem[]): GanttItem[] {
+function resolveLockedProjectIdSet(
+  lockedProjects?: GanttProject[] | Set<string>
+): Set<string> {
+  if (!lockedProjects) return new Set();
+  if (lockedProjects instanceof Set) return lockedProjects;
+  const set = new Set<string>();
+  for (const proj of lockedProjects) {
+    if (proj?.locked) {
+      set.add(proj.id);
+    }
+  }
+  return set;
+}
+
+/**
+ * Returns the parent GanttProject if the item belongs to a currently locked project.
+ */
+export function getLockedProjectForItem(
+  item: Pick<GanttItem, 'projectId'> | undefined,
+  projects?: GanttProject[]
+): GanttProject | undefined {
+  if (!item || !projects || projects.length === 0) return undefined;
+  const pid = item.projectId || projects[0]?.id;
+  if (!pid) return undefined;
+  const proj = projects.find((p) => p.id === pid);
+  return proj?.locked ? proj : undefined;
+}
+
+/**
+ * Automatically cascades and shifts successor start/end dates when a predecessor finishes later
+ * or when the user clicks "Auto-Ajustar Dependencias". Items belonging to locked projects are preserved untouched.
+ */
+export function cascadeDependencies(
+  items: GanttItem[],
+  lockedProjects?: GanttProject[] | Set<string>
+): GanttItem[] {
+  const lockedIds = resolveLockedProjectIdSet(lockedProjects);
   const cloned: GanttItem[] = items.map((it) => ({
     ...it,
     dependencies: [...it.dependencies],
@@ -706,6 +742,9 @@ export function cascadeDependencies(items: GanttItem[]): GanttItem[] {
   for (let pass = 0; pass < cloned.length; pass++) {
     let changed = false;
     for (const item of cloned) {
+      if (item.projectId && lockedIds.has(item.projectId)) {
+        continue;
+      }
       const requiredStart = getEarliestStartFromPredecessors(item, itemMap);
       if (requiredStart) {
         const currentStart = parseDateSafe(item.startDate);
@@ -733,7 +772,8 @@ export function addDependencyLink(
   predId: string,
   succId: string,
   depType: DependencyType = 'FS',
-  cascade = false
+  cascade = false,
+  lockedProjects?: GanttProject[] | Set<string>
 ): { items: GanttItem[]; added: boolean; error?: DependencyMutationError } {
   const cleanPredId = (predId || '').trim();
   const cleanSuccId = (succId || '').trim();
@@ -777,7 +817,7 @@ export function addDependencyLink(
     it.id === cleanSuccId ? updatedSucc : sanitizeGanttItem(it)
   );
   return {
-    items: cascade ? cascadeDependencies(nextItems) : nextItems,
+    items: cascade ? cascadeDependencies(nextItems, lockedProjects) : nextItems,
     added: true,
   };
 }
@@ -789,7 +829,8 @@ export function removeDependencyLink(
   items: GanttItem[],
   predId: string,
   succId: string,
-  cascade = false
+  cascade = false,
+  lockedProjects?: GanttProject[] | Set<string>
 ): { items: GanttItem[]; removed: boolean } {
   const cleanPredId = (predId || '').trim();
   const cleanSuccId = (succId || '').trim();
@@ -818,7 +859,7 @@ export function removeDependencyLink(
     it.id === cleanSuccId ? updatedSucc : sanitizeGanttItem(it)
   );
   return {
-    items: cascade ? cascadeDependencies(nextItems) : nextItems,
+    items: cascade ? cascadeDependencies(nextItems, lockedProjects) : nextItems,
     removed: true,
   };
 }
@@ -831,7 +872,8 @@ export function updateDependencyLinkType(
   predId: string,
   succId: string,
   depType: DependencyType,
-  cascade = false
+  cascade = false,
+  lockedProjects?: GanttProject[] | Set<string>
 ): { items: GanttItem[]; updated: boolean } {
   const cleanPredId = (predId || '').trim();
   const cleanSuccId = (succId || '').trim();
@@ -858,7 +900,7 @@ export function updateDependencyLinkType(
     it.id === cleanSuccId ? updatedSucc : sanitizeGanttItem(it)
   );
   return {
-    items: cascade ? cascadeDependencies(nextItems) : nextItems,
+    items: cascade ? cascadeDependencies(nextItems, lockedProjects) : nextItems,
     updated: true,
   };
 }
@@ -875,7 +917,8 @@ export function moveDependencyLink(
   newPredId: string,
   newSuccId: string,
   depType?: DependencyType,
-  cascade = false
+  cascade = false,
+  lockedProjects?: GanttProject[] | Set<string>
 ): { items: GanttItem[]; moved: boolean; error?: DependencyMutationError } {
   const cOldPred = (oldPredId || '').trim();
   const cOldSucc = (oldSuccId || '').trim();
@@ -913,7 +956,8 @@ export function moveDependencyLink(
         cOldPred,
         cOldSucc,
         depType,
-        cascade
+        cascade,
+        lockedProjects
       );
       return { items: updated.items, moved: updated.updated };
     }
@@ -932,7 +976,8 @@ export function moveDependencyLink(
     cNewPred,
     cNewSucc,
     resolvedDepType,
-    cascade
+    cascade,
+    lockedProjects
   );
   if (!addedStep.added) {
     return { items, moved: false, error: addedStep.error };
@@ -3501,12 +3546,16 @@ export function describeProjectStateChanges(
   releases?: Release[]
 ): HistoryFieldDiff[] {
   if (!prevProj) {
-    return [
+    const initDiffs: HistoryFieldDiff[] = [
       { field: 'Release', before: '—', after: resolveReleaseCodeLabel(nextProj.releaseId, releases) },
       { field: 'Plataforma', before: '—', after: normalizePlatform(nextProj.platform) || 'iOS/Android' },
       { field: 'Alerta', before: '—', after: `Nivel ${nextProj.alertLevel ?? 0}` },
       { field: 'Color', before: '—', after: nextProj.color || 'indigo' },
     ];
+    if (nextProj.locked) {
+      initDiffs.push({ field: 'Bloqueo', before: '—', after: 'Bloqueado' });
+    }
+    return initDiffs;
   }
   const diffs: HistoryFieldDiff[] = [];
   if ((prevProj.name || '') !== (nextProj.name || '')) {
@@ -3572,6 +3621,13 @@ export function describeProjectStateChanges(
       field: 'Vista',
       before: prevProj.collapsed ? 'Colapsado' : 'Expandido',
       after: nextProj.collapsed ? 'Colapsado' : 'Expandido',
+    });
+  }
+  if (Boolean(prevProj.locked) !== Boolean(nextProj.locked)) {
+    diffs.push({
+      field: 'Bloqueo',
+      before: prevProj.locked ? 'Bloqueado' : 'Desbloqueado',
+      after: nextProj.locked ? 'Bloqueado' : 'Desbloqueado',
     });
   }
   return diffs;

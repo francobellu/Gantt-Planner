@@ -10,10 +10,24 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.9.2',
+    date: '11 Nov 2026',
+    title: 'Bloqueo de proyectos en el cronograma y aviso interactivo de desbloqueo',
+    isLatest: true,
+    features: [
+      'Bloqueo de proyectos en el cronograma: nuevo botón de candado directamente en cada fila de proyecto de la tabla WBS y en las propiedades del proyecto para protegerlo frente a movimientos o ediciones accidentales.',
+      'Aviso automático para desbloquear: al intentar arrastrar barras o hitos en el diagrama, editar fechas/duración/holgura/nombres, reordenar tareas o modificar dependencias de un proyecto bloqueado, el cambio se detiene y salta una ventana modal que permite desbloquear el proyecto con un solo clic.',
+    ],
+    improvements: [
+      'Indicador visual de bloqueo tanto en la fila del proyecto como en su barra resumen del diagrama Gantt.',
+      'Protección contra cascada automática de fechas sobre tareas pertenecientes a proyectos bloqueados y registro en el Historial de Versiones.',
+    ],
+  },
+  {
     version: '1.9.1',
     date: '09 Nov 2026',
     title: 'Filtros unificados de plataforma y alerta en todos los informes y nuevo formato con viñetas en Resumen Proyectos',
-    isLatest: true,
+    isLatest: false,
     features: [
       'Filtros completos en todos los informes de plan: las 3 pestañas de informes («Cronograma Completo», «Resumen Proyectos» y «Catálogo Releases») incorporan los mismos controles interactivos que la tabla principal: filtro visual por plataforma (con iconos iOS y Android) y filtro por nivel de alerta (0 a 3 con indicadores por color), aplicados de forma coherente.',
       'Formato estructurado de descripción compuesta en Resumen Proyectos: la columna de descripción combina la descripción general del proyecto seguida de una línea en blanco y la lista de subtareas con viñetas en formato «* <nombre tarea> <descripción tarea>».',

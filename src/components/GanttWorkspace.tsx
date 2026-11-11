@@ -31,6 +31,7 @@ import {
   GitBranch,
   GripHorizontal,
   GripVertical,
+  Lock,
   Maximize2,
   Minus,
   MousePointer,
@@ -45,6 +46,7 @@ import {
   Smartphone,
   Sparkles,
   Trash2,
+  Unlock,
   User,
   X,
 } from 'lucide-react';
@@ -85,6 +87,7 @@ import {
   formatScrubberDate,
   getDayWidthForPreset,
   getItemEffectiveColor,
+  getLockedProjectForItem,
   getRelatedFocusEntityIds,
   getTeamColor,
   groupItemsByProject,
@@ -108,6 +111,7 @@ import {
 } from '../utils/releaseEngine';
 
 import { AppleIosIcon, AndroidIcon } from './PlatformIcons';
+import { ProjectLockedAlertModal } from './ProjectLockedAlertModal';
 
 
 function computePolylineMidpoint(pts: OrthogonalPoint[]): OrthogonalPoint {
@@ -188,6 +192,7 @@ interface GanttWorkspaceProps {
   initialHoveredDepKey?: string | null;
   initialConnectModeSource?: { itemId: string; role: 'pred' | 'succ' } | null;
   initialInspectingProjectId?: string;
+  initialLockedAlertProjectId?: string;
   releases?: Release[];
   activeReleaseId?: string;
   releaseGuideVisibility?: ReleaseGuideVisibility;
@@ -557,6 +562,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   initialHoveredDepKey,
   initialConnectModeSource,
   initialInspectingProjectId,
+  initialLockedAlertProjectId,
   releases = [],
   activeReleaseId,
   releaseGuideVisibility = 'selected',
@@ -845,6 +851,204 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     message: string;
     tone: 'success' | 'error' | 'info';
   } | null>(null);
+  const [lockedAlertState, setLockedAlertState] = useState<{
+    project: GanttProject;
+    attemptedAction?: string;
+  } | null>(() => {
+    if (initialLockedAlertProjectId && projects.length > 0) {
+      const found = projects.find((p) => p.id === initialLockedAlertProjectId);
+      if (found) {
+        return {
+          project: found,
+          attemptedAction: 'mover elementos en el cronograma',
+        };
+      }
+    }
+    return null;
+  });
+  const projectsRef = useRef(projects);
+  projectsRef.current = projects;
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+
+  const showWorkspaceToast = (
+    message: string,
+    tone: 'success' | 'error' | 'info' = 'info'
+  ) => {
+    setDepFeedback({ message, tone });
+    if (typeof window !== 'undefined') {
+      window.setTimeout(() => {
+        setDepFeedback((prev) => (prev?.message === message ? null : prev));
+      }, 2800);
+    }
+  };
+
+  /**
+   * Returns true if the target project is unlocked; otherwise opens the unlock alert modal and returns false.
+   */
+  const guardProjectUnlocked = (
+    projectId: string | undefined,
+    attemptedAction: string
+  ): boolean => {
+    const currentProjects = projectsRef.current;
+    const pid = projectId || currentProjects[0]?.id;
+    const proj = pid ? currentProjects.find((p) => p.id === pid) : undefined;
+    if (proj?.locked) {
+      setLockedAlertState({ project: proj, attemptedAction });
+      return false;
+    }
+    return true;
+  };
+
+  /**
+   * Returns true if the item's parent project is unlocked; otherwise opens the unlock alert modal and returns false.
+   */
+  const guardItemUnlocked = (
+    itemOrId: string | Pick<GanttItem, 'projectId'> | undefined,
+    attemptedAction: string
+  ): boolean => {
+    const resolvedItem =
+      typeof itemOrId === 'string'
+        ? itemsRef.current.find((it) => it.id === itemOrId)
+        : itemOrId;
+    const lockedProj = getLockedProjectForItem(resolvedItem, projectsRef.current);
+    if (lockedProj) {
+      setLockedAlertState({ project: lockedProj, attemptedAction });
+      return false;
+    }
+    return true;
+  };
+
+  const handleToggleProjectLock = (
+    project: GanttProject,
+    nextLocked = !project.locked
+  ) => {
+    const updated: GanttProject = { ...project, locked: nextLocked };
+    onUpdateProject?.(updated);
+    setInspectingProject((prev) =>
+      prev && prev.id === project.id ? { ...prev, locked: nextLocked } : prev
+    );
+    if (!nextLocked) {
+      setLockedAlertState((prev) =>
+        prev && prev.project.id === project.id ? null : prev
+      );
+      showWorkspaceToast(
+        `Proyecto «${project.name}» desbloqueado. Ya puedes realizar cambios.`,
+        'success'
+      );
+    } else {
+      showWorkspaceToast(
+        `Proyecto «${project.name}» bloqueado para evitar cambios accidentales.`,
+        'info'
+      );
+    }
+  };
+
+  const guardedUpdateItem = (updated: GanttItem, cascade: boolean) => {
+    const prev = itemsRef.current.find((it) => it.id === updated.id);
+    if (!guardItemUnlocked(prev || updated, `editar «${updated.name}»`)) return;
+    if (
+      prev &&
+      updated.projectId !== prev.projectId &&
+      !guardProjectUnlocked(
+        updated.projectId,
+        `mover «${updated.name}» a proyecto bloqueado`
+      )
+    ) {
+      return;
+    }
+    onUpdateItem(updated, cascade);
+  };
+
+  const guardedReorderItem = (itemId: string, direction: 'up' | 'down') => {
+    if (!guardItemUnlocked(itemId, 'reordenar tarea en la tabla')) return;
+    onReorderItem?.(itemId, direction);
+  };
+
+  const guardedEditModal = (item: ComputedGanttItem) => {
+    if (!guardItemUnlocked(item, `editar «${item.name}»`)) return;
+    onEditModal(item);
+  };
+
+  const guardedDuplicateItem = (item: ComputedGanttItem) => {
+    if (!guardItemUnlocked(item, `duplicar «${item.name}»`)) return;
+    onDuplicateItem(item);
+  };
+
+  const guardedDeleteItem = (id: string) => {
+    const it = itemsRef.current.find((x) => x.id === id);
+    if (!guardItemUnlocked(it || id, `eliminar «${it?.name || 'ítem'}»`)) {
+      return;
+    }
+    onDeleteItem(id);
+  };
+
+  const guardedQuickAdd = (type: 'task' | 'milestone', projectId?: string) => {
+    const targetPid = projectId || projectsRef.current[0]?.id;
+    if (
+      targetPid &&
+      !guardProjectUnlocked(
+        targetPid,
+        type === 'milestone'
+          ? 'añadir hito en proyecto bloqueado'
+          : 'añadir tarea en proyecto bloqueado'
+      )
+    ) {
+      return;
+    }
+    onQuickAdd(type, projectId);
+  };
+
+  const guardedUpdateProject = (
+    project: GanttProject,
+    actionLabel = 'editar proyecto'
+  ) => {
+    const current = projectsRef.current.find((p) => p.id === project.id);
+    if (current?.locked && project.locked) {
+      setLockedAlertState({ project: current, attemptedAction: actionLabel });
+      return;
+    }
+    onUpdateProject?.(project);
+  };
+
+  const guardedReorderProject = (projectId: string, direction: 'up' | 'down') => {
+    if (!guardProjectUnlocked(projectId, 'mover proyecto en el cronograma')) {
+      return;
+    }
+    onReorderProject?.(projectId, direction);
+  };
+
+  const guardedChangeProjectColor = (projectId: string, newColor: TaskColor) => {
+    if (
+      !guardProjectUnlocked(projectId, 'cambiar color de proyecto bloqueado')
+    ) {
+      return;
+    }
+    onChangeProjectColor?.(projectId, newColor);
+  };
+
+  const guardedDeleteProject = (projectId: string) => {
+    if (!guardProjectUnlocked(projectId, 'eliminar proyecto bloqueado')) {
+      return;
+    }
+    onDeleteProject?.(projectId);
+  };
+
+  const guardedCreateDigiTask = (
+    project: GanttProject,
+    taskType?: 'DIGI' | 'SCR'
+  ) => {
+    if (
+      !guardProjectUnlocked(
+        project.id,
+        `añadir tarea ${taskType || 'DIGI'} en proyecto bloqueado`
+      )
+    ) {
+      return;
+    }
+    onCreateDigiTask?.(project, taskType);
+  };
+
   const [cursorScrubber, setCursorScrubber] = useState<{
     x: number;
     date: Date;
@@ -1248,8 +1452,22 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   const lastMouseDownInteractiveRef = useRef<boolean>(false);
   const onMoveItemRef = useRef(onMoveItem);
   onMoveItemRef.current = onMoveItem;
-  const itemsRef = useRef(items);
-  itemsRef.current = items;
+
+  const guardMoveRowUnlocked = (sourceId: string, targetId: string): boolean => {
+    if (!guardItemUnlocked(sourceId, 'mover tarea de posición en la tabla')) {
+      return false;
+    }
+    if (targetId.startsWith('project:')) {
+      return guardProjectUnlocked(
+        targetId.slice('project:'.length),
+        'mover tarea dentro de un proyecto bloqueado'
+      );
+    }
+    return guardItemUnlocked(
+      targetId,
+      'mover tarea dentro de un proyecto bloqueado'
+    );
+  };
 
   useEffect(() => {
     return () => {
@@ -1337,6 +1555,14 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       }
 
       if (!draggingRowIdRef.current) {
+        if (!guardItemUnlocked(itemId, 'reordenar tarea en la tabla')) {
+          detachListeners();
+          draggingRowIdRef.current = null;
+          dragOverRowRef.current = null;
+          setDraggingRowId(null);
+          setDragOverRow(null);
+          return;
+        }
         draggingRowIdRef.current = itemId;
         setDraggingRowId(itemId);
       }
@@ -1418,7 +1644,13 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         activeSource !== activeTarget.id &&
         onMoveItemRef.current
       ) {
-        onMoveItemRef.current(activeSource, activeTarget.id, activeTarget.position);
+        if (guardMoveRowUnlocked(activeSource, activeTarget.id)) {
+          onMoveItemRef.current(
+            activeSource,
+            activeTarget.id,
+            activeTarget.position
+          );
+        }
       }
     };
 
@@ -1434,6 +1666,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       lastMouseDownInteractiveRef.current ||
       (targetEl && targetEl.closest('input, button, select, textarea, a'))
     ) {
+      e.preventDefault();
+      return;
+    }
+    if (!guardItemUnlocked(itemId, 'reordenar tarea en la tabla')) {
       e.preventDefault();
       return;
     }
@@ -1495,17 +1731,19 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       e.dataTransfer.getData('text/plain');
 
     if (sourceId && sourceId !== targetId && onMoveItem) {
-      let position: 'before' | 'after' = 'after';
-      if (!targetId.startsWith('project:')) {
-        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-        if (rect.height > 0) {
-          const rawPos = e.clientY - rect.top < rect.height / 2 ? 'before' : 'after';
-          position = resolveEffectiveDropPosition(sourceId, targetId, rawPos);
-        } else if (dragOverRowRef.current?.id === targetId) {
-          position = dragOverRowRef.current.position;
+      if (guardMoveRowUnlocked(sourceId, targetId)) {
+        let position: 'before' | 'after' = 'after';
+        if (!targetId.startsWith('project:')) {
+          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+          if (rect.height > 0) {
+            const rawPos = e.clientY - rect.top < rect.height / 2 ? 'before' : 'after';
+            position = resolveEffectiveDropPosition(sourceId, targetId, rawPos);
+          } else if (dragOverRowRef.current?.id === targetId) {
+            position = dragOverRowRef.current.position;
+          }
         }
+        onMoveItem(sourceId, targetId, position);
       }
-      onMoveItem(sourceId, targetId, position);
     }
     draggingRowIdRef.current = null;
     dragOverRowRef.current = null;
@@ -2178,20 +2416,40 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     const startX = e.clientX;
     const origStart = parseDateSafe(item.startDate);
     const origDuration = item.type === 'milestone' ? 0 : Math.max(1, item.duration);
+    const lockedProj = getLockedProjectForItem(item, projectsRef.current);
+    const attemptedLabel =
+      mode === 'resize'
+        ? `redimensionar «${item.name}» en el diagrama`
+        : `mover «${item.name}» en el diagrama`;
+    let lockPromptTriggered = false;
 
-    setDragState({
-      itemId: item.id,
-      mode,
-      startX,
-      origStart,
-      origDuration,
-      dayDelta: 0,
-    });
+    if (!lockedProj) {
+      setDragState({
+        itemId: item.id,
+        mode,
+        startX,
+        origStart,
+        origDuration,
+        dayDelta: 0,
+      });
+    }
 
     const onMouseMove = (moveEvent: MouseEvent) => {
       const dx = moveEvent.clientX - startX;
       if (Math.abs(dx) > 3) {
         hasDraggedRef.current = true;
+      }
+      if (lockedProj) {
+        if (Math.abs(dx) > 3 && !lockPromptTriggered) {
+          lockPromptTriggered = true;
+          window.removeEventListener('mousemove', onMouseMove);
+          setDragState(null);
+          setLockedAlertState({
+            project: lockedProj,
+            attemptedAction: attemptedLabel,
+          });
+        }
+        return;
       }
       const deltaDays = Math.round(dx / dayWidth);
       setDragState((prev) => (prev ? { ...prev, dayDelta: deltaDays } : null));
@@ -2202,11 +2460,21 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       window.removeEventListener('mouseup', onMouseUp);
 
       const dx = upEvent.clientX - startX;
-      if (Math.abs(dx) > 3) {
+      const deltaDays = Math.round(dx / dayWidth);
+      if (Math.abs(dx) > 3 || (lockedProj && deltaDays !== 0)) {
         hasDraggedRef.current = true;
       }
-      const deltaDays = Math.round(dx / dayWidth);
       setDragState(null);
+
+      if (lockedProj) {
+        if ((Math.abs(dx) > 3 || deltaDays !== 0) && !lockPromptTriggered) {
+          setLockedAlertState({
+            project: lockedProj,
+            attemptedAction: attemptedLabel,
+          });
+        }
+        return;
+      }
 
       if (deltaDays === 0) return;
 
@@ -2242,24 +2510,24 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     window.addEventListener('mouseup', onMouseUp);
   };
 
-  const showDepToast = (
-    message: string,
-    tone: 'success' | 'error' | 'info' = 'info'
-  ) => {
-    setDepFeedback({ message, tone });
-    if (typeof window !== 'undefined') {
-      window.setTimeout(() => {
-        setDepFeedback((prev) => (prev?.message === message ? null : prev));
-      }, 2800);
-    }
-  };
+  const showDepToast = showWorkspaceToast;
 
   const commitAddDependency = (
     predId: string,
     succId: string,
     depType: DependencyType = 'FS'
   ): boolean => {
-    const res = addDependencyLink(items, predId, succId, depType, autoCascade);
+    if (!guardItemUnlocked(succId, 'crear dependencia en proyecto bloqueado')) {
+      return false;
+    }
+    const res = addDependencyLink(
+      items,
+      predId,
+      succId,
+      depType,
+      autoCascade,
+      projectsRef.current
+    );
     if (!res.added) {
       if (res.error === 'cycle') {
         showDepToast(
@@ -2277,7 +2545,14 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     if (onUpdateItems) {
       onUpdateItems(res.items);
     } else {
-      const nonCascaded = addDependencyLink(items, predId, succId, depType, false);
+      const nonCascaded = addDependencyLink(
+        items,
+        predId,
+        succId,
+        depType,
+        false,
+        projectsRef.current
+      );
       const updatedSucc = nonCascaded.items.find((it) => it.id === succId);
       if (updatedSucc) {
         onUpdateItem(updatedSucc, autoCascade);
@@ -2288,7 +2563,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   };
 
   const commitRemoveDependency = (predId: string, succId: string): boolean => {
-    const res = removeDependencyLink(items, predId, succId, false);
+    if (!guardItemUnlocked(succId, 'eliminar dependencia de proyecto bloqueado')) {
+      return false;
+    }
+    const res = removeDependencyLink(items, predId, succId, false, projectsRef.current);
     if (!res.removed) return false;
 
     if (onUpdateItems) {
@@ -2317,6 +2595,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     newSuccId: string,
     depType?: DependencyType
   ): boolean => {
+    if (!guardItemUnlocked(oldSuccId, 'mover dependencia de proyecto bloqueado')) {
+      return false;
+    }
+    if (!guardItemUnlocked(newSuccId, 'conectar dependencia a proyecto bloqueado')) {
+      return false;
+    }
     const res = moveDependencyLink(
       items,
       oldPredId,
@@ -2324,7 +2608,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       newPredId,
       newSuccId,
       depType,
-      autoCascade
+      autoCascade,
+      projectsRef.current
     );
     if (!res.moved) {
       if (res.error === 'cycle') {
@@ -2350,7 +2635,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         newPredId,
         newSuccId,
         depType,
-        false
+        false,
+        projectsRef.current
       );
       if (oldSuccId !== newSuccId) {
         const updatedOldSucc = nonCascaded.items.find((it) => it.id === oldSuccId);
@@ -2378,13 +2664,30 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     succId: string,
     depType: DependencyType
   ): boolean => {
-    const res = updateDependencyLinkType(items, predId, succId, depType, autoCascade);
+    if (!guardItemUnlocked(succId, 'cambiar tipo de dependencia en proyecto bloqueado')) {
+      return false;
+    }
+    const res = updateDependencyLinkType(
+      items,
+      predId,
+      succId,
+      depType,
+      autoCascade,
+      projectsRef.current
+    );
     if (!res.updated) return false;
 
     if (onUpdateItems) {
       onUpdateItems(res.items);
     } else {
-      const nonCascaded = updateDependencyLinkType(items, predId, succId, depType, false);
+      const nonCascaded = updateDependencyLinkType(
+        items,
+        predId,
+        succId,
+        depType,
+        false,
+        projectsRef.current
+      );
       const updatedSucc = nonCascaded.items.find((it) => it.id === succId);
       if (updatedSucc) {
         onUpdateItem(updatedSucc, autoCascade);
@@ -2607,6 +2910,17 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     if (e.button !== 0) return;
     e.stopPropagation();
     e.preventDefault();
+
+    if (
+      (config.mode === 'create' &&
+        config.originPort === 'in' &&
+        !guardItemUnlocked(config.fixedItemId, 'crear dependencia en proyecto bloqueado')) ||
+      ((config.mode === 'move-source' || config.mode === 'move-target') &&
+        config.oldSuccId &&
+        !guardItemUnlocked(config.oldSuccId, 'mover dependencia de proyecto bloqueado'))
+    ) {
+      return;
+    }
 
     const fixedCoords = itemRowMap.get(config.fixedItemId);
     if (!fixedCoords) return;
@@ -4614,6 +4928,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           <div
                             key={row.rowId}
                             data-project-group={group.project.id}
+                            data-project-locked={group.project.locked ? 'true' : 'false'}
                             style={{ height: ROW_HEIGHT, minWidth: tableMinWidth }}
                             onDragOver={(e) =>
                               handleDragRowOver(e, `project:${group.project.id}`)
@@ -4644,7 +4959,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                   disabled={isFirstInRelease}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    onReorderProject?.(group.project.id, 'up');
+                                    guardedReorderProject(group.project.id, 'up');
                                   }}
                                   className={`p-0.5 rounded-[2px] text-slate-500 hover:text-black dark:hover:text-white transition cursor-pointer ${
                                     isFirstInRelease ? 'opacity-20 cursor-not-allowed hover:text-slate-500' : ''
@@ -4659,7 +4974,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                   disabled={isLastInRelease}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    onReorderProject?.(group.project.id, 'down');
+                                    guardedReorderProject(group.project.id, 'down');
                                   }}
                                   className={`p-0.5 rounded-[2px] text-slate-500 hover:text-black dark:hover:text-white transition cursor-pointer ${
                                     isLastInRelease ? 'opacity-20 cursor-not-allowed hover:text-slate-500' : ''
@@ -4800,24 +5115,34 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                   value={displayProjectName}
                                   onFocus={() => setFocusedProjectInputId(group.project.id)}
                                   onChange={(e) =>
-                                    onUpdateProject?.({
-                                      ...group.project,
-                                      name: e.target.value,
-                                    })
+                                    guardedUpdateProject(
+                                      {
+                                        ...group.project,
+                                        name: e.target.value,
+                                      },
+                                      'renombrar proyecto bloqueado'
+                                    )
                                   }
                                   onBlur={(e) => {
                                     setFocusedProjectInputId(null);
+                                    if (group.project.locked) return;
                                     const trimmed = e.target.value.trim();
                                     if (!trimmed) {
-                                      onUpdateProject?.({
-                                        ...group.project,
-                                        name: `Proyecto ${group.projectIndex}`,
-                                      });
+                                      guardedUpdateProject(
+                                        {
+                                          ...group.project,
+                                          name: `Proyecto ${group.projectIndex}`,
+                                        },
+                                        'renombrar proyecto bloqueado'
+                                      );
                                     } else if (trimmed !== group.project.name) {
-                                      onUpdateProject?.({
-                                        ...group.project,
-                                        name: trimmed,
-                                      });
+                                      guardedUpdateProject(
+                                        {
+                                          ...group.project,
+                                          name: trimmed,
+                                        },
+                                        'renombrar proyecto bloqueado'
+                                      );
                                     }
                                   }}
                                   className={`col-start-1 row-start-1 w-full min-w-[24px] bg-transparent font-bold text-[#0C0C09] dark:text-white focus:bg-white dark:focus:bg-zinc-800 px-1.5 py-0.5 rounded-[2px] outline-none focus:ring-1 focus:ring-indigo-500 transition-all ${
@@ -4828,6 +5153,41 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 />
                               </div>
 
+                              {/* Botón para bloquear / desbloquear el proyecto en el cronograma */}
+                              <button
+                                type="button"
+                                data-testid={`project-lock-btn-${group.project.id}`}
+                                data-project-locked={group.project.locked ? 'true' : 'false'}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleToggleProjectLock(group.project);
+                                }}
+                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[3px] text-[10px] font-semibold border transition cursor-pointer shrink-0 ${
+                                  group.project.locked
+                                    ? 'bg-amber-500/20 text-amber-800 dark:text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
+                                    : 'bg-transparent text-slate-400 hover:text-[#0C0C09] dark:hover:text-white border-transparent hover:border-[#E2E2DC] dark:hover:border-zinc-700 hover:bg-black/5 dark:hover:bg-white/10'
+                                }`}
+                                title={
+                                  group.project.locked
+                                    ? `Proyecto bloqueado en el cronograma (clic para desbloquear)`
+                                    : `Bloquear proyecto «${group.project.name}» para evitar movimientos accidentales`
+                                }
+                                aria-label={
+                                  group.project.locked
+                                    ? `Desbloquear proyecto ${group.project.name}`
+                                    : `Bloquear proyecto ${group.project.name}`
+                                }
+                              >
+                                {group.project.locked ? (
+                                  <>
+                                    <Lock className="w-3 h-3 shrink-0" />
+                                    <span>Bloqueado</span>
+                                  </>
+                                ) : (
+                                  <Unlock className="w-3.5 h-3.5 shrink-0" />
+                                )}
+                              </button>
+
                               {/* Selector de color para cambiar el color de todas las tareas del proyecto */}
                               <div className="relative shrink-0" data-dropdown-container="true">
                                 <button
@@ -4835,6 +5195,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                   data-testid={`project-color-picker-btn-${group.project.id}`}
                                   onClick={(e) => {
                                     e.stopPropagation();
+                                    if (!guardProjectUnlocked(group.project.id, 'cambiar color de proyecto bloqueado')) {
+                                      return;
+                                    }
                                     setActiveColorPickerProjId((prev) => (prev === group.project.id ? null : group.project.id));
                                   }}
                                   className="p-1 rounded-[2px] text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer shrink-0"
@@ -4858,7 +5221,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                           type="button"
                                           data-testid={`project-inline-color-opt-${c.value}`}
                                           onClick={() => {
-                                            onChangeProjectColor?.(group.project.id, c.value);
+                                            guardedChangeProjectColor(group.project.id, c.value);
                                             setActiveColorPickerProjId(null);
                                           }}
                                           title={c.value}
@@ -4944,7 +5307,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                   data-testid={`project-header-add-task-btn-${group.project.id}`}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    onQuickAdd('task', group.project.id);
+                                    guardedQuickAdd('task', group.project.id);
                                   }}
                                   className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition cursor-pointer flex items-center gap-0.5 shrink-0"
                                   title="Añadir primera tarea a este proyecto"
@@ -5006,7 +5369,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => onQuickAdd('task', group.project.id)}
+                                  onClick={() => guardedQuickAdd('task', group.project.id)}
                                   className="p-1 rounded hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400"
                                   title={`Añadir tarea a ${group.project.name}`}
                                 >
@@ -5014,7 +5377,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => onQuickAdd('milestone', group.project.id)}
+                                  onClick={() => guardedQuickAdd('milestone', group.project.id)}
                                   className="p-1 rounded hover:bg-amber-500/20 text-amber-600 dark:text-amber-400"
                                   title={`Añadir hito a ${group.project.name}`}
                                 >
@@ -5025,7 +5388,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                     type="button"
                                     data-testid={`delete-project-row-btn-${group.project.id}`}
                                     onClick={() => {
-                                      onDeleteProject(group.project.id);
+                                      guardedDeleteProject(group.project.id);
                                     }}
                                     className="p-1 rounded hover:bg-rose-500/20 text-slate-400 hover:text-rose-600 transition cursor-pointer"
                                     title={`Eliminar proyecto ${group.project.name}`}
@@ -5062,7 +5425,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               <button
                                 type="button"
                                 data-testid={`project-empty-add-task-btn-${group.project.id}`}
-                                onClick={() => onQuickAdd('task', group.project.id)}
+                                onClick={() => guardedQuickAdd('task', group.project.id)}
                                 className="px-2.5 py-1 text-[11px] font-semibold rounded bg-white dark:bg-zinc-800 border border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-700 transition cursor-pointer flex items-center gap-1 shadow-xs"
                                 title="Crear primera tarea en este proyecto"
                               >
@@ -5074,7 +5437,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                   <button
                                     type="button"
                                     data-testid={`project-empty-add-digi-btn-${group.project.id}`}
-                                    onClick={() => onCreateDigiTask(group.project, 'DIGI')}
+                                    onClick={() => guardedCreateDigiTask(group.project, 'DIGI')}
                                     className="px-2.5 py-1 text-[11px] font-semibold rounded bg-[#0C0C09] hover:bg-[#312C85] dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-[#0C0C09] transition cursor-pointer flex items-center gap-1 shadow-xs font-mono"
                                     title="Crear tarea DIGI automática cubriendo toda la release asignada"
                                   >
@@ -5084,7 +5447,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                   <button
                                     type="button"
                                     data-testid={`project-empty-add-scr-btn-${group.project.id}`}
-                                    onClick={() => onCreateDigiTask(group.project, 'SCR')}
+                                    onClick={() => guardedCreateDigiTask(group.project, 'SCR')}
                                     className="px-2.5 py-1 text-[11px] font-semibold rounded bg-indigo-600 hover:bg-indigo-500 text-white transition cursor-pointer flex items-center gap-1 shadow-xs font-mono"
                                     title="Crear tarea SCR automática cubriendo toda la release asignada"
                                   >
@@ -5191,7 +5554,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                   disabled={isFirstInGroup}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    onReorderItem?.(item.id, 'up');
+                                    guardedReorderItem(item.id, 'up');
                                   }}
                                   className={`p-0.5 rounded-[2px] text-[#6B6B66] hover:text-[#0C0C09] dark:hover:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors ${
                                     isFirstInGroup ? 'opacity-20 cursor-not-allowed hover:bg-transparent hover:text-[#6B6B66]' : ''
@@ -5206,7 +5569,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                   disabled={isLastInGroup}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    onReorderItem?.(item.id, 'down');
+                                    guardedReorderItem(item.id, 'down');
                                   }}
                                   className={`p-0.5 rounded-[2px] text-[#6B6B66] hover:text-[#0C0C09] dark:hover:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors ${
                                     isLastInGroup ? 'opacity-20 cursor-not-allowed hover:bg-transparent hover:text-[#6B6B66]' : ''
@@ -5279,13 +5642,14 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                     value={displayTaskName}
                                     onFocus={() => setFocusedTaskInputId(item.id)}
                                     onChange={(e) =>
-                                      onUpdateItem({ ...item, name: e.target.value }, false)
+                                      guardedUpdateItem({ ...item, name: e.target.value }, false)
                                     }
                                     onBlur={(e) => {
                                       setFocusedTaskInputId(null);
+                                      if (group.project.locked) return;
                                       const trimmed = e.target.value.trim();
                                       if (!trimmed) {
-                                        onUpdateItem(
+                                        guardedUpdateItem(
                                           {
                                             ...item,
                                             name:
@@ -5300,7 +5664,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                           const targetRelId = item.releaseId || group.project.releaseId || releases?.[0]?.id;
                                           const targetRelObj = targetRelId ? releases?.find((r) => r.id === targetRelId) : undefined;
                                           const span = targetRelObj ? getReleaseDateSpan(targetRelObj) : null;
-                                          onUpdateItem(
+                                          guardedUpdateItem(
                                             {
                                               ...item,
                                               name: trimmed,
@@ -5316,7 +5680,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                             false
                                           );
                                         } else {
-                                          onUpdateItem({ ...item, name: trimmed }, false);
+                                          guardedUpdateItem({ ...item, name: trimmed }, false);
                                         }
                                       }
                                     }}
@@ -5444,7 +5808,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                             item.duration,
                                             'task'
                                           );
-                                    onUpdateItem(
+                                    guardedUpdateItem(
                                       { ...item, startDate: newStart, endDate: newEnd },
                                       autoCascade
                                     );
@@ -5464,7 +5828,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                       1,
                                       calculateDurationFromDates(item.startDate, newEnd, 'task')
                                     );
-                                    onUpdateItem(
+                                    guardedUpdateItem(
                                       { ...item, endDate: newEnd, duration: newDur },
                                       autoCascade
                                     );
@@ -5501,7 +5865,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                         dur,
                                         'task'
                                       );
-                                      onUpdateItem(
+                                      guardedUpdateItem(
                                         { ...item, duration: dur, endDate: newEnd },
                                         autoCascade
                                       );
@@ -5526,7 +5890,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                     value={item.slack}
                                     onChange={(e) => {
                                       const slack = Math.max(0, parseInt(e.target.value, 10) || 0);
-                                      onUpdateItem({ ...item, slack }, autoCascade);
+                                      guardedUpdateItem({ ...item, slack }, autoCascade);
                                     }}
                                     className="w-11 px-1 py-0.5 text-center font-mono text-[10px] rounded-[2px] bg-[#F4F4F1] dark:bg-zinc-800 text-[#312C85] dark:text-indigo-400 font-bold border border-[#E2E2DC] dark:border-zinc-700 outline-none focus:ring-1 focus:ring-[#0C0C09]"
                                     title="Holgura / Slack en días (haz clic para editar)"
@@ -5567,7 +5931,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               <button
                                 type="button"
                                 data-testid={`toggle-task-visibility-${item.id}`}
-                                onClick={() => onUpdateItem({ ...item, hidden: !item.hidden }, false)}
+                                onClick={() => guardedUpdateItem({ ...item, hidden: !item.hidden }, false)}
                                 className={`p-1 rounded-[2px] transition cursor-pointer ${
                                   item.hidden
                                     ? 'text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20'
@@ -5583,7 +5947,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               </button>
                               <button
                                 type="button"
-                                onClick={() => onEditModal(item)}
+                                onClick={() => guardedEditModal(item)}
                                 className="p-1 rounded-[2px] hover:bg-black/5 dark:hover:bg-white/10 text-[#6B6B66] hover:text-[#0C0C09] dark:hover:text-white transition cursor-pointer"
                                 title="Editar detalles completos en modal"
                               >
@@ -5591,7 +5955,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               </button>
                               <button
                                 type="button"
-                                onClick={() => onDuplicateItem(item)}
+                                onClick={() => guardedDuplicateItem(item)}
                                 className="p-1 rounded-[2px] hover:bg-black/5 dark:hover:bg-white/10 text-[#6B6B66] hover:text-[#0C0C09] dark:hover:text-white transition cursor-pointer"
                                 title="Duplicar ítem"
                               >
@@ -5599,7 +5963,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               </button>
                               <button
                                 type="button"
-                                onClick={() => onDeleteItem(item.id)}
+                                onClick={() => guardedDeleteItem(item.id)}
                                 className="p-1 rounded-[2px] hover:bg-[#DC2626]/10 text-[#6B6B66] hover:text-[#DC2626] transition cursor-pointer"
                                 title="Eliminar ítem"
                               >
@@ -5625,7 +5989,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             visibleProjectGroups.length > 0
                               ? visibleProjectGroups[visibleProjectGroups.length - 1].project.id
                               : undefined;
-                          onQuickAdd('task', targetProjId);
+                          guardedQuickAdd('task', targetProjId);
                         }}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 transition cursor-pointer"
                         title="Crear nueva tarea"
@@ -6579,6 +6943,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         key={`summary-bar-${group.project.id}`}
                         data-project-summary-bar={group.project.id}
                         data-empty-project-timeline-bar="true"
+                        data-project-locked={group.project.locked ? 'true' : 'false'}
                         data-selected-project-id={isProjectSelected ? group.project.id : undefined}
                         style={{
                           top: rowIndex * ROW_HEIGHT,
@@ -6596,7 +6961,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             e.stopPropagation();
                             onToggleProjectCollapse?.(group.project.id);
                           }}
-                          title={`${group.project.name} (Sin tareas aún · ${targetRel ? `Release ${targetRel.code}` : 'Ventana estimada'}: ${formatDateDisplay(groupStartDateStr, 'dd MMM')} → ${formatDateDisplay(groupEndDateStr, 'dd MMM yyyy')} · Clic para seleccionar proyecto en diagrama)`}
+                          title={`${group.project.name}${group.project.locked ? ' · 🔒 Bloqueado' : ''} (Sin tareas aún · ${targetRel ? `Release ${targetRel.code}` : 'Ventana estimada'}: ${formatDateDisplay(groupStartDateStr, 'dd MMM')} → ${formatDateDisplay(groupEndDateStr, 'dd MMM yyyy')} · Clic para seleccionar proyecto en diagrama)`}
                           className={`relative z-20 flex flex-col justify-center cursor-pointer pointer-events-auto group overflow-visible ${
                             isProjectSelected ? 'ring-2 ring-indigo-500 rounded-[4px] p-0.5' : ''
                           }`}
@@ -6606,6 +6971,15 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             data-timeline-project-name={group.project.name}
                             className="flex items-center gap-1.5 text-[10px] font-bold text-slate-700 dark:text-slate-200 mb-1 px-0.5 whitespace-nowrap overflow-visible z-10 pointer-events-none"
                           >
+                            {group.project.locked && (
+                              <span
+                                data-timeline-project-locked={group.project.id}
+                                className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[9px] font-mono font-bold bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700"
+                              >
+                                <Lock className="w-2.5 h-2.5" />
+                                <span>Bloqueado</span>
+                              </span>
+                            )}
                             <span className="whitespace-nowrap font-semibold">
                               {group.project.name}
                             </span>
@@ -6638,6 +7012,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     <div
                       key={`summary-bar-${group.project.id}`}
                       data-project-summary-bar={group.project.id}
+                      data-project-locked={group.project.locked ? 'true' : 'false'}
                       data-selected-project-id={isProjectSelected ? group.project.id : undefined}
                       style={{
                         top: rowIndex * ROW_HEIGHT,
@@ -6655,7 +7030,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           e.stopPropagation();
                           onToggleProjectCollapse?.(group.project.id);
                         }}
-                        title={`${group.project.name}: ${formatDateDisplay(
+                        title={`${group.project.name}${group.project.locked ? ' · 🔒 Bloqueado' : ''}: ${formatDateDisplay(
                           group.startDate,
                           'dd MMM'
                         )} → ${formatDateDisplay(group.endDate, 'dd MMM yyyy')} (${
@@ -6670,6 +7045,15 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           data-timeline-project-name={group.project.name}
                           className="flex items-center gap-1.5 text-[10px] font-bold text-slate-700 dark:text-slate-200 mb-1 px-0.5 whitespace-nowrap overflow-visible z-10 pointer-events-none"
                         >
+                          {group.project.locked && (
+                            <span
+                              data-timeline-project-locked={group.project.id}
+                              className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[9px] font-mono font-bold bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700"
+                            >
+                              <Lock className="w-2.5 h-2.5" />
+                              <span>Bloqueado</span>
+                            </span>
+                          )}
                           <span className="whitespace-nowrap font-semibold">
                             {group.project.name}
                           </span>
@@ -6792,7 +7176,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         style={{ left: barLeft }}
                         onMouseDown={(e) => handleBarMouseDown(e, item, 'move')}
                         onClick={(e) => handleBarClick(e, item.id)}
-                        onDoubleClick={() => onEditModal(item)}
+                        onDoubleClick={() => guardedEditModal(item)}
                         data-timeline-milestone={item.id}
                         data-milestone-color={item.color}
                         className={`absolute z-20 flex items-center pointer-events-auto group cursor-grab active:cursor-grabbing ${
@@ -6943,7 +7327,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             style={{ width: barWidth }}
                             onMouseDown={(e) => handleBarMouseDown(e, item, 'move')}
                             onClick={(e) => handleBarClick(e, item.id)}
-                            onDoubleClick={() => onEditModal(item)}
+                            onDoubleClick={() => guardedEditModal(item)}
                             data-timeline-task={item.id}
                             className={`relative h-7 rounded-[4px] border overflow-hidden cursor-grab active:cursor-grabbing shadow-none transition-shadow ${
                               styleTheme.barBg
@@ -7022,7 +7406,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               backgroundImage:
                                 'repeating-linear-gradient(45deg, rgba(245, 158, 11, 0.22) 0px, rgba(245, 158, 11, 0.22) 5px, transparent 5px, transparent 10px)',
                             }}
-                            onClick={() => onEditModal(item)}
+                            onClick={() => guardedEditModal(item)}
                             title={`Holgura (Slack): +${totalSlackDays} día(s) hasta el ${formatDateDisplay(
                               effectiveSlackEndDateStr,
                               'dd MMM yyyy'
@@ -7586,12 +7970,27 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             </div>
 
             {/* Actions: Toggle Diagram Visibility & Edit button */}
+            {selectedGroup?.project.locked && (
+              <div className="flex items-center justify-between gap-2 px-2 py-1 rounded-[3px] bg-amber-50 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-700 text-[10px] text-amber-900 dark:text-amber-200">
+                <span className="flex items-center gap-1 font-semibold">
+                  <Lock className="w-3 h-3 shrink-0" />
+                  <span>Proyecto bloqueado</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleToggleProjectLock(selectedGroup.project, false)}
+                  className="font-bold underline hover:text-amber-700 dark:hover:text-amber-100 cursor-pointer"
+                >
+                  Desbloquear
+                </button>
+              </div>
+            )}
             <div className="flex items-center justify-between gap-2 pt-1 border-t border-[#E2E2DC] dark:border-zinc-800">
               <button
                 type="button"
                 data-testid={`panel-toggle-task-visibility-${selectedItem.id}`}
                 onClick={() => {
-                  onUpdateItem({ ...selectedItem, hidden: !selectedItem.hidden }, false);
+                  guardedUpdateItem({ ...selectedItem, hidden: !selectedItem.hidden }, false);
                 }}
                 className={`px-2 py-1 rounded-[3px] border text-[11px] font-medium flex items-center gap-1.5 transition cursor-pointer ${
                   selectedItem.hidden
@@ -7642,7 +8041,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  onEditModal(selectedItem);
+                  const target = selectedItem;
+                  if (!guardItemUnlocked(target, `editar «${target.name}»`)) return;
+                  onEditModal(target);
                   setSelectedItemId(null);
                 }}
                 className="px-2.5 py-1 rounded-[4px] bg-[#0C0C09] hover:bg-black/80 dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-[#0C0C09] font-medium text-xs flex items-center gap-1.5 transition cursor-pointer"
@@ -7742,7 +8143,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       type="button"
                       data-testid="apply-color-to-all-tasks-modal-btn"
                       onClick={() => {
-                        onChangeProjectColor(inspectingProject.id, inspectingProject.color);
+                        guardedChangeProjectColor(inspectingProject.id, inspectingProject.color);
                       }}
                       className="mt-2 w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border border-indigo-300 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 text-xs font-semibold hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition cursor-pointer"
                     >
@@ -7750,6 +8151,43 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       <span>Aplicar este color a todas las tareas del proyecto</span>
                     </button>
                   )}
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-mono font-bold uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400 mb-1">
+                    Bloqueo en el Cronograma
+                  </label>
+                  <button
+                    type="button"
+                    data-testid="project-modal-lock-toggle"
+                    onClick={() =>
+                      setInspectingProject({
+                        ...inspectingProject,
+                        locked: !inspectingProject.locked,
+                      })
+                    }
+                    className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-[4px] border text-xs font-semibold transition cursor-pointer ${
+                      inspectingProject.locked
+                        ? 'border-amber-500/50 bg-amber-50 dark:bg-amber-950/50 text-amber-900 dark:text-amber-200'
+                        : 'border-[#E2E2DC] dark:border-zinc-700 bg-[#F4F4F1]/60 dark:bg-zinc-800/70 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      {inspectingProject.locked ? (
+                        <Lock className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                      ) : (
+                        <Unlock className="w-4 h-4 text-slate-500 dark:text-zinc-400" />
+                      )}
+                      <span>
+                        {inspectingProject.locked
+                          ? 'Proyecto bloqueado (evita movimientos accidentales)'
+                          : 'Proyecto desbloqueado (editable libremente)'}
+                      </span>
+                    </span>
+                    <span className="text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-white/80 dark:bg-zinc-900 border border-current/20">
+                      {inspectingProject.locked ? 'Desbloquear' : 'Bloquear'}
+                    </span>
+                  </button>
                 </div>
 
                 <div>
@@ -7926,6 +8364,28 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     type="button"
                     data-testid="save-project-details-btn"
                     onClick={() => {
+                      const savedProj = projectsRef.current.find(
+                        (p) => p.id === inspectingProject.id
+                      );
+                      const hasNonLockEdits =
+                        !savedProj ||
+                        savedProj.name !== inspectingProject.name ||
+                        savedProj.color !== inspectingProject.color ||
+                        (savedProj.releaseId || '') !== (inspectingProject.releaseId || '') ||
+                        (savedProj.platform || '') !== (inspectingProject.platform || '') ||
+                        (savedProj.alertLevel ?? 0) !== (inspectingProject.alertLevel ?? 0) ||
+                        (savedProj.description || '') !== (inspectingProject.description || '');
+                      if (savedProj?.locked && inspectingProject.locked) {
+                        if (hasNonLockEdits) {
+                          guardedUpdateProject(
+                            inspectingProject,
+                            'editar propiedades de proyecto bloqueado'
+                          );
+                          return;
+                        }
+                        setInspectingProject(null);
+                        return;
+                      }
                       onUpdateProject?.(inspectingProject);
                       setInspectingProject(null);
                     }}
@@ -7938,6 +8398,13 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             </div>
           </div>
         )}
+
+        <ProjectLockedAlertModal
+          project={lockedAlertState?.project || null}
+          attemptedAction={lockedAlertState?.attemptedAction}
+          onUnlock={(proj) => handleToggleProjectLock(proj, false)}
+          onClose={() => setLockedAlertState(null)}
+        />
       </div>
     </div>
   );
