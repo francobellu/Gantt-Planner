@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   Calendar,
@@ -36,7 +36,7 @@ import {
   wouldCreateCycle,
 } from '../utils/ganttEngine';
 import { DEFAULT_PREDEFINED_RELEASES, getReleaseDateSpan } from '../utils/releaseEngine';
-import { addDays } from 'date-fns';
+import { addDays, differenceInCalendarDays } from 'date-fns';
 
 interface TaskFormModalProps {
   isOpen: boolean;
@@ -519,6 +519,58 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
     'task'
   );
 
+  // Live calculation of successor tasks and automatic free slack
+  const successorTasks = useMemo(() => {
+    if (!initialItem?.id) return [];
+    return allItems.filter((it) => it.dependencies && it.dependencies.includes(initialItem.id));
+  }, [initialItem, allItems]);
+
+  const autoSlackInfo = useMemo(() => {
+    if (!initialItem?.id || successorTasks.length === 0) return null;
+    let minGap: number | null = null;
+    let drivingTask: ComputedGanttItem | null = null;
+
+    const currentEnd = parseDateSafe(endDate);
+    const currentStart = parseDateSafe(startDate);
+
+    for (const succ of successorTasks) {
+      const depType: DependencyType = succ.dependencyTypes?.[initialItem.id] || 'FS';
+      const succStart = parseDateSafe(succ.startDate);
+      const succEnd = parseDateSafe(succ.endDate);
+
+      let gap: number;
+      switch (depType) {
+        case 'FS':
+          gap = differenceInCalendarDays(succStart, currentEnd) - 1;
+          break;
+        case 'SS':
+          gap = differenceInCalendarDays(succStart, currentStart);
+          break;
+        case 'FF':
+          gap = differenceInCalendarDays(succEnd, currentEnd);
+          break;
+        case 'SF': {
+          const offset = succ.type === 'milestone' ? 0 : 1;
+          gap = differenceInCalendarDays(succEnd, currentStart) - offset;
+          break;
+        }
+        default:
+          gap = differenceInCalendarDays(succStart, currentEnd) - 1;
+      }
+
+      if (minGap === null || gap < minGap) {
+        minGap = gap;
+        drivingTask = succ;
+      }
+    }
+
+    return {
+      freeSlack: minGap ?? 0,
+      drivingTask,
+      count: successorTasks.length,
+    };
+  }, [initialItem, successorTasks, startDate, endDate]);
+
   return (
     <div
       onClick={(e) => {
@@ -1000,6 +1052,38 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                     <span>Sin holgura adicional (Slack = 0d)</span>
                   )}
                 </div>
+              </div>
+            )}
+
+            {/* Automatic Slack Indicator based on Successor Tasks */}
+            {autoSlackInfo && (
+              <div
+                data-testid="modal-auto-slack-indicator"
+                className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs"
+              >
+                <div className="flex items-center gap-1.5 text-emerald-800 dark:text-emerald-300">
+                  <span className="font-semibold">
+                    {`Holgura automática según tareas siguientes (${autoSlackInfo.count}):`}
+                  </span>
+                  <span className="font-mono font-bold">
+                    {autoSlackInfo.freeSlack >= 0 ? `+${autoSlackInfo.freeSlack}d` : `${autoSlackInfo.freeSlack}d`}
+                  </span>
+                  {autoSlackInfo.drivingTask && (
+                    <span className="text-[11px] opacity-80">
+                      (limitada por «{autoSlackInfo.drivingTask.name}»)
+                    </span>
+                  )}
+                </div>
+                {autoSlackInfo.freeSlack > 0 && slack !== autoSlackInfo.freeSlack && (
+                  <button
+                    type="button"
+                    onClick={() => setSlack(autoSlackInfo.freeSlack)}
+                    className="px-2 py-0.5 rounded text-[11px] bg-emerald-600 text-white font-medium hover:bg-emerald-700 transition cursor-pointer shrink-0"
+                    title="Aplicar holgura calculada al campo Slack"
+                  >
+                    {`Usar +${autoSlackInfo.freeSlack}d`}
+                  </button>
+                )}
               </div>
             )}
 

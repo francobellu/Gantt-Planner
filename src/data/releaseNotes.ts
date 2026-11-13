@@ -10,10 +10,21 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.9.3',
+    date: '13 Nov 2026',
+    title: 'Cálculo e indicación automática de holgura libre (Slack) dadas las tareas siguientes',
+    isLatest: true,
+    features: [
+      'Motor CPM calcula holgura libre exacta con sucesoras',
+      'Indicador automático de holgura y tareas siguientes en tabla de cronograma',
+      'Panel lateral con sucesoras directas y tarea límite',
+      'Vista previa y ajuste en modal de edición',
+    ],
+  },
+  {
     version: '1.9.2',
     date: '11 Nov 2026',
     title: 'Bloqueo de proyectos en el cronograma y aviso interactivo de desbloqueo',
-    isLatest: true,
     features: [
       'Bloqueo de proyectos en el cronograma: nuevo botón de candado directamente en cada fila de proyecto de la tabla WBS y en las propiedades del proyecto para protegerlo frente a movimientos o ediciones accidentales.',
       'Aviso automático para desbloquear: al intentar arrastrar barras o hitos en el diagrama, editar fechas/duración/holgura/nombres, reordenar tareas o modificar dependencias de un proyecto bloqueado, el cambio se detiene y salta una ventana modal que permite desbloquear el proyecto con un solo clic.',

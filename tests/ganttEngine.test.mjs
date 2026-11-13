@@ -4524,7 +4524,7 @@ test('Help page, version control v1.2.0, release selection on project creation, 
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version control consistency
-  assert.equal(pkg.version, '1.9.2', 'package.json version must be 1.9.2');
+  assert.equal(pkg.version, '1.9.3', 'package.json version must be 1.9.2');
   assert.ok(pkg.scripts['version:patch'], 'package.json must contain version:patch script');
   assert.ok(pkg.scripts['version:minor'], 'package.json must contain version:minor script');
   assert.ok(pkg.scripts['release:patch'], 'package.json must contain release:patch script');
@@ -5305,10 +5305,10 @@ test('Task name positioning, configurable row separators, 37 char truncation, v1
     const htmlWithoutWeekendShading = renderToString(mod.renderWorkspaceWithWeekendShading(false));
     assert.ok(!htmlWithoutWeekendShading.includes('bg-[#E5E5DF]'), 'Canvas and header must NOT render weekend shading when showWeekendShading is false (clean uniform background)');
 
-    // 9. App Header displays v1.9.2 badge, row-separators-btn, and weekend-shading-btn
+    // 9. App Header displays v1.9.3 badge, row-separators-btn, and weekend-shading-btn
     const appHtml = renderToString(mod.renderAppHeader());
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'Header must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.9.2'), 'Header badge must display v1.9.2');
+    assert.ok(appHtml.includes('v1.9.3'), 'Header badge must display v1.9.3');
     assert.ok(appHtml.includes('data-testid="header-toggle-row-separators-btn"'), 'Header must contain header-toggle-row-separators-btn');
     assert.ok(appHtml.includes('data-testid="header-toggle-weekend-shading-btn"'), 'Header must contain header-toggle-weekend-shading-btn');
 
@@ -5338,7 +5338,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version Bump Verification
-  assert.equal(pkg.version, '1.9.2', 'package.json version must equal 1.9.2');
+  assert.equal(pkg.version, '1.9.3', 'package.json version must equal 1.9.2');
 
   // Verify scripts/bump-version.mjs works properly
   const bumpScript = await fs.readFile(path.resolve(__dirname, '../scripts/bump-version.mjs'), 'utf8');
@@ -5512,7 +5512,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // A. APP_VERSION equals 1.9.2
-    assert.equal(mod.APP_VERSION, '1.9.2', 'APP_VERSION must be 1.9.2');
+    assert.equal(mod.APP_VERSION, '1.9.3', 'APP_VERSION must be 1.9.2');
 
     // A2. Excel Export Unit Test
     const sampleReleases = [
@@ -5589,7 +5589,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     assert.ok(appHtml.includes('data-testid="table-platform-filter"'), 'App must contain unified table-platform-filter');
     assert.ok(appHtml.includes('data-testid="header-toggle-focus-mode-btn"'), 'App header must contain header-toggle-focus-mode-btn');
     assert.ok(appHtml.includes('data-testid="header-reports-btn"'), 'App header must contain header-reports-btn');
-    assert.ok(appHtml.includes('v1.9.2'), 'App header must display version v1.9.2');
+    assert.ok(appHtml.includes('v1.9.3'), 'App header must display version v1.9.3');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6041,8 +6041,8 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
-  // 1. Version Bump Verification v1.9.2
-  assert.equal(pkg.version, '1.9.2', 'package.json version must equal 1.9.2');
+  // 1. Version Bump Verification v1.9.3
+  assert.equal(pkg.version, '1.9.3', 'package.json version must equal 1.9.2');
 
   // 2. SSR Bundle verification for TaskFormModal, App Header, and sanitizeGanttItem
   const tmpFile = path.resolve(__dirname, `tmp_test59_bundle_${Date.now()}.mjs`);
@@ -6140,7 +6140,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.equal(mod.APP_VERSION, '1.9.2', 'mod.APP_VERSION must equal 1.9.2');
+    assert.equal(mod.APP_VERSION, '1.9.3', 'mod.APP_VERSION must equal 1.9.2');
 
     // sanitizeGanttItem preserves platform
     const sanitizedIos = mod.sanitizeGanttItem({
@@ -6185,7 +6185,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     assert.ok(appHtml.includes('data-testid="header-more-menu-btn"'), 'App header must render header-more-menu-btn');
     assert.ok(appHtml.includes('data-testid="header-more-menu-dropdown"'), 'App must render header-more-menu-dropdown');
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'More menu must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.9.2'), 'Version badge must display v1.9.2');
+    assert.ok(appHtml.includes('v1.9.3'), 'Version badge must display v1.9.3');
     assert.ok(appHtml.includes('data-testid="force-reload-btn"'), 'More menu must contain force-reload-btn');
 
     // 7. Verify secondary buttons are rendered inside the menu
@@ -6207,7 +6207,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
       hiddenReleaseCount: 0,
     }));
     assert.ok(settingsHtml.includes('data-testid="settings-version-badge"'), 'SettingsModal must contain settings-version-badge');
-    assert.ok(settingsHtml.includes('1.9.2') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.9.2');
+    assert.ok(settingsHtml.includes('1.9.3') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.9.2');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6361,14 +6361,14 @@ test('Test 61: Version button, compiled release notes modal and changelog across
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
 
     // 1. Check RELEASE_NOTES compiled data
-    assert.strictEqual(mod.APP_VERSION, '1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.9.3');
     assert.ok(Array.isArray(mod.RELEASE_NOTES), 'RELEASE_NOTES must be an array');
     assert.ok(mod.RELEASE_NOTES.length >= 10, 'RELEASE_NOTES must have at least 10 releases');
 
     const latest = mod.RELEASE_NOTES[0];
-    assert.strictEqual(latest.version, '1.9.2', 'First release note must be 1.9.2');
+    assert.strictEqual(latest.version, '1.9.3', 'First release note must be 1.9.2');
     assert.strictEqual(latest.isLatest, true, 'First release note must be isLatest: true');
-    assert.ok(latest.features.length > 0, 'v1.9.2 must contain features');
+    assert.ok(latest.features.length > 0, 'v1.9.3 must contain features');
 
     // 2. Render App and verify version button exists in dropdown menu and is NOT duplicated in top header
     const appHtml = renderToString(React.createElement(mod.App));
@@ -6381,8 +6381,8 @@ test('Test 61: Version button, compiled release notes modal and changelog across
       'App dropdown must contain data-testid="app-version-badge"'
     );
     assert.ok(
-      appHtml.includes('<button') && appHtml.includes('data-testid="app-version-badge"') && appHtml.includes('v1.9.2'),
-      'app-version-badge in tools dropdown must be an interactive button showing v1.9.2'
+      appHtml.includes('<button') && appHtml.includes('data-testid="app-version-badge"') && appHtml.includes('v1.9.3'),
+      'app-version-badge in tools dropdown must be an interactive button showing v1.9.3'
     );
 
     // 3. Render ReleaseNotesModal
@@ -8184,7 +8184,7 @@ test('Test 73: v1.9.0 project alert level (0-3), workspace toolbar alert filter,
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.strictEqual(mod.APP_VERSION, '1.9.2', 'APP_VERSION must be 1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.9.3', 'APP_VERSION must be 1.9.2');
 
     // 1. Check sanitizeProject and describeProjectStateChanges for alertLevel
     const pSanitized0 = mod.sanitizeProject({ id: 'p-1', name: 'Proj 1', alertLevel: 0 });
@@ -8376,7 +8376,7 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.strictEqual(mod.APP_VERSION, '1.9.2', 'APP_VERSION must be 1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.9.3', 'APP_VERSION must be 1.9.2');
 
     // 1. Verify description format: <descripción del proyecto si existe>\n\n* <nombre> <desc>
     const pWithDesc = {
@@ -8475,8 +8475,8 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
   }
 });
 
-// TEST 75: v1.9.2 Project locking, accidental move guard & unlock prompt modal
-test('Test 75: v1.9.2 project locking, cascade/dependency protection, plan history badge, and unlock alert modal', async () => {
+// TEST 75: v1.9.3 Project locking, accidental move guard & unlock prompt modal
+test('Test 75: v1.9.3 project locking, cascade/dependency protection, plan history badge, and unlock alert modal', async () => {
   const fs = await import('node:fs/promises');
   const path = await import('node:path');
   const { fileURLToPath } = await import('node:url');
@@ -8487,7 +8487,7 @@ test('Test 75: v1.9.2 project locking, cascade/dependency protection, plan histo
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
-  assert.strictEqual(pkg.version, '1.9.2', 'package.json version must equal 1.9.2');
+  assert.strictEqual(pkg.version, '1.9.3', 'package.json version must equal 1.9.2');
 
   const tmpFile = path.resolve(__dirname, `tmp_test75_bundle_${Date.now()}.mjs`);
   try {
@@ -8549,9 +8549,9 @@ test('Test 75: v1.9.2 project locking, cascade/dependency protection, plan histo
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // 1. Version & release notes verification
-    assert.strictEqual(mod.APP_VERSION, '1.9.2', 'APP_VERSION must equal 1.9.2');
-    assert.strictEqual(mod.RELEASE_NOTES[0].version, '1.9.2', 'Latest release note must be 1.9.2');
-    assert.strictEqual(mod.RELEASE_NOTES[0].isLatest, true, 'v1.9.2 release note must be marked isLatest');
+    assert.strictEqual(mod.APP_VERSION, '1.9.3', 'APP_VERSION must equal 1.9.2');
+    assert.strictEqual(mod.RELEASE_NOTES[0].version, '1.9.3', 'Latest release note must be 1.9.2');
+    assert.strictEqual(mod.RELEASE_NOTES[0].isLatest, true, 'v1.9.3 release note must be marked isLatest');
 
     // 2. sanitizeProject, getLockedProjectForItem, describeProjectStateChanges
     const lockedProj = mod.sanitizeProject({
@@ -8745,6 +8745,215 @@ test('Test 75: v1.9.2 project locking, cascade/dependency protection, plan histo
     await fs.unlink(tmpFile).catch(() => {});
   }
 });
+
+test('Test 76: v1.9.3 automatic Free Slack calculation given successor tasks across engine, table badge, inspector sidebar and task modal', async () => {
+  // 1. Engine calculation: FS dependency with multiple successors
+  const testItems = [
+    {
+      id: 'task-a',
+      projectId: 'proj-1',
+      name: 'Tarea A (Predecesora)',
+      type: 'task',
+      startDate: '2026-11-01',
+      endDate: '2026-11-03',
+      duration: 3,
+      slack: 0,
+      dependencies: [],
+      progress: 0,
+      color: 'indigo',
+    },
+    {
+      id: 'task-s1',
+      projectId: 'proj-1',
+      name: 'Tarea S1 (Sucesora Lejana)',
+      type: 'task',
+      startDate: '2026-11-07',
+      endDate: '2026-11-09',
+      duration: 3,
+      slack: 0,
+      dependencies: ['task-a'],
+      progress: 0,
+      color: 'emerald',
+    },
+    {
+      id: 'task-s2',
+      projectId: 'proj-1',
+      name: 'Tarea S2 (Sucesora Límite)',
+      type: 'task',
+      startDate: '2026-11-05',
+      endDate: '2026-11-07',
+      duration: 3,
+      slack: 0,
+      dependencies: ['task-a'],
+      progress: 0,
+      color: 'rose',
+    },
+    {
+      id: 'task-no-succ',
+      projectId: 'proj-1',
+      name: 'Tarea Sin Sucesoras',
+      type: 'task',
+      startDate: '2026-11-05',
+      endDate: '2026-11-06',
+      duration: 2,
+      slack: 0,
+      dependencies: [],
+      progress: 0,
+      color: 'amber',
+    },
+    {
+      id: 'task-conflict-succ',
+      projectId: 'proj-1',
+      name: 'Tarea Predecesora con Conflicto',
+      type: 'task',
+      startDate: '2026-11-06',
+      endDate: '2026-11-08',
+      duration: 3,
+      slack: 0,
+      dependencies: [],
+      progress: 0,
+      color: 'blue',
+    },
+    {
+      id: 'task-conflict-dest',
+      projectId: 'proj-1',
+      name: 'Tarea Sucesora Invadida',
+      type: 'task',
+      startDate: '2026-11-07',
+      endDate: '2026-11-09',
+      duration: 3,
+      slack: 0,
+      dependencies: ['task-conflict-succ'],
+      progress: 0,
+      color: 'orange',
+    },
+  ];
+
+  const computed = computeGanttMetrics(testItems);
+  const taskA = computed.find((it) => it.id === 'task-a');
+  assert.ok(taskA, 'task-a must be computed');
+  assert.equal(taskA.hasSuccessors, true, 'task-a must have successors');
+  assert.deepEqual(taskA.successorIds.sort(), ['task-s1', 'task-s2'].sort());
+  // Task A finishes on 2026-11-03.
+  // S1 starts 2026-11-07 -> gap = 3 days (Nov 4, 5, 6)
+  // S2 starts 2026-11-05 -> gap = 1 day (Nov 4)
+  // So free slack must be 1 day!
+  assert.equal(taskA.freeSlack, 1, 'task-a free slack must be 1 day');
+  assert.equal(taskA.drivingSuccessorId, 'task-s2', 'task-a driving successor must be task-s2');
+  assert.equal(taskA.drivingSuccessorName, 'Tarea S2 (Sucesora Límite)');
+
+  // Task without successors
+  const noSucc = computed.find((it) => it.id === 'task-no-succ');
+  assert.ok(noSucc);
+  assert.equal(noSucc.hasSuccessors, false, 'task-no-succ has no successors');
+  // Project max end is 2026-11-09. noSucc ends on 2026-11-06 -> margin is 3 days
+  assert.equal(noSucc.freeSlack, 3, 'task-no-succ free slack to project end is 3 days');
+
+  // Task with conflict with successor
+  const conflictPred = computed.find((it) => it.id === 'task-conflict-succ');
+  assert.ok(conflictPred);
+  // Ends 2026-11-08, but Sucesora Invadida starts 2026-11-07 -> diff is -1 day, minus 1 = -2
+  assert.ok(conflictPred.freeSlack < 0, 'conflict task must have negative free slack');
+  assert.equal(conflictPred.hasConflict, true, 'conflict task must have hasConflict = true');
+  assert.ok(conflictPred.conflictMessage.includes('Solapamiento') || conflictPred.conflictMessage.includes('solapándose'));
+
+  // 2. groupItemsByProject: computes totalFreeSlack
+  const testProjects = [{ id: 'proj-1', name: 'Proyecto Prueba Slack', color: 'indigo' }];
+  const groups = groupItemsByProject(computed, testProjects);
+  assert.equal(groups.length, 1);
+  assert.ok(typeof groups[0].totalFreeSlack === 'number', 'totalFreeSlack must be a number');
+  assert.ok(groups[0].totalFreeSlack > 0, 'totalFreeSlack must be greater than 0');
+
+  // 3. UI SSR verification
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const { fileURLToPath } = await import('node:url');
+  const { build } = await import('esbuild');
+  const ReactDOMServer = await import('react-dom/server');
+  const ReactMod = await import('react');
+  const React = ReactMod.default || ReactMod;
+  const { renderToString } = ReactDOMServer.default || ReactDOMServer;
+
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const tmpFile = path.resolve(__dirname, `tmp_test76_bundle_${Date.now()}.mjs`);
+  try {
+    await build({
+      stdin: {
+        contents: `
+          import React from 'react';
+          import { GanttWorkspace } from './src/components/GanttWorkspace.tsx';
+          import { TaskFormModal } from './src/components/TaskFormModal.tsx';
+          export { React, GanttWorkspace, TaskFormModal };
+        `,
+        resolveDir: path.resolve(__dirname, '..'),
+        sourcefile: 'test76_entry.tsx',
+        loader: 'tsx',
+      },
+      bundle: true,
+      format: 'esm',
+      outfile: tmpFile,
+      external: [
+        'react',
+        'react-dom',
+        'react-dom/server',
+        'clsx',
+        'tailwind-merge',
+        'lucide-react',
+        'date-fns',
+      ],
+      jsx: 'automatic',
+    });
+
+    const mod = await import(`${tmpFile}?t=${Date.now()}`);
+
+    // 4. GanttWorkspace renders automatic slack badge in table and panel
+    const wsHtml = renderToString(
+      React.createElement(mod.GanttWorkspace, {
+        items: computed,
+        projects: testProjects,
+        releases: [],
+        groupByProject: true,
+        showTable: true,
+        scrollContainerRef: { current: null },
+        onUpdateItem: () => {},
+        onDeleteItem: () => {},
+        initialSelectedItemId: 'task-a',
+        initialVisibleColumns: { team: true, deps: true, dates: false, dur: false, slack: true },
+      })
+    );
+
+    // Verify Slack column badge for task-a (+1d)
+    assert.ok(wsHtml.includes('data-testid="task-slack-badge-task-a"'), 'Must render slack badge for task-a');
+    assert.ok(wsHtml.includes('+1d'), 'Badge must display +1d');
+    assert.ok(wsHtml.includes('Tarea S2 (Sucesora Límite)'), 'Tooltip must reference driving successor');
+
+    // Verify Inspector Sidebar renders Holgura Libre and Tareas Siguientes
+    assert.ok(wsHtml.includes('data-testid="panel-free-slack-task-a"'), 'Must render panel-free-slack for selected task');
+    assert.ok(wsHtml.includes('data-testid="panel-successor-item-task-s2"'), 'Must render successor task link in panel');
+    assert.ok(wsHtml.includes('Límite'), 'Must mark driving successor with "Límite" tag');
+
+    // 5. TaskFormModal renders automatic slack indicator
+    const modalHtml = renderToString(
+      React.createElement(mod.TaskFormModal, {
+        isOpen: true,
+        onClose: () => {},
+        onSave: () => {},
+        initialItem: testItems[0],
+        projects: testProjects,
+        defaultProjectId: 'proj-1',
+        allItems: computed,
+        releases: [],
+      })
+    );
+
+    assert.ok(modalHtml.includes('data-testid="modal-auto-slack-indicator"'), 'TaskFormModal must render auto slack indicator');
+    assert.ok(modalHtml.includes('Holgura automática según tareas siguientes (2)'), 'Modal indicator must display successor count');
+    assert.ok(modalHtml.includes('Usar +1d'), 'Modal must provide quick apply button for calculated slack');
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
 
 
 

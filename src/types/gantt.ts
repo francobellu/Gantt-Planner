@@ -1,4 +1,4 @@
-export const APP_VERSION = '1.9.2';
+export const APP_VERSION = '1.9.3';
 
 export const DEFAULT_TRUNCATE_CHAR_LIMIT = 37;
 export const TRUNCATE_LIMIT_STORAGE_KEY = 'ganttflow_truncate_char_limit';
@@ -100,6 +100,11 @@ export interface ComputedGanttItem extends GanttItem {
   wbsCode?: string;
   slackEndDate: string;
   cpmTotalFloat: number;
+  freeSlack: number; // Automatic free slack given successor tasks (in calendar days)
+  hasSuccessors: boolean; // True if this item has at least one direct successor task
+  successorIds: string[]; // List of direct successor item IDs that depend on this item
+  drivingSuccessorId?: string; // ID of the successor item that limits the free slack
+  drivingSuccessorName?: string; // Name of the successor item that limits the free slack
   isCritical: boolean;
   hasConflict: boolean;
   conflictMessage?: string;
@@ -119,6 +124,7 @@ export interface ComputedProjectGroup {
   milestonesCount: number;
   criticalCount: number;
   totalSlack: number;
+  totalFreeSlack: number;
   hasConflict: boolean;
 }
 

@@ -365,7 +365,12 @@ export function generateCronogramaCompletoRows(
               startDate: item.startDate,
               endDate: item.endDate,
               duration: item.duration,
-              slack: item.slack || 0,
+              slack:
+                item.slack > 0
+                  ? item.slack
+                  : typeof (item as any).freeSlack === 'number'
+                  ? (item as any).freeSlack
+                  : item.slack || 0,
               progress: `${item.progress || 0}%`,
               dependency: depName,
               dependencyPredecessorName: targetItem ? targetItem.name : depId,

@@ -4346,7 +4346,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         </span>
                       )}
                       {visibleColumns.slack && (
-                        <span className="w-14 text-center text-[10px] font-mono text-[#6B6B66] dark:text-zinc-400 uppercase font-bold">
+                        <span
+                          className="w-14 text-center text-[10px] font-mono text-[#6B6B66] dark:text-zinc-400 uppercase font-bold"
+                          title="Holgura Libre calculada automáticamente dadas las tareas siguientes (sucesoras)"
+                        >
                           Slack
                         </span>
                       )}
@@ -5338,8 +5341,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               )}
 
                               {visibleColumns.slack && (
-                                <div className="w-14 shrink-0 text-center font-mono text-[10px] text-amber-600 dark:text-amber-400">
-                                  +{group.totalSlack}d
+                                <div
+                                  className="w-14 shrink-0 text-center font-mono text-[10px] text-amber-600 dark:text-amber-400 font-semibold"
+                                  title={`Holgura acumulada del proyecto: +${group.totalFreeSlack ?? group.totalSlack}d`}
+                                >
+                                  +{(group.totalFreeSlack ?? group.totalSlack)}d
                                 </div>
                               )}
 
@@ -5877,24 +5883,45 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               </div>
                             )}
 
-                            {/* 4. Slack Column: EDITABLE */}
+                            {/* 4. Slack Column: AUTOMATIC INDICATION GIVEN SUCCESSORS */}
                             {visibleColumns.slack && (
                               <div className="w-14 shrink-0 flex items-center justify-center font-mono text-[10px]">
                                 {item.type === 'milestone' ? (
-                                  <span className="text-[#6B6B66]">—</span>
+                                  <span className="text-[#6B6B66] dark:text-zinc-500">—</span>
                                 ) : (
-                                  <input
-                                    type="number"
-                                    min={0}
-                                    max={99}
-                                    value={item.slack}
-                                    onChange={(e) => {
-                                      const slack = Math.max(0, parseInt(e.target.value, 10) || 0);
-                                      guardedUpdateItem({ ...item, slack }, autoCascade);
-                                    }}
-                                    className="w-11 px-1 py-0.5 text-center font-mono text-[10px] rounded-[2px] bg-[#F4F4F1] dark:bg-zinc-800 text-[#312C85] dark:text-indigo-400 font-bold border border-[#E2E2DC] dark:border-zinc-700 outline-none focus:ring-1 focus:ring-[#0C0C09]"
-                                    title="Holgura / Slack en días (haz clic para editar)"
-                                  />
+                                  <button
+                                    type="button"
+                                    data-testid={`task-slack-badge-${item.id}`}
+                                    onClick={() => guardedEditModal(item)}
+                                    title={
+                                      item.hasSuccessors
+                                        ? `Holgura libre automática: ${item.freeSlack >= 0 ? `+${item.freeSlack}` : item.freeSlack}d\nLimitada por siguiente tarea: ${
+                                            item.drivingSuccessorName ? `«${item.drivingSuccessorName}»` : `#${item.drivingSuccessorId}`
+                                          }\nTareas siguientes directas (${item.successorIds.length}): ${item.successorIds.join(', ')}\n(Clic para abrir detalles o editar buffer)`
+                                        : `Sin tareas siguientes directas.\nHolgura hasta fin de proyecto: +${item.freeSlack}d\n(Clic para abrir detalles o editar buffer)`
+                                    }
+                                    className={`w-11 px-1 py-0.5 rounded-[2px] font-mono text-[10px] transition cursor-pointer flex items-center justify-center gap-0.5 select-none ${
+                                      item.freeSlack < 0
+                                        ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 font-bold border border-rose-300 dark:border-rose-800'
+                                        : item.freeSlack === 0
+                                        ? item.isCritical
+                                          ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400 font-bold border border-rose-200 dark:border-rose-900/50'
+                                          : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400 font-medium border border-zinc-200 dark:border-zinc-700'
+                                        : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 font-semibold border border-emerald-200 dark:border-emerald-800/50'
+                                    }`}
+                                  >
+                                    <span>
+                                      {item.freeSlack > 0 ? `+${item.freeSlack}d` : `${item.freeSlack}d`}
+                                    </span>
+                                    {!item.hasSuccessors && (
+                                      <span
+                                        className="text-[8px] opacity-60 leading-none"
+                                        title="Sin tareas siguientes directas (hasta fin proyecto)"
+                                      >
+                                        *
+                                      </span>
+                                    )}
+                                  </button>
                                 )}
                               </div>
                             )}
@@ -7140,10 +7167,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     ? 20
                     : Math.max(6, dayWidth, coords.endX - coords.startX);
 
-                // Visual Slack width (user-configured slack, plus optional CPM float)
-                const totalSlackDays = showCpmFloat
-                  ? Math.max(item.slack, item.cpmTotalFloat)
-                  : item.slack;
+                // Visual Slack width: automatic free slack given successor tasks (or manual slack if configured)
+                const autoSlackDays = Math.max(0, item.freeSlack ?? 0);
+                const totalSlackDays = item.slack > 0
+                  ? item.slack
+                  : (visibleColumns.slack || showCpmFloat ? autoSlackDays : 0);
                 const slackWidth =
                   item.type === 'task' && totalSlackDays > 0
                     ? totalSlackDays * dayWidth
@@ -7410,7 +7438,13 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             title={`Holgura (Slack): +${totalSlackDays} día(s) hasta el ${formatDateDisplay(
                               effectiveSlackEndDateStr,
                               'dd MMM yyyy'
-                            )}`}
+                            )}${
+                              item.hasSuccessors
+                                ? item.drivingSuccessorName
+                                  ? ` (limitada por «${item.drivingSuccessorName}»)`
+                                  : ' (según tareas siguientes)'
+                                : ' (sin tareas siguientes directas)'
+                            }`}
                             className="h-6 -ml-0.5 rounded-r-lg border-y border-r border-dashed border-amber-500/80 dark:border-amber-400/80 flex items-center justify-center px-1.5 cursor-pointer hover:bg-amber-500/10 transition"
                           >
                             <span className="font-mono text-[10px] font-semibold text-amber-700 dark:text-amber-300 truncate">
@@ -7966,6 +8000,69 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                 <span className="font-semibold text-indigo-600 dark:text-indigo-400">
                   {selectedItem.progress}%
                 </span>
+              </div>
+            </div>
+
+            {/* Holgura Libre (Slack) y Tareas Siguientes */}
+            <div className="flex flex-col gap-1.5 p-2.5 rounded-[4px] bg-[#F4F4F1] dark:bg-zinc-900 border border-[#E2E2DC] dark:border-zinc-800 text-[11px]">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400 font-bold">
+                  Holgura Libre (Slack)
+                </span>
+                <span
+                  data-testid={`panel-free-slack-${selectedItem.id}`}
+                  className={`font-mono text-xs font-bold px-1.5 py-0.5 rounded-[2px] ${
+                    selectedItem.freeSlack < 0
+                      ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
+                      : selectedItem.freeSlack === 0
+                      ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200 dark:border-rose-900/40'
+                      : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40'
+                  }`}
+                >
+                  {selectedItem.freeSlack > 0 ? `+${selectedItem.freeSlack}d` : `${selectedItem.freeSlack}d`}
+                  {selectedItem.freeSlack === 0 && ' (Crítica)'}
+                </span>
+              </div>
+
+              {/* Tareas Siguientes (Sucesoras) */}
+              <div className="pt-1 border-t border-[#E2E2DC]/70 dark:border-zinc-800/70">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400 font-semibold block mb-1">
+                  Tareas Siguientes ({selectedItem.successorIds?.length || 0}):
+                </span>
+                {selectedItem.successorIds && selectedItem.successorIds.length > 0 ? (
+                  <div className="flex flex-col gap-1">
+                    {selectedItem.successorIds.map((succId) => {
+                      const succItem = items.find((it) => it.id === succId);
+                      const isDriving = succId === selectedItem.drivingSuccessorId;
+                      return (
+                        <div
+                          key={succId}
+                          data-testid={`panel-successor-item-${succId}`}
+                          onClick={() => setSelectedItemId(succId)}
+                          className={`flex items-center justify-between px-2 py-1 rounded-[3px] text-[11px] cursor-pointer transition ${
+                            isDriving
+                              ? 'bg-amber-500/10 dark:bg-amber-950/30 border border-amber-300/80 dark:border-amber-700/80 text-amber-900 dark:text-amber-200 hover:bg-amber-500/20'
+                              : 'bg-white dark:bg-zinc-800 border border-[#E2E2DC] dark:border-zinc-700 hover:bg-[#F4F4F1] dark:hover:bg-zinc-700'
+                          }`}
+                          title={`Clic para inspeccionar esta tarea siguiente. ${isDriving ? 'Esta tarea limita el slack libre.' : ''}`}
+                        >
+                          <span className="truncate max-w-[170px] font-medium">
+                            {succItem ? succItem.name : `#${succId}`}
+                          </span>
+                          {isDriving && (
+                            <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 font-semibold">
+                              Límite
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <span className="text-[10px] text-[#6B6B66] dark:text-zinc-400 italic">
+                    Sin tareas siguientes directas (holgura calculada hasta fin de proyecto: +{selectedItem.freeSlack}d).
+                  </span>
+                )}
               </div>
             </div>
 

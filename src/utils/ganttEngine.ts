@@ -1088,26 +1088,87 @@ export function computeGanttMetrics(items: GanttItem[]): ComputedGanttItem[] {
     const start = parseDateSafe(item.startDate);
     const end = parseDateSafe(item.endDate);
     const safeSlack = Math.max(0, Number(item.slack) || 0);
-    const slackEnd = addDays(end, safeSlack);
+
+    // Compute automatic free slack (holgura libre) given successor tasks
+    const succIds = successorsMap.get(item.id) || [];
+    let minGap: number | null = null;
+    let drivingId: string | undefined = undefined;
+    let drivingName: string | undefined = undefined;
+
+    if (succIds.length > 0) {
+      for (const sId of succIds) {
+        const succ = itemMap.get(sId);
+        if (!succ) continue;
+        const depType: DependencyType = succ.dependencyTypes?.[item.id] || 'FS';
+        const predStart = parseDateSafe(item.startDate);
+        const predEnd = parseDateSafe(item.endDate);
+        const succStart = parseDateSafe(succ.startDate);
+        const succEnd = parseDateSafe(succ.endDate);
+
+        let gap: number;
+        switch (depType) {
+          case 'FS':
+            // Finish-to-Start: successor starts the day after predecessor finishes
+            gap = differenceInCalendarDays(succStart, predEnd) - 1;
+            break;
+          case 'SS':
+            // Start-to-Start: successor starts on or after predecessor starts
+            gap = differenceInCalendarDays(succStart, predStart);
+            break;
+          case 'FF':
+            // Finish-to-Finish: successor finishes on or after predecessor finishes
+            gap = differenceInCalendarDays(succEnd, predEnd);
+            break;
+          case 'SF': {
+            const offset = succ.type === 'milestone' ? 0 : 1;
+            gap = differenceInCalendarDays(succEnd, predStart) - offset;
+            break;
+          }
+          default:
+            gap = differenceInCalendarDays(succStart, predEnd) - 1;
+        }
+
+        if (minGap === null || gap < minGap) {
+          minGap = gap;
+          drivingId = succ.id;
+          drivingName = succ.name;
+        }
+      }
+    }
+
+    const hasSuccessors = succIds.length > 0;
+    const freeSlack = hasSuccessors
+      ? (minGap !== null ? minGap : 0)
+      : Math.max(0, differenceInCalendarDays(maxEnd, end));
+
+    // Visual slack extension: manual buffer if specified > 0, otherwise non-negative freeSlack
+    const visualSlack = safeSlack > 0 ? safeSlack : Math.max(0, freeSlack);
+    const slackEnd = addDays(end, visualSlack);
 
     const lateFinish = lateFinishMap.get(item.id) || maxEnd;
     const cpmTotalFloat = Math.max(0, differenceInCalendarDays(lateFinish, end));
 
     // Check dependency conflict
     const earliestAllowed = getEarliestStartFromPredecessors(item, itemMap);
-    const hasConflict = earliestAllowed !== null && start < earliestAllowed;
-    const conflictMessage =
-      hasConflict && earliestAllowed
+    const hasPredecessorConflict = earliestAllowed !== null && start < earliestAllowed;
+    let hasConflict = hasPredecessorConflict;
+    let conflictMessage =
+      hasPredecessorConflict && earliestAllowed
         ? `Inicia antes que finalice su predecesora (debería iniciar el ${formatDateDisplay(
             formatDateISO(earliestAllowed),
             'dd MMM'
           )} o después)`
         : undefined;
 
-    // A task is on the critical path if its user-configured slack is 0 AND its CPM float is 0
+    if (!hasConflict && freeSlack < 0 && drivingName) {
+      hasConflict = true;
+      conflictMessage = `Inicia solapándose en ${Math.abs(freeSlack)} día(s) con su tarea siguiente «${drivingName}»`;
+    }
+
+    // A task is on the critical path if its user-configured slack is 0 AND its free slack / CPM float is 0
     // (either it reaches the end of the project or drives a chain that reaches the end of the project)
     const isCritical =
-      safeSlack === 0 && cpmTotalFloat <= 0 && projectTotalSpan > 0;
+      safeSlack === 0 && freeSlack <= 0 && cpmTotalFloat <= 0 && projectTotalSpan > 0;
 
     return {
       ...item,
@@ -1115,6 +1176,11 @@ export function computeGanttMetrics(items: GanttItem[]): ComputedGanttItem[] {
       slack: safeSlack,
       slackEndDate: formatDateISO(slackEnd),
       cpmTotalFloat,
+      freeSlack,
+      hasSuccessors,
+      successorIds: succIds,
+      drivingSuccessorId: drivingId,
+      drivingSuccessorName: drivingName,
       isCritical,
       hasConflict,
       conflictMessage,
@@ -1233,6 +1299,7 @@ export function groupItemsByProject(
         milestonesCount: 0,
         criticalCount: 0,
         totalSlack: 0,
+        totalFreeSlack: 0,
         hasConflict: false,
       };
     }
@@ -1247,6 +1314,7 @@ export function groupItemsByProject(
     let milestonesCount = 0;
     let criticalCount = 0;
     let totalSlack = 0;
+    let totalFreeSlack = 0;
     let taskProgressSum = 0;
     let milestoneProgressSum = 0;
     let hasConflict = false;
@@ -1265,6 +1333,7 @@ export function groupItemsByProject(
       } else {
         tasksCount++;
         totalSlack += it.slack || 0;
+        totalFreeSlack += Math.max(0, it.freeSlack || 0);
         taskProgressSum += it.progress || 0;
       }
 
@@ -1298,6 +1367,7 @@ export function groupItemsByProject(
       milestonesCount,
       criticalCount,
       totalSlack,
+      totalFreeSlack,
       hasConflict,
     };
   });
