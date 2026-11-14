@@ -10,10 +10,18 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.9.4',
+    date: '14 Nov 2026',
+    title: 'Selección múltiple para mover tareas y proyectos juntos y holgura automática visible en barras del cronograma',
+    isLatest: true,
+    features: [
+      'Se añade multiselección (checkbox, Cmd/Ctrl+Clic, Shift+Clic) en tabla y cronograma para arrastrar o desplazar múltiples tareas y proyectos juntos manteniendo fechas relativas, barra flotante de desplazamiento rápido (-7d/-1d/+1d/+7d) con protección de proyectos bloqueados, y visualización automática de la barra fantasma de holgura libre en tareas con sucesoras.',
+    ],
+  },
+  {
     version: '1.9.3',
     date: '13 Nov 2026',
     title: 'Cálculo e indicación automática de holgura libre (Slack) dadas las tareas siguientes',
-    isLatest: true,
     features: [
       'Motor CPM calcula holgura libre exacta con sucesoras',
       'Indicador automático de holgura y tareas siguientes en tabla de cronograma',

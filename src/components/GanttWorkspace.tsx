@@ -35,6 +35,7 @@ import {
   Maximize2,
   Minus,
   MousePointer,
+  MoveHorizontal,
   Palette,
   PanelLeftClose,
   PanelLeftOpen,
@@ -169,7 +170,14 @@ interface GanttWorkspaceProps {
   arrowVisibility?: ArrowVisibility;
   onChangeArrowVisibility?: (visibility: ArrowVisibility) => void;
   onUpdateItem: (updated: GanttItem, cascade: boolean) => void;
-  onUpdateItems?: (nextItems: GanttItem[]) => void;
+  onUpdateItems?: (
+    nextItems: GanttItem[],
+    meta?: {
+      actionType?: 'edit_item' | 'dependency_change';
+      actionLabel?: string;
+      description?: string;
+    }
+  ) => void;
   onReorderItem?: (itemId: string, direction: 'up' | 'down') => void;
   onMoveItem?: (sourceId: string, targetId: string, position: 'before' | 'after') => void;
   onEditModal: (item: ComputedGanttItem) => void;
@@ -193,6 +201,8 @@ interface GanttWorkspaceProps {
   initialConnectModeSource?: { itemId: string; role: 'pred' | 'succ' } | null;
   initialInspectingProjectId?: string;
   initialLockedAlertProjectId?: string;
+  initialMultiSelectedItemIds?: string[];
+  initialMultiSelectedProjectIds?: string[];
   releases?: Release[];
   activeReleaseId?: string;
   releaseGuideVisibility?: ReleaseGuideVisibility;
@@ -563,6 +573,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   initialConnectModeSource,
   initialInspectingProjectId,
   initialLockedAlertProjectId,
+  initialMultiSelectedItemIds,
+  initialMultiSelectedProjectIds,
   releases = [],
   activeReleaseId,
   releaseGuideVisibility = 'selected',
@@ -725,6 +737,89 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   );
   const [selectedDiagramProjectId, setSelectedDiagramProjectId] = useState<string | null>(null);
   const [selectedDiagramReleaseId, setSelectedDiagramReleaseId] = useState<string | null>(null);
+
+  // Multi-selection state for tasks/milestones and projects (move together on timeline)
+  const [multiSelectedItemIds, setMultiSelectedItemIds] = useState<Set<string>>(
+    () => new Set(initialMultiSelectedItemIds || [])
+  );
+  const [multiSelectedProjectIds, setMultiSelectedProjectIds] = useState<Set<string>>(
+    () => new Set(initialMultiSelectedProjectIds || [])
+  );
+  const lastMultiAnchorRef = useRef<{ kind: 'item' | 'project'; id: string } | null>(null);
+
+  const effectiveMultiItemIds = useMemo(() => {
+    const set = new Set<string>(multiSelectedItemIds);
+    if (multiSelectedProjectIds.size > 0) {
+      for (const it of items) {
+        const pid = it.projectId || projects[0]?.id;
+        if (pid && multiSelectedProjectIds.has(pid)) {
+          set.add(it.id);
+        }
+      }
+    }
+    return set;
+  }, [multiSelectedItemIds, multiSelectedProjectIds, items, projects]);
+
+  const hasMultiSelection =
+    multiSelectedItemIds.size > 0 || multiSelectedProjectIds.size > 0;
+
+  const clearMultiSelection = () => {
+    setMultiSelectedItemIds(new Set());
+    setMultiSelectedProjectIds(new Set());
+    lastMultiAnchorRef.current = null;
+  };
+
+  const shiftItemsByDays = (
+    targetIds: Set<string>,
+    deltaDays: number,
+    attemptedLabel = 'mover selección múltiple en el cronograma'
+  ): boolean => {
+    if (deltaDays === 0 || targetIds.size === 0) return false;
+    for (const id of targetIds) {
+      const target = items.find((it) => it.id === id);
+      if (!target) continue;
+      const lockedProj = getLockedProjectForItem(target, projectsRef.current);
+      if (lockedProj) {
+        setLockedAlertState({
+          project: lockedProj,
+          attemptedAction: attemptedLabel,
+        });
+        return false;
+      }
+    }
+
+    const nextItems = items.map((it) => {
+      if (!targetIds.has(it.id)) return it;
+      const origStart = parseDateSafe(it.startDate);
+      const origDur = it.type === 'milestone' ? 0 : Math.max(1, it.duration);
+      const newStart = formatDateISO(addDays(origStart, deltaDays));
+      const newEnd =
+        it.type === 'milestone'
+          ? newStart
+          : calculateEndDateFromDuration(newStart, origDur, 'task');
+      return {
+        ...it,
+        startDate: newStart,
+        endDate: newEnd,
+      };
+    });
+
+    const sign = deltaDays > 0 ? `+${deltaDays}` : `${deltaDays}`;
+    if (onUpdateItems) {
+      onUpdateItems(nextItems, {
+        actionType: 'edit_item',
+        actionLabel: 'Mover Múltiple',
+        description: `Mover ${targetIds.size} elemento(s) juntos (${sign}d)`,
+      });
+    } else {
+      for (const updated of nextItems) {
+        if (targetIds.has(updated.id)) {
+          onUpdateItem(updated, false);
+        }
+      }
+    }
+    return true;
+  };
 
   const effectiveSelectedItemId = selectedEntity
     ? selectedEntity.type === 'task'
@@ -1836,7 +1931,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     }
   }, [zoom, controlledDayWidth]);
 
-  // Interactive drag state for moving or resizing task bars directly on the timeline
+  // Interactive drag state for moving or resizing task bars (and multi-selected items/projects) directly on the timeline
   const [dragState, setDragState] = useState<{
     itemId: string;
     mode: 'move' | 'resize';
@@ -1844,6 +1939,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     origStart: Date;
     origDuration: number;
     dayDelta: number;
+    multiItems?: Map<string, { origStart: Date; origDuration: number; type: 'task' | 'milestone' }>;
   } | null>(null);
 
   const isResizingSplitRef = useRef(false);
@@ -1996,6 +2092,24 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   const effectiveItems = useMemo(() => {
     if (!dragState || dragState.dayDelta === 0) return items;
     return items.map((it) => {
+      if (dragState.mode === 'move' && dragState.multiItems) {
+        const entry = dragState.multiItems.get(it.id);
+        if (!entry) return it;
+        const newStart = formatDateISO(addDays(entry.origStart, dragState.dayDelta));
+        const newEnd =
+          entry.type === 'milestone'
+            ? newStart
+            : calculateEndDateFromDuration(newStart, entry.origDuration, 'task');
+        const newSlackEnd = formatDateISO(
+          addDays(parseDateSafe(newEnd), Math.max(0, it.slack || 0))
+        );
+        return {
+          ...it,
+          startDate: newStart,
+          endDate: newEnd,
+          slackEndDate: newSlackEnd,
+        };
+      }
       if (it.id !== dragState.itemId) return it;
       if (dragState.mode === 'move') {
         const newStart = formatDateISO(addDays(dragState.origStart, dragState.dayDelta));
@@ -2405,23 +2519,132 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     };
   }, [timelineScopedItems, timelineDates]);
 
-  // Handle mouse drag for task bars on timeline
+  const toggleMultiSelectProject = (projectId: string, shiftKey = false) => {
+    if (shiftKey && lastMultiAnchorRef.current) {
+      const anchor = lastMultiAnchorRef.current;
+      const startIdx = displayRows.findIndex((r) =>
+        anchor.kind === 'project'
+          ? r.kind === 'project' && r.group.project.id === anchor.id
+          : r.kind === 'item' && r.item.id === anchor.id
+      );
+      const endIdx = displayRows.findIndex(
+        (r) => r.kind === 'project' && r.group.project.id === projectId
+      );
+      if (startIdx >= 0 && endIdx >= 0) {
+        const lo = Math.min(startIdx, endIdx);
+        const hi = Math.max(startIdx, endIdx);
+        const nextItems = new Set(multiSelectedItemIds);
+        const nextProjs = new Set(multiSelectedProjectIds);
+        for (let i = lo; i <= hi; i++) {
+          const row = displayRows[i];
+          if (row.kind === 'project') nextProjs.add(row.group.project.id);
+          else if (row.kind === 'item') nextItems.add(row.item.id);
+        }
+        setMultiSelectedItemIds(nextItems);
+        setMultiSelectedProjectIds(nextProjs);
+        return;
+      }
+    }
+    setMultiSelectedProjectIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(projectId)) next.delete(projectId);
+      else next.add(projectId);
+      return next;
+    });
+    lastMultiAnchorRef.current = { kind: 'project', id: projectId };
+  };
+
+  const toggleMultiSelectItem = (itemId: string, shiftKey = false) => {
+    if (shiftKey && lastMultiAnchorRef.current) {
+      const anchor = lastMultiAnchorRef.current;
+      const startIdx = displayRows.findIndex((r) =>
+        anchor.kind === 'project'
+          ? r.kind === 'project' && r.group.project.id === anchor.id
+          : r.kind === 'item' && r.item.id === anchor.id
+      );
+      const endIdx = displayRows.findIndex(
+        (r) => r.kind === 'item' && r.item.id === itemId
+      );
+      if (startIdx >= 0 && endIdx >= 0) {
+        const lo = Math.min(startIdx, endIdx);
+        const hi = Math.max(startIdx, endIdx);
+        const nextItems = new Set(multiSelectedItemIds);
+        const nextProjs = new Set(multiSelectedProjectIds);
+        for (let i = lo; i <= hi; i++) {
+          const row = displayRows[i];
+          if (row.kind === 'project') nextProjs.add(row.group.project.id);
+          else if (row.kind === 'item') nextItems.add(row.item.id);
+        }
+        setMultiSelectedItemIds(nextItems);
+        setMultiSelectedProjectIds(nextProjs);
+        return;
+      }
+    }
+    setMultiSelectedItemIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      return next;
+    });
+    lastMultiAnchorRef.current = { kind: 'item', id: itemId };
+  };
+
+  // Handle mouse drag for task bars on timeline (supports moving multiple selected tasks/projects together)
   const handleBarMouseDown = (
     e: React.MouseEvent,
     item: ComputedGanttItem,
     mode: 'move' | 'resize'
   ) => {
     e.stopPropagation();
+    if (mode === 'move' && (e.metaKey || e.ctrlKey || e.shiftKey)) {
+      return;
+    }
     hasDraggedRef.current = false;
     const startX = e.clientX;
     const origStart = parseDateSafe(item.startDate);
     const origDuration = item.type === 'milestone' ? 0 : Math.max(1, item.duration);
-    const lockedProj = getLockedProjectForItem(item, projectsRef.current);
+
+    const isMultiMove =
+      mode === 'move' &&
+      effectiveMultiItemIds.has(item.id) &&
+      effectiveMultiItemIds.size > 1;
+    const movingIds = isMultiMove ? new Set(effectiveMultiItemIds) : null;
+
+    let lockedProj = getLockedProjectForItem(item, projectsRef.current);
+    if (!lockedProj && movingIds) {
+      for (const id of movingIds) {
+        const target = items.find((it) => it.id === id);
+        if (!target) continue;
+        const lp = getLockedProjectForItem(target, projectsRef.current);
+        if (lp) {
+          lockedProj = lp;
+          break;
+        }
+      }
+    }
+
     const attemptedLabel =
       mode === 'resize'
         ? `redimensionar «${item.name}» en el diagrama`
+        : movingIds
+        ? `mover selección múltiple (${movingIds.size} elementos) en el diagrama`
         : `mover «${item.name}» en el diagrama`;
     let lockPromptTriggered = false;
+
+    const multiItemsMap = movingIds
+      ? new Map<string, { origStart: Date; origDuration: number; type: 'task' | 'milestone' }>(
+          items
+            .filter((it) => movingIds.has(it.id))
+            .map((it) => [
+              it.id,
+              {
+                origStart: parseDateSafe(it.startDate),
+                origDuration: it.type === 'milestone' ? 0 : Math.max(1, it.duration),
+                type: it.type,
+              },
+            ])
+        )
+      : undefined;
 
     if (!lockedProj) {
       setDragState({
@@ -2431,6 +2654,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         origStart,
         origDuration,
         dayDelta: 0,
+        multiItems: multiItemsMap,
       });
     }
 
@@ -2479,6 +2703,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       if (deltaDays === 0) return;
 
       if (mode === 'move') {
+        if (movingIds) {
+          shiftItemsByDays(movingIds, deltaDays, attemptedLabel);
+          return;
+        }
         const newStart = formatDateISO(addDays(origStart, deltaDays));
         const newEnd =
           item.type === 'milestone'
@@ -2504,6 +2732,125 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
           false
         );
       }
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
+  // Handle mouse drag for project summary bars (moves all tasks in the project, or all multi-selected projects/tasks together)
+  const handleProjectBarMouseDown = (
+    e: React.MouseEvent,
+    group: ComputedProjectGroup
+  ) => {
+    e.stopPropagation();
+    if (e.metaKey || e.ctrlKey || e.shiftKey) {
+      return;
+    }
+    hasDraggedRef.current = false;
+    const startX = e.clientX;
+
+    const isPartOfMulti =
+      multiSelectedProjectIds.has(group.project.id) &&
+      effectiveMultiItemIds.size > 0;
+    const movingIds = isPartOfMulti
+      ? new Set(effectiveMultiItemIds)
+      : new Set(group.items.map((it) => it.id));
+
+    if (movingIds.size === 0) return;
+
+    let lockedProj: GanttProject | undefined = group.project.locked
+      ? group.project
+      : undefined;
+    if (!lockedProj) {
+      for (const id of movingIds) {
+        const target = items.find((it) => it.id === id);
+        if (!target) continue;
+        const lp = getLockedProjectForItem(target, projectsRef.current);
+        if (lp) {
+          lockedProj = lp;
+          break;
+        }
+      }
+    }
+
+    const attemptedLabel = isPartOfMulti
+      ? `mover selección múltiple (${movingIds.size} elementos) en el diagrama`
+      : `mover proyecto «${group.project.name}» en el diagrama`;
+    let lockPromptTriggered = false;
+
+    const multiItemsMap = new Map<
+      string,
+      { origStart: Date; origDuration: number; type: 'task' | 'milestone' }
+    >(
+      items
+        .filter((it) => movingIds.has(it.id))
+        .map((it) => [
+          it.id,
+          {
+            origStart: parseDateSafe(it.startDate),
+            origDuration: it.type === 'milestone' ? 0 : Math.max(1, it.duration),
+            type: it.type,
+          },
+        ])
+    );
+
+    if (!lockedProj) {
+      setDragState({
+        itemId: `project:${group.project.id}`,
+        mode: 'move',
+        startX,
+        origStart: parseDateSafe(group.startDate),
+        origDuration: group.duration,
+        dayDelta: 0,
+        multiItems: multiItemsMap,
+      });
+    }
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const dx = moveEvent.clientX - startX;
+      if (Math.abs(dx) > 3) {
+        hasDraggedRef.current = true;
+      }
+      if (lockedProj) {
+        if (Math.abs(dx) > 3 && !lockPromptTriggered) {
+          lockPromptTriggered = true;
+          window.removeEventListener('mousemove', onMouseMove);
+          setDragState(null);
+          setLockedAlertState({
+            project: lockedProj,
+            attemptedAction: attemptedLabel,
+          });
+        }
+        return;
+      }
+      const deltaDays = Math.round(dx / dayWidth);
+      setDragState((prev) => (prev ? { ...prev, dayDelta: deltaDays } : null));
+    };
+
+    const onMouseUp = (upEvent: MouseEvent) => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+
+      const dx = upEvent.clientX - startX;
+      const deltaDays = Math.round(dx / dayWidth);
+      if (Math.abs(dx) > 3 || (lockedProj && deltaDays !== 0)) {
+        hasDraggedRef.current = true;
+      }
+      setDragState(null);
+
+      if (lockedProj) {
+        if ((Math.abs(dx) > 3 || deltaDays !== 0) && !lockPromptTriggered) {
+          setLockedAlertState({
+            project: lockedProj,
+            attemptedAction: attemptedLabel,
+          });
+        }
+        return;
+      }
+
+      if (deltaDays === 0) return;
+      shiftItemsByDays(movingIds, deltaDays, attemptedLabel);
     };
 
     window.addEventListener('mousemove', onMouseMove);
@@ -2708,6 +3055,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         setSelectedItemId(null);
         setSelectedDiagramProjectId(null);
         setSelectedDiagramReleaseId(null);
+        clearMultiSelection();
         onSelectEntity?.(null);
         if (isFocusMode && onExitFocusMode) {
           onExitFocusMode();
@@ -2765,6 +3113,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         reconnectMode.depType
       );
       setReconnectMode(null);
+      return;
+    }
+    if (e.metaKey || e.ctrlKey || e.shiftKey) {
+      toggleMultiSelectItem(itemId, e.shiftKey);
       return;
     }
     setSelectedDepLink(null);
@@ -4927,12 +5279,20 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             ? group.project.name || 'Proyecto'
                             : group.project.name.slice(0, effectiveTruncateLimit) + '…';
 
+                        const isProjectMultiSelected = multiSelectedProjectIds.has(group.project.id);
                         return (
                           <div
                             key={row.rowId}
                             data-project-group={group.project.id}
                             data-project-locked={group.project.locked ? 'true' : 'false'}
+                            data-multi-selected={isProjectMultiSelected ? 'true' : 'false'}
                             style={{ height: ROW_HEIGHT, minWidth: tableMinWidth }}
+                            onClick={(e) => {
+                              if (e.metaKey || e.ctrlKey || e.shiftKey) {
+                                e.stopPropagation();
+                                toggleMultiSelectProject(group.project.id, e.shiftKey);
+                              }
+                            }}
                             onDragOver={(e) =>
                               handleDragRowOver(e, `project:${group.project.id}`)
                             }
@@ -4940,13 +5300,15 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             onDrop={(e) =>
                               handleDropRow(e, `project:${group.project.id}`)
                             }
-                            className={`flex items-center justify-start px-3 text-xs font-semibold ${
+                            className={`group flex items-center justify-start px-3 text-xs font-semibold ${
                               showRowSeparators
                                 ? 'border-y border-slate-200/80 dark:border-zinc-800/80'
                                 : 'border-y-0'
                             } transition-colors ${
                               isProjectDragTarget
                                 ? 'ring-2 ring-inset ring-indigo-500 bg-indigo-100/70 dark:bg-indigo-950/60'
+                                : isProjectMultiSelected
+                                ? 'ring-1 ring-inset ring-indigo-500 bg-indigo-50/90 dark:bg-indigo-950/50'
                                 : projTheme.groupRowBg
                             }`}
                           >
@@ -4955,6 +5317,28 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               style={{ width: nameColumnWidth }}
                               className="flex items-center gap-2 pr-2 shrink-0 pl-1 min-w-0"
                             >
+                              {/* Multi-select checkbox for project */}
+                              <button
+                                type="button"
+                                data-testid={`multi-select-project-${group.project.id}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleMultiSelectProject(group.project.id, e.shiftKey);
+                                }}
+                                title={
+                                  isProjectMultiSelected
+                                    ? 'Quitar proyecto de la selección múltiple'
+                                    : 'Seleccionar proyecto para mover junto a otros elementos (o Cmd/Ctrl+Clic)'
+                                }
+                                aria-label={`Seleccionar proyecto ${group.project.name}`}
+                                className={`w-3.5 h-3.5 rounded-[2px] border flex items-center justify-center shrink-0 transition cursor-pointer ${
+                                  isProjectMultiSelected
+                                    ? 'bg-indigo-600 border-indigo-600 text-white'
+                                    : 'border-slate-300 dark:border-zinc-600 bg-white/80 dark:bg-zinc-900 opacity-50 group-hover:opacity-100 hover:border-indigo-500'
+                                }`}
+                              >
+                                {isProjectMultiSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                              </button>
                               {/* Reorder project buttons within same release */}
                               <div className="flex flex-col -space-y-1 shrink-0">
                                 <button
@@ -5491,14 +5875,22 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         : [];
 
                       const isRowSelected = effectiveSelectedItemId === item.id;
+                      const isMultiSelectedItem = effectiveMultiItemIds.has(item.id);
 
                       return (
                         <div
                           key={row.rowId}
                           data-task-row={item.id}
                           data-selected-task-row={isRowSelected ? 'true' : undefined}
+                          data-multi-selected={isMultiSelectedItem ? 'true' : 'false'}
                           draggable={true}
                           style={{ height: ROW_HEIGHT, minWidth: tableMinWidth }}
+                          onClick={(e) => {
+                            if (e.metaKey || e.ctrlKey || e.shiftKey) {
+                              e.stopPropagation();
+                              toggleMultiSelectItem(item.id, e.shiftKey);
+                            }
+                          }}
                           onMouseEnter={() => setHoveredId(item.id)}
                           onMouseLeave={() => setHoveredId(null)}
                           onMouseDown={(e) => handleRowPointerMouseDown(e, item.id, false)}
@@ -5507,7 +5899,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           onDragOver={(e) => handleDragRowOver(e, item.id)}
                           onDragLeave={handleDragRowLeave}
                           onDrop={(e) => handleDropRow(e, item.id)}
-                          className={`flex items-center justify-start px-3 text-xs transition-colors ${
+                          className={`group flex items-center justify-start px-3 text-xs transition-colors ${
                             showRowSeparators
                               ? 'border-b border-[#E2E2DC] dark:border-zinc-800'
                               : 'border-b-0'
@@ -5522,6 +5914,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               ? item.hasConflict
                                 ? 'ring-2 ring-inset ring-rose-500 bg-rose-50/70 dark:bg-rose-950/30 text-[#0C0C09] dark:text-zinc-100'
                                 : 'ring-2 ring-inset ring-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/30 text-[#0C0C09] dark:text-zinc-100'
+                              : isMultiSelectedItem
+                              ? 'ring-1 ring-inset ring-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/40 text-[#0C0C09] dark:text-zinc-100'
                               : item.hidden
                               ? 'opacity-60 bg-zinc-50/70 dark:bg-zinc-900/30'
                               : isBeingDragged
@@ -5540,6 +5934,28 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               groupByProject ? 'pl-2' : ''
                             }`}
                           >
+                            {/* Multi-select checkbox for task/milestone */}
+                            <button
+                              type="button"
+                              data-testid={`multi-select-item-${item.id}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleMultiSelectItem(item.id, e.shiftKey);
+                              }}
+                              title={
+                                isMultiSelectedItem
+                                  ? 'Quitar de la selección múltiple'
+                                  : 'Seleccionar para mover junto a otras tareas/proyectos (o Cmd/Ctrl+Clic)'
+                              }
+                              aria-label={`Seleccionar ${item.name}`}
+                              className={`w-3.5 h-3.5 rounded-[2px] border flex items-center justify-center shrink-0 transition cursor-pointer ${
+                                isMultiSelectedItem
+                                  ? 'bg-indigo-600 border-indigo-600 text-white'
+                                  : 'border-slate-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 opacity-35 group-hover:opacity-100 hover:border-indigo-500'
+                              }`}
+                            >
+                              {isMultiSelectedItem && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                            </button>
                             {/* Reorder grip handle and up/down arrows */}
                             <div className="flex items-center gap-0.5 shrink-0">
                               <span
@@ -6972,6 +7388,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         data-empty-project-timeline-bar="true"
                         data-project-locked={group.project.locked ? 'true' : 'false'}
                         data-selected-project-id={isProjectSelected ? group.project.id : undefined}
+                        data-multi-selected={multiSelectedProjectIds.has(group.project.id) ? 'true' : undefined}
                         style={{
                           top: rowIndex * ROW_HEIGHT,
                           height: ROW_HEIGHT,
@@ -6980,8 +7397,17 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       >
                         <div
                           style={{ left: groupStartX, width: groupWidth }}
+                          onMouseDown={(e) => handleProjectBarMouseDown(e, group)}
                           onClick={(e) => {
                             e.stopPropagation();
+                            if (hasDraggedRef.current) {
+                              hasDraggedRef.current = false;
+                              return;
+                            }
+                            if (e.metaKey || e.ctrlKey || e.shiftKey) {
+                              toggleMultiSelectProject(group.project.id, e.shiftKey);
+                              return;
+                            }
                             handleSelectProject(group.project);
                           }}
                           onDoubleClick={(e) => {
@@ -6990,7 +7416,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           }}
                           title={`${group.project.name}${group.project.locked ? ' · 🔒 Bloqueado' : ''} (Sin tareas aún · ${targetRel ? `Release ${targetRel.code}` : 'Ventana estimada'}: ${formatDateDisplay(groupStartDateStr, 'dd MMM')} → ${formatDateDisplay(groupEndDateStr, 'dd MMM yyyy')} · Clic para seleccionar proyecto en diagrama)`}
                           className={`relative z-20 flex flex-col justify-center cursor-pointer pointer-events-auto group overflow-visible ${
-                            isProjectSelected ? 'ring-2 ring-indigo-500 rounded-[4px] p-0.5' : ''
+                            isProjectSelected || multiSelectedProjectIds.has(group.project.id)
+                              ? 'ring-2 ring-indigo-500 rounded-[4px] p-0.5'
+                              : ''
                           }`}
                         >
                           {/* Label above empty summary bar */}
@@ -7041,6 +7469,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       data-project-summary-bar={group.project.id}
                       data-project-locked={group.project.locked ? 'true' : 'false'}
                       data-selected-project-id={isProjectSelected ? group.project.id : undefined}
+                      data-multi-selected={multiSelectedProjectIds.has(group.project.id) ? 'true' : undefined}
                       style={{
                         top: rowIndex * ROW_HEIGHT,
                         height: ROW_HEIGHT,
@@ -7049,8 +7478,17 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     >
                       <div
                         style={{ left: groupStartX, width: groupWidth }}
+                        onMouseDown={(e) => handleProjectBarMouseDown(e, group)}
                         onClick={(e) => {
                           e.stopPropagation();
+                          if (hasDraggedRef.current) {
+                            hasDraggedRef.current = false;
+                            return;
+                          }
+                          if (e.metaKey || e.ctrlKey || e.shiftKey) {
+                            toggleMultiSelectProject(group.project.id, e.shiftKey);
+                            return;
+                          }
                           handleSelectProject(group.project);
                         }}
                         onDoubleClick={(e) => {
@@ -7062,9 +7500,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           'dd MMM'
                         )} → ${formatDateDisplay(group.endDate, 'dd MMM yyyy')} (${
                           group.duration
-                        } días · Clic para seleccionar proyecto en diagrama, doble clic para colapsar)`}
-                        className={`relative z-20 flex flex-col justify-center cursor-pointer pointer-events-auto group overflow-visible ${
-                          isProjectSelected ? 'ring-2 ring-indigo-500 rounded-[4px] p-0.5' : ''
+                        } días · Arrastra para mover todo el proyecto, Cmd/Ctrl+Clic para multiselección, doble clic para colapsar)`}
+                        className={`relative z-20 flex flex-col justify-center cursor-grab active:cursor-grabbing pointer-events-auto group overflow-visible ${
+                          isProjectSelected || multiSelectedProjectIds.has(group.project.id)
+                            ? 'ring-2 ring-indigo-500 rounded-[4px] p-0.5'
+                            : ''
                         }`}
                       >
                         {/* Top Label above Summary Bracket */}
@@ -7145,7 +7585,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   !isDepDropTarget &&
                   !isConnectSource;
                 const isCrit = showCriticalPath && item.isCritical;
-                const isDraggingThis = dragState && dragState.itemId === item.id;
+                const isMultiSelectedThis = effectiveMultiItemIds.has(item.id);
+                const isDraggingThis = Boolean(
+                  dragState && (dragState.itemId === item.id || dragState.multiItems?.has(item.id))
+                );
                 const itemEffectiveColor = getItemEffectiveColor(item);
                 const styleTheme = COLOR_STYLES[itemEffectiveColor] || COLOR_STYLES.indigo;
 
@@ -7167,10 +7610,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     ? 20
                     : Math.max(6, dayWidth, coords.endX - coords.startX);
 
-                // Visual Slack width: automatic free slack given successor tasks (or manual slack if configured)
+                // Visual Slack width: automatic free slack given successor tasks (always visible when task has successors)
                 const autoSlackDays = Math.max(0, item.freeSlack ?? 0);
                 const totalSlackDays = item.slack > 0
                   ? item.slack
+                  : item.hasSuccessors
+                  ? autoSlackDays
                   : (visibleColumns.slack || showCpmFloat ? autoSlackDays : 0);
                 const slackWidth =
                   item.type === 'task' && totalSlackDays > 0
@@ -7267,9 +7712,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           </div>
                         )}
                         <div
+                          data-multi-selected={isMultiSelectedThis ? 'true' : undefined}
                           className={`w-5 h-5 rotate-45 rounded-[4px] border-2 shadow-md transition-transform group-hover:scale-125 ${
                             isDraggingThis
                               ? 'scale-125 ring-2 ring-indigo-500 shadow-xl'
+                              : isMultiSelectedThis
+                              ? 'scale-125 ring-2 ring-indigo-500 shadow-lg'
                               : isDepDropTarget
                               ? 'scale-125 ring-2 ring-emerald-500'
                               : isConnectSource
@@ -7357,11 +7805,14 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             onClick={(e) => handleBarClick(e, item.id)}
                             onDoubleClick={() => guardedEditModal(item)}
                             data-timeline-task={item.id}
+                            data-multi-selected={isMultiSelectedThis ? 'true' : undefined}
                             className={`relative h-7 rounded-[4px] border overflow-hidden cursor-grab active:cursor-grabbing shadow-none transition-shadow ${
                               styleTheme.barBg
                             } ${
                               isDraggingThis
                                 ? 'ring-2 ring-[#0C0C09] ring-offset-1 dark:ring-offset-black opacity-95'
+                                : isMultiSelectedThis
+                                ? 'ring-2 ring-indigo-500 ring-offset-1 dark:ring-offset-black'
                                 : isDepDropTarget
                                 ? 'ring-2 ring-emerald-500 ring-offset-1 dark:ring-offset-black'
                                 : isConnectSource
@@ -7429,6 +7880,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         {/* SLACK / HOLGURA GHOST BAR EXTENSION */}
                         {slackWidth > 0 && (
                           <div
+                            data-testid={`timeline-slack-bar-${item.id}`}
                             style={{
                               width: slackWidth,
                               backgroundImage:
@@ -8493,6 +8945,61 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {hasMultiSelection && (
+          <div
+            data-testid="multi-select-action-bar"
+            className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-3 py-2 rounded-[6px] border border-zinc-200 dark:border-zinc-700 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-sm shadow-lg text-xs"
+          >
+            <div className="flex items-center gap-1.5 pr-2 border-r border-zinc-200 dark:border-zinc-700">
+              <MoveHorizontal className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+              <span className="font-semibold text-zinc-900 dark:text-zinc-100 whitespace-nowrap">
+                {effectiveMultiItemIds.size} {effectiveMultiItemIds.size === 1 ? 'tarea' : 'tareas'}
+                {multiSelectedProjectIds.size > 0
+                  ? ` · ${multiSelectedProjectIds.size} ${
+                      multiSelectedProjectIds.size === 1 ? 'proyecto' : 'proyectos'
+                    }`
+                  : ''}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1">
+              {[
+                { label: '-7d', days: -7 },
+                { label: '-1d', days: -1 },
+                { label: '+1d', days: 1 },
+                { label: '+7d', days: 7 },
+              ].map((step) => (
+                <button
+                  key={step.label}
+                  type="button"
+                  data-testid={`multi-shift-${step.days}`}
+                  onClick={() =>
+                    shiftItemsByDays(
+                      effectiveMultiItemIds,
+                      step.days,
+                      `mover selección múltiple (${step.label})`
+                    )
+                  }
+                  disabled={effectiveMultiItemIds.size === 0}
+                  title={`Desplazar selección ${step.label}`}
+                  className="px-2 py-1 rounded-[4px] border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 dark:hover:bg-indigo-950/50 dark:hover:border-indigo-700 dark:hover:text-indigo-300 font-mono text-[11px] font-semibold text-zinc-700 dark:text-zinc-200 disabled:opacity-40 transition cursor-pointer"
+                >
+                  {step.label}
+                </button>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              data-testid="multi-select-clear"
+              onClick={clearMultiSelection}
+              className="ml-1 px-2 py-1 rounded-[4px] text-[11px] font-medium text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition cursor-pointer"
+            >
+              Limpiar
+            </button>
           </div>
         )}
 

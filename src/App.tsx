@@ -1288,13 +1288,20 @@ export function App({
     );
   };
 
-  const handleUpdateItems = (nextItems: GanttItem[]) => {
+  const handleUpdateItems = (
+    nextItems: GanttItem[],
+    meta?: {
+      actionType?: 'edit_item' | 'dependency_change';
+      actionLabel?: string;
+      description?: string;
+    }
+  ) => {
     const clean = nextItems.map(sanitizeGanttItem);
     setItems(clean);
     recordPlanChange(
-      'dependency_change',
-      'Dependencia',
-      'Actualizar dependencias en el diagrama',
+      meta?.actionType || 'dependency_change',
+      meta?.actionLabel || 'Dependencia',
+      meta?.description || 'Actualizar dependencias en el diagrama',
       clean,
       effectiveProjects
     );
