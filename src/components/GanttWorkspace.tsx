@@ -7610,13 +7610,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     ? 20
                     : Math.max(6, dayWidth, coords.endX - coords.startX);
 
-                // Visual Slack width: automatic free slack given successor tasks (always visible when task has successors)
+                // Visual Slack width: automatic free slack given FS successor tasks (or manual slack if configured)
                 const autoSlackDays = Math.max(0, item.freeSlack ?? 0);
-                const totalSlackDays = item.slack > 0
-                  ? item.slack
-                  : item.hasSuccessors
-                  ? autoSlackDays
-                  : (visibleColumns.slack || showCpmFloat ? autoSlackDays : 0);
+                const totalSlackDays = item.slack > 0 ? item.slack : autoSlackDays;
                 const slackWidth =
                   item.type === 'task' && totalSlackDays > 0
                     ? totalSlackDays * dayWidth

@@ -10,10 +10,18 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.9.6',
+    date: '14 Nov 2026',
+    title: 'Holgura automática restringida a dependencias Fin-Inicio (FS)',
+    isLatest: true,
+    features: [
+      'La holgura libre automática solo se calcula y muestra en tareas que tienen sucesoras con dependencia Fin-Inicio (FS).',
+    ],
+  },
+  {
     version: '1.9.5',
     date: '14 Nov 2026',
     title: 'Corrección de hooks en el modal de edición de tareas',
-    isLatest: true,
     features: [
       'Se corrige un error de orden de hooks de React en TaskFormModal al abrir la edición de tareas desde el estado cerrado.',
     ],

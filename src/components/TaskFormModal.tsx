@@ -261,34 +261,16 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
     if (!isOpen || !initialItem?.id || successorTasks.length === 0) return null;
     let minGap: number | null = null;
     let drivingTask: ComputedGanttItem | null = null;
+    let fsCount = 0;
 
     const currentEnd = parseDateSafe(endDate);
-    const currentStart = parseDateSafe(startDate);
 
     for (const succ of successorTasks) {
       const depType: DependencyType = succ.dependencyTypes?.[initialItem.id] || 'FS';
+      if (depType !== 'FS') continue;
+      fsCount++;
       const succStart = parseDateSafe(succ.startDate);
-      const succEnd = parseDateSafe(succ.endDate);
-
-      let gap: number;
-      switch (depType) {
-        case 'FS':
-          gap = differenceInCalendarDays(succStart, currentEnd) - 1;
-          break;
-        case 'SS':
-          gap = differenceInCalendarDays(succStart, currentStart);
-          break;
-        case 'FF':
-          gap = differenceInCalendarDays(succEnd, currentEnd);
-          break;
-        case 'SF': {
-          const offset = succ.type === 'milestone' ? 0 : 1;
-          gap = differenceInCalendarDays(succEnd, currentStart) - offset;
-          break;
-        }
-        default:
-          gap = differenceInCalendarDays(succStart, currentEnd) - 1;
-      }
+      const gap = differenceInCalendarDays(succStart, currentEnd) - 1;
 
       if (minGap === null || gap < minGap) {
         minGap = gap;
@@ -296,12 +278,14 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
       }
     }
 
+    if (minGap === null || fsCount === 0) return null;
+
     return {
-      freeSlack: minGap ?? 0,
+      freeSlack: minGap,
       drivingTask,
-      count: successorTasks.length,
+      count: fsCount,
     };
-  }, [isOpen, initialItem, successorTasks, startDate, endDate]);
+  }, [isOpen, initialItem, successorTasks, endDate]);
 
   if (!isOpen) return null;
 

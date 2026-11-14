@@ -1100,33 +1100,12 @@ export function computeGanttMetrics(items: GanttItem[]): ComputedGanttItem[] {
         const succ = itemMap.get(sId);
         if (!succ) continue;
         const depType: DependencyType = succ.dependencyTypes?.[item.id] || 'FS';
-        const predStart = parseDateSafe(item.startDate);
+        // Automatic free slack applies only when a successor depends on this task with FS (Finish-to-Start)
+        if (depType !== 'FS') continue;
+
         const predEnd = parseDateSafe(item.endDate);
         const succStart = parseDateSafe(succ.startDate);
-        const succEnd = parseDateSafe(succ.endDate);
-
-        let gap: number;
-        switch (depType) {
-          case 'FS':
-            // Finish-to-Start: successor starts the day after predecessor finishes
-            gap = differenceInCalendarDays(succStart, predEnd) - 1;
-            break;
-          case 'SS':
-            // Start-to-Start: successor starts on or after predecessor starts
-            gap = differenceInCalendarDays(succStart, predStart);
-            break;
-          case 'FF':
-            // Finish-to-Finish: successor finishes on or after predecessor finishes
-            gap = differenceInCalendarDays(succEnd, predEnd);
-            break;
-          case 'SF': {
-            const offset = succ.type === 'milestone' ? 0 : 1;
-            gap = differenceInCalendarDays(succEnd, predStart) - offset;
-            break;
-          }
-          default:
-            gap = differenceInCalendarDays(succStart, predEnd) - 1;
-        }
+        const gap = differenceInCalendarDays(succStart, predEnd) - 1;
 
         if (minGap === null || gap < minGap) {
           minGap = gap;
@@ -1137,9 +1116,7 @@ export function computeGanttMetrics(items: GanttItem[]): ComputedGanttItem[] {
     }
 
     const hasSuccessors = succIds.length > 0;
-    const freeSlack = hasSuccessors
-      ? (minGap !== null ? minGap : 0)
-      : Math.max(0, differenceInCalendarDays(maxEnd, end));
+    const freeSlack = minGap !== null ? minGap : 0;
 
     // Visual slack extension: manual buffer if specified > 0, otherwise non-negative freeSlack
     const visualSlack = safeSlack > 0 ? safeSlack : Math.max(0, freeSlack);
