@@ -251,6 +251,58 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
     };
   }, [isOpen, onClose]);
 
+  // Live calculation of successor tasks and automatic free slack (must run before early return to respect Rules of Hooks)
+  const successorTasks = useMemo(() => {
+    if (!initialItem?.id) return [];
+    return allItems.filter((it) => it.dependencies && it.dependencies.includes(initialItem.id));
+  }, [initialItem, allItems]);
+
+  const autoSlackInfo = useMemo(() => {
+    if (!isOpen || !initialItem?.id || successorTasks.length === 0) return null;
+    let minGap: number | null = null;
+    let drivingTask: ComputedGanttItem | null = null;
+
+    const currentEnd = parseDateSafe(endDate);
+    const currentStart = parseDateSafe(startDate);
+
+    for (const succ of successorTasks) {
+      const depType: DependencyType = succ.dependencyTypes?.[initialItem.id] || 'FS';
+      const succStart = parseDateSafe(succ.startDate);
+      const succEnd = parseDateSafe(succ.endDate);
+
+      let gap: number;
+      switch (depType) {
+        case 'FS':
+          gap = differenceInCalendarDays(succStart, currentEnd) - 1;
+          break;
+        case 'SS':
+          gap = differenceInCalendarDays(succStart, currentStart);
+          break;
+        case 'FF':
+          gap = differenceInCalendarDays(succEnd, currentEnd);
+          break;
+        case 'SF': {
+          const offset = succ.type === 'milestone' ? 0 : 1;
+          gap = differenceInCalendarDays(succEnd, currentStart) - offset;
+          break;
+        }
+        default:
+          gap = differenceInCalendarDays(succStart, currentEnd) - 1;
+      }
+
+      if (minGap === null || gap < minGap) {
+        minGap = gap;
+        drivingTask = succ;
+      }
+    }
+
+    return {
+      freeSlack: minGap ?? 0,
+      drivingTask,
+      count: successorTasks.length,
+    };
+  }, [isOpen, initialItem, successorTasks, startDate, endDate]);
+
   if (!isOpen) return null;
 
   const handleTypeChange = (newType: TaskType) => {
@@ -518,58 +570,6 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
     (type === 'milestone' ? 1 : 1) + Math.max(0, slack),
     'task'
   );
-
-  // Live calculation of successor tasks and automatic free slack
-  const successorTasks = useMemo(() => {
-    if (!initialItem?.id) return [];
-    return allItems.filter((it) => it.dependencies && it.dependencies.includes(initialItem.id));
-  }, [initialItem, allItems]);
-
-  const autoSlackInfo = useMemo(() => {
-    if (!initialItem?.id || successorTasks.length === 0) return null;
-    let minGap: number | null = null;
-    let drivingTask: ComputedGanttItem | null = null;
-
-    const currentEnd = parseDateSafe(endDate);
-    const currentStart = parseDateSafe(startDate);
-
-    for (const succ of successorTasks) {
-      const depType: DependencyType = succ.dependencyTypes?.[initialItem.id] || 'FS';
-      const succStart = parseDateSafe(succ.startDate);
-      const succEnd = parseDateSafe(succ.endDate);
-
-      let gap: number;
-      switch (depType) {
-        case 'FS':
-          gap = differenceInCalendarDays(succStart, currentEnd) - 1;
-          break;
-        case 'SS':
-          gap = differenceInCalendarDays(succStart, currentStart);
-          break;
-        case 'FF':
-          gap = differenceInCalendarDays(succEnd, currentEnd);
-          break;
-        case 'SF': {
-          const offset = succ.type === 'milestone' ? 0 : 1;
-          gap = differenceInCalendarDays(succEnd, currentStart) - offset;
-          break;
-        }
-        default:
-          gap = differenceInCalendarDays(succStart, currentEnd) - 1;
-      }
-
-      if (minGap === null || gap < minGap) {
-        minGap = gap;
-        drivingTask = succ;
-      }
-    }
-
-    return {
-      freeSlack: minGap ?? 0,
-      drivingTask,
-      count: successorTasks.length,
-    };
-  }, [initialItem, successorTasks, startDate, endDate]);
 
   return (
     <div
