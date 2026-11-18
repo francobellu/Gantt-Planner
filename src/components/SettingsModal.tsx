@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   X,
   Settings,
@@ -7,9 +7,10 @@ import {
   Calendar,
   Eye,
   EyeOff,
+  Plus,
   RotateCcw,
 } from 'lucide-react';
-import { APP_VERSION, DEFAULT_TRUNCATE_CHAR_LIMIT } from '../types/gantt';
+import { APP_VERSION, DEFAULT_TRUNCATE_CHAR_LIMIT, WorkCalendarConfig } from '../types/gantt';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -23,6 +24,8 @@ interface SettingsModalProps {
   hiddenReleaseCount: number;
   onResetHiddenReleases?: () => void;
   onOpenReleaseNotes?: () => void;
+  workCalendar?: WorkCalendarConfig;
+  onChangeWorkCalendar?: (next: WorkCalendarConfig) => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -37,7 +40,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   hiddenReleaseCount,
   onResetHiddenReleases,
   onOpenReleaseNotes,
+  workCalendar = { workdaysOnly: false, holidays: [] },
+  onChangeWorkCalendar,
 }) => {
+  const [holidayInput, setHolidayInput] = useState('');
+
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -215,6 +222,99 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               className="rounded-[2px] border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] focus:ring-0 cursor-pointer"
             />
           </label>
+
+          {/* Toggle Solo días laborables (Lun-Vie + Festivos) */}
+          {onChangeWorkCalendar && (
+            <div className="mt-1 pt-2.5 border-t border-[#E2E2DC] dark:border-zinc-800 space-y-2">
+              <label className="flex items-center justify-between gap-2 text-xs cursor-pointer select-none">
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                  <div>
+                    <div className="font-semibold text-[#0C0C09] dark:text-zinc-200">
+                      Solo días laborables (Lun–Vie y Festivos)
+                    </div>
+                    <div className="text-[10px] text-[#6B6B66] dark:text-zinc-400">
+                      La duración de las tareas omite sábados, domingos y festivos configurados
+                    </div>
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={workCalendar.workdaysOnly}
+                  onChange={(e) =>
+                    onChangeWorkCalendar({
+                      ...workCalendar,
+                      workdaysOnly: e.target.checked,
+                    })
+                  }
+                  data-testid="settings-workdays-only-checkbox"
+                  className="rounded-[2px] border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] focus:ring-0 cursor-pointer"
+                />
+              </label>
+
+              {workCalendar.workdaysOnly && (
+                <div
+                  data-testid="settings-holidays-section"
+                  className="pl-5 space-y-1.5"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="date"
+                      data-testid="settings-holiday-date-input"
+                      value={holidayInput}
+                      onChange={(e) => setHolidayInput(e.target.value)}
+                      className="px-2 py-1 text-[11px] rounded-[3px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-100 font-mono"
+                    />
+                    <button
+                      type="button"
+                      data-testid="settings-add-holiday-btn"
+                      onClick={() => {
+                        if (!holidayInput) return;
+                        if (workCalendar.holidays.includes(holidayInput)) return;
+                        onChangeWorkCalendar({
+                          ...workCalendar,
+                          holidays: [...workCalendar.holidays, holidayInput].sort(),
+                        });
+                        setHolidayInput('');
+                      }}
+                      disabled={!holidayInput}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-[3px] bg-[#0C0C09] hover:bg-[#312C85] dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-[#0C0C09] text-[10px] font-semibold disabled:opacity-40 cursor-pointer"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>Añadir festivo</span>
+                    </button>
+                  </div>
+
+                  {workCalendar.holidays.length > 0 && (
+                    <div className="flex flex-wrap gap-1 pt-0.5">
+                      {workCalendar.holidays.map((h) => (
+                        <span
+                          key={h}
+                          data-testid={`settings-holiday-chip-${h}`}
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[3px] bg-white dark:bg-zinc-900 border border-[#E2E2DC] dark:border-zinc-700 text-[10px] font-mono text-[#0C0C09] dark:text-zinc-200"
+                        >
+                          <span>{h}</span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onChangeWorkCalendar({
+                                ...workCalendar,
+                                holidays: workCalendar.holidays.filter((d) => d !== h),
+                              })
+                            }
+                            className="text-rose-600 hover:text-rose-800 cursor-pointer"
+                            title="Quitar festivo"
+                          >
+                            <X className="w-2.5 h-2.5" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Section 3: Reset Visibility / Hidden Releases */}

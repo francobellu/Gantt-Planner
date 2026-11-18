@@ -24,6 +24,7 @@ import {
   Release,
   TaskColor,
   TaskType,
+  WorkCalendarConfig,
 } from '../types/gantt';
 import {
   calculateDurationFromDates,
@@ -50,6 +51,7 @@ interface TaskFormModalProps {
   onCreateProject?: (project: GanttProject) => void;
   allItems: ComputedGanttItem[];
   releases?: Release[];
+  workCalendar?: WorkCalendarConfig;
 }
 
 const COLOR_OPTIONS: { value: TaskColor; label: string; bg: string; ring: string }[] = [
@@ -111,6 +113,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
   onCreateProject,
   allItems,
   releases = DEFAULT_PREDEFINED_RELEASES,
+  workCalendar,
 }) => {
   const todayStr = formatDateISO(new Date());
 
@@ -349,7 +352,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
     } else {
       const newDur = duration > 0 ? duration : 3;
       setDuration(newDur);
-      setEndDate(calculateEndDateFromDuration(startDate, newDur, 'task'));
+      setEndDate(calculateEndDateFromDuration(startDate, newDur, 'task', workCalendar));
       if (color === 'amber') setColor('indigo');
     }
   };
@@ -359,13 +362,13 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
     if (type === 'milestone') {
       setEndDate(newStart);
     } else if (dateInputMode === 'duration') {
-      setEndDate(calculateEndDateFromDuration(newStart, duration, 'task'));
+      setEndDate(calculateEndDateFromDuration(newStart, duration, 'task', workCalendar));
     } else {
       if (newStart > endDate) {
         setEndDate(newStart);
         setDuration(1);
       } else {
-        setDuration(calculateDurationFromDates(newStart, endDate, 'task'));
+        setDuration(calculateDurationFromDates(newStart, endDate, 'task', workCalendar));
       }
     }
   };
@@ -373,7 +376,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
   const handleDurationChange = (newDurRaw: number) => {
     const safeDur = Math.max(1, Math.min(365, Math.round(newDurRaw || 1)));
     setDuration(safeDur);
-    setEndDate(calculateEndDateFromDuration(startDate, safeDur, 'task'));
+    setEndDate(calculateEndDateFromDuration(startDate, safeDur, 'task', workCalendar));
   };
 
   const handleEndDateChange = (newEnd: string) => {
@@ -383,7 +386,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
       setDuration(1);
     } else {
       setEndDate(newEnd);
-      setDuration(calculateDurationFromDates(startDate, newEnd, 'task'));
+      setDuration(calculateDurationFromDates(startDate, newEnd, 'task', workCalendar));
     }
   };
 

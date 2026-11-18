@@ -10,10 +10,18 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.10.0',
+    date: '18 Nov 2026',
+    title: 'Línea base visual sobre commits, calendario de días laborables y festivos, auto-planificación en 1 clic, progreso en barra y nombre completo sin solapamiento',
+    isLatest: true,
+    features: [
+      'Se implementa la comparación visual de Línea Base contra cualquier commit (con barra fantasma y desviación en días), el modo opcional de días laborables Lun-Vie con festivos configurables, la auto-planificación en 1 clic respetando bloqueos, el tirador de progreso directo en cada barra y la elevación z-50 del nombre completo en tabla.',
+    ],
+  },
+  {
     version: '1.9.10',
     date: '18 Nov 2026',
     title: 'Ancho completo en pantallas grandes y barra de release limpia con hitos centrados de alta visibilidad',
-    isLatest: true,
     features: [
       'Se elimina el límite de 1920px para aprovechar todo el ancho de pantallas grandes. La barra de release muestra código, mes, fechas, duración tras la fecha de fin y progreso por encima de la barra sin icono, dejando los rombos de hitos centrados verticalmente y destacados en ámbar.',
     ],

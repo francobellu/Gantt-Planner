@@ -63,9 +63,12 @@ import {
   TaskColor,
   TaskType,
   TRUNCATE_LIMIT_STORAGE_KEY,
+  WORK_CALENDAR_STORAGE_KEY,
+  WorkCalendarConfig,
   ZoomLevel,
 } from './types/gantt';
 import {
+  autoScheduleConflicts,
   cascadeDependencies,
   clampDayWidth,
   collectTimelineAnchorDates,
@@ -316,6 +319,8 @@ export function App({
   initialItems,
   initialCommitsSidebarOpen = false,
   initialCommits,
+  initialBaselineCommitId = null,
+  initialWorkCalendar,
 }: {
   initialScenarioId?: string;
   initialView?: 'gantt' | 'history' | 'projects';
@@ -330,6 +335,8 @@ export function App({
   initialItems?: GanttItem[];
   initialCommitsSidebarOpen?: boolean;
   initialCommits?: PlanCommit[];
+  initialBaselineCommitId?: string | null;
+  initialWorkCalendar?: WorkCalendarConfig;
 } = {}) {
   const templates = useMemo(() => getProjectTemplates(), []);
   const defaultScenarios = useMemo(() => getDefaultSavedScenarios(), []);
@@ -354,6 +361,35 @@ export function App({
   const [showCommitsSidebar, setShowCommitsSidebar] = useState<boolean>(
     initialCommitsSidebarOpen
   );
+  const [activeBaselineCommitId, setActiveBaselineCommitId] = useState<string | null>(
+    initialBaselineCommitId
+  );
+  const [workCalendar, setWorkCalendar] = useState<WorkCalendarConfig>(() => {
+    if (initialWorkCalendar) return initialWorkCalendar;
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const raw = window.localStorage.getItem(WORK_CALENDAR_STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed.workdaysOnly === 'boolean') {
+            return {
+              workdaysOnly: parsed.workdaysOnly,
+              holidays: Array.isArray(parsed.holidays) ? parsed.holidays : [],
+            };
+          }
+        }
+      }
+    } catch {}
+    return { workdaysOnly: false, holidays: [] };
+  });
+
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(WORK_CALENDAR_STORAGE_KEY, JSON.stringify(workCalendar));
+      }
+    } catch {}
+  }, [workCalendar]);
   const [commits, setCommits] = useState<PlanCommit[]>(() => {
     if (initialCommits) return initialCommits;
     try {
@@ -751,6 +787,22 @@ export function App({
       localStorage.setItem(RELEASES_STORAGE_KEY, JSON.stringify(releases));
     } catch {}
   }, [releases]);
+
+  const activeBaselineCommit = useMemo(
+    () => (activeBaselineCommitId ? commits.find((c) => c.id === activeBaselineCommitId) || null : null),
+    [commits, activeBaselineCommitId]
+  );
+
+  const baselineSnapshot = useMemo(
+    () =>
+      activeBaselineCommit
+        ? {
+            label: activeBaselineCommit.message,
+            items: activeBaselineCommit.snapshot.items,
+          }
+        : null,
+    [activeBaselineCommit]
+  );
 
   const pendingCommitChanges = useMemo(
     () =>
@@ -1836,49 +1888,37 @@ export function App({
   };
 
   const handleResolveAllConflicts = () => {
-    const next = cascadeDependencies(items, effectiveProjects);
-    const hasChanges = next.some(
-      (it, idx) => it.startDate !== items[idx]?.startDate || it.endDate !== items[idx]?.endDate
+    const { updatedItems, movedCount, blockedProjects } = autoScheduleConflicts(
+      items,
+      effectiveProjects,
+      workCalendar
     );
 
-    if (!hasChanges) {
-      const unconstrained = cascadeDependencies(items);
-      const blockedItem = items.find(
-        (it, idx) =>
-          unconstrained[idx] &&
-          (unconstrained[idx].startDate !== it.startDate || unconstrained[idx].endDate !== it.endDate)
-      );
-      const lockedProj = getLockedProjectForItem(blockedItem, effectiveProjects);
-      if (lockedProj) {
+    if (movedCount === 0) {
+      if (blockedProjects.length > 0) {
         setAppLockedAlert({
-          project: lockedProj,
+          project: blockedProjects[0],
           attemptedAction: 'reprogramar automáticamente las dependencias en conflicto',
         });
       }
       return;
     }
 
-    setItems(next);
+    setItems(updatedItems);
     recordPlanChange(
       'resolve_conflicts',
-      'Cascada',
-      'Reprogramar dependencias en cascada automáticamente',
-      next,
+      'Auto-planificar',
+      `Auto-planificación aplicada (${movedCount} tarea(s) reajustada(s))`,
+      updatedItems,
       effectiveProjects
     );
 
-    const remainingAfter = cascadeDependencies(next);
-    const stillBlockedItem = next.find(
-      (it, idx) =>
-        remainingAfter[idx] &&
-        (remainingAfter[idx].startDate !== it.startDate ||
-          remainingAfter[idx].endDate !== it.endDate)
-    );
-    const remainingLockedProj = getLockedProjectForItem(stillBlockedItem, effectiveProjects);
-    if (remainingLockedProj) {
+    if (blockedProjects.length > 0) {
       showToast(
-        `Cascada aplicada en proyectos activos. '${remainingLockedProj.name}' está bloqueado y no se modificó.`
+        `Auto-planificación aplicada (${movedCount} tareas). '${blockedProjects[0].name}' está bloqueado y no se modificó.`
       );
+    } else {
+      showToast(`Auto-planificación completada: ${movedCount} tarea(s) reajustada(s).`);
     }
   };
 
@@ -2965,6 +3005,7 @@ export function App({
                 </div>
                 <button
                   type="button"
+                  data-testid="auto-schedule-btn"
                   onClick={handleResolveAllConflicts}
                   className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer"
                 >
@@ -3015,6 +3056,27 @@ export function App({
                     <span>Salir del Enfoque</span>
                   </button>
                 </div>
+              </div>
+            )}
+
+            {/* Active Baseline Comparison Banner */}
+            {baselineSnapshot && (
+              <div
+                data-testid="active-baseline-banner"
+                className="flex items-center justify-between gap-3 px-4 py-1.5 rounded-[4px] bg-slate-100 dark:bg-zinc-900 border border-[#0C0C09]/30 dark:border-zinc-700 text-xs"
+              >
+                <span className="text-[#0C0C09] dark:text-zinc-200 truncate">
+                  Comparando con Línea Base:{' '}
+                  <strong className="font-semibold">«{baselineSnapshot.label}»</strong>
+                </span>
+                <button
+                  type="button"
+                  data-testid="clear-baseline-btn"
+                  onClick={() => setActiveBaselineCommitId(null)}
+                  className="px-2 py-0.5 rounded-[3px] border border-[#0C0C09]/40 dark:border-zinc-600 text-[11px] font-medium hover:bg-white dark:hover:bg-zinc-800 transition cursor-pointer shrink-0"
+                >
+                  Desactivar Línea Base
+                </button>
               </div>
             )}
 
@@ -3080,6 +3142,8 @@ export function App({
               onSelectEntity={setSelectedEntity}
               selectedPlatform={selectedPlatform}
               onChangeSelectedPlatform={setSelectedPlatform}
+              baselineSnapshot={baselineSnapshot}
+              workCalendar={workCalendar}
             />
           </>
         )}
@@ -3089,6 +3153,8 @@ export function App({
           <CommitHistorySidebar
             commits={commits}
             pendingChanges={pendingCommitChanges}
+            activeBaselineCommitId={activeBaselineCommitId}
+            onToggleBaselineCommit={setActiveBaselineCommitId}
             onCreateCommit={handleCreateCommit}
             onRestoreCommit={handleRestoreCommit}
             onClose={() => setShowCommitsSidebar(false)}
@@ -3278,6 +3344,7 @@ export function App({
         onCreateProject={handleCreateProject}
         allItems={computedItems}
         releases={releases}
+        workCalendar={workCalendar}
       />
 
       {/* Releases Management Modal Hub */}
@@ -3309,6 +3376,8 @@ export function App({
         hiddenReleaseCount={hiddenReleaseIds.length}
         onResetHiddenReleases={handleResetHiddenReleases}
         onOpenReleaseNotes={() => setShowReleaseNotesModal(true)}
+        workCalendar={workCalendar}
+        onChangeWorkCalendar={setWorkCalendar}
       />
 
       {/* Release Notes Modal (Changelog de versiones) */}

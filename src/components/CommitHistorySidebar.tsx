@@ -5,6 +5,7 @@ import {
   ChevronRight,
   FolderKanban,
   GitCommitHorizontal,
+  GitCompare,
   ListChecks,
   RotateCcw,
   X,
@@ -15,6 +16,8 @@ import { HistoryEntityChange } from '../utils/ganttEngine';
 interface CommitHistorySidebarProps {
   commits: PlanCommit[];
   pendingChanges: HistoryEntityChange[];
+  activeBaselineCommitId?: string | null;
+  onToggleBaselineCommit?: (commitId: string | null) => void;
   onCreateCommit: (message: string) => void;
   onRestoreCommit?: (commit: PlanCommit) => void;
   onClose: () => void;
@@ -102,6 +105,8 @@ const EntityChangeList: React.FC<{ changes: HistoryEntityChange[] }> = ({ change
 export const CommitHistorySidebar: React.FC<CommitHistorySidebarProps> = ({
   commits,
   pendingChanges,
+  activeBaselineCommitId = null,
+  onToggleBaselineCommit,
   onCreateCommit,
   onRestoreCommit,
   onClose,
@@ -269,17 +274,42 @@ export const CommitHistorySidebar: React.FC<CommitHistorySidebarProps> = ({
                     </div>
                   </button>
 
-                  {onRestoreCommit && (
-                    <button
-                      type="button"
-                      data-testid={`commit-restore-${commit.id}`}
-                      onClick={() => onRestoreCommit(commit)}
-                      title="Restaurar el plan al estado de este commit"
-                      className="p-1 rounded-[3px] text-[#6B6B66] hover:text-indigo-700 dark:text-zinc-400 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 transition cursor-pointer shrink-0"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    {onToggleBaselineCommit && (
+                      <button
+                        type="button"
+                        data-testid={`commit-baseline-toggle-${commit.id}`}
+                        onClick={() =>
+                          onToggleBaselineCommit(
+                            activeBaselineCommitId === commit.id ? null : commit.id
+                          )
+                        }
+                        title={
+                          activeBaselineCommitId === commit.id
+                            ? 'Desactivar comparación con esta línea base'
+                            : 'Comparar cronograma actual contra este commit (Línea Base Visual)'
+                        }
+                        className={`p-1 rounded-[3px] transition cursor-pointer ${
+                          activeBaselineCommitId === commit.id
+                            ? 'bg-indigo-600 text-white shadow-xs'
+                            : 'text-[#6B6B66] hover:text-indigo-700 dark:text-zinc-400 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/50'
+                        }`}
+                      >
+                        <GitCompare className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    {onRestoreCommit && (
+                      <button
+                        type="button"
+                        data-testid={`commit-restore-${commit.id}`}
+                        onClick={() => onRestoreCommit(commit)}
+                        title="Restaurar el plan al estado de este commit"
+                        className="p-1 rounded-[3px] text-[#6B6B66] hover:text-indigo-700 dark:text-zinc-400 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 transition cursor-pointer shrink-0"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {isExpanded && (

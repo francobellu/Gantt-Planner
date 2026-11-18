@@ -1,4 +1,4 @@
-export const APP_VERSION = '1.9.10';
+export const APP_VERSION = '1.10.0';
 
 export const DEFAULT_TRUNCATE_CHAR_LIMIT = 37;
 export const TRUNCATE_LIMIT_STORAGE_KEY = 'ganttflow_truncate_char_limit';
@@ -249,5 +249,12 @@ export interface PlanCommit {
     projects: GanttProject[];
   };
 }
+
+export interface WorkCalendarConfig {
+  workdaysOnly: boolean;
+  holidays: string[];
+}
+
+export const WORK_CALENDAR_STORAGE_KEY = 'ganttflow_work_calendar_v1';
 
 

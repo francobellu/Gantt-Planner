@@ -70,6 +70,7 @@ import {
   ReleaseMilestone,
   TaskColor,
   TRUNCATE_LIMIT_STORAGE_KEY,
+  WorkCalendarConfig,
   ZoomLevel,
 } from '../types/gantt';
 import {
@@ -203,6 +204,8 @@ interface GanttWorkspaceProps {
   initialLockedAlertProjectId?: string;
   initialMultiSelectedItemIds?: string[];
   initialMultiSelectedProjectIds?: string[];
+  baselineSnapshot?: { label: string; items: GanttItem[] } | null;
+  workCalendar?: WorkCalendarConfig;
   releases?: Release[];
   activeReleaseId?: string;
   releaseGuideVisibility?: ReleaseGuideVisibility;
@@ -575,6 +578,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   initialLockedAlertProjectId,
   initialMultiSelectedItemIds,
   initialMultiSelectedProjectIds,
+  baselineSnapshot = null,
+  workCalendar,
   releases = [],
   activeReleaseId,
   releaseGuideVisibility = 'selected',
@@ -1931,14 +1936,16 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     }
   }, [zoom, controlledDayWidth]);
 
-  // Interactive drag state for moving or resizing task bars (and multi-selected items/projects) directly on the timeline
+  // Interactive drag state for moving, resizing, or adjusting progress on task bars directly on the timeline
   const [dragState, setDragState] = useState<{
     itemId: string;
-    mode: 'move' | 'resize' | 'resize-start';
+    mode: 'move' | 'resize' | 'resize-start' | 'progress';
     startX: number;
     origStart: Date;
     origDuration: number;
     dayDelta: number;
+    origProgress?: number;
+    nextProgress?: number;
     multiItems?: Map<string, { origStart: Date; origDuration: number; type: 'task' | 'milestone' }>;
   } | null>(null);
 
@@ -2115,7 +2122,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         const newEnd =
           it.type === 'milestone'
             ? newStart
-            : calculateEndDateFromDuration(newStart, dragState.origDuration, 'task');
+            : calculateEndDateFromDuration(newStart, dragState.origDuration, 'task', workCalendar);
         const newSlackEnd = formatDateISO(
           addDays(parseDateSafe(newEnd), Math.max(0, it.slack || 0))
         );
@@ -2128,7 +2135,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       }
       if (dragState.mode === 'resize' && it.type === 'task') {
         const newDur = Math.max(1, dragState.origDuration + dragState.dayDelta);
-        const newEnd = calculateEndDateFromDuration(it.startDate, newDur, 'task');
+        const newEnd = calculateEndDateFromDuration(it.startDate, newDur, 'task', workCalendar);
         const newSlackEnd = formatDateISO(
           addDays(parseDateSafe(newEnd), Math.max(0, it.slack || 0))
         );
@@ -2151,9 +2158,20 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
           duration: newDur,
         };
       }
+      if (dragState.mode === 'progress' && it.type === 'task') {
+        return {
+          ...it,
+          progress: dragState.nextProgress ?? it.progress,
+        };
+      }
       return it;
     });
-  }, [items, dragState]);
+  }, [items, dragState, workCalendar]);
+
+  const baselineItemMap = useMemo(() => {
+    if (!baselineSnapshot) return null;
+    return new Map(baselineSnapshot.items.map((it) => [it.id, it]));
+  }, [baselineSnapshot]);
 
   // Group items into projects with rolled-up dates, durations, and hierarchical WBS
   const allProjectGroups = useMemo(
@@ -2604,7 +2622,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   const handleBarMouseDown = (
     e: React.MouseEvent,
     item: ComputedGanttItem,
-    mode: 'move' | 'resize' | 'resize-start'
+    mode: 'move' | 'resize' | 'resize-start' | 'progress'
   ) => {
     e.stopPropagation();
     if (mode === 'move' && (e.metaKey || e.ctrlKey || e.shiftKey)) {
@@ -2614,6 +2632,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     const startX = e.clientX;
     const origStart = parseDateSafe(item.startDate);
     const origDuration = item.type === 'milestone' ? 0 : Math.max(1, item.duration);
+    const origProgress = item.progress ?? 0;
+    const barWidthPx = Math.max(24, origDuration * dayWidth);
 
     const isMultiMove =
       mode === 'move' &&
@@ -2637,6 +2657,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     const attemptedLabel =
       mode === 'resize' || mode === 'resize-start'
         ? `redimensionar «${item.name}» en el diagrama`
+        : mode === 'progress'
+        ? `cambiar el progreso de «${item.name}»`
         : movingIds
         ? `mover selección múltiple (${movingIds.size} elementos) en el diagrama`
         : `mover «${item.name}» en el diagrama`;
@@ -2665,6 +2687,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         origStart,
         origDuration,
         dayDelta: 0,
+        origProgress,
+        nextProgress: origProgress,
         multiItems: multiItemsMap,
       });
     }
@@ -2684,6 +2708,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             attemptedAction: attemptedLabel,
           });
         }
+        return;
+      }
+      if (mode === 'progress') {
+        const rawPct = origProgress + (dx / barWidthPx) * 100;
+        const snappedPct = Math.max(0, Math.min(100, Math.round(rawPct / 5) * 5));
+        setDragState((prev) => (prev ? { ...prev, nextProgress: snappedPct } : null));
         return;
       }
       const deltaDays = Math.round(dx / dayWidth);
@@ -2711,6 +2741,21 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         return;
       }
 
+      if (mode === 'progress' && item.type === 'task') {
+        const rawPct = origProgress + (dx / barWidthPx) * 100;
+        const snappedPct = Math.max(0, Math.min(100, Math.round(rawPct / 5) * 5));
+        if (snappedPct !== origProgress) {
+          onUpdateItem(
+            {
+              ...item,
+              progress: snappedPct,
+            },
+            false
+          );
+        }
+        return;
+      }
+
       if (deltaDays === 0) return;
 
       if (mode === 'move') {
@@ -2722,7 +2767,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         const newEnd =
           item.type === 'milestone'
             ? newStart
-            : calculateEndDateFromDuration(newStart, origDuration, 'task');
+            : calculateEndDateFromDuration(newStart, origDuration, 'task', workCalendar);
         onUpdateItem(
           {
             ...item,
@@ -2733,7 +2778,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         );
       } else if (mode === 'resize' && item.type === 'task') {
         const newDur = Math.max(1, origDuration + deltaDays);
-        const newEnd = calculateEndDateFromDuration(item.startDate, newDur, 'task');
+        const newEnd = calculateEndDateFromDuration(item.startDate, newDur, 'task', workCalendar);
         onUpdateItem(
           {
             ...item,
@@ -6031,7 +6076,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             return (
                               <React.Fragment key="task-name-block">
                                 <div
-                                  className="inline-grid items-center shrink-0 max-w-full transition-all duration-150"
+                                  className={`inline-grid items-center shrink-0 transition-all duration-150 ${
+                                    isTaskNameExpanded
+                                      ? 'relative z-50 bg-white dark:bg-zinc-900 shadow-md ring-1 ring-[#0C0C09]/15 dark:ring-zinc-700 rounded-[3px]'
+                                      : 'max-w-full'
+                                  }`}
                                   data-testid={`task-name-container-${item.id}`}
                                   data-name-truncated={item.name && item.name.length > effectiveTruncateLimit}
                                   data-name-expanded={isTaskNameExpanded}
@@ -6689,12 +6738,18 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               <div className="absolute inset-0 flex pointer-events-none z-[1]">
                 {timelineDays.map((day, idx) => {
                   const wknd = isWeekend(day);
+                  const isHoliday = Boolean(
+                    workCalendar?.workdaysOnly &&
+                      workCalendar.holidays?.includes(formatDateISO(day))
+                  );
                   return (
                     <div
                       key={idx}
                       style={{ width: dayWidth }}
                       className={`h-full ${
-                        showWeekendShading && wknd
+                        isHoliday
+                          ? 'bg-rose-100/70 dark:bg-rose-950/35'
+                          : showWeekendShading && wknd
                           ? 'bg-[#E5E5DF]/70 dark:bg-zinc-800/60'
                           : ''
                       }`}
@@ -7812,6 +7867,17 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               }`}
                             />
 
+                            {/* Inline Progress Drag Handle */}
+                            <div
+                              data-testid={`task-progress-handle-${item.id}`}
+                              onMouseDown={(e) => handleBarMouseDown(e, item, 'progress')}
+                              style={{ left: `calc(${item.progress}% - 4px)` }}
+                              title={`Arrastra para ajustar el avance (${item.progress}%)`}
+                              className="absolute top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 hover:opacity-100 flex items-center justify-center z-20"
+                            >
+                              <div className="w-1 h-4 rounded-full bg-white/95 shadow-sm border border-black/30" />
+                            </div>
+
                             {/* Inside Bar: Progress percentage when progress > 0 and bar is wide enough */}
                             {item.progress > 0 && barWidth >= 40 && (
                               <div className="absolute inset-0 px-2 flex items-center justify-center text-[9px] font-mono font-bold text-white/90 drop-shadow-xs pointer-events-none select-none">
@@ -7839,6 +7905,57 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               <div className="w-0.5 h-3.5 bg-white/70 rounded-[1px]" />
                             </div>
                           </div>
+
+                          {/* Visual Baseline Comparison Ghost Bar & Variance Badge */}
+                          {baselineItemMap && (() => {
+                            const baseItem = baselineItemMap.get(item.id);
+                            if (!baseItem) return null;
+                            const baseStartOffset = differenceInCalendarDays(
+                              parseDateSafe(baseItem.startDate),
+                              timelineStart
+                            );
+                            const baseDur = Math.max(
+                              1,
+                              differenceInCalendarDays(
+                                parseDateSafe(baseItem.endDate),
+                                parseDateSafe(baseItem.startDate)
+                              ) + 1
+                            );
+                            const baseLeftPx = baseStartOffset * dayWidth - barLeft;
+                            const baseWidthPx = Math.max(6, baseDur * dayWidth);
+                            const varianceDays = differenceInCalendarDays(
+                              parseDateSafe(item.endDate),
+                              parseDateSafe(baseItem.endDate)
+                            );
+                            return (
+                              <>
+                                <div
+                                  data-testid={`timeline-baseline-bar-${item.id}`}
+                                  style={{ left: baseLeftPx, width: baseWidthPx }}
+                                  title={`Línea base (${baselineSnapshot?.label || 'Commit'}): ${formatDateDisplay(
+                                    baseItem.startDate,
+                                    'dd MMM'
+                                  )} → ${formatDateDisplay(baseItem.endDate, 'dd MMM yyyy')}`}
+                                  className="absolute -bottom-2 h-1.5 rounded-[2px] bg-slate-400/80 dark:bg-zinc-500/80 border border-slate-500/50 dark:border-zinc-400/40 pointer-events-none"
+                                />
+                                {varianceDays !== 0 && (
+                                  <span
+                                    data-testid={`timeline-baseline-variance-${item.id}`}
+                                    className={`ml-2 px-1.5 py-0.2 rounded-[3px] text-[9px] font-mono font-bold whitespace-nowrap pointer-events-none ${
+                                      varianceDays > 0
+                                        ? 'bg-rose-100 text-rose-700 border border-rose-300 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800'
+                                        : 'bg-emerald-100 text-emerald-700 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800'
+                                    }`}
+                                    title={`Desviación respecto a línea base: ${
+                                      varianceDays > 0 ? `+${varianceDays}d retraso` : `${varianceDays}d adelanto`
+                                    }`}
+                                  >
+                                    {varianceDays > 0 ? `+${varianceDays}d` : `${varianceDays}d`}
+                                  </span>
+                                )}
+                              </>
+                            );
+                          })()}
 
                           {/* Right Output Dependency Connector Port (Predecesora) */}
                           <button

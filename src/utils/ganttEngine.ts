@@ -23,6 +23,7 @@ import {
   Release,
   SavedScenario,
   TaskColor,
+  WorkCalendarConfig,
   ZoomLevel,
 } from '../types/gantt';
 import {
@@ -118,32 +119,81 @@ export function formatScrubberDate(date: Date | string | null | undefined): stri
  * - Task: duration >= 1. A 1-day task starting on 2026-10-28 ends on 2026-10-28 (occupies 1 full day cell).
  *   A 5-day task starting on 2026-10-28 ends on 2026-11-01 (28, 29, 30, 31, 1 = 5 days).
  */
+export function isWorkingDay(date: Date, calendar?: WorkCalendarConfig): boolean {
+  if (!calendar?.workdaysOnly) return true;
+  const day = date.getDay();
+  if (day === 0 || day === 6) return false;
+  if (calendar.holidays && calendar.holidays.length > 0) {
+    const iso = formatDateISO(date);
+    if (calendar.holidays.includes(iso)) return false;
+  }
+  return true;
+}
+
+export function snapToNextWorkingDay(date: Date, calendar?: WorkCalendarConfig): Date {
+  if (!calendar?.workdaysOnly) return date;
+  let cur = date;
+  let guard = 0;
+  while (!isWorkingDay(cur, calendar) && guard < 366) {
+    cur = addDays(cur, 1);
+    guard++;
+  }
+  return cur;
+}
+
 export function calculateEndDateFromDuration(
   startDate: string,
   duration: number,
-  type: 'task' | 'milestone' = 'task'
+  type: 'task' | 'milestone' = 'task',
+  calendar?: WorkCalendarConfig
 ): string {
   const start = parseDateSafe(startDate);
   if (type === 'milestone' || duration <= 0) {
     return formatDateISO(start);
   }
   const safeDuration = Math.max(1, Math.round(duration));
-  return formatDateISO(addDays(start, safeDuration - 1));
+  if (!calendar?.workdaysOnly) {
+    return formatDateISO(addDays(start, safeDuration - 1));
+  }
+  let cur = snapToNextWorkingDay(start, calendar);
+  let remaining = safeDuration - 1;
+  let guard = 0;
+  while (remaining > 0 && guard < 3650) {
+    cur = addDays(cur, 1);
+    if (isWorkingDay(cur, calendar)) {
+      remaining--;
+    }
+    guard++;
+  }
+  return formatDateISO(cur);
 }
 
 /**
- * Given startDate and endDate, calculates inclusive duration in days.
+ * Given startDate and endDate, calculates inclusive duration in days (or working days).
  */
 export function calculateDurationFromDates(
   startDate: string,
   endDate: string,
-  type: 'task' | 'milestone' = 'task'
+  type: 'task' | 'milestone' = 'task',
+  calendar?: WorkCalendarConfig
 ): number {
   if (type === 'milestone') return 0;
   const start = parseDateSafe(startDate);
   const end = parseDateSafe(endDate);
-  const diff = differenceInCalendarDays(end, start) + 1;
-  return Math.max(1, diff);
+  if (!calendar?.workdaysOnly) {
+    const diff = differenceInCalendarDays(end, start) + 1;
+    return Math.max(1, diff);
+  }
+  if (end < start) return 1;
+  let count = 0;
+  let cur = start;
+  let guard = 0;
+  while (cur <= end && guard < 3650) {
+    if (isWorkingDay(cur, calendar)) count++;
+    cur = addDays(cur, 1);
+    guard++;
+  }
+  return Math.max(1, count);
 }
 
 const VALID_COLORS = new Set<TaskColor>([
@@ -760,6 +810,68 @@ export function cascadeDependencies(
   }
 
   return cloned;
+}
+
+/**
+ * One-click Auto-Schedule: resolves all dependency conflicts across the plan by shifting
+ * conflicting successors forward to their earliest valid start date (respecting locked projects).
+ */
+export function autoScheduleConflicts(
+  items: GanttItem[],
+  projects: GanttProject[] = [],
+  calendar?: WorkCalendarConfig
+): {
+  updatedItems: GanttItem[];
+  movedCount: number;
+  blockedProjects: GanttProject[];
+} {
+  const working = items.map((it) => ({ ...it }));
+  const itemMap = new Map<string, GanttItem>(working.map((it) => [it.id, it]));
+  const movedIds = new Set<string>();
+  const blockedMap = new Map<string, GanttProject>();
+
+  const maxPasses = Math.max(1, working.length);
+  for (let pass = 0; pass < maxPasses; pass++) {
+    let changedInPass = false;
+    for (let i = 0; i < working.length; i++) {
+      const it = working[i];
+      if (!it.dependencies || it.dependencies.length === 0) continue;
+
+      const earliest = getEarliestStartFromPredecessors(it, itemMap);
+      if (!earliest) continue;
+
+      const snapped = snapToNextWorkingDay(earliest, calendar);
+      const currentStart = parseDateSafe(it.startDate);
+      if (currentStart < snapped) {
+        const lockedProj = getLockedProjectForItem(it, projects);
+        if (lockedProj) {
+          blockedMap.set(lockedProj.id, lockedProj);
+          continue;
+        }
+        const nextStartStr = formatDateISO(snapped);
+        const nextEndStr =
+          it.type === 'milestone'
+            ? nextStartStr
+            : calculateEndDateFromDuration(nextStartStr, it.duration, 'task', calendar);
+        const updated: GanttItem = {
+          ...it,
+          startDate: nextStartStr,
+          endDate: nextEndStr,
+        };
+        working[i] = updated;
+        itemMap.set(updated.id, updated);
+        movedIds.add(updated.id);
+        changedInPass = true;
+      }
+    }
+    if (!changedInPass) break;
+  }
+
+  return {
+    updatedItems: working,
+    movedCount: movedIds.size,
+    blockedProjects: Array.from(blockedMap.values()),
+  };
 }
 
 export type DependencyMutationError = 'self' | 'duplicate' | 'cycle' | 'not_found';
