@@ -14,6 +14,7 @@ import { PlanCommit } from '../types/gantt';
 import { HistoryEntityChange } from '../utils/ganttEngine';
 
 interface CommitHistorySidebarProps {
+  embedded?: boolean;
   commits: PlanCommit[];
   pendingChanges: HistoryEntityChange[];
   activeBaselineCommitId?: string | null;
@@ -103,6 +104,7 @@ const EntityChangeList: React.FC<{ changes: HistoryEntityChange[] }> = ({ change
 };
 
 export const CommitHistorySidebar: React.FC<CommitHistorySidebarProps> = ({
+  embedded = false,
   commits,
   pendingChanges,
   activeBaselineCommitId = null,
@@ -139,30 +141,36 @@ export const CommitHistorySidebar: React.FC<CommitHistorySidebarProps> = ({
     <aside
       data-testid="commit-history-sidebar"
       aria-label="Historial de Commits"
-      className="w-80 sm:w-96 shrink-0 border-l border-[#0C0C09] dark:border-zinc-800 bg-white dark:bg-[#0C0C09] flex flex-col min-h-0 h-full select-text z-30"
+      className={
+        embedded
+          ? 'flex-1 flex flex-col min-h-0 h-full select-text'
+          : 'w-80 sm:w-96 shrink-0 border-l border-[#0C0C09] dark:border-zinc-800 bg-white dark:bg-[#0C0C09] flex flex-col min-h-0 h-full select-text z-30'
+      }
     >
-      {/* Header */}
-      <div className="px-3.5 py-2.5 border-b border-[#E2E2DC] dark:border-zinc-800 flex items-center justify-between bg-[#FAFAF8] dark:bg-zinc-950">
-        <div className="flex items-center gap-2">
-          <GitCommitHorizontal className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-          <h2 className="text-xs font-bold uppercase tracking-wider text-[#0C0C09] dark:text-zinc-100">
-            Commits del Plan
-          </h2>
-          <span className="px-1.5 py-0.2 rounded-[3px] bg-[#0C0C09] text-white dark:bg-zinc-800 dark:text-zinc-200 font-mono text-[10px] font-bold">
-            {commits.length}
-          </span>
+      {/* Header (omitted when embedded inside RightSidePanel tabs) */}
+      {!embedded && (
+        <div className="px-3.5 py-2.5 border-b border-[#E2E2DC] dark:border-zinc-800 flex items-center justify-between bg-[#FAFAF8] dark:bg-zinc-950">
+          <div className="flex items-center gap-2">
+            <GitCommitHorizontal className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+            <h2 className="text-xs font-bold uppercase tracking-wider text-[#0C0C09] dark:text-zinc-100">
+              Commits del Plan
+            </h2>
+            <span className="px-1.5 py-0.2 rounded-[3px] bg-[#0C0C09] text-white dark:bg-zinc-800 dark:text-zinc-200 font-mono text-[10px] font-bold">
+              {commits.length}
+            </span>
+          </div>
+          <button
+            type="button"
+            data-testid="close-commits-sidebar-btn"
+            onClick={onClose}
+            className="p-1 rounded-[4px] text-[#6B6B66] hover:text-[#0C0C09] dark:text-zinc-400 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
+            title="Cerrar panel de commits"
+            aria-label="Cerrar panel de commits"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
-        <button
-          type="button"
-          data-testid="close-commits-sidebar-btn"
-          onClick={onClose}
-          className="p-1 rounded-[4px] text-[#6B6B66] hover:text-[#0C0C09] dark:text-zinc-400 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
-          title="Cerrar panel de commits"
-          aria-label="Cerrar panel de commits"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      </div>
+      )}
 
       {/* Commit Composer + Pending Changes */}
       <form

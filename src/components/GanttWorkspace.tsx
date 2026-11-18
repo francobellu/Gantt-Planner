@@ -206,6 +206,7 @@ interface GanttWorkspaceProps {
   initialMultiSelectedProjectIds?: string[];
   baselineSnapshot?: { label: string; items: GanttItem[] } | null;
   workCalendar?: WorkCalendarConfig;
+  useRightSidebarInspector?: boolean;
   releases?: Release[];
   activeReleaseId?: string;
   releaseGuideVisibility?: ReleaseGuideVisibility;
@@ -580,6 +581,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   initialMultiSelectedProjectIds,
   baselineSnapshot = null,
   workCalendar,
+  useRightSidebarInspector = false,
   releases = [],
   activeReleaseId,
   releaseGuideVisibility = 'selected',
@@ -884,7 +886,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     setSelectedDiagramReleaseId(null);
     setSelectedItemId(null);
     setSelectedDepLink(null);
-    setInspectingProject(next ? proj : null);
+    if (!useRightSidebarInspector) {
+      setInspectingProject(next ? proj : null);
+    }
     onSelectEntity?.(next);
   };
 
@@ -8349,8 +8353,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             );
           })()}
 
-        {/* Non-intrusive Top-Right Docked Inspection Panel on Click */}
-        {selectedItem && (
+        {/* Non-intrusive Top-Right Docked Inspection Panel on Click (when not using App's RightSidePanel) */}
+        {!useRightSidebarInspector && selectedItem && (
           <aside
             ref={inspectionPanelRef}
             id="gantt-inspection-panel"

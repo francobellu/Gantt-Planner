@@ -10,10 +10,18 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.10.1',
+    date: '18 Nov 2026',
+    title: 'Panel lateral derecho unificado con pestañas de Detalles (tarea, proyecto, release) y Commits',
+    isLatest: true,
+    features: [
+      'El panel lateral derecho incorpora las pestañas Detalles y Commits. Al hacer clic sobre una tarea, hito, proyecto o release en el cronograma se abre automáticamente la pestaña Detalles en el panel lateral en lugar de un popover flotante.',
+    ],
+  },
+  {
     version: '1.10.0',
     date: '18 Nov 2026',
     title: 'Línea base visual sobre commits, calendario de días laborables y festivos, auto-planificación en 1 clic, progreso en barra y nombre completo sin solapamiento',
-    isLatest: true,
     features: [
       'Se implementa la comparación visual de Línea Base contra cualquier commit (con barra fantasma y desviación en días), el modo opcional de días laborables Lun-Vie con festivos configurables, la auto-planificación en 1 clic respetando bloqueos, el tirador de progreso directo en cada barra y la elevación z-50 del nombre completo en tabla.',
     ],

@@ -118,7 +118,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { ReleaseNotesModal } from './components/ReleaseNotesModal';
 import { ReportsView } from './components/ReportsView';
 import { ProjectLockedAlertModal } from './components/ProjectLockedAlertModal';
-import { CommitHistorySidebar } from './components/CommitHistorySidebar';
+import { RightSidePanel, RightSidebarTab } from './components/RightSidePanel';
 import {
   DEFAULT_PREDEFINED_RELEASES,
   checkTaskReleaseCompliance,
@@ -357,10 +357,11 @@ export function App({
   );
   const [items, setItems] = useState<GanttItem[]>(() => initialItems || initialState.items);
 
-  // Commit-based Change History & Right Sidebar
+  // Commit-based Change History & Multi-function Right Sidebar (Detalles + Commits)
   const [showCommitsSidebar, setShowCommitsSidebar] = useState<boolean>(
     initialCommitsSidebarOpen
   );
+  const [rightSidebarTab, setRightSidebarTab] = useState<RightSidebarTab>('commits');
   const [activeBaselineCommitId, setActiveBaselineCommitId] = useState<string | null>(
     initialBaselineCommitId
   );
@@ -3139,7 +3140,14 @@ export function App({
               onExitFocusMode={handleExitFocusMode}
               onSetFocusEntity={handleSetFocusEntity}
               selectedEntity={selectedEntity}
-              onSelectEntity={setSelectedEntity}
+              onSelectEntity={(entity) => {
+                setSelectedEntity(entity);
+                if (entity) {
+                  setShowCommitsSidebar(true);
+                  setRightSidebarTab('details');
+                }
+              }}
+              useRightSidebarInspector={true}
               selectedPlatform={selectedPlatform}
               onChangeSelectedPlatform={setSelectedPlatform}
               baselineSnapshot={baselineSnapshot}
@@ -3150,14 +3158,45 @@ export function App({
         </main>
 
         {showCommitsSidebar && (
-          <CommitHistorySidebar
+          <RightSidePanel
+            activeTab={rightSidebarTab}
+            onChangeTab={setRightSidebarTab}
+            onClose={() => setShowCommitsSidebar(false)}
+            selectedEntity={selectedEntity}
+            onSelectEntity={(entity) => {
+              setSelectedEntity(entity);
+              if (entity) setRightSidebarTab('details');
+            }}
+            items={computedItems}
+            projects={effectiveProjects}
+            releases={releases}
+            onEditTask={(it) => handleOpenEditModal(it)}
+            onUpdateItem={handleUpdateInline}
+            onDeleteTask={handleDeleteItem}
+            onUpdateProject={handleUpdateProject}
+            onToggleProjectLock={(proj) => {
+              if (proj.locked) {
+                setAppLockedAlert({
+                  project: proj,
+                  attemptedAction: 'desbloquear proyecto desde el panel de detalles',
+                });
+              } else {
+                handleUpdateProject({ ...proj, locked: true });
+              }
+            }}
+            isFocusMode={isFocusMode}
+            focusEntity={focusEntity}
+            onSetFocusEntity={handleSetFocusEntity}
+            onExitFocusMode={handleExitFocusMode}
+            hiddenReleaseIds={hiddenReleaseIds}
+            onToggleHideRelease={handleToggleHideRelease}
+            onOpenReleasesModal={() => setShowReleasesModal(true)}
             commits={commits}
             pendingChanges={pendingCommitChanges}
             activeBaselineCommitId={activeBaselineCommitId}
             onToggleBaselineCommit={setActiveBaselineCommitId}
             onCreateCommit={handleCreateCommit}
             onRestoreCommit={handleRestoreCommit}
-            onClose={() => setShowCommitsSidebar(false)}
           />
         )}
       </div>
