@@ -10,10 +10,18 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.9.10',
+    date: '18 Nov 2026',
+    title: 'Ancho completo en pantallas grandes y barra de release limpia con hitos centrados de alta visibilidad',
+    isLatest: true,
+    features: [
+      'Se elimina el límite de 1920px para aprovechar todo el ancho de pantallas grandes. La barra de release muestra código, mes, fechas, duración tras la fecha de fin y progreso por encima de la barra sin icono, dejando los rombos de hitos centrados verticalmente y destacados en ámbar.',
+    ],
+  },
+  {
     version: '1.9.9',
     date: '18 Nov 2026',
     title: 'Redimensionamiento de fecha de inicio en barras e historial de commits en panel lateral',
-    isLatest: true,
     features: [
       'Las barras de tareas permiten ajustar la fecha de inicio manteniendo fija la de fin desde su extremo izquierdo. Se añade además un historial de cambios basado en commits con comentario y un botón de panel lateral en la barra superior para consultar cada commit y sus diferencias.',
     ],

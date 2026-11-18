@@ -2850,7 +2850,7 @@ export function App({
           ref={metricsDrawerRef}
           className="px-4 py-3 bg-white dark:bg-[#0C0C09] border-b border-[#0C0C09] dark:border-zinc-800 text-xs"
         >
-          <div className="max-w-[1920px] mx-auto">
+          <div className="w-full">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400">
                 Métricas Clave del Proyecto
@@ -2901,7 +2901,7 @@ export function App({
 
       {/* Main Content Area + Right Commit History Sidebar */}
       <div className="flex flex-1 min-h-0 w-full">
-        <main className="flex-1 flex flex-col max-w-[1920px] w-full mx-auto px-2 sm:px-4 py-2 sm:py-3 gap-2 min-h-0 min-w-0">
+        <main className="flex-1 flex flex-col w-full px-2 sm:px-4 py-2 sm:py-3 gap-2 min-h-0 min-w-0">
         {currentView === 'help' ? (
           <HelpPage onBackToGantt={() => setCurrentView('gantt')} />
         ) : currentView === 'history' ? (

@@ -6775,7 +6775,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   const halfW = diamondWidth / 2;
                   const halfH = diamondHeight / 2;
                   const points = `${halfW},1 ${diamondWidth - 1.5},${halfH} ${halfW},${diamondHeight - 1} 1.5,${halfH}`;
-                  const diamondTop = tier === 1 ? 24 : 2;
+                  const diamondTop = tier === 1 ? 23 : Math.round((ROW_HEIGHT - diamondHeight) / 2);
 
                   return (
                     <div
@@ -6823,7 +6823,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               className={
                                 isLineHidden
                                   ? 'fill-white dark:fill-zinc-900 stroke-slate-400 dark:stroke-zinc-500 stroke-[1.5]'
-                                  : 'fill-[#0C0C09] dark:fill-zinc-100 stroke-indigo-600 dark:stroke-indigo-400 stroke-[1.5]'
+                                  : 'fill-amber-400 dark:fill-amber-400 stroke-[#0C0C09] dark:stroke-zinc-900 stroke-[1.5]'
                               }
                               strokeDasharray={isLineHidden ? '2 2' : undefined}
                             />
@@ -6835,7 +6835,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               className={`text-[9.5px] font-mono font-bold tracking-tight select-none pointer-events-none ${
                                 isLineHidden
                                   ? 'fill-slate-500 dark:fill-zinc-400'
-                                  : 'fill-white dark:fill-[#0C0C09]'
+                                  : 'fill-[#0C0C09]'
                               }`}
                             >
                               {m.code}
@@ -6852,7 +6852,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             top: `${diamondTop + diamondHeight}px`,
                             bottom: 0,
                           }}
-                          className="absolute left-0 w-0 z-10 -translate-x-1/2 border-l-2 border-dashed border-indigo-600/70 dark:border-indigo-400/60 pointer-events-none"
+                          className="absolute left-0 w-0 z-10 -translate-x-1/2 border-l-2 border-dashed border-amber-500/75 dark:border-amber-400/65 pointer-events-none"
                         />
                       )}
                     </div>
@@ -7305,35 +7305,36 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             return next;
                           });
                         }}
-                        className={`relative z-20 flex items-center justify-between pointer-events-auto h-7 rounded-[4px] bg-[#0C0C09] dark:bg-zinc-100 text-white dark:text-[#0C0C09] px-2.5 shadow-md border ${
-                          isReleaseSelected
-                            ? 'ring-3 ring-indigo-500 border-indigo-500 dark:border-indigo-400 scale-[1.01]'
-                            : 'border-[#0C0C09] dark:border-zinc-300'
-                        } text-[10px] font-mono font-bold transition-all cursor-pointer hover:opacity-90 active:scale-[0.99] select-none group`}
+                        className="relative z-20 flex flex-col justify-center pointer-events-auto cursor-pointer group overflow-visible select-none"
                         title={`${rGroup.release.name}: ${effectiveStartDate} → ${effectiveEndDate} (${spanDays}d · Duración completa de la release · Acotado hasta su último hito: ${effectiveEndDate} · Clic para seleccionar release en diagrama, doble clic para colapsar)`}
                       >
-                        <span className="truncate flex items-center gap-1.5">
-                          <Rocket className="w-3.5 h-3.5 text-amber-400 dark:text-indigo-600 shrink-0" />
-                          <span className="font-semibold">{rGroup.release.code}</span>
-                          <span className="px-1 py-0.2 rounded bg-white/20 dark:bg-black/10 font-mono text-[9px] font-bold">
-                            {`(${spanDays}d)`}
-                          </span>
-                          {rWidth >= 260 && rGroup.release.month && (
-                            <span className="opacity-80 text-[9px] uppercase font-normal hidden sm:inline">
+                        {/* Top Label above Release Bar */}
+                        <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-700 dark:text-slate-200 mb-1 px-0.5 whitespace-nowrap overflow-visible z-10 pointer-events-none">
+                          <span className="font-bold">{rGroup.release.code}</span>
+                          {rGroup.release.month && (
+                            <span className="opacity-75 text-[9px] uppercase font-normal">
                               {rGroup.release.month}
                             </span>
                           )}
-                        </span>
-                        <div className="flex items-center gap-2 shrink-0">
-                          {rWidth >= 210 && (
-                            <span className="text-[9px] opacity-75 font-normal hidden md:inline">
-                              {effectiveStartDate.split('-').slice(1).reverse().join('/')} → {effectiveEndDate.split('-').slice(1).reverse().join('/')}
-                            </span>
-                          )}
-                          <span className="px-1.5 py-0.2 rounded bg-white/20 dark:bg-black/10">
+                          <span className="text-[9px] opacity-80 font-normal">
+                            {effectiveStartDate.split('-').slice(1).reverse().join('/')} → {effectiveEndDate.split('-').slice(1).reverse().join('/')}
+                          </span>
+                          <span className="px-1 py-0.2 rounded bg-zinc-200/80 dark:bg-zinc-800 font-mono text-[9px] font-bold">
+                            {`(${spanDays}d)`}
+                          </span>
+                          <span className="px-1.5 py-0.2 rounded bg-zinc-200/80 dark:bg-zinc-800 text-[9px] font-bold">
                             {rGroup.progress}%
                           </span>
                         </div>
+
+                        {/* Clean Slim Release Summary Bar */}
+                        <div
+                          className={`h-3 rounded-[3px] bg-[#0C0C09] dark:bg-zinc-200 border shadow-xs transition-all group-hover:opacity-90 ${
+                            isReleaseSelected
+                              ? 'ring-2 ring-indigo-500 border-indigo-500 dark:border-indigo-400'
+                              : 'border-[#0C0C09] dark:border-zinc-300'
+                          }`}
+                        />
                       </div>
                     </div>
                   );
