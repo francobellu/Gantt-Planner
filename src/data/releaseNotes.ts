@@ -10,10 +10,18 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.9.7',
+    date: '18 Nov 2026',
+    title: 'Hitos de release visibles sobre la barra con tooltip de solo fecha y limpieza de botones duplicados en tabla',
+    isLatest: true,
+    features: [
+      'Los rombos de hitos de release ahora se renderizan por encima de la barra de release (z-30) mostrando únicamente la fecha al pasar el cursor, y se eliminan los 2 botones duplicados de la cabecera izquierda de la tabla.',
+    ],
+  },
+  {
     version: '1.9.6',
     date: '14 Nov 2026',
     title: 'Holgura automática restringida a dependencias Fin-Inicio (FS)',
-    isLatest: true,
     features: [
       'La holgura libre automática solo se calcula y muestra en tareas que tienen sucesoras con dependencia Fin-Inicio (FS).',
     ],

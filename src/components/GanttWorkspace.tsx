@@ -4711,48 +4711,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         </span>
                       )}
 
-                      {/* Botones de Control: Líneas Separadoras, Sombreado Fin de Semana, Hitos de Release y Columnas */}
+                      {/* Botones de Control: Hitos de Release y Columnas */}
                       <div className="w-36 flex items-center justify-end pr-1 gap-1">
-                        {/* Botón para alternar líneas horizontales de separación */}
-                        <button
-                          type="button"
-                          data-testid="toggle-row-separators-btn"
-                          onClick={handleToggleRowSeparators}
-                          className={`p-1 rounded-[4px] transition cursor-pointer ${
-                            showRowSeparators
-                              ? 'bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09]'
-                              : 'hover:bg-black/5 dark:hover:bg-white/10 text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09] dark:hover:text-white'
-                          }`}
-                          aria-label="Alternar líneas horizontales de separación"
-                          title={
-                            showRowSeparators
-                              ? 'Ocultar líneas horizontales de separación entre tareas'
-                              : 'Mostrar líneas horizontales de separación entre tareas'
-                          }
-                        >
-                          <Rows className="w-3.5 h-3.5" />
-                        </button>
-
-                        {/* Botón para alternar sombreado de fines de semana */}
-                        <button
-                          type="button"
-                          data-testid="toggle-weekend-shading-btn"
-                          onClick={handleToggleWeekendShading}
-                          className={`p-1 rounded-[4px] transition cursor-pointer ${
-                            showWeekendShading
-                              ? 'bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09]'
-                              : 'hover:bg-black/5 dark:hover:bg-white/10 text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09] dark:hover:text-white'
-                          }`}
-                          aria-label="Alternar sombreado de fines de semana"
-                          title={
-                            showWeekendShading
-                              ? 'Ocultar sombreado de fines de semana en el cronograma'
-                              : 'Mostrar sombreado de fines de semana en el cronograma'
-                          }
-                        >
-                          <CalendarDays className="w-3.5 h-3.5" />
-                        </button>
-
                         {/* Botón y Panel de Hitos de Release */}
                         <div ref={milestonesMenuRef} className="relative" data-dropdown-container="true">
                           <button
@@ -6801,7 +6761,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         top: topY,
                         height: height,
                       }}
-                      className="absolute pointer-events-none z-10 w-0 overflow-visible"
+                      className="absolute pointer-events-none w-0 overflow-visible"
                     >
                       {/* Diamond Milestone Icon with Code inside */}
                       <div
@@ -6819,11 +6779,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             e.stopPropagation();
                             handleToggleReleaseGuideLine(guideKey);
                           }}
-                          title={`${rel.name} · ${m.code}: ${m.name} (${formatScrubberDate(m.date)}) — ${
-                            isLineHidden
-                              ? 'Línea oculta (clic para mostrar)'
-                              : 'Clic para ocultar línea vertical'
-                          }`}
+                          title={formatScrubberDate(m.date)}
                           className={`group relative flex items-center justify-center cursor-pointer transition-all select-none outline-none ${
                             isLineHidden
                               ? 'opacity-65 hover:opacity-100 hover:scale-105'
@@ -6871,7 +6827,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             top: `${diamondTop + diamondHeight}px`,
                             bottom: 0,
                           }}
-                          className="absolute left-0 w-0 -translate-x-1/2 border-l-2 border-dashed border-indigo-600/70 dark:border-indigo-400/60 pointer-events-none"
+                          className="absolute left-0 w-0 z-10 -translate-x-1/2 border-l-2 border-dashed border-indigo-600/70 dark:border-indigo-400/60 pointer-events-none"
                         />
                       )}
                     </div>
