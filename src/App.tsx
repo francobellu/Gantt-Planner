@@ -321,6 +321,7 @@ export function App({
   initialCommits,
   initialBaselineCommitId = null,
   initialWorkCalendar,
+  initialRightSidebarTab = 'commits',
 }: {
   initialScenarioId?: string;
   initialView?: 'gantt' | 'history' | 'projects';
@@ -337,6 +338,7 @@ export function App({
   initialCommits?: PlanCommit[];
   initialBaselineCommitId?: string | null;
   initialWorkCalendar?: WorkCalendarConfig;
+  initialRightSidebarTab?: RightSidebarTab;
 } = {}) {
   const templates = useMemo(() => getProjectTemplates(), []);
   const defaultScenarios = useMemo(() => getDefaultSavedScenarios(), []);
@@ -361,7 +363,7 @@ export function App({
   const [showCommitsSidebar, setShowCommitsSidebar] = useState<boolean>(
     initialCommitsSidebarOpen
   );
-  const [rightSidebarTab, setRightSidebarTab] = useState<RightSidebarTab>('commits');
+  const [rightSidebarTab, setRightSidebarTab] = useState<RightSidebarTab>(initialRightSidebarTab);
   const [activeBaselineCommitId, setActiveBaselineCommitId] = useState<string | null>(
     initialBaselineCommitId
   );
@@ -2858,7 +2860,24 @@ export function App({
             </div>
           </div>
 
-          {/* Toggle Side Bar: Historial de Commits */}
+          {/* Compact Conflict Indicator Pill (opens Conflictos tab in RightSidePanel) */}
+          {metrics.conflictCount > 0 && (
+            <button
+              type="button"
+              data-testid="header-conflicts-pill"
+              onClick={() => {
+                setShowCommitsSidebar(true);
+                setRightSidebarTab('conflicts');
+              }}
+              className="px-2 py-1 rounded-[4px] border border-rose-500/40 bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition shrink-0"
+              title="Ver conflictos de dependencias en el panel lateral"
+            >
+              <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+              <span>{metrics.conflictCount}</span>
+            </button>
+          )}
+
+          {/* Toggle Side Bar: Detalles, Commits y Conflictos */}
           <button
             type="button"
             data-testid="toggle-commits-sidebar-btn"
@@ -2966,55 +2985,6 @@ export function App({
           />
         ) : (
           <>
-            {/* Conflict Banner if any task violates predecessor dependencies */}
-            {metrics.conflictCount > 0 && (
-              <div
-                data-testid="conflict-warning-banner"
-                className="flex items-center justify-between gap-4 px-4 py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-800 dark:text-rose-200 text-xs flex-wrap"
-              >
-                <div className="flex items-center gap-2 flex-wrap">
-                  <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
-                  <span>
-                    Detectamos <strong>{metrics.conflictCount}</strong> tarea(s) cuya fecha inicial
-                    es anterior a la fecha final de sus tareas predecesoras:
-                  </span>
-                  <div
-                    data-testid="conflict-items-list"
-                    className="inline-flex items-center gap-1.5 flex-wrap"
-                  >
-                    {metrics.conflictItems.map((cItem) => (
-                      <button
-                        key={cItem.id}
-                        type="button"
-                        data-testid={`conflict-item-btn-${cItem.id}`}
-                        onClick={() => handleNavigateToConflictItem(cItem)}
-                        title={
-                          cItem.conflictMessage
-                            ? `${cItem.name}: ${cItem.conflictMessage} — Haz clic para ir al elemento`
-                            : `Haz clic para ir a ${cItem.name}`
-                        }
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-rose-900 dark:text-rose-100 font-semibold underline decoration-rose-500/60 underline-offset-2 cursor-pointer transition"
-                      >
-                        {cItem.projectName && (
-                          <span className="opacity-75 font-normal">{`${cItem.projectName} ›`}</span>
-                        )}
-                        <span>{cItem.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  data-testid="auto-schedule-btn"
-                  onClick={handleResolveAllConflicts}
-                  className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  Reprogramar en cascada automáticamente
-                </button>
-              </div>
-            )}
-
             {/* Focus Mode active banner */}
             {isFocusMode && focusEntity && (
               <div
@@ -3197,6 +3167,9 @@ export function App({
             onToggleBaselineCommit={setActiveBaselineCommitId}
             onCreateCommit={handleCreateCommit}
             onRestoreCommit={handleRestoreCommit}
+            conflictItems={metrics.conflictItems}
+            onNavigateToConflictItem={handleNavigateToConflictItem}
+            onResolveAllConflicts={handleResolveAllConflicts}
           />
         )}
       </div>

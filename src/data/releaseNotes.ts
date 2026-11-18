@@ -10,10 +10,18 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.10.4',
+    date: '19 Nov 2026',
+    title: 'Traslado del aviso de conflictos a la nueva pestaña Conflictos del panel lateral derecho',
+    isLatest: true,
+    features: [
+      'Se elimina el banner de conflictos sobre el diagrama y se traslada toda la lista de conflictos y el botón de reprogramación automática a una nueva pestaña Conflictos en el panel lateral derecho, accesible también desde un indicador compacto en la barra superior.',
+    ],
+  },
+  {
     version: '1.10.3',
     date: '19 Nov 2026',
     title: 'Unificación de detalles y edición de tareas en el panel lateral derecho',
-    isLatest: true,
     features: [
       'La pestaña Detalles del panel lateral derecho integra ahora la edición completa de tareas e hitos (nombre, tipo, proyecto, equipo, color, plataforma, release, fechas, duración, progreso, dependencias y notas), evitando que se abra un modal/popover al editar una tarea existente.',
     ],

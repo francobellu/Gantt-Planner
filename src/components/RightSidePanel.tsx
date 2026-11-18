@@ -45,7 +45,17 @@ import {
 import { getReleaseDateSpan } from '../utils/releaseEngine';
 import { CommitHistorySidebar } from './CommitHistorySidebar';
 
-export type RightSidebarTab = 'details' | 'commits';
+export type RightSidebarTab = 'details' | 'commits' | 'conflicts';
+
+export interface ConflictItemSummary {
+  id: string;
+  name: string;
+  type: TaskType;
+  projectId?: string;
+  projectName?: string;
+  startDate: string;
+  conflictMessage?: string;
+}
 
 interface RightSidePanelProps {
   activeTab: RightSidebarTab;
@@ -77,6 +87,10 @@ interface RightSidePanelProps {
   onToggleBaselineCommit: (commitId: string | null) => void;
   onCreateCommit: (message: string) => void;
   onRestoreCommit: (commit: PlanCommit) => void;
+  // Conflicts props
+  conflictItems: ConflictItemSummary[];
+  onNavigateToConflictItem: (item: ConflictItemSummary) => void;
+  onResolveAllConflicts: () => void;
 }
 
 const COLOR_SWATCHES: { value: TaskColor; bg: string }[] = [
@@ -123,6 +137,9 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
   onToggleBaselineCommit,
   onCreateCommit,
   onRestoreCommit,
+  conflictItems,
+  onNavigateToConflictItem,
+  onResolveAllConflicts,
 }) => {
   const selectedTask =
     selectedEntity?.type === 'task'
@@ -245,6 +262,29 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
               </span>
             )}
           </button>
+
+          <button
+            type="button"
+            data-testid="sidebar-tab-conflicts"
+            onClick={() => onChangeTab('conflicts')}
+            className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-[4px] text-xs font-semibold transition cursor-pointer ${
+              activeTab === 'conflicts'
+                ? 'bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09]'
+                : 'text-[#6B6B66] dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/10'
+            }`}
+          >
+            <AlertTriangle
+              className={`w-3.5 h-3.5 shrink-0 ${
+                conflictItems.length > 0 && activeTab !== 'conflicts' ? 'text-rose-500' : ''
+              }`}
+            />
+            <span>Conflictos</span>
+            {conflictItems.length > 0 && (
+              <span className="px-1 py-0.2 rounded-full bg-rose-600 text-white font-mono text-[9px] font-bold">
+                {conflictItems.length}
+              </span>
+            )}
+          </button>
         </div>
 
         <button
@@ -260,7 +300,66 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
       </div>
 
       {/* Body */}
-      {activeTab === 'commits' ? (
+      {activeTab === 'conflicts' ? (
+        <div
+          data-testid="conflict-warning-banner"
+          className="flex-1 overflow-y-auto p-3.5 text-xs flex flex-col gap-3"
+        >
+          {conflictItems.length === 0 ? (
+            <div className="rounded-[4px] border border-dashed border-emerald-300 dark:border-emerald-800 bg-emerald-50/40 dark:bg-emerald-950/20 p-5 text-center text-xs text-emerald-700 dark:text-emerald-300 my-auto">
+              Sin conflictos de dependencias en el cronograma.
+            </div>
+          ) : (
+            <>
+              <div className="flex items-start gap-2 p-2.5 rounded-[4px] bg-rose-500/10 border border-rose-500/30 text-rose-800 dark:text-rose-200 text-[11px]">
+                <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                <span>
+                  Detectamos <strong>{conflictItems.length}</strong> tarea(s) cuya fecha inicial
+                  es anterior a la fecha final de sus tareas predecesoras:
+                </span>
+              </div>
+
+              <button
+                type="button"
+                data-testid="auto-schedule-btn"
+                onClick={onResolveAllConflicts}
+                className="w-full px-3 py-2 rounded-[4px] bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition"
+              >
+                <span>Reprogramar en cascada automáticamente</span>
+              </button>
+
+              <div
+                data-testid="conflict-items-list"
+                className="flex flex-col gap-2"
+              >
+                {conflictItems.map((cItem) => (
+                  <button
+                    key={cItem.id}
+                    type="button"
+                    data-testid={`conflict-item-btn-${cItem.id}`}
+                    onClick={() => onNavigateToConflictItem(cItem)}
+                    className="w-full text-left p-2.5 rounded-[4px] bg-rose-500/5 hover:bg-rose-500/15 border border-rose-500/30 text-rose-900 dark:text-rose-100 transition cursor-pointer flex flex-col gap-1"
+                  >
+                    <div className="text-[11px] font-semibold leading-snug">
+                      {cItem.projectName && (
+                        <span className="opacity-70 font-normal">{`${cItem.projectName} › `}</span>
+                      )}
+                      <span className="underline decoration-rose-500/60 underline-offset-2">
+                        {cItem.name}
+                      </span>
+                    </div>
+                    {cItem.conflictMessage && (
+                      <div className="text-[10px] text-rose-700 dark:text-rose-300 leading-relaxed">
+                        {cItem.conflictMessage}
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      ) : activeTab === 'commits' ? (
         <div className="flex-1 min-h-0 flex flex-col">
           <CommitHistorySidebar
             embedded
