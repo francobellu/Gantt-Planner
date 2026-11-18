@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   Calendar,
   Check,
+  ChevronDown,
   Clock,
   Diamond,
   FolderKanban,
@@ -157,9 +158,12 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
   const [isExternal, setIsExternal] = useState(Boolean(initialItem?.isExternal));
   const [autoCascade, setAutoCascade] = useState(true);
   const [dateInputMode, setDateInputMode] = useState<'duration' | 'endDate'>('duration');
+  const [showTeamDropdown, setShowTeamDropdown] = useState(false);
+  const teamDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isOpen) return;
+    setShowTeamDropdown(false);
     setDateInputMode('duration');
     setIsCreatingNewProject(false);
     setNewProjectName('');
@@ -234,6 +238,9 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
   useEffect(() => {
     if (!isOpen) return;
     const handleOutsideClick = (e: MouseEvent) => {
+      if (teamDropdownRef.current && !teamDropdownRef.current.contains(e.target as Node)) {
+        setShowTeamDropdown(false);
+      }
       if (modalCardRef.current && !modalCardRef.current.contains(e.target as Node)) {
         onClose();
       }
@@ -250,6 +257,49 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isOpen, onClose]);
+
+  // Collect unique existing teams and their consistent default color across allItems
+  const existingTeams = useMemo(() => {
+    const teamMap = new Map<string, { name: string; colorCounts: Map<TaskColor, number> }>();
+    for (const item of allItems) {
+      const raw = item.assignee?.trim();
+      if (!raw) continue;
+      const key = raw.toLowerCase();
+      let entry = teamMap.get(key);
+      if (!entry) {
+        entry = { name: raw, colorCounts: new Map() };
+        teamMap.set(key, entry);
+      }
+      if (item.type === 'task' && item.color) {
+        entry.colorCounts.set(item.color, (entry.colorCounts.get(item.color) || 0) + 1);
+      }
+    }
+    return Array.from(teamMap.values())
+      .map((entry) => {
+        let bestColor: TaskColor | null = null;
+        let bestCount = 0;
+        for (const [c, count] of entry.colorCounts.entries()) {
+          if (count > bestCount) {
+            bestCount = count;
+            bestColor = c;
+          }
+        }
+        return {
+          name: entry.name,
+          color: bestColor || getTeamColor(entry.name),
+        };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  }, [allItems]);
+
+  const resolveDefaultColorForTeam = (teamName: string): TaskColor => {
+    const key = teamName.trim().toLowerCase();
+    if (key) {
+      const existing = existingTeams.find((t) => t.name.toLowerCase() === key);
+      if (existing) return existing.color;
+    }
+    return getTeamColor(teamName);
+  };
 
   // Live calculation of successor tasks and automatic free slack (must run before early return to respect Rules of Hooks)
   const successorTasks = useMemo(() => {
@@ -776,22 +826,82 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1.5">
                 Responsable / Rol
               </label>
-              <div className="relative">
-                <User className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+              <div ref={teamDropdownRef} className="relative">
+                <User className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
                 <input
                   type="text"
+                  data-testid="task-assignee-input"
                   value={assignee}
+                  onFocus={() => {
+                    if (existingTeams.length > 0) setShowTeamDropdown(true);
+                  }}
                   onChange={(e) => {
                     const nextVal = e.target.value;
                     setAssignee(nextVal);
+                    if (existingTeams.length > 0) setShowTeamDropdown(true);
                     if (!userChosenCustomColor.current && type === 'task') {
-                      setColor(getTeamColor(nextVal));
+                      setColor(resolveDefaultColorForTeam(nextVal));
                     }
                     syncReleaseSpanIfAssociated(name, nextVal, releaseId, projectId);
                   }}
                   placeholder="Ej. Frontend Team"
-                  className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                  className={`w-full pl-9 ${existingTeams.length > 0 ? 'pr-8' : 'pr-3'} py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 outline-none`}
                 />
+                {existingTeams.length > 0 && (
+                  <button
+                    type="button"
+                    data-testid="task-assignee-dropdown-toggle"
+                    onClick={() => setShowTeamDropdown((prev) => !prev)}
+                    aria-label="Desplegar equipos existentes"
+                    title="Seleccionar equipo existente"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer"
+                  >
+                    <ChevronDown className={`w-4 h-4 transition-transform ${showTeamDropdown ? 'rotate-180' : ''}`} />
+                  </button>
+                )}
+
+                {showTeamDropdown && existingTeams.length > 0 && (() => {
+                  const q = assignee.trim().toLowerCase();
+                  const filteredTeams = q
+                    ? existingTeams.filter((t) => t.name.toLowerCase().includes(q))
+                    : existingTeams;
+                  const listToShow = filteredTeams.length > 0 ? filteredTeams : existingTeams;
+                  return (
+                    <div
+                      data-testid="task-assignee-dropdown"
+                      className="absolute left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl z-50 py-1 text-sm"
+                    >
+                      {listToShow.map((team) => {
+                        const swatch = COLOR_OPTIONS.find((c) => c.value === team.color)?.bg || 'bg-indigo-500';
+                        const isCurrent = assignee.trim().toLowerCase() === team.name.toLowerCase();
+                        return (
+                          <button
+                            key={team.name}
+                            type="button"
+                            data-testid={`task-assignee-option-${team.name}`}
+                            onClick={() => {
+                              setAssignee(team.name);
+                              if (!userChosenCustomColor.current && type === 'task') {
+                                setColor(team.color);
+                              }
+                              syncReleaseSpanIfAssociated(name, team.name, releaseId, projectId);
+                              setShowTeamDropdown(false);
+                            }}
+                            className={`w-full flex items-center justify-between gap-2 px-3 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer ${
+                              isCurrent ? 'bg-indigo-50/70 dark:bg-indigo-950/40 font-semibold' : ''
+                            }`}
+                          >
+                            <span className="flex items-center gap-2 truncate text-slate-800 dark:text-slate-100">
+                              <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${swatch}`} />
+                              <span className="truncate">{team.name}</span>
+                            </span>
+                            {isCurrent && <Check className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
             <div className="sm:col-span-2">

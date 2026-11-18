@@ -2026,10 +2026,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     if (!container) return;
 
     const handleWheel = (e: WheelEvent) => {
-      const hasModifier = e.ctrlKey || e.metaKey || e.altKey;
-      const isPrimarilyVertical = Math.abs(e.deltaY) > Math.abs(e.deltaX);
-
-      if (!hasModifier && (!wheelZoomRef.current || !isPrimarilyVertical)) {
+      // Plain wheel scrolls vertically/naturally; only Ctrl/Cmd + wheel zooms the timeline
+      const hasZoomModifier = e.ctrlKey || e.metaKey;
+      if (!hasZoomModifier) {
         return;
       }
       if (e.deltaY === 0) return;
