@@ -1602,10 +1602,9 @@ export function App({
   };
 
   const handleOpenEditModal = (item: ComputedGanttItem) => {
-    setEditingItem(item);
-    setDefaultModalType(item.type);
-    setDefaultModalProjectId(item.projectId || projects[0]?.id);
-    setModalOpen(true);
+    setSelectedEntity({ type: 'task', id: item.id, name: item.name });
+    setShowCommitsSidebar(true);
+    setRightSidebarTab('details');
   };
 
   const handleCreateProject = (newProj?: Partial<GanttProject>) => {
@@ -3170,6 +3169,7 @@ export function App({
             items={computedItems}
             projects={effectiveProjects}
             releases={releases}
+            workCalendar={workCalendar}
             onEditTask={(it) => handleOpenEditModal(it)}
             onUpdateItem={handleUpdateInline}
             onDeleteTask={handleDeleteItem}
