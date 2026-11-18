@@ -25,6 +25,7 @@ import {
   Lock,
   Maximize2,
   Moon,
+  PanelRight,
   Plus,
   Rocket,
   RotateCw,
@@ -53,6 +54,7 @@ import {
   ProjectAlertLevel,
   ProjectPlatform,
   ProjectTemplate,
+  PlanCommit,
   PlanHistoryActionType,
   PlanHistoryEntry,
   Release,
@@ -69,6 +71,7 @@ import {
   collectTimelineAnchorDates,
   computeFitToProjectScale,
   computeGanttMetrics,
+  computeHistoryEntryDiff,
   computeTimelineBounds,
   createNewScenario,
   DEFAULT_DAY_WIDTH,
@@ -112,6 +115,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { ReleaseNotesModal } from './components/ReleaseNotesModal';
 import { ReportsView } from './components/ReportsView';
 import { ProjectLockedAlertModal } from './components/ProjectLockedAlertModal';
+import { CommitHistorySidebar } from './components/CommitHistorySidebar';
 import {
   DEFAULT_PREDEFINED_RELEASES,
   checkTaskReleaseCompliance,
@@ -310,6 +314,8 @@ export function App({
   initialReleaseGuideVisibility = 'selected',
   initialProjects,
   initialItems,
+  initialCommitsSidebarOpen = false,
+  initialCommits,
 }: {
   initialScenarioId?: string;
   initialView?: 'gantt' | 'history' | 'projects';
@@ -322,6 +328,8 @@ export function App({
   initialReleaseGuideVisibility?: ReleaseGuideVisibility;
   initialProjects?: GanttProject[];
   initialItems?: GanttItem[];
+  initialCommitsSidebarOpen?: boolean;
+  initialCommits?: PlanCommit[];
 } = {}) {
   const templates = useMemo(() => getProjectTemplates(), []);
   const defaultScenarios = useMemo(() => getDefaultSavedScenarios(), []);
@@ -341,6 +349,63 @@ export function App({
     () => initialProjects || initialState.projects
   );
   const [items, setItems] = useState<GanttItem[]>(() => initialItems || initialState.items);
+
+  // Commit-based Change History & Right Sidebar
+  const [showCommitsSidebar, setShowCommitsSidebar] = useState<boolean>(
+    initialCommitsSidebarOpen
+  );
+  const [commits, setCommits] = useState<PlanCommit[]>(() => {
+    if (initialCommits) return initialCommits;
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const raw = window.localStorage.getItem('ganttflow_commits_v1');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      }
+    } catch {}
+    return [];
+  });
+  const [commitBaseline, setCommitBaseline] = useState<{
+    items: GanttItem[];
+    projects: GanttProject[];
+  }>(() => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const raw = window.localStorage.getItem('ganttflow_commit_baseline_v1');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && Array.isArray(parsed.items) && Array.isArray(parsed.projects)) {
+            return parsed;
+          }
+        }
+      }
+    } catch {}
+    return {
+      items: (initialItems || initialState.items).map(sanitizeGanttItem),
+      projects: (initialProjects || initialState.projects).map((p) => ({ ...p })),
+    };
+  });
+
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem('ganttflow_commits_v1', JSON.stringify(commits));
+      }
+    } catch {}
+  }, [commits]);
+
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(
+          'ganttflow_commit_baseline_v1',
+          JSON.stringify(commitBaseline)
+        );
+      }
+    } catch {}
+  }, [commitBaseline]);
 
   const [history, setHistory] = useState<PlanHistoryEntry[]>(() => {
     try {
@@ -686,6 +751,71 @@ export function App({
       localStorage.setItem(RELEASES_STORAGE_KEY, JSON.stringify(releases));
     } catch {}
   }, [releases]);
+
+  const pendingCommitChanges = useMemo(
+    () =>
+      computeHistoryEntryDiff(
+        commitBaseline,
+        {
+          items: items.map(sanitizeGanttItem),
+          projects: projects.map((p) => ({ ...p })),
+        },
+        releases
+      ),
+    [commitBaseline, items, projects, releases]
+  );
+
+  const handleCreateCommit = (commitMessage: string) => {
+    const trimmed = commitMessage.trim();
+    if (!trimmed || pendingCommitChanges.length === 0) return;
+    const nowDate = new Date();
+    const formattedDate = nowDate.toLocaleString('es-ES', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const snapshot = {
+      items: items.map(sanitizeGanttItem),
+      projects: projects.map((p) => ({ ...p })),
+    };
+    const changesCount = pendingCommitChanges.reduce(
+      (acc, ec) => acc + Math.max(1, ec.changes.length),
+      0
+    );
+    const newCommit: PlanCommit = {
+      id: `commit-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      timestamp: nowDate.toISOString(),
+      formattedDate,
+      message: trimmed,
+      itemsCount: snapshot.items.length,
+      projectsCount: snapshot.projects.length,
+      changesCount,
+      entityChanges: pendingCommitChanges,
+      snapshot,
+    };
+    setCommits((prev) => [newCommit, ...prev]);
+    setCommitBaseline(snapshot);
+  };
+
+  const handleRestoreCommit = (commit: PlanCommit) => {
+    const restoredItems = commit.snapshot.items.map(sanitizeGanttItem);
+    const restoredProjects = commit.snapshot.projects.map((p) => ({ ...p }));
+    setItems(restoredItems);
+    setProjects(restoredProjects);
+    setCommitBaseline({
+      items: restoredItems.map(sanitizeGanttItem),
+      projects: restoredProjects.map((p) => ({ ...p })),
+    });
+    recordPlanChange(
+      'restore_snapshot',
+      'Restaurar Commit',
+      `Plan restaurado al commit: «${commit.message}»`,
+      restoredItems,
+      restoredProjects
+    );
+  };
 
   useEffect(() => {
     try {
@@ -2688,6 +2818,29 @@ export function App({
             </div>
           </div>
 
+          {/* Toggle Side Bar: Historial de Commits */}
+          <button
+            type="button"
+            data-testid="toggle-commits-sidebar-btn"
+            onClick={() => setShowCommitsSidebar((prev) => !prev)}
+            className={`relative p-1.5 rounded-[4px] border transition cursor-pointer shrink-0 flex items-center justify-center ${
+              showCommitsSidebar
+                ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
+                : 'bg-white dark:bg-zinc-900 border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800'
+            }`}
+            aria-label="Mostrar u ocultar panel lateral de commits"
+            title="Panel lateral de historial de commits"
+          >
+            <PanelRight className="w-4 h-4 text-current" />
+            {pendingCommitChanges.length > 0 && (
+              <span
+                data-testid="pending-commits-dot"
+                className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-500 ring-2 ring-white dark:ring-[#0C0C09]"
+                title={`${pendingCommitChanges.length} cambio(s) pendiente(s) de commit`}
+              />
+            )}
+          </button>
+
         </div>
       </header>
 
@@ -2746,8 +2899,9 @@ export function App({
         </div>
       )}
 
-      {/* Main Content Area */}
-      <main className="flex-1 flex flex-col max-w-[1920px] w-full mx-auto px-2 sm:px-4 py-2 sm:py-3 gap-2 min-h-0">
+      {/* Main Content Area + Right Commit History Sidebar */}
+      <div className="flex flex-1 min-h-0 w-full">
+        <main className="flex-1 flex flex-col max-w-[1920px] w-full mx-auto px-2 sm:px-4 py-2 sm:py-3 gap-2 min-h-0 min-w-0">
         {currentView === 'help' ? (
           <HelpPage onBackToGantt={() => setCurrentView('gantt')} />
         ) : currentView === 'history' ? (
@@ -2929,7 +3083,18 @@ export function App({
             />
           </>
         )}
-      </main>
+        </main>
+
+        {showCommitsSidebar && (
+          <CommitHistorySidebar
+            commits={commits}
+            pendingChanges={pendingCommitChanges}
+            onCreateCommit={handleCreateCommit}
+            onRestoreCommit={handleRestoreCommit}
+            onClose={() => setShowCommitsSidebar(false)}
+          />
+        )}
+      </div>
 
       {/* Modal de Creación de Proyecto con Selección de Release */}
       {createProjectModalOpen && (

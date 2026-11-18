@@ -1934,7 +1934,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   // Interactive drag state for moving or resizing task bars (and multi-selected items/projects) directly on the timeline
   const [dragState, setDragState] = useState<{
     itemId: string;
-    mode: 'move' | 'resize';
+    mode: 'move' | 'resize' | 'resize-start';
     startX: number;
     origStart: Date;
     origDuration: number;
@@ -2137,6 +2137,18 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
           duration: newDur,
           endDate: newEnd,
           slackEndDate: newSlackEnd,
+        };
+      }
+      if (dragState.mode === 'resize-start' && it.type === 'task') {
+        // Keep endDate fixed; clamp delta so duration >= 1 day
+        const maxDelta = dragState.origDuration - 1;
+        const clampedDelta = Math.min(maxDelta, dragState.dayDelta);
+        const newStart = formatDateISO(addDays(dragState.origStart, clampedDelta));
+        const newDur = Math.max(1, dragState.origDuration - clampedDelta);
+        return {
+          ...it,
+          startDate: newStart,
+          duration: newDur,
         };
       }
       return it;
@@ -2592,7 +2604,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   const handleBarMouseDown = (
     e: React.MouseEvent,
     item: ComputedGanttItem,
-    mode: 'move' | 'resize'
+    mode: 'move' | 'resize' | 'resize-start'
   ) => {
     e.stopPropagation();
     if (mode === 'move' && (e.metaKey || e.ctrlKey || e.shiftKey)) {
@@ -2623,7 +2635,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     }
 
     const attemptedLabel =
-      mode === 'resize'
+      mode === 'resize' || mode === 'resize-start'
         ? `redimensionar «${item.name}» en el diagrama`
         : movingIds
         ? `mover selección múltiple (${movingIds.size} elementos) en el diagrama`
@@ -2727,6 +2739,20 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             ...item,
             duration: newDur,
             endDate: newEnd,
+          },
+          false
+        );
+      } else if (mode === 'resize-start' && item.type === 'task') {
+        const maxDelta = origDuration - 1;
+        const clampedDelta = Math.min(maxDelta, deltaDays);
+        const newStart = formatDateISO(addDays(origStart, clampedDelta));
+        const newDur = Math.max(1, origDuration - clampedDelta);
+        onUpdateItem(
+          {
+            ...item,
+            startDate: newStart,
+            duration: newDur,
+            endDate: item.endDate,
           },
           false
         );
@@ -7792,11 +7818,22 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               </div>
                             )}
 
+                            {/* Left-Edge Drag Handle for Start Date Resizing (keeps endDate fixed) */}
+                            <div
+                              data-testid={`task-resize-start-${item.id}`}
+                              onMouseDown={(e) => handleBarMouseDown(e, item, 'resize-start')}
+                              title="Arrastra el borde izquierdo para cambiar la fecha de inicio (fin fijo)"
+                              className="absolute left-0 top-0 bottom-0 w-2.5 cursor-ew-resize hover:bg-white/20 flex items-center justify-center z-10"
+                            >
+                              <div className="w-0.5 h-3.5 bg-white/70 rounded-[1px]" />
+                            </div>
+
                             {/* Right-Edge Drag Handle for Duration Resizing */}
                             <div
+                              data-testid={`task-resize-end-${item.id}`}
                               onMouseDown={(e) => handleBarMouseDown(e, item, 'resize')}
                               title="Arrastra el borde derecho para cambiar la duración"
-                              className="absolute right-0 top-0 bottom-0 w-2.5 cursor-ew-resize hover:bg-white/20 flex items-center justify-center"
+                              className="absolute right-0 top-0 bottom-0 w-2.5 cursor-ew-resize hover:bg-white/20 flex items-center justify-center z-10"
                             >
                               <div className="w-0.5 h-3.5 bg-white/70 rounded-[1px]" />
                             </div>

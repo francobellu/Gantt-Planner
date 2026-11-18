@@ -1,4 +1,4 @@
-export const APP_VERSION = '1.9.8';
+export const APP_VERSION = '1.9.9';
 
 export const DEFAULT_TRUNCATE_CHAR_LIMIT = 37;
 export const TRUNCATE_LIMIT_STORAGE_KEY = 'ganttflow_truncate_char_limit';
@@ -233,6 +233,21 @@ export interface ComputedReleaseGroup {
   tasksCount: number;
   milestonesCount: number;
   violationsCount: number;
+}
+
+export interface PlanCommit {
+  id: string;
+  timestamp: string;
+  formattedDate: string;
+  message: string;
+  itemsCount: number;
+  projectsCount: number;
+  changesCount: number;
+  entityChanges: import('../utils/ganttEngine').HistoryEntityChange[];
+  snapshot: {
+    items: GanttItem[];
+    projects: GanttProject[];
+  };
 }
 
 

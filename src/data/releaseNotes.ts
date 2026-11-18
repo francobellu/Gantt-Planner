@@ -10,10 +10,18 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.9.9',
+    date: '18 Nov 2026',
+    title: 'Redimensionamiento de fecha de inicio en barras e historial de commits en panel lateral',
+    isLatest: true,
+    features: [
+      'Las barras de tareas permiten ajustar la fecha de inicio manteniendo fija la de fin desde su extremo izquierdo. Se añade además un historial de cambios basado en commits con comentario y un botón de panel lateral en la barra superior para consultar cada commit y sus diferencias.',
+    ],
+  },
+  {
     version: '1.9.8',
     date: '18 Nov 2026',
     title: 'Scroll vertical con rueda del ratón, zoom con Ctrl/Cmd+rueda y desplegable de equipos con color consistente',
-    isLatest: true,
     features: [
       'La rueda del ratón realiza scroll vertical en el diagrama mientras que Ctrl/Cmd + rueda aplica zoom. Además, el campo Responsable/Rol en el modal de tarea muestra un desplegable con los equipos existentes y mantiene siempre el mismo color por defecto para cada equipo.',
     ],
