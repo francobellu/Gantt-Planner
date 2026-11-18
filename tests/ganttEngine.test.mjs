@@ -9509,7 +9509,7 @@ test('Test 80: Full-width layout on large screens & clean Release bar with top l
     );
 
     assert.ok(html.includes('fill-amber-400'), 'Release milestone diamonds must use high-visibility amber fill');
-    assert.ok(html.includes('top:12px'), 'Release milestone diamonds must be vertically centered on the 44px release row');
+    assert.ok(html.includes('top:15px'), 'Release milestone diamonds must be vertically centered on the 50px release row');
     assert.ok(html.includes('h-3 rounded-[3px]'), 'Release bar must be slimmed cleanly under its top label row');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});

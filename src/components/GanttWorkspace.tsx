@@ -7331,7 +7331,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         <div
                           className={`h-3 rounded-[3px] bg-[#0C0C09] dark:bg-zinc-200 border shadow-xs transition-all group-hover:opacity-90 ${
                             isReleaseSelected
-                              ? 'ring-2 ring-indigo-500 border-indigo-500 dark:border-indigo-400'
+                              ? 'ring-3 ring-indigo-500 border-indigo-500 dark:border-indigo-400'
                               : 'border-[#0C0C09] dark:border-zinc-300'
                           }`}
                         />
