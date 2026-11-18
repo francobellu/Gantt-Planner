@@ -7871,16 +7871,29 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               }`}
                             />
 
-                            {/* Inline Progress Drag Handle */}
-                            <div
-                              data-testid={`task-progress-handle-${item.id}`}
-                              onMouseDown={(e) => handleBarMouseDown(e, item, 'progress')}
-                              style={{ left: `calc(${item.progress}% - 4px)` }}
-                              title={`Arrastra para ajustar el avance (${item.progress}%)`}
-                              className="absolute top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 hover:opacity-100 flex items-center justify-center z-20"
-                            >
-                              <div className="w-1 h-4 rounded-full bg-white/95 shadow-sm border border-black/30" />
-                            </div>
+                            {/* Inline Progress Drag Handle (bottom edge, clamped inside resize handles & dependency ports) */}
+                            {barWidth >= 28 && (
+                              <div
+                                data-testid={`task-progress-handle-${item.id}`}
+                                onMouseDown={(e) => handleBarMouseDown(e, item, 'progress')}
+                                style={{
+                                  left: `clamp(14px, ${item.progress}%, calc(100% - 14px))`,
+                                }}
+                                title={`Arrastra para ajustar el avance (${item.progress}%)`}
+                                className="absolute bottom-0 -translate-x-1/2 w-3.5 h-2.5 cursor-ew-resize opacity-75 group-hover:opacity-100 hover:scale-125 transition flex items-end justify-center z-20"
+                              >
+                                <div
+                                  style={{
+                                    width: 0,
+                                    height: 0,
+                                    borderLeft: '5px solid transparent',
+                                    borderRight: '5px solid transparent',
+                                    borderBottom: '7px solid rgba(255, 255, 255, 0.95)',
+                                    filter: 'drop-shadow(0 0 1px rgba(0,0,0,0.6))',
+                                  }}
+                                />
+                              </div>
+                            )}
 
                             {/* Inside Bar: Progress percentage when progress > 0 and bar is wide enough */}
                             {item.progress > 0 && barWidth >= 40 && (

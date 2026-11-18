@@ -10,10 +10,18 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.10.2',
+    date: '19 Nov 2026',
+    title: 'Visibilidad del tirador de progreso en barras de tareas',
+    isLatest: true,
+    features: [
+      'Se reubica el tirador de progreso en el borde inferior de la barra (clamp entre los bordes izquierdo y derecho) para evitar que quede oculto tras los puertos de dependencia y tiradores de redimensionamiento.',
+    ],
+  },
+  {
     version: '1.10.1',
     date: '18 Nov 2026',
     title: 'Panel lateral derecho unificado con pestañas de Detalles (tarea, proyecto, release) y Commits',
-    isLatest: true,
     features: [
       'El panel lateral derecho incorpora las pestañas Detalles y Commits. Al hacer clic sobre una tarea, hito, proyecto o release en el cronograma se abre automáticamente la pestaña Detalles en el panel lateral en lugar de un popover flotante.',
     ],
