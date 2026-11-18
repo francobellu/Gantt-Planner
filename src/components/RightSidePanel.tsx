@@ -225,7 +225,7 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
     <aside
       data-testid="right-side-panel"
       aria-label="Panel lateral derecho"
-      className="w-80 sm:w-96 shrink-0 border-l border-[#0C0C09] dark:border-zinc-800 bg-white dark:bg-[#0C0C09] flex flex-col min-h-0 h-full select-text z-30"
+      className="w-80 sm:w-96 shrink-0 border-l border-[#0C0C09] dark:border-zinc-800 bg-white dark:bg-[#0C0C09] flex flex-col min-h-0 sticky top-12 h-[calc(100vh-3rem)] self-start overflow-hidden select-text z-40"
     >
       {/* Top Switcher Tabs: Detalles vs Commits */}
       <div className="px-2.5 py-2 border-b border-[#E2E2DC] dark:border-zinc-800 flex items-center justify-between gap-2 bg-[#FAFAF8] dark:bg-zinc-950 shrink-0">
