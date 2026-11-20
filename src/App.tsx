@@ -2372,26 +2372,6 @@ export function App({
         
         {/* LEFT: Primary Workflow Controls */}
         <div className="flex items-center gap-2.5 min-w-0 flex-wrap">
-          {/* Botón posicionado en el icono para esconder la tabla y enseñar solo el diagrama */}
-          <button
-            type="button"
-            data-testid="toggle-table-btn"
-            onClick={() => setShowTable((prev) => !prev)}
-            className={`w-7 h-7 rounded-[4px] border flex items-center justify-center shrink-0 transition cursor-pointer ${
-              showTable
-                ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-200 hover:bg-[#312C85]'
-                : 'bg-white border-[#0C0C09] text-[#0C0C09] dark:bg-zinc-900 dark:border-zinc-700 dark:text-zinc-400 hover:bg-[#F4F4F1]'
-            }`}
-            title={showTable ? 'Ocultar tabla de tareas (solo diagrama)' : 'Mostrar tabla de tareas'}
-            aria-label={showTable ? 'Ocultar tabla de tareas' : 'Mostrar tabla de tareas'}
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <line x1="4" y1="6" x2="16" y2="6" />
-              <line x1="8" y1="12" x2="20" y2="12" />
-              <line x1="4" y1="18" x2="12" y2="18" />
-            </svg>
-          </button>
-
           {/* Selector "Proyectos" con selección múltiple */}
           <div ref={projectMenuRef} className="relative" data-dropdown-container="true">
             <button
@@ -2605,49 +2585,6 @@ export function App({
             aria-label="Informes"
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-          </button>
-
-          {/* Modo Enfoque Toggle (Contextual al elemento seleccionado - Icon-Only) */}
-          <button
-            type="button"
-            data-testid="header-toggle-focus-mode-btn"
-            onClick={() => {
-              if (isFocusMode) {
-                handleExitFocusMode();
-              } else if (selectedEntity) {
-                handleSetFocusEntity(selectedEntity);
-              } else {
-                const targetProj = effectiveProjects[0];
-                if (targetProj) {
-                  handleSetFocusEntity({
-                    type: 'project',
-                    id: targetProj.id,
-                    name: targetProj.name,
-                  });
-                }
-              }
-            }}
-            className={`p-1.5 rounded-[4px] border transition cursor-pointer shrink-0 flex items-center justify-center ${
-              isFocusMode
-                ? 'bg-indigo-600 border-indigo-600 text-white font-bold animate-pulse'
-                : 'bg-white dark:bg-zinc-900 border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800'
-            }`}
-            title={
-              isFocusMode
-                ? `Salir de la modalidad enfoque (${focusEntity?.name || ''})`
-                : selectedEntity
-                ? `Enfocar ${
-                    selectedEntity.type === 'task'
-                      ? 'tarea'
-                      : selectedEntity.type === 'project'
-                      ? 'proyecto'
-                      : 'release'
-                  }: "${selectedEntity.name || selectedEntity.id}"`
-                : 'Modalidad Enfoque (selecciona una tarea, proyecto o release en el diagrama)'
-            }
-            aria-label="Modalidad Enfoque"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-current" />
           </button>
 
           {scenarioSavedToast && (

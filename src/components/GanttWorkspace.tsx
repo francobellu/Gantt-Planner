@@ -254,6 +254,16 @@ type DisplayRow =
       group: ComputedProjectGroup;
     }
   | {
+      kind: 'add-task';
+      rowId: string;
+      group: ComputedProjectGroup;
+    }
+  | {
+      kind: 'add-project';
+      rowId: string;
+      group: ComputedReleaseGroup;
+    }
+  | {
       kind: 'item';
       rowId: string;
       item: ComputedGanttItem;
@@ -1424,6 +1434,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   const [newProjectReleaseId, setNewProjectReleaseId] = useState<string>(
     () => releases[0]?.id || 'rel-t-26-12-1'
   );
+  const [inlineReleaseProjectTargetId, setInlineReleaseProjectTargetId] = useState<string | null>(null);
+  const [inlineReleaseProjectName, setInlineReleaseProjectName] = useState<string>('');
   const newProjectFormRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -2380,8 +2392,20 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     group,
                   });
                 }
+                rows.push({
+                  kind: 'add-task',
+                  rowId: `add-task-${group.project.id}`,
+                  group,
+                });
               }
             }
+          }
+          if (onCreateProject && rg.release.id !== '__unassigned__') {
+            rows.push({
+              kind: 'add-project',
+              rowId: `add-project-${rg.release.id}`,
+              group: rg,
+            });
           }
         }
       }
@@ -2414,6 +2438,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                 group,
               });
             }
+            rows.push({
+              kind: 'add-task',
+              rowId: `add-task-${group.project.id}`,
+              group,
+            });
           }
         }
       }
@@ -4264,15 +4293,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         data-testid="cronograma-toolbar"
         className="sticky top-12 z-30 h-10 px-3 bg-[#F4F4F1] dark:bg-zinc-900 border-b border-[#0C0C09] dark:border-zinc-800 flex items-center justify-between shrink-0 select-none gap-2 shadow-xs"
       >
-        {/* Left Side: Cronograma Title, WBS Toggle & Table Search / Platform Filter */}
+        {/* Left Side: WBS Toggle & Table Search / Platform Filter */}
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          <div className="flex items-center gap-1.5 text-xs font-mono font-bold uppercase tracking-wider text-[#0C0C09] dark:text-zinc-200 shrink-0">
-            <Calendar className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-            <span>Cronograma</span>
-          </div>
-
-          <div className="h-4 w-px bg-[#E2E2DC] dark:bg-zinc-800 shrink-0" />
-
           {/* Toggle WBS Table button (Icon-only with hint) */}
           {onToggleShowTable && (
             <div className="relative group inline-flex items-center">
@@ -5885,6 +5907,158 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         );
                       }
 
+                      if (row.kind === 'add-task') {
+                        const { group } = row;
+                        const targetRel = releases?.find((r) => r.id === group.project.releaseId);
+                        return (
+                          <div
+                            key={row.rowId}
+                            data-add-task-row={group.project.id}
+                            style={{ height: ROW_HEIGHT, minWidth: tableMinWidth }}
+                            className={`flex items-center justify-between px-3 text-xs bg-slate-50/60 dark:bg-zinc-900/30 ${
+                              showRowSeparators
+                                ? 'border-b border-[#E2E2DC] dark:border-zinc-800/60'
+                                : 'border-b-0'
+                            } pl-10`}
+                          >
+                            <div className="flex items-center gap-2 text-slate-400 dark:text-zinc-500 min-w-0">
+                              <span className="italic text-[11px] truncate">
+                                Añadir al final de <span className="font-medium not-italic text-slate-600 dark:text-zinc-300">{group.project.name}</span>
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 pr-3 shrink-0">
+                              <button
+                                type="button"
+                                data-testid={`project-footer-add-task-btn-${group.project.id}`}
+                                onClick={() => guardedQuickAdd('task', group.project.id)}
+                                className="px-2.5 py-1 text-[11px] font-semibold rounded bg-white dark:bg-zinc-800 border border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-700 transition cursor-pointer flex items-center gap-1 shadow-xs"
+                                title="Crear nueva tarea al final de este proyecto"
+                              >
+                                <Plus className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                                <span>Nueva Tarea</span>
+                              </button>
+                              <button
+                                type="button"
+                                data-testid={`project-footer-add-milestone-btn-${group.project.id}`}
+                                onClick={() => guardedQuickAdd('milestone', group.project.id)}
+                                className="px-2.5 py-1 text-[11px] font-semibold rounded bg-white dark:bg-zinc-800 border border-[#E2E2DC] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-700 transition cursor-pointer flex items-center gap-1 shadow-xs"
+                                title="Crear nuevo hito al final de este proyecto"
+                              >
+                                <Diamond className="w-3 h-3 text-amber-500" />
+                                <span>Nuevo Hito</span>
+                              </button>
+                              {group.project.releaseId && onCreateDigiTask && (
+                                <button
+                                  type="button"
+                                  data-testid={`project-footer-add-digi-btn-${group.project.id}`}
+                                  onClick={() => guardedCreateDigiTask(group.project, 'DIGI')}
+                                  className="px-2.5 py-1 text-[11px] font-semibold rounded bg-[#0C0C09] hover:bg-[#312C85] dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-[#0C0C09] transition cursor-pointer flex items-center gap-1 shadow-xs font-mono"
+                                  title="Crear tarea DIGI automática cubriendo toda la release asignada"
+                                >
+                                  <span>🚀</span>
+                                  <span>+ Tarea DIGI ({targetRel?.code || group.project.releaseId})</span>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (row.kind === 'add-project') {
+                        const { group: rGroup } = row;
+                        const isInlineEditing = inlineReleaseProjectTargetId === rGroup.release.id;
+                        return (
+                          <div
+                            key={row.rowId}
+                            data-add-project-row={rGroup.release.id}
+                            style={{ height: ROW_HEIGHT, minWidth: tableMinWidth }}
+                            className={`flex items-center justify-between px-3 text-xs bg-indigo-50/20 dark:bg-zinc-900/40 ${
+                              showRowSeparators
+                                ? 'border-b border-[#E2E2DC] dark:border-zinc-800/60'
+                                : 'border-b-0'
+                            } pl-6`}
+                          >
+                            {isInlineEditing ? (
+                              <form
+                                onSubmit={(e) => {
+                                  e.preventDefault();
+                                  const trimmed = inlineReleaseProjectName.trim();
+                                  if (!trimmed) return;
+                                  onCreateProject?.({
+                                    id: `proj-${Date.now()}`,
+                                    name: trimmed,
+                                    color: 'indigo',
+                                    releaseId: rGroup.release.id,
+                                    collapsed: false,
+                                    isDemo: false,
+                                  });
+                                  setInlineReleaseProjectTargetId(null);
+                                  setInlineReleaseProjectName('');
+                                }}
+                                className="flex items-center gap-2 w-full pr-3"
+                              >
+                                <input
+                                  type="text"
+                                  autoFocus
+                                  data-testid={`release-add-project-input-${rGroup.release.id}`}
+                                  value={inlineReleaseProjectName}
+                                  onChange={(e) => setInlineReleaseProjectName(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Escape') {
+                                      setInlineReleaseProjectTargetId(null);
+                                      setInlineReleaseProjectName('');
+                                    }
+                                  }}
+                                  placeholder={`Nombre del nuevo proyecto en ${rGroup.release.code}...`}
+                                  className="flex-1 min-w-[180px] px-2.5 py-1 text-xs rounded border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[#0C0C09] dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 outline-none focus:ring-1 focus:ring-indigo-500"
+                                />
+                                <button
+                                  type="submit"
+                                  disabled={!inlineReleaseProjectName.trim()}
+                                  data-testid={`release-add-project-submit-${rGroup.release.id}`}
+                                  className="px-3 py-1 text-[11px] font-semibold rounded bg-[#0C0C09] hover:bg-[#312C85] dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-[#0C0C09] transition disabled:opacity-40 cursor-pointer"
+                                >
+                                  Crear
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setInlineReleaseProjectTargetId(null);
+                                    setInlineReleaseProjectName('');
+                                  }}
+                                  className="px-2.5 py-1 text-[11px] font-medium rounded border border-[#E2E2DC] dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition cursor-pointer"
+                                >
+                                  Cancelar
+                                </button>
+                              </form>
+                            ) : (
+                              <>
+                                <div className="flex items-center gap-2 text-slate-500 dark:text-zinc-400 min-w-0">
+                                  <span className="italic text-[11px] truncate">
+                                    Añadir proyecto a <span className="font-mono font-semibold not-italic text-indigo-700 dark:text-indigo-300">{rGroup.release.code}</span>
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2 pr-3 shrink-0">
+                                  <button
+                                    type="button"
+                                    data-testid={`release-add-project-btn-${rGroup.release.id}`}
+                                    onClick={() => {
+                                      setInlineReleaseProjectTargetId(rGroup.release.id);
+                                      setInlineReleaseProjectName('');
+                                    }}
+                                    className="px-2.5 py-1 text-[11px] font-semibold rounded bg-white dark:bg-zinc-800 border border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-700 transition cursor-pointer flex items-center gap-1 shadow-xs"
+                                    title={`Crear nuevo proyecto en ${rGroup.release.code}`}
+                                  >
+                                    <Plus className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                                    <span>Nuevo Proyecto</span>
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        );
+                      }
+
                       // Standard Task / Milestone Row
                       const { item, group } = row;
                       const itemEffectiveColor = getItemEffectiveColor(item);
@@ -6961,7 +7135,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     />
                   );
                 }
-                if (row.kind === 'empty-project') {
+                if (row.kind === 'empty-project' || row.kind === 'add-task' || row.kind === 'add-project') {
                   return (
                     <div
                       key={`row-bg-${row.rowId}`}
@@ -6970,7 +7144,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         showRowSeparators
                           ? 'border-b border-[#E2E2DC] dark:border-zinc-800/60'
                           : 'border-b-0'
-                      } bg-indigo-50/15 dark:bg-zinc-900/20`}
+                      } ${
+                        row.kind === 'add-task'
+                          ? 'bg-slate-50/40 dark:bg-zinc-900/15'
+                          : 'bg-indigo-50/15 dark:bg-zinc-900/20'
+                      }`}
                     />
                   );
                 }
@@ -7399,7 +7577,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   );
                 }
 
-                if (row.kind === 'empty-project') {
+                if (row.kind === 'empty-project' || row.kind === 'add-task' || row.kind === 'add-project') {
                   return null;
                 }
 

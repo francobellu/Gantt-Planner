@@ -933,7 +933,8 @@ test('App renders default clean workspace, toggle-table button, and + Nuevo Proy
 
     // Verify clean default workspace renders (Mi Proyecto)
     assert.ok(html.includes('Mi Proyecto'));
-    assert.ok(html.includes('data-testid="toggle-table-btn"'), 'Must render toggle-table button at top left');
+    assert.ok(html.includes('data-testid="cronograma-toggle-table-btn"'), 'Must render cronograma-toggle-table-btn');
+    assert.ok(!html.includes('data-testid="toggle-table-btn"'), 'Redundant header toggle-table-btn must be removed');
     assert.ok(html.includes('data-project-selector-btn="true"'), 'Must render Proyectos dropdown selector');
 
     // Verify NO demo projects or scenarios exist
@@ -1528,9 +1529,9 @@ test('Independent dropdown outside-click dismiss, escape key handlers, and proje
 
     // Verify dropdown containers have data-dropdown-container
     assert.ok(html.includes('data-dropdown-container="true"'));
-    // Verify Proyectos selector and toggle-table button exist
+    // Verify Proyectos selector and cronograma-toggle-table-btn exist
     assert.ok(html.includes('data-project-selector-btn="true"'));
-    assert.ok(html.includes('data-testid="toggle-table-btn"'));
+    assert.ok(html.includes('data-testid="cronograma-toggle-table-btn"'));
     // Verify Nuevo Proyecto and Nueva Tarea exist
     assert.ok(html.includes('Nuevo Proyecto'));
     assert.ok(html.includes('Nueva Tarea'));
@@ -2367,9 +2368,9 @@ test('SSR Verification: Toggle-table button controls table visibility, and Gantt
   try {
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
 
-    // 1. Verify toggle-table button hides WBS table (# / Orden) when initialShowTable={false}
+    // 1. Verify cronograma-toggle-table-btn hides WBS table (# / Orden) when initialShowTable={false}
     const fullGanttHtml = renderToString(mod.renderFullGanttOnlyView());
-    assert.ok(fullGanttHtml.includes('data-testid="toggle-table-btn"'), 'Must render toggle-table button');
+    assert.ok(fullGanttHtml.includes('data-testid="cronograma-toggle-table-btn"'), 'Must render cronograma-toggle-table-btn');
     assert.ok(!fullGanttHtml.includes('# / Orden'), 'Table header must NOT be rendered when showTable is false');
     assert.ok(fullGanttHtml.includes('data-timeline-task='), 'Gantt timeline bars must still be rendered when table is hidden');
 
@@ -5587,7 +5588,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     // E. Header controls in App SSR
     const appHtml = renderToString(React.createElement(mod.App));
     assert.ok(appHtml.includes('data-testid="table-platform-filter"'), 'App must contain unified table-platform-filter');
-    assert.ok(appHtml.includes('data-testid="header-toggle-focus-mode-btn"'), 'App header must contain header-toggle-focus-mode-btn');
+    assert.ok(!appHtml.includes('data-testid="header-toggle-focus-mode-btn"'), 'Redundant header-toggle-focus-mode-btn must be removed');
     assert.ok(appHtml.includes('data-testid="header-reports-btn"'), 'App header must contain header-reports-btn');
     assert.ok(appHtml.includes('v1.10.4'), 'App header must display version v1.10.4');
   } finally {
@@ -6528,18 +6529,14 @@ test('Test 62: Diagram project/release selection, contextual focus, moved import
       'Tools dropdown must contain Releases catalog button'
     );
     assert.ok(
-      appHtml.includes('data-testid="header-toggle-focus-mode-btn"'),
-      'App header must contain Focus Mode button'
+      !appHtml.includes('data-testid="header-toggle-focus-mode-btn"'),
+      'Redundant header Focus Mode button must be removed'
     );
 
     // 4. Verify top header buttons are icon-only (do not contain text labels)
     assert.ok(!appHtml.includes('>Importar</span>'), 'Header import button must be icon-only');
     assert.ok(!appHtml.includes('>JSON</span>'), 'Header export JSON button must be icon-only');
     assert.ok(!appHtml.includes('>Informes</span>'), 'Header informes button must be icon-only');
-    
-    const focusBtnMatch = appHtml.match(/data-testid="header-toggle-focus-mode-btn"[^>]*>([\s\S]*?)<\/button>/);
-    assert.ok(focusBtnMatch, 'Header focus button must exist');
-    assert.ok(!focusBtnMatch[1].includes('<span'), 'Header focus button must not contain text spans');
 
     const toolsBtnMatch = appHtml.match(/data-testid="header-more-menu-btn"[^>]*>([\s\S]*?)<\/button>/);
     assert.ok(toolsBtnMatch, 'Header tools button must exist');
@@ -6650,7 +6647,7 @@ test('Test 63: Projects with 0 tasks render informative empty state, timeline re
     const appHtml = renderToString(React.createElement(mod.App, {
       initialScenarioId: 'scen-user',
     }));
-    assert.ok(appHtml.includes('data-testid="header-toggle-focus-mode-btn"'), 'App must render focus toggle button');
+    assert.ok(!appHtml.includes('data-testid="header-toggle-focus-mode-btn"'), 'Redundant header focus toggle button must be removed');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -7470,6 +7467,8 @@ test('Test 69: Clean project names on Gantt timeline bars and Proyecto column in
         groupingMode: 'project',
         groupByProject: true,
         showTable: true,
+        scrollContainerRef: { current: null },
+        showTable: true,
         zoom: 'week',
         scrollContainerRef: { current: null },
         onUpdateItem: () => {},
@@ -7728,6 +7727,8 @@ test('Test 70: v1.8.7 Exact state change diffs in PlanHistoryPage, icon-only foc
         groupingMode: 'release',
         groupByProject: true,
         showTable: true,
+        scrollContainerRef: { current: null },
+        showTable: true,
         zoom: 'week',
         scrollContainerRef: { current: null },
         onToggleHideRelease: () => {},
@@ -7863,6 +7864,8 @@ test('Test 71: v1.8.8 table release bar shows only T_ code without icon/name, du
         groupingMode: 'release',
         groupByProject: true,
         showTable: true,
+        scrollContainerRef: { current: null },
+        showTable: true,
         zoom: 'week',
         scrollContainerRef: { current: null },
         onToggleHideRelease: () => {},
@@ -7930,6 +7933,8 @@ test('Test 71: v1.8.8 table release bar shows only T_ code without icon/name, du
         selectedPlatform: 'iOS/Android',
         groupingMode: 'release',
         groupByProject: true,
+        showTable: true,
+        scrollContainerRef: { current: null },
         showTable: true,
         zoom: 'week',
         scrollContainerRef: { current: null },
@@ -8102,6 +8107,8 @@ test('Test 72: v1.8.9 conflict warning banner displays conflicting elements and 
         groupingMode: 'release',
         groupByProject: true,
         showTable: true,
+        scrollContainerRef: { current: null },
+        showTable: true,
         zoom: 'week',
         scrollContainerRef: { current: null },
         onUpdateItem: () => {},
@@ -8261,6 +8268,8 @@ test('Test 73: v1.9.0 project alert level (0-3), workspace toolbar alert filter,
         releases: [],
         groupingMode: 'project',
         groupByProject: true,
+        showTable: true,
+        scrollContainerRef: { current: null },
         showTable: true,
         scrollContainerRef: { current: null },
         onUpdateItem: () => {},
@@ -8706,6 +8715,8 @@ test('Test 75: v1.10.4 project locking, cascade/dependency protection, plan hist
         groupByProject: true,
         showTable: true,
         scrollContainerRef: { current: null },
+        showTable: true,
+        scrollContainerRef: { current: null },
         onUpdateItem: () => {},
         onDeleteItem: () => {},
         initialInspectingProjectId: 'proj-locked',
@@ -9072,7 +9083,8 @@ test('Test 77: Automatic timeline slack ghost bar with slack column hidden & mul
         contents: `
           import React from 'react';
           import { GanttWorkspace } from './src/components/GanttWorkspace.tsx';
-          export { React, GanttWorkspace };
+          import { computeGanttMetrics } from './src/utils/ganttEngine.ts';
+          export { React, GanttWorkspace, computeGanttMetrics };
         `,
         resolveDir: path.resolve(__dirname, '..'),
         sourcefile: 'test77_entry.tsx',
@@ -9451,7 +9463,8 @@ test('Test 80: Full-width layout on large screens & clean Release bar with top l
         contents: `
           import React from 'react';
           import { GanttWorkspace } from './src/components/GanttWorkspace.tsx';
-          export { React, GanttWorkspace };
+          import { computeGanttMetrics } from './src/utils/ganttEngine.ts';
+          export { React, GanttWorkspace, computeGanttMetrics };
         `,
         resolveDir: path.resolve(__dirname, '..'),
         sourcefile: 'test80_entry.tsx',
@@ -9898,6 +9911,145 @@ test('Test 82: Unified RightSidePanel with Detalles (task/project/release) and C
     assert.ok(
       releaseHtml.includes('data-testid="sidebar-release-details-rel-1"'),
       'Must render release details inside right sidebar'
+    );
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
+test('Test 83: Footer quick-add rows for tasks at end of project and projects at end of release', async () => {
+  const esbuild = await import('esbuild');
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const { pathToFileURL } = await import('node:url');
+
+  const tmpFile = path.resolve(process.cwd(), `tests/tmp_test83_bundle_${Date.now()}.mjs`);
+  try {
+    await esbuild.build({
+      stdin: {
+        contents: `
+          import React from 'react';
+          import { GanttWorkspace } from './src/components/GanttWorkspace.tsx';
+          import { computeGanttMetrics } from './src/utils/ganttEngine.ts';
+          export { React, GanttWorkspace, computeGanttMetrics };
+        `,
+        resolveDir: process.cwd(),
+        loader: 'tsx',
+      },
+      bundle: true,
+      format: 'esm',
+      outfile: tmpFile,
+      external: [
+        'react',
+        'react-dom',
+        'react-dom/server',
+        'clsx',
+        'tailwind-merge',
+        'lucide-react',
+        'date-fns',
+      ],
+      jsx: 'automatic',
+    });
+
+    const mod = await import(pathToFileURL(tmpFile).href + '?t=' + Date.now());
+    const React = mod.React;
+    const { renderToString } = await import('react-dom/server');
+
+    const releases = [
+      {
+        id: 'rel-1',
+        code: 'T_26.12.1',
+        name: 'Release Test',
+        color: 'indigo',
+        milestones: [
+          { id: 'qg1', key: 'qg1', code: 'QG1', name: 'QG1', category: 'SCOPE RELEASE', date: '2026-12-01' },
+          { id: 'pro', key: 'pro', code: 'PRO', name: 'PRO', category: 'Entorno PRO', date: '2026-12-20' },
+        ],
+      },
+    ];
+    const projects = [
+      { id: 'p1', name: 'Proyecto Con Tareas', color: 'indigo', releaseId: 'rel-1', collapsed: false },
+    ];
+    const items = mod.computeGanttMetrics([
+      {
+        id: 't1',
+        projectId: 'p1',
+        name: 'Tarea 1',
+        type: 'task',
+        startDate: '2026-12-02',
+        endDate: '2026-12-05',
+        duration: 4,
+        progress: 0,
+        dependencies: [],
+        slack: 0,
+      },
+    ]);
+
+    const releaseModeHtml = renderToString(
+      React.createElement(mod.GanttWorkspace, {
+        items,
+        projects,
+        releases,
+        groupingMode: 'release',
+        groupByProject: true,
+        showTable: true,
+        scrollContainerRef: { current: null },
+        selectedProjectId: 'all',
+        selectedProjectIds: ['p1'],
+        zoom: 'day',
+        dayWidth: 32,
+        showCriticalPath: false,
+        showCpmFloat: true,
+        autoCascade: true,
+        arrowVisibility: 'all',
+        onUpdateItem: () => {},
+        onEditModal: () => {},
+        onDeleteItem: () => {},
+        onQuickAdd: () => {},
+        onCreateProject: () => {},
+      })
+    );
+
+    assert.ok(
+      releaseModeHtml.includes('data-add-task-row="p1"') &&
+        releaseModeHtml.includes('data-testid="project-footer-add-task-btn-p1"'),
+      'Must render add-task footer row at the end of a non-empty expanded project'
+    );
+    assert.ok(
+      releaseModeHtml.includes('data-add-project-row="rel-1"') &&
+        releaseModeHtml.includes('data-testid="release-add-project-btn-rel-1"'),
+      'Must render add-project footer row at the end of a release project list'
+    );
+
+    const projectModeHtml = renderToString(
+      React.createElement(mod.GanttWorkspace, {
+        items,
+        projects,
+        releases,
+        groupingMode: 'project',
+        groupByProject: true,
+        showTable: true,
+        scrollContainerRef: { current: null },
+        selectedProjectId: 'all',
+        selectedProjectIds: ['p1'],
+        zoom: 'day',
+        dayWidth: 32,
+        showCriticalPath: false,
+        showCpmFloat: true,
+        autoCascade: true,
+        arrowVisibility: 'all',
+        onUpdateItem: () => {},
+        onEditModal: () => {},
+        onDeleteItem: () => {},
+        onQuickAdd: () => {},
+        onCreateProject: () => {},
+      })
+    );
+
+    assert.ok(
+      projectModeHtml.includes('data-add-task-row="p1"') &&
+        projectModeHtml.includes('data-testid="project-footer-add-task-btn-p1"'),
+      'Must render add-task footer row in project grouping mode as well'
     );
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
