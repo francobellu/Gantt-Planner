@@ -5856,17 +5856,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             key={row.rowId}
                             data-empty-project-row={group.project.id}
                             style={{ height: ROW_HEIGHT, minWidth: tableMinWidth }}
-                            className={`flex items-center justify-between px-3 text-xs bg-indigo-50/20 dark:bg-zinc-900/40 ${
+                            className={`flex items-center justify-start px-3 text-xs bg-indigo-50/20 dark:bg-zinc-900/40 ${
                               showRowSeparators
                                 ? 'border-b border-[#E2E2DC] dark:border-zinc-800/60'
                                 : 'border-b-0'
                             } pl-10`}
                           >
-                            <div className="flex items-center gap-2 text-slate-500 dark:text-zinc-400">
-                              <span className="italic text-[11px] flex items-center gap-1.5">
-                                <span>💡</span> Este proyecto no tiene tareas ni hitos aún.
-                              </span>
-                            </div>
                             <div className="flex items-center gap-2 pr-3">
                               <button
                                 type="button"
@@ -5915,17 +5910,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             key={row.rowId}
                             data-add-task-row={group.project.id}
                             style={{ height: ROW_HEIGHT, minWidth: tableMinWidth }}
-                            className={`flex items-center justify-between px-3 text-xs bg-slate-50/60 dark:bg-zinc-900/30 ${
+                            className={`flex items-center justify-start px-3 text-xs bg-slate-50/60 dark:bg-zinc-900/30 ${
                               showRowSeparators
                                 ? 'border-b border-[#E2E2DC] dark:border-zinc-800/60'
                                 : 'border-b-0'
                             } pl-10`}
                           >
-                            <div className="flex items-center gap-2 text-slate-400 dark:text-zinc-500 min-w-0">
-                              <span className="italic text-[11px] truncate">
-                                Añadir al final de <span className="font-medium not-italic text-slate-600 dark:text-zinc-300">{group.project.name}</span>
-                              </span>
-                            </div>
                             <div className="flex items-center gap-2 pr-3 shrink-0">
                               <button
                                 type="button"
@@ -5972,7 +5962,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             key={row.rowId}
                             data-add-project-row={rGroup.release.id}
                             style={{ height: ROW_HEIGHT, minWidth: tableMinWidth }}
-                            className={`flex items-center justify-between px-3 text-xs bg-indigo-50/20 dark:bg-zinc-900/40 ${
+                            className={`flex items-center justify-start px-3 text-xs bg-indigo-50/20 dark:bg-zinc-900/40 ${
                               showRowSeparators
                                 ? 'border-b border-[#E2E2DC] dark:border-zinc-800/60'
                                 : 'border-b-0'
@@ -6032,28 +6022,21 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 </button>
                               </form>
                             ) : (
-                              <>
-                                <div className="flex items-center gap-2 text-slate-500 dark:text-zinc-400 min-w-0">
-                                  <span className="italic text-[11px] truncate">
-                                    Añadir proyecto a <span className="font-mono font-semibold not-italic text-indigo-700 dark:text-indigo-300">{rGroup.release.code}</span>
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-2 pr-3 shrink-0">
-                                  <button
-                                    type="button"
-                                    data-testid={`release-add-project-btn-${rGroup.release.id}`}
-                                    onClick={() => {
-                                      setInlineReleaseProjectTargetId(rGroup.release.id);
-                                      setInlineReleaseProjectName('');
-                                    }}
-                                    className="px-2.5 py-1 text-[11px] font-semibold rounded bg-white dark:bg-zinc-800 border border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-700 transition cursor-pointer flex items-center gap-1 shadow-xs"
-                                    title={`Crear nuevo proyecto en ${rGroup.release.code}`}
-                                  >
-                                    <Plus className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                                    <span>Nuevo Proyecto</span>
-                                  </button>
-                                </div>
-                              </>
+                              <div className="flex items-center gap-2 pr-3 shrink-0">
+                                <button
+                                  type="button"
+                                  data-testid={`release-add-project-btn-${rGroup.release.id}`}
+                                  onClick={() => {
+                                    setInlineReleaseProjectTargetId(rGroup.release.id);
+                                    setInlineReleaseProjectName('');
+                                  }}
+                                  className="px-2.5 py-1 text-[11px] font-semibold rounded bg-white dark:bg-zinc-800 border border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-700 transition cursor-pointer flex items-center gap-1 shadow-xs"
+                                  title={`Crear nuevo proyecto en ${rGroup.release.code}`}
+                                >
+                                  <Plus className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                                  <span>Nuevo Proyecto</span>
+                                </button>
+                              </div>
                             )}
                           </div>
                         );
@@ -7000,15 +6983,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   idx
                 ) => {
                   const isLineHidden = hiddenReleaseGuideKeys.has(guideKey);
-                  const diamondWidth = Math.max(
-                    38,
-                    Math.min(84, m.code.length * 7.2 + 16)
-                  );
+                  const diamondWidth = 20;
                   const diamondHeight = 20;
-                  const halfW = diamondWidth / 2;
-                  const halfH = diamondHeight / 2;
-                  const points = `${halfW},1 ${diamondWidth - 1.5},${halfH} ${halfW},${diamondHeight - 1} 1.5,${halfH}`;
-                  const diamondTop = tier === 1 ? 23 : Math.round((ROW_HEIGHT - diamondHeight) / 2);
+                  const points = '10,6 17,13 10,20 3,13';
+                  const diamondTop = 15;
 
                   return (
                     <div
@@ -7021,14 +6999,14 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       }}
                       className="absolute pointer-events-none w-0 overflow-visible"
                     >
-                      {/* Diamond Milestone Icon with Code inside */}
+                      {/* Compact Diamond Milestone Icon + External Code Label */}
                       <div
                         style={{
                           left: 0,
                           transform: 'translateX(-50%)',
                           top: `${diamondTop}px`,
                         }}
-                        className="absolute z-30 pointer-events-auto"
+                        className="absolute z-30 pointer-events-auto flex flex-col items-center"
                       >
                         <button
                           type="button"
@@ -7037,7 +7015,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             e.stopPropagation();
                             handleToggleReleaseGuideLine(guideKey);
                           }}
-                          title={formatScrubberDate(m.date)}
+                          title={`${m.code} · ${formatScrubberDate(m.date)}`}
                           className={`group relative flex items-center justify-center cursor-pointer transition-all select-none outline-none ${
                             isLineHidden
                               ? 'opacity-65 hover:opacity-100 hover:scale-105'
@@ -7060,21 +7038,23 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               }
                               strokeDasharray={isLineHidden ? '2 2' : undefined}
                             />
-                            <text
-                              x="50%"
-                              y="50%"
-                              textAnchor="middle"
-                              dominantBaseline="central"
-                              className={`text-[9.5px] font-mono font-bold tracking-tight select-none pointer-events-none ${
-                                isLineHidden
-                                  ? 'fill-slate-500 dark:fill-zinc-400'
-                                  : 'fill-[#0C0C09]'
-                              }`}
-                            >
-                              {m.code}
-                            </text>
                           </svg>
                         </button>
+                        <span
+                          data-testid={`release-milestone-label-${rel.id}-${m.key}`}
+                          style={
+                            tier === 1
+                              ? { top: '5px', left: '19px' }
+                              : { top: '21px', left: '50%', transform: 'translateX(-50%)' }
+                          }
+                          className={`absolute px-1 py-0 rounded-[3px] text-[9px] font-mono font-bold tracking-tight whitespace-nowrap leading-[13px] pointer-events-none select-none border shadow-xs ${
+                            isLineHidden
+                              ? 'bg-white/90 dark:bg-zinc-900/90 border-slate-300 dark:border-zinc-700 text-slate-500 dark:text-zinc-400'
+                              : 'bg-white/95 dark:bg-zinc-900/95 border-amber-500/50 dark:border-amber-400/40 text-[#0C0C09] dark:text-amber-300'
+                          }`}
+                        >
+                          {m.code}
+                        </span>
                       </div>
 
                       {/* Vertical Dashed Guide Line: ONLY in the release/project vertical area, and hidden when clicked */}
@@ -7542,17 +7522,15 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             return next;
                           });
                         }}
-                        className="relative z-20 flex flex-col justify-center pointer-events-auto cursor-pointer group overflow-visible select-none"
+                        className="relative z-20 h-full flex flex-col justify-start pt-1 pointer-events-auto cursor-pointer group overflow-visible select-none"
                         title={`${rGroup.release.name}: ${effectiveStartDate} → ${effectiveEndDate} (${spanDays}d · Duración completa de la release · Acotado hasta su último hito: ${effectiveEndDate} · Clic para seleccionar release en diagrama, doble clic para colapsar)`}
                       >
                         {/* Top Label above Release Bar */}
                         <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-700 dark:text-slate-200 mb-1 px-0.5 whitespace-nowrap overflow-visible z-10 pointer-events-none">
+                          <span className="px-1 py-0.2 rounded bg-indigo-600 text-white font-mono text-[8.5px] font-bold tracking-wider uppercase">
+                            REL
+                          </span>
                           <span className="font-bold">{rGroup.release.code}</span>
-                          {rGroup.release.month && (
-                            <span className="opacity-75 text-[9px] uppercase font-normal">
-                              {rGroup.release.month}
-                            </span>
-                          )}
                           <span className="text-[9px] opacity-80 font-normal">
                             {effectiveStartDate.split('-').slice(1).reverse().join('/')} → {effectiveEndDate.split('-').slice(1).reverse().join('/')}
                           </span>
@@ -7564,12 +7542,16 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           </span>
                         </div>
 
-                        {/* Clean Slim Release Summary Bar */}
+                        {/* Proposal 2: Translucent Hatched Release Band with Dashed Border */}
                         <div
-                          className={`h-3 rounded-[3px] bg-[#0C0C09] dark:bg-zinc-200 border shadow-xs transition-all group-hover:opacity-90 ${
+                          style={{
+                            backgroundImage:
+                              'repeating-linear-gradient(-45deg, rgba(79,70,229,0.16), rgba(79,70,229,0.16) 5px, rgba(79,70,229,0.04) 5px, rgba(79,70,229,0.04) 10px)',
+                          }}
+                          className={`h-3 rounded-[3px] bg-indigo-500/10 dark:bg-indigo-400/15 border border-dashed shadow-xs transition-all group-hover:bg-indigo-500/20 ${
                             isReleaseSelected
-                              ? 'ring-3 ring-indigo-500 border-indigo-500 dark:border-indigo-400'
-                              : 'border-[#0C0C09] dark:border-zinc-300'
+                              ? 'ring-3 ring-indigo-500 border-indigo-600 dark:border-indigo-400'
+                              : 'border-indigo-500/80 dark:border-indigo-400/70'
                           }`}
                         />
                       </div>

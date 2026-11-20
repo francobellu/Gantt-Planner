@@ -6613,8 +6613,8 @@ test('Test 63: Projects with 0 tasks render informative empty state, timeline re
       'WBS table must render data-empty-project-row for project with 0 items'
     );
     assert.ok(
-      wsEmptyHtml.includes('Este proyecto no tiene tareas ni hitos aún'),
-      'WBS table must display helpful explanation when project has 0 items'
+      !wsEmptyHtml.includes('Este proyecto no tiene tareas ni hitos aún'),
+      'WBS table must omit redundant empty-project explanatory text'
     );
     assert.ok(
       wsEmptyHtml.includes('data-testid="project-empty-add-task-btn-proj-empty"'),
