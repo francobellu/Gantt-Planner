@@ -7542,9 +7542,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           </span>
                         </div>
 
-                        {/* Release Summary Bracket Bar (same shape as project bar, keeping indigo color) */}
+                        {/* Release Summary Bracket Bar (same color as project bar, with two tips at each end) */}
                         <div
-                          className={`relative h-3 rounded-t-[2px] bg-indigo-600 dark:bg-indigo-500 overflow-visible shadow-none transition-all group-hover:bg-indigo-700 dark:group-hover:bg-indigo-400 ${
+                          className={`relative h-3 rounded-t-[2px] bg-[#0C0C09] dark:bg-zinc-200 overflow-visible shadow-none transition-all group-hover:bg-zinc-800 dark:group-hover:bg-zinc-300 ${
                             isReleaseSelected
                               ? 'ring-3 ring-indigo-500'
                               : ''
@@ -7553,12 +7553,14 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           {/* Progress Fill Inside Release Summary Bar */}
                           <div
                             style={{ width: `${rGroup.progress}%` }}
-                            className="h-full rounded-tl-[2px] transition-all bg-indigo-400 dark:bg-indigo-300"
+                            className="h-full rounded-tl-[2px] transition-all bg-indigo-500"
                           />
-                          {/* Left Bracket Downward Cap */}
-                          <div className="absolute -bottom-1.5 left-0 w-2 h-2 bg-indigo-600 dark:bg-indigo-500 group-hover:bg-indigo-700 dark:group-hover:bg-indigo-400 transition-colors clip-path-bracket-left" />
-                          {/* Right Bracket Downward Cap */}
-                          <div className="absolute -bottom-1.5 right-0 w-2 h-2 bg-indigo-600 dark:bg-indigo-500 group-hover:bg-indigo-700 dark:group-hover:bg-indigo-400 transition-colors clip-path-bracket-right" />
+                          {/* Left Bracket Double Downward Tips */}
+                          <div className="absolute -bottom-1.5 left-0 w-2 h-2 bg-[#0C0C09] dark:bg-zinc-200 group-hover:bg-zinc-800 dark:group-hover:bg-zinc-300 transition-colors clip-path-bracket-left" />
+                          <div className="absolute -bottom-1.5 left-2 w-2 h-2 bg-[#0C0C09] dark:bg-zinc-200 group-hover:bg-zinc-800 dark:group-hover:bg-zinc-300 transition-colors clip-path-bracket-left" />
+                          {/* Right Bracket Double Downward Tips */}
+                          <div className="absolute -bottom-1.5 right-0 w-2 h-2 bg-[#0C0C09] dark:bg-zinc-200 group-hover:bg-zinc-800 dark:group-hover:bg-zinc-300 transition-colors clip-path-bracket-right" />
+                          <div className="absolute -bottom-1.5 right-2 w-2 h-2 bg-[#0C0C09] dark:bg-zinc-200 group-hover:bg-zinc-800 dark:group-hover:bg-zinc-300 transition-colors clip-path-bracket-right" />
                         </div>
                       </div>
                     </div>

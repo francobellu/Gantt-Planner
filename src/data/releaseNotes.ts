@@ -10,10 +10,18 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.10.6',
+    date: '20 Nov 2026',
+    title: 'Barra de release con color de proyecto y doble punta en cada extremo',
+    isLatest: true,
+    features: [
+      'La barra de release adopta el color de la barra de proyecto (#0C0C09 / zinc-200 en modo oscuro) y añade dos puntas en cada extremo para diferenciarla visualmente',
+    ],
+  },
+  {
     version: '1.10.5',
     date: '20 Nov 2026',
     title: 'Barra de release en forma de corchete y versionado automático en pre-push',
-    isLatest: true,
     features: [
       'La barra de release adopta la misma forma de corchete que la barra de proyecto manteniendo su color índigo',
       'Se añade hook .githooks/pre-push y regla de workspace para exigir el incremento de versión en cada publicación a main',
