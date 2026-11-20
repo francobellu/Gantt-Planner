@@ -1,11 +1,12 @@
 {
   "name": "gantt-planner",
   "private": true,
-  "version": "1.10.4",
+  "version": "1.10.5",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "prepare": "git config core.hooksPath .githooks || true",
     "test": "node --test tests/ganttEngine.test.mjs",
     "version:patch": "node scripts/bump-version.mjs patch",
     "version:minor": "node scripts/bump-version.mjs minor",

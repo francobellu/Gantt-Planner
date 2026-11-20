@@ -7542,18 +7542,24 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           </span>
                         </div>
 
-                        {/* Proposal 2: Translucent Hatched Release Band with Dashed Border */}
+                        {/* Release Summary Bracket Bar (same shape as project bar, keeping indigo color) */}
                         <div
-                          style={{
-                            backgroundImage:
-                              'repeating-linear-gradient(-45deg, rgba(79,70,229,0.16), rgba(79,70,229,0.16) 5px, rgba(79,70,229,0.04) 5px, rgba(79,70,229,0.04) 10px)',
-                          }}
-                          className={`h-3 rounded-[3px] bg-indigo-500/10 dark:bg-indigo-400/15 border border-dashed shadow-xs transition-all group-hover:bg-indigo-500/20 ${
+                          className={`relative h-3 rounded-t-[2px] bg-indigo-600 dark:bg-indigo-500 overflow-visible shadow-none transition-all group-hover:bg-indigo-700 dark:group-hover:bg-indigo-400 ${
                             isReleaseSelected
-                              ? 'ring-3 ring-indigo-500 border-indigo-600 dark:border-indigo-400'
-                              : 'border-indigo-500/80 dark:border-indigo-400/70'
+                              ? 'ring-3 ring-indigo-500'
+                              : ''
                           }`}
-                        />
+                        >
+                          {/* Progress Fill Inside Release Summary Bar */}
+                          <div
+                            style={{ width: `${rGroup.progress}%` }}
+                            className="h-full rounded-tl-[2px] transition-all bg-indigo-400 dark:bg-indigo-300"
+                          />
+                          {/* Left Bracket Downward Cap */}
+                          <div className="absolute -bottom-1.5 left-0 w-2 h-2 bg-indigo-600 dark:bg-indigo-500 group-hover:bg-indigo-700 dark:group-hover:bg-indigo-400 transition-colors clip-path-bracket-left" />
+                          {/* Right Bracket Downward Cap */}
+                          <div className="absolute -bottom-1.5 right-0 w-2 h-2 bg-indigo-600 dark:bg-indigo-500 group-hover:bg-indigo-700 dark:group-hover:bg-indigo-400 transition-colors clip-path-bracket-right" />
+                        </div>
                       </div>
                     </div>
                   );

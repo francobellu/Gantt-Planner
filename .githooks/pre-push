@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "${SKIP_VERSION_CHECK:-0}" = "1" ]; then
+  exit 0
+fi
+
+ZERO_SHA="0000000000000000000000000000000000000000"
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [ "$remote_ref" != "refs/heads/main" ]; then
+    continue
+  fi
+
+  if [ "$local_sha" = "$ZERO_SHA" ]; then
+    continue
+  fi
+
+  if [ "$remote_sha" = "$ZERO_SHA" ]; then
+    continue
+  fi
+
+  if [ "$local_sha" = "$remote_sha" ]; then
+    continue
+  fi
+
+  local_version=$(git show "${local_sha}:package.json" | node -e "const d = JSON.parse(require('fs').readFileSync(0, 'utf8')); console.log(d.version || '');")
+  remote_version=$(git show "${remote_sha}:package.json" | node -e "const d = JSON.parse(require('fs').readFileSync(0, 'utf8')); console.log(d.version || '');")
+
+  if [ -z "$local_version" ] || [ "$local_version" = "$remote_version" ]; then
+    echo ""
+    echo "❌ Push a 'main' bloqueado: la versión en package.json sigue siendo '${local_version}'."
+    echo "   Ejecuta primero el script de versión antes de hacer commit y push:"
+    echo "   node scripts/bump-version.mjs patch \"Título del cambio\" \"Descripción breve\""
+    echo ""
+    echo "   (Usa SKIP_VERSION_CHECK=1 git push solo si necesitas omitir esta comprobación puntualmente.)"
+    echo ""
+    exit 1
+  fi
+
+  changed_files=$(git diff --name-only "$remote_sha" "$local_sha")
+  for required_file in "package.json" "src/types/gantt.ts" "src/data/releaseNotes.ts"; do
+    if ! echo "$changed_files" | grep -qx "$required_file"; then
+      echo ""
+      echo "❌ Push a 'main' bloqueado: falta actualizar '$required_file' en los commits a subir."
+      echo "   Usa: node scripts/bump-version.mjs patch \"Título del cambio\" \"Descripción breve\""
+      echo ""
+      exit 1
+    fi
+  done
+done
+
+exit 0

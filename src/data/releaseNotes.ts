@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.10.5',
+    date: '20 Nov 2026',
+    title: 'Barra de release en forma de corchete y versionado automático en pre-push',
+    isLatest: true,
+    features: [
+      'La barra de release adopta la misma forma de corchete que la barra de proyecto manteniendo su color índigo',
+      'Se añade hook .githooks/pre-push y regla de workspace para exigir el incremento de versión en cada publicación a main',
+    ],
+  },
+  {
     version: '1.10.4',
     date: '19 Nov 2026',
     title: 'Traslado del aviso de conflictos a la nueva pestaña Conflictos del panel lateral derecho',
-    isLatest: true,
     features: [
       'Se elimina el banner de conflictos sobre el diagrama y se traslada toda la lista de conflictos y el botón de reprogramación automática a una nueva pestaña Conflictos en el panel lateral derecho, accesible también desde un indicador compacto en la barra superior.',
     ],
