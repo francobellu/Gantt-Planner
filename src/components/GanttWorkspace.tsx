@@ -5958,7 +5958,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               })()}
 
                               <div
-                                className="inline-grid items-center shrink-0 max-w-full transition-all duration-150"
+                                className={`inline-grid items-center transition-all duration-150 ${
+                                  isProjectNameExpanded
+                                    ? 'relative z-50 shrink-0 bg-white dark:bg-zinc-900 shadow-md ring-1 ring-[#0C0C09]/15 dark:ring-zinc-700 rounded-[3px]'
+                                    : 'min-w-0 shrink max-w-full'
+                                }`}
                                 data-testid={`project-name-container-${group.project.id}`}
                                 data-name-truncated={group.project.name && group.project.name.length > effectiveTruncateLimit}
                                 data-name-expanded={isProjectNameExpanded}
@@ -5967,7 +5971,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               >
                                 <span
                                   aria-hidden="true"
-                                  className="invisible col-start-1 row-start-1 font-bold text-xs px-1.5 py-0.5 whitespace-pre pointer-events-none select-none"
+                                  className={`invisible col-start-1 row-start-1 font-bold text-xs px-1.5 py-0.5 pointer-events-none select-none ${
+                                    isProjectNameExpanded ? 'whitespace-pre' : 'truncate'
+                                  }`}
                                 >
                                   {displayProjectName}
                                 </span>
@@ -6463,10 +6469,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             return (
                               <React.Fragment key="task-name-block">
                                 <div
-                                  className={`inline-grid items-center shrink-0 transition-all duration-150 ${
+                                  className={`inline-grid items-center transition-all duration-150 ${
                                     isTaskNameExpanded
-                                      ? 'relative z-50 bg-white dark:bg-zinc-900 shadow-md ring-1 ring-[#0C0C09]/15 dark:ring-zinc-700 rounded-[3px]'
-                                      : 'max-w-full'
+                                      ? 'relative z-50 bg-white dark:bg-zinc-900 shadow-md ring-1 ring-[#0C0C09]/15 dark:ring-zinc-700 rounded-[3px] shrink-0'
+                                      : 'min-w-0 shrink max-w-full'
                                   }`}
                                   data-testid={`task-name-container-${item.id}`}
                                   data-name-truncated={item.name && item.name.length > effectiveTruncateLimit}
@@ -6476,7 +6482,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 >
                                   <span
                                     aria-hidden="true"
-                                    className="invisible col-start-1 row-start-1 font-medium text-xs px-1.5 py-0.5 whitespace-pre pointer-events-none select-none"
+                                    className={`invisible col-start-1 row-start-1 font-medium text-xs px-1.5 py-0.5 pointer-events-none select-none ${
+                                      isTaskNameExpanded ? 'whitespace-pre' : 'truncate'
+                                    }`}
                                   >
                                     {displayTaskName}
                                   </span>
