@@ -10,10 +10,18 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.10.19',
+    date: '22 Nov 2026',
+    title: 'Animación sincronizada en tabla al colapsar y expandir',
+    isLatest: true,
+    features: [
+      'Las filas de la tabla utilizan posicionamiento vertical con transición suave en top y altura del contenedor para deslizarse sincronizadas con el cronograma al colapsar o expandir',
+    ],
+  },
+  {
     version: '1.10.18',
     date: '22 Nov 2026',
     title: 'Animación al colapsar y expandir releases y proyectos',
-    isLatest: true,
     features: [
       'Rotación suave del chevron en cabeceras de release y proyecto al colapsar o expandir',
       'Animación progresiva de entrada en filas y barras al expandir',

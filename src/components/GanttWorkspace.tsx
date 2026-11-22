@@ -5912,14 +5912,19 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         )}
                       </div>
                     )}
-                    {displayRows.map((row, rowIndex) => {
+                    {displayRows.length > 0 && (
+                      <div
+                        style={{ height: displayRows.length * ROW_HEIGHT, minWidth: tableMinWidth }}
+                        className="relative transition-[height] duration-200 ease-out"
+                      >
+                        {displayRows.map((row, rowIndex) => {
                       const rowShiftY = rowDragShiftYByRowId.get(row.rowId) || 0;
                       const rowShiftStyle = rowShiftY
                         ? { transform: `translateY(${rowShiftY}px)` }
                         : undefined;
                       const rowShiftClass = isAnyRowOrProjectDragging
                         ? 'transition-transform duration-200 ease-out'
-                        : '';
+                        : 'transition-[top] duration-200 ease-out';
 
                       const rowExpandClass = isRowJustExpanded(row)
                         ? 'animate-gantt-row-expand'
@@ -5932,12 +5937,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           <div
                             key={row.rowId}
                             data-release-group={rGroup.release.id}
-                            style={{ height: ROW_HEIGHT, minWidth: tableMinWidth }}
-                            className={`flex items-center justify-start px-3 text-xs font-bold ${
+                            style={{ top: rowIndex * ROW_HEIGHT, height: ROW_HEIGHT, minWidth: tableMinWidth }}
+                            className={`absolute left-0 right-0 flex items-center justify-start px-3 text-xs font-bold ${rowShiftClass} ${
                               showRowSeparators
                                 ? 'border-y border-[#0C0C09] dark:border-zinc-700'
                                 : 'border-y-0'
-                            } bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09] transition-colors`}
+                            } bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09]`}
                           >
                             {/* Release Title + Code + Manage Button */}
                             <div
@@ -6119,7 +6124,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             data-project-group={group.project.id}
                             data-project-locked={group.project.locked ? 'true' : 'false'}
                             data-multi-selected={isProjectMultiSelected ? 'true' : 'false'}
-                            style={{ height: ROW_HEIGHT, minWidth: tableMinWidth, ...rowShiftStyle }}
+                            style={{ top: rowIndex * ROW_HEIGHT, height: ROW_HEIGHT, minWidth: tableMinWidth, ...rowShiftStyle }}
                             onMouseDown={(e) =>
                               handleProjectRowPointerMouseDown(e, group.project.id, false)
                             }
@@ -6146,11 +6151,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             onDrop={(e) =>
                               handleDropRow(e, `project:${group.project.id}`)
                             }
-                            className={`group flex items-center justify-start px-3 text-xs font-semibold ${rowShiftClass} ${rowExpandClass} ${
+                            className={`absolute left-0 right-0 group flex items-center justify-start px-3 text-xs font-semibold ${rowShiftClass} ${rowExpandClass} ${
                               showRowSeparators
                                 ? 'border-y border-slate-200/80 dark:border-zinc-800/80'
                                 : 'border-y-0'
-                            } transition-colors ${
+                            } ${
                               isDraggingThisProject
                                 ? 'opacity-40 bg-indigo-50/50 dark:bg-indigo-950/30 cursor-grabbing'
                                 : isProjectReorderTargetBefore
@@ -6473,8 +6478,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           <div
                             key={row.rowId}
                             data-empty-project-row={group.project.id}
-                            style={{ height: ROW_HEIGHT, minWidth: tableMinWidth, ...rowShiftStyle }}
-                            className={`flex items-center justify-start px-3 text-xs bg-indigo-50/20 dark:bg-zinc-900/40 ${rowShiftClass} ${rowExpandClass} ${
+                            style={{ top: rowIndex * ROW_HEIGHT, height: ROW_HEIGHT, minWidth: tableMinWidth, ...rowShiftStyle }}
+                            className={`absolute left-0 right-0 flex items-center justify-start px-3 text-xs bg-indigo-50/20 dark:bg-zinc-900/40 ${rowShiftClass} ${rowExpandClass} ${
                               showRowSeparators
                                 ? 'border-b border-[#E2E2DC] dark:border-zinc-800/60'
                                 : 'border-b-0'
@@ -6507,8 +6512,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           <div
                             key={row.rowId}
                             data-add-task-row={group.project.id}
-                            style={{ height: ROW_HEIGHT, minWidth: tableMinWidth, ...rowShiftStyle }}
-                            className={`flex items-center justify-start px-3 text-xs bg-slate-50/60 dark:bg-zinc-900/30 ${rowShiftClass} ${rowExpandClass} ${
+                            style={{ top: rowIndex * ROW_HEIGHT, height: ROW_HEIGHT, minWidth: tableMinWidth, ...rowShiftStyle }}
+                            className={`absolute left-0 right-0 flex items-center justify-start px-3 text-xs bg-slate-50/60 dark:bg-zinc-900/30 ${rowShiftClass} ${rowExpandClass} ${
                               showRowSeparators
                                 ? 'border-b border-[#E2E2DC] dark:border-zinc-800/60'
                                 : 'border-b-0'
@@ -6540,8 +6545,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           <div
                             key={row.rowId}
                             data-add-project-row={rGroup.release.id}
-                            style={{ height: ROW_HEIGHT, minWidth: tableMinWidth }}
-                            className={`flex items-center justify-start px-3 text-xs bg-indigo-50/20 dark:bg-zinc-900/40 ${rowExpandClass} ${
+                            style={{ top: rowIndex * ROW_HEIGHT, height: ROW_HEIGHT, minWidth: tableMinWidth }}
+                            className={`absolute left-0 right-0 flex items-center justify-start px-3 text-xs bg-indigo-50/20 dark:bg-zinc-900/40 ${rowShiftClass} ${rowExpandClass} ${
                               showRowSeparators
                                 ? 'border-b border-[#E2E2DC] dark:border-zinc-800/60'
                                 : 'border-b-0'
@@ -6605,7 +6610,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           data-selected-task-row={isRowSelected ? 'true' : undefined}
                           data-multi-selected={isMultiSelectedItem ? 'true' : 'false'}
                           draggable={true}
-                          style={{ height: ROW_HEIGHT, minWidth: tableMinWidth, ...rowShiftStyle }}
+                          style={{ top: rowIndex * ROW_HEIGHT, height: ROW_HEIGHT, minWidth: tableMinWidth, ...rowShiftStyle }}
                           onClick={(e) => {
                             if (e.metaKey || e.ctrlKey || e.shiftKey) {
                               e.stopPropagation();
@@ -6630,7 +6635,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           onDragOver={(e) => handleDragRowOver(e, item.id)}
                           onDragLeave={handleDragRowLeave}
                           onDrop={(e) => handleDropRow(e, item.id)}
-                          className={`group flex items-center justify-start px-3 text-xs transition-colors ${rowShiftClass} ${rowExpandClass} ${
+                          className={`absolute left-0 right-0 group flex items-center justify-start px-3 text-xs ${rowShiftClass} ${rowExpandClass} ${
                             showRowSeparators
                               ? 'border-b border-[#E2E2DC] dark:border-zinc-800'
                               : 'border-b-0'
@@ -7099,6 +7104,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         </div>
                       );
                     })}
+                      </div>
+                    )}
 
                     {/* Inline Actions Bar below the tasks & projects table */}
                     <div
