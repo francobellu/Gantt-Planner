@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.10.11',
+    date: '22 Nov 2026',
+    title: 'Menú contextual con clic derecho para acciones de proyecto/tarea y pie de proyecto simplificado',
+    isLatest: true,
+    features: [
+      'Se mueven los botones de acción de filas de proyecto y tarea a un menú contextual con clic derecho (wbs-context-menu) evitando solapamientos en Chrome',
+      'Se deja únicamente el botón Nueva Tarea en el pie de proyecto heredando automáticamente proyecto y release padres',
+    ],
+  },
+  {
     version: '1.10.10',
     date: '22 Nov 2026',
     title: 'Eliminación de botones chevron redundantes en proyectos y tareas',
-    isLatest: true,
     features: [
       'Se eliminan las flechas arriba/abajo redundantes en las filas de proyectos y tareas manteniendo el asa de arrastre flotante GripVertical',
     ],

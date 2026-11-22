@@ -34,6 +34,7 @@ import {
   Lock,
   Maximize2,
   Minus,
+  MoreHorizontal,
   MousePointer,
   MoveHorizontal,
   Palette,
@@ -220,6 +221,12 @@ interface GanttWorkspaceProps {
     offsetX?: number;
     offsetY?: number;
     width?: number;
+  } | null;
+  initialContextMenu?: {
+    type: 'project' | 'task';
+    id: string;
+    x: number;
+    y: number;
   } | null;
   baselineSnapshot?: { label: string; items: GanttItem[] } | null;
   workCalendar?: WorkCalendarConfig;
@@ -609,6 +616,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   initialMultiSelectedProjectIds,
   initialDragRowPreview = null,
   initialDragProjectPreview = null,
+  initialContextMenu = null,
   baselineSnapshot = null,
   workCalendar,
   useRightSidebarInspector = false,
@@ -1652,6 +1660,33 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   } | null>(null);
   const onMoveProjectRef = useRef(onMoveProject);
   onMoveProjectRef.current = onMoveProject;
+
+  const [contextMenu, setContextMenu] = useState<{
+    type: 'project' | 'task';
+    id: string;
+    x: number;
+    y: number;
+  } | null>(initialContextMenu);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const handlePointerDown = (ev: MouseEvent) => {
+      const target = ev.target as HTMLElement | null;
+      if (target && target.closest('[data-testid="wbs-context-menu"]')) return;
+      setContextMenu(null);
+    };
+    const handleKey = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') {
+        setContextMenu(null);
+      }
+    };
+    window.addEventListener('mousedown', handlePointerDown);
+    window.addEventListener('keydown', handleKey);
+    return () => {
+      window.removeEventListener('mousedown', handlePointerDown);
+      window.removeEventListener('keydown', handleKey);
+    };
+  }, [contextMenu]);
   const cleanupPointerListenersRef = useRef<(() => void) | null>(null);
   const lastMouseDownInteractiveRef = useRef<boolean>(false);
   const onMoveItemRef = useRef(onMoveItem);
@@ -5730,6 +5765,16 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             onMouseDown={(e) =>
                               handleProjectRowPointerMouseDown(e, group.project.id, false)
                             }
+                            onContextMenu={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setContextMenu({
+                                type: 'project',
+                                id: group.project.id,
+                                x: e.clientX,
+                                y: e.clientY,
+                              });
+                            }}
                             onClick={(e) => {
                               if (e.metaKey || e.ctrlKey || e.shiftKey) {
                                 e.stopPropagation();
@@ -5764,7 +5809,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             {/* Project Header Title + Collapse Toggle */}
                             <div
                               style={{ width: nameColumnWidth }}
-                              className="flex items-center gap-2 pr-2 shrink-0 pl-1 min-w-0"
+                              className={`flex items-center gap-2 pr-2 shrink-0 pl-1 min-w-0 ${
+                                isProjectNameExpanded ? '' : 'overflow-hidden'
+                              }`}
                             >
                               {/* Multi-select checkbox for project */}
                               <button
@@ -5967,147 +6014,15 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 />
                               </div>
 
-                              {/* Botón para bloquear / desbloquear el proyecto en el cronograma */}
-                              <button
-                                type="button"
-                                data-testid={`project-lock-btn-${group.project.id}`}
-                                data-project-locked={group.project.locked ? 'true' : 'false'}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleToggleProjectLock(group.project);
-                                }}
-                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[3px] text-[10px] font-semibold border transition cursor-pointer shrink-0 ${
-                                  group.project.locked
-                                    ? 'bg-amber-500/20 text-amber-800 dark:text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
-                                    : 'bg-transparent text-slate-400 hover:text-[#0C0C09] dark:hover:text-white border-transparent hover:border-[#E2E2DC] dark:hover:border-zinc-700 hover:bg-black/5 dark:hover:bg-white/10'
-                                }`}
-                                title={
-                                  group.project.locked
-                                    ? `Proyecto bloqueado en el cronograma (clic para desbloquear)`
-                                    : `Bloquear proyecto «${group.project.name}» para evitar movimientos accidentales`
-                                }
-                                aria-label={
-                                  group.project.locked
-                                    ? `Desbloquear proyecto ${group.project.name}`
-                                    : `Bloquear proyecto ${group.project.name}`
-                                }
-                              >
-                                {group.project.locked ? (
-                                  <>
-                                    <Lock className="w-3 h-3 shrink-0" />
-                                    <span>Bloqueado</span>
-                                  </>
-                                ) : (
-                                  <Unlock className="w-3.5 h-3.5 shrink-0" />
-                                )}
-                              </button>
-
-                              {/* Selector de color para cambiar el color de todas las tareas del proyecto */}
-                              <div className="relative shrink-0" data-dropdown-container="true">
-                                <button
-                                  type="button"
-                                  data-testid={`project-color-picker-btn-${group.project.id}`}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (!guardProjectUnlocked(group.project.id, 'cambiar color de proyecto bloqueado')) {
-                                      return;
-                                    }
-                                    setActiveColorPickerProjId((prev) => (prev === group.project.id ? null : group.project.id));
-                                  }}
-                                  className="p-1 rounded-[2px] text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer shrink-0"
-                                  title="Cambiar color del proyecto y de todas sus tareas"
+                              {group.project.locked && (
+                                <span
+                                  data-project-locked="true"
+                                  title="Proyecto bloqueado en el cronograma (clic derecho para desbloquear)"
+                                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-[3px] text-[9px] font-semibold bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/40 shrink-0"
                                 >
-                                  <Palette className="w-3.5 h-3.5" />
-                                </button>
-                                {activeColorPickerProjId === group.project.id && (
-                                  <div
-                                    data-testid={`project-color-dropdown-${group.project.id}`}
-                                    className="absolute left-0 top-full mt-1 p-2 bg-white dark:bg-zinc-900 border border-[#0C0C09] dark:border-zinc-700 rounded-[4px] shadow-xl z-50 text-xs flex flex-col gap-1.5 w-44"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400 border-b border-slate-200 dark:border-zinc-800 pb-1">
-                                      Color de tareas
-                                    </div>
-                                    <div className="grid grid-cols-5 gap-1.5">
-                                      {PROJECT_COLORS.map((c) => (
-                                        <button
-                                          key={c.value}
-                                          type="button"
-                                          data-testid={`project-inline-color-opt-${c.value}`}
-                                          onClick={() => {
-                                            guardedChangeProjectColor(group.project.id, c.value);
-                                            setActiveColorPickerProjId(null);
-                                          }}
-                                          title={c.value}
-                                          className={`w-5 h-5 rounded-full ${c.bg} flex items-center justify-center transition cursor-pointer hover:scale-110 ${
-                                            group.project.color === c.value ? 'ring-2 ring-black dark:ring-white ring-offset-1' : ''
-                                          }`}
-                                        >
-                                          {group.project.color === c.value && <Check className="w-2.5 h-2.5 text-white" />}
-                                        </button>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-
-                              {onSetFocusEntity && (() => {
-                                const isCurrentProjFocused =
-                                  isFocusMode && focusEntity?.type === 'project' && focusEntity?.id === group.project.id;
-                                return (
-                                  <button
-                                    type="button"
-                                    data-testid={`focus-project-${group.project.id}`}
-                                    onClick={() => {
-                                      if (isCurrentProjFocused) {
-                                        onExitFocusMode ? onExitFocusMode() : onSetFocusEntity(null);
-                                      } else {
-                                        onSetFocusEntity({
-                                          type: 'project',
-                                          id: group.project.id,
-                                          name: group.project.name,
-                                        });
-                                      }
-                                    }}
-                                    className={`p-1 rounded-[2px] transition cursor-pointer shrink-0 ${
-                                      isCurrentProjFocused
-                                        ? 'bg-amber-400 text-black font-bold ring-2 ring-amber-300 shadow-xs'
-                                        : 'text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-black/5 dark:hover:bg-white/10'
-                                    }`}
-                                    title={
-                                      isCurrentProjFocused
-                                        ? `Salir de la modalidad enfoque de ${group.project.name} (clic o tecla ESC)`
-                                        : `Enfocar proyecto ${group.project.name}`
-                                    }
-                                  >
-                                    <Sparkles
-                                      className={`w-3.5 h-3.5 ${isCurrentProjFocused ? 'text-black fill-current' : ''}`}
-                                    />
-                                  </button>
-                                );
-                              })()}
-
-                              <button
-                                type="button"
-                                data-testid={
-                                  group.project.description?.trim()
-                                    ? `project-has-description-${group.project.id}`
-                                    : `project-info-inline-${group.project.id}`
-                                }
-                                onClick={() => setInspectingProject(group.project)}
-                                className={`p-1 rounded-[2px] transition cursor-pointer shrink-0 ${
-                                  group.project.description?.trim()
-                                    ? 'text-[#312C85] dark:text-indigo-400 hover:bg-black/5 dark:hover:bg-white/10'
-                                    : 'text-slate-400 hover:text-[#0C0C09] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10'
-                                }`}
-                                title={
-                                  group.project.description?.trim()
-                                    ? `Información y configuración: ${group.project.description}`
-                                    : `Detalle y configuración de ${group.project.name} (asociar release, notas, color)`
-                                }
-                              >
-                                <FileText className="w-3.5 h-3.5" />
-                              </button>
+                                  <Lock className="w-2.5 h-2.5 shrink-0" />
+                                </span>
+                              )}
 
                               <span
                                 className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono border shrink-0 ${projTheme.groupBadgeBg}`}
@@ -6164,55 +6079,29 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 <div className="w-20 shrink-0 text-slate-400 text-center text-[10px]">—</div>
                               )}
 
-                              {/* Project Quick Actions */}
-                              <div className="w-28 shrink-0 flex items-center justify-end gap-0.5 pr-1">
+                              {/* Project Context Menu Trigger (all actions moved to right-click menu) */}
+                              <div className="w-28 shrink-0 flex items-center justify-end gap-1.5 pr-2">
+                                <span className="font-mono text-[10px] font-bold text-slate-500 dark:text-zinc-400">
+                                  {group.progress}%
+                                </span>
                                 <button
                                   type="button"
-                                  data-testid={`project-info-btn-${group.project.id}`}
-                                  onClick={() => setInspectingProject(group.project)}
-                                  className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 text-slate-500 hover:text-[#0C0C09] dark:hover:text-white transition cursor-pointer"
-                                  title={`Ver y editar información / notas de ${group.project.name}`}
+                                  data-testid={`project-context-menu-btn-${group.project.id}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    setContextMenu({
+                                      type: 'project',
+                                      id: group.project.id,
+                                      x: rect.right - 220,
+                                      y: rect.bottom + 4,
+                                    });
+                                  }}
+                                  className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 text-slate-400 hover:text-[#0C0C09] dark:hover:text-white transition cursor-pointer opacity-70 group-hover:opacity-100"
+                                  title="Acciones del proyecto (o clic derecho en la fila)"
                                 >
-                                  <FileText className="w-3.5 h-3.5" />
+                                  <MoreHorizontal className="w-3.5 h-3.5" />
                                 </button>
-                                <button
-                                  type="button"
-                                  data-fit-project-row={group.project.id}
-                                  onClick={() => handleFitProjectAction(group.project.id)}
-                                  className="p-1 rounded hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
-                                  title={`Encajar todas las tareas de ${group.project.name} en pantalla`}
-                                >
-                                  <Maximize2 className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => guardedQuickAdd('task', group.project.id)}
-                                  className="p-1 rounded hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400"
-                                  title={`Añadir tarea a ${group.project.name}`}
-                                >
-                                  <Plus className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => guardedQuickAdd('milestone', group.project.id)}
-                                  className="p-1 rounded hover:bg-amber-500/20 text-amber-600 dark:text-amber-400"
-                                  title={`Añadir hito a ${group.project.name}`}
-                                >
-                                  <Diamond className="w-3 h-3" />
-                                </button>
-                                {onDeleteProject && (
-                                  <button
-                                    type="button"
-                                    data-testid={`delete-project-row-btn-${group.project.id}`}
-                                    onClick={() => {
-                                      guardedDeleteProject(group.project.id);
-                                    }}
-                                    className="p-1 rounded hover:bg-rose-500/20 text-slate-400 hover:text-rose-600 transition cursor-pointer"
-                                    title={`Eliminar proyecto ${group.project.name}`}
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
                               </div>
                             </div>
                           </div>
@@ -6293,33 +6182,15 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 data-testid={`project-footer-add-task-btn-${group.project.id}`}
                                 onClick={() => guardedQuickAdd('task', group.project.id)}
                                 className="px-2.5 py-1 text-[11px] font-semibold rounded bg-white dark:bg-zinc-800 border border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-700 transition cursor-pointer flex items-center gap-1 shadow-xs"
-                                title="Crear nueva tarea al final de este proyecto"
+                                title={
+                                  targetRel
+                                    ? `Crear nueva tarea en ${group.project.name} (Release ${targetRel.code})`
+                                    : `Crear nueva tarea al final de ${group.project.name}`
+                                }
                               >
                                 <Plus className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                                 <span>Nueva Tarea</span>
                               </button>
-                              <button
-                                type="button"
-                                data-testid={`project-footer-add-milestone-btn-${group.project.id}`}
-                                onClick={() => guardedQuickAdd('milestone', group.project.id)}
-                                className="px-2.5 py-1 text-[11px] font-semibold rounded bg-white dark:bg-zinc-800 border border-[#E2E2DC] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-700 transition cursor-pointer flex items-center gap-1 shadow-xs"
-                                title="Crear nuevo hito al final de este proyecto"
-                              >
-                                <Diamond className="w-3 h-3 text-amber-500" />
-                                <span>Nuevo Hito</span>
-                              </button>
-                              {group.project.releaseId && onCreateDigiTask && (
-                                <button
-                                  type="button"
-                                  data-testid={`project-footer-add-digi-btn-${group.project.id}`}
-                                  onClick={() => guardedCreateDigiTask(group.project, 'DIGI')}
-                                  className="px-2.5 py-1 text-[11px] font-semibold rounded bg-[#0C0C09] hover:bg-[#312C85] dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-[#0C0C09] transition cursor-pointer flex items-center gap-1 shadow-xs font-mono"
-                                  title="Crear tarea DIGI automática cubriendo toda la release asignada"
-                                >
-                                  <span>🚀</span>
-                                  <span>+ Tarea DIGI ({targetRel?.code || group.project.releaseId})</span>
-                                </button>
-                              )}
                             </div>
                           </div>
                         );
@@ -6456,6 +6327,16 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           onMouseEnter={() => setHoveredId(item.id)}
                           onMouseLeave={() => setHoveredId(null)}
                           onMouseDown={(e) => handleRowPointerMouseDown(e, item.id, false)}
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setContextMenu({
+                              type: 'task',
+                              id: item.id,
+                              x: e.clientX,
+                              y: e.clientY,
+                            });
+                          }}
                           onDragStart={(e) => handleDragRowStart(e, item.id)}
                           onDragEnd={handleDragRowEnd}
                           onDragOver={(e) => handleDragRowOver(e, item.id)}
@@ -6496,6 +6377,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             style={{ width: nameColumnWidth }}
                             className={`flex items-center gap-1.5 pr-2 shrink-0 ${
                               groupByProject ? 'pl-2' : ''
+                            } ${
+                              focusedTaskInputId === item.id || hoveredNameId === item.id
+                                ? ''
+                                : 'overflow-hidden'
                             }`}
                           >
                             {/* Multi-select checkbox for task/milestone */}
@@ -6905,48 +6790,25 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               </div>
                             )}
 
-                            {/* 6. Acciones Column */}
-                            <div className="w-28 shrink-0 flex items-center justify-end gap-0.5 pr-1">
+                            {/* 6. Acciones Column (compact trigger; full actions on right-click) */}
+                            <div className="w-28 shrink-0 flex items-center justify-end gap-1 pr-2">
                               <button
                                 type="button"
-                                data-testid={`toggle-task-visibility-${item.id}`}
-                                onClick={() => guardedUpdateItem({ ...item, hidden: !item.hidden }, false)}
-                                className={`p-1 rounded-[2px] transition cursor-pointer ${
-                                  item.hidden
-                                    ? 'text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20'
-                                    : 'text-[#6B6B66] hover:text-[#0C0C09] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10'
-                                }`}
-                                title={item.hidden ? 'Mostrar en el diagrama' : 'Ocultar del diagrama'}
+                                data-testid={`task-context-menu-btn-${item.id}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  setContextMenu({
+                                    type: 'task',
+                                    id: item.id,
+                                    x: rect.right - 220,
+                                    y: rect.bottom + 4,
+                                  });
+                                }}
+                                className="p-1 rounded-[2px] hover:bg-black/5 dark:hover:bg-white/10 text-[#6B6B66] hover:text-[#0C0C09] dark:hover:text-white transition cursor-pointer opacity-70 group-hover:opacity-100"
+                                title="Acciones del ítem (o clic derecho en la fila)"
                               >
-                                {item.hidden ? (
-                                  <EyeOff className="w-3.5 h-3.5" />
-                                ) : (
-                                  <Eye className="w-3.5 h-3.5" />
-                                )}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => guardedEditModal(item)}
-                                className="p-1 rounded-[2px] hover:bg-black/5 dark:hover:bg-white/10 text-[#6B6B66] hover:text-[#0C0C09] dark:hover:text-white transition cursor-pointer"
-                                title="Editar detalles completos en modal"
-                              >
-                                <Edit3 className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => guardedDuplicateItem(item)}
-                                className="p-1 rounded-[2px] hover:bg-black/5 dark:hover:bg-white/10 text-[#6B6B66] hover:text-[#0C0C09] dark:hover:text-white transition cursor-pointer"
-                                title="Duplicar ítem"
-                              >
-                                <Copy className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => guardedDeleteItem(item.id)}
-                                className="p-1 rounded-[2px] hover:bg-[#DC2626]/10 text-[#6B6B66] hover:text-[#DC2626] transition cursor-pointer"
-                                title="Eliminar ítem"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
+                                <MoreHorizontal className="w-3.5 h-3.5" />
                               </button>
                             </div>
                           </div>
@@ -9807,6 +9669,268 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     : `↓ Después de: ${targetProject.name}`}
                 </div>
               )}
+            </div>
+          );
+        })()}
+
+        {contextMenu && (() => {
+          const maxLeft = typeof window !== 'undefined' ? Math.max(8, window.innerWidth - 252) : 960;
+          const maxTop = typeof window !== 'undefined' ? Math.max(8, window.innerHeight - 340) : 500;
+          const menuLeft = Math.max(8, Math.min(contextMenu.x, maxLeft));
+          const menuTop = Math.max(8, Math.min(contextMenu.y, maxTop));
+
+          if (contextMenu.type === 'project') {
+            const targetProject = projects.find((p) => p.id === contextMenu.id);
+            if (!targetProject) return null;
+            const isCurrentProjFocused =
+              isFocusMode && focusEntity?.type === 'project' && focusEntity?.id === targetProject.id;
+
+            return (
+              <div
+                data-testid="wbs-context-menu"
+                data-context-type="project"
+                data-context-id={targetProject.id}
+                style={{ left: menuLeft, top: menuTop }}
+                onClick={(e) => e.stopPropagation()}
+                className="fixed z-[110] w-60 bg-white dark:bg-zinc-900 border border-[#0C0C09] dark:border-zinc-700 rounded-[6px] shadow-2xl py-1.5 text-xs text-[#0C0C09] dark:text-zinc-100 select-none"
+              >
+                <div className="px-3 py-1.5 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between gap-2">
+                  <span className="font-bold truncate">{targetProject.name || 'Proyecto'}</span>
+                  <span className="text-[10px] font-mono text-slate-400 uppercase shrink-0">Proyecto</span>
+                </div>
+
+                <button
+                  type="button"
+                  data-testid={`project-info-btn-${targetProject.id}`}
+                  onClick={() => {
+                    setInspectingProject(targetProject);
+                    setContextMenu(null);
+                  }}
+                  className="w-full px-3 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-zinc-800 flex items-center gap-2 cursor-pointer"
+                >
+                  <FileText className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                  <span>Detalles, notas y release</span>
+                </button>
+
+                <button
+                  type="button"
+                  data-testid={`project-lock-btn-${targetProject.id}`}
+                  data-project-locked={targetProject.locked ? 'true' : 'false'}
+                  onClick={() => {
+                    handleToggleProjectLock(targetProject);
+                    setContextMenu(null);
+                  }}
+                  className="w-full px-3 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-zinc-800 flex items-center gap-2 cursor-pointer"
+                >
+                  {targetProject.locked ? (
+                    <>
+                      <Unlock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                      <span>Desbloquear proyecto</span>
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                      <span>Bloquear proyecto</span>
+                    </>
+                  )}
+                </button>
+
+                {onSetFocusEntity && (
+                  <button
+                    type="button"
+                    data-testid={`focus-project-${targetProject.id}`}
+                    onClick={() => {
+                      if (isCurrentProjFocused) {
+                        onExitFocusMode ? onExitFocusMode() : onSetFocusEntity(null);
+                      } else {
+                        onSetFocusEntity({
+                          type: 'project',
+                          id: targetProject.id,
+                          name: targetProject.name,
+                        });
+                      }
+                      setContextMenu(null);
+                    }}
+                    className="w-full px-3 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-zinc-800 flex items-center gap-2 cursor-pointer"
+                  >
+                    <Sparkles className={`w-3.5 h-3.5 shrink-0 ${isCurrentProjFocused ? 'text-amber-500 fill-current' : 'text-slate-500'}`} />
+                    <span>{isCurrentProjFocused ? 'Salir de modo enfoque' : 'Enfocar proyecto'}</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  data-fit-project-row={targetProject.id}
+                  onClick={() => {
+                    handleFitProjectAction(targetProject.id);
+                    setContextMenu(null);
+                  }}
+                  className="w-full px-3 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-zinc-800 flex items-center gap-2 cursor-pointer"
+                >
+                  <Maximize2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span>Encajar en pantalla</span>
+                </button>
+
+                <div className="my-1 border-t border-slate-200 dark:border-zinc-800" />
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    guardedQuickAdd('task', targetProject.id);
+                    setContextMenu(null);
+                  }}
+                  className="w-full px-3 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-zinc-800 flex items-center gap-2 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                  <span>Añadir tarea</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    guardedQuickAdd('milestone', targetProject.id);
+                    setContextMenu(null);
+                  }}
+                  className="w-full px-3 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-zinc-800 flex items-center gap-2 cursor-pointer"
+                >
+                  <Diamond className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span>Añadir hito</span>
+                </button>
+
+                <div className="my-1 border-t border-slate-200 dark:border-zinc-800" />
+
+                <div className="px-3 py-1.5" data-testid={`project-color-picker-btn-${targetProject.id}`}>
+                  <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1.5">
+                    <Palette className="w-3 h-3" />
+                    <span>Color de proyecto</span>
+                  </div>
+                  <div className="grid grid-cols-5 gap-1.5">
+                    {PROJECT_COLORS.map((c) => (
+                      <button
+                        key={c.value}
+                        type="button"
+                        data-testid={`project-inline-color-opt-${c.value}`}
+                        onClick={() => {
+                          if (!guardProjectUnlocked(targetProject.id, 'cambiar color de proyecto bloqueado')) {
+                            setContextMenu(null);
+                            return;
+                          }
+                          guardedChangeProjectColor(targetProject.id, c.value);
+                          setContextMenu(null);
+                        }}
+                        title={c.value}
+                        className={`w-5 h-5 rounded-full ${c.bg} flex items-center justify-center transition cursor-pointer hover:scale-110 ${
+                          targetProject.color === c.value ? 'ring-2 ring-black dark:ring-white ring-offset-1' : ''
+                        }`}
+                      >
+                        {targetProject.color === c.value && <Check className="w-2.5 h-2.5 text-white" />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {onDeleteProject && (
+                  <>
+                    <div className="my-1 border-t border-slate-200 dark:border-zinc-800" />
+                    <button
+                      type="button"
+                      data-testid={`delete-project-row-btn-${targetProject.id}`}
+                      onClick={() => {
+                        setContextMenu(null);
+                        guardedDeleteProject(targetProject.id);
+                      }}
+                      className="w-full px-3 py-1.5 text-left hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center gap-2 cursor-pointer font-medium"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                      <span>Eliminar proyecto</span>
+                    </button>
+                  </>
+                )}
+              </div>
+            );
+          }
+
+          const targetItem =
+            enrichedItemById.get(contextMenu.id) ||
+            effectiveItems.find((it) => it.id === contextMenu.id) ||
+            items.find((it) => it.id === contextMenu.id);
+          if (!targetItem) return null;
+
+          return (
+            <div
+              data-testid="wbs-context-menu"
+              data-context-type="task"
+              data-context-id={targetItem.id}
+              style={{ left: menuLeft, top: menuTop }}
+              onClick={(e) => e.stopPropagation()}
+              className="fixed z-[110] w-56 bg-white dark:bg-zinc-900 border border-[#0C0C09] dark:border-zinc-700 rounded-[6px] shadow-2xl py-1.5 text-xs text-[#0C0C09] dark:text-zinc-100 select-none"
+            >
+              <div className="px-3 py-1.5 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between gap-2">
+                <span className="font-bold truncate">{targetItem.name || (targetItem.type === 'milestone' ? 'Hito' : 'Tarea')}</span>
+                <span className="text-[10px] font-mono text-slate-400 uppercase shrink-0">
+                  {targetItem.type === 'milestone' ? 'Hito' : 'Tarea'}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                data-testid={`toggle-task-visibility-${targetItem.id}`}
+                onClick={() => {
+                  guardedUpdateItem({ ...targetItem, hidden: !targetItem.hidden }, false);
+                  setContextMenu(null);
+                }}
+                className="w-full px-3 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-zinc-800 flex items-center gap-2 cursor-pointer"
+              >
+                {targetItem.hidden ? (
+                  <>
+                    <Eye className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <span>Mostrar en el diagrama</span>
+                  </>
+                ) : (
+                  <>
+                    <EyeOff className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                    <span>Ocultar del diagrama</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  guardedEditModal(targetItem);
+                  setContextMenu(null);
+                }}
+                className="w-full px-3 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-zinc-800 flex items-center gap-2 cursor-pointer"
+              >
+                <Edit3 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                <span>Editar detalles completos</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  guardedDuplicateItem(targetItem);
+                  setContextMenu(null);
+                }}
+                className="w-full px-3 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-zinc-800 flex items-center gap-2 cursor-pointer"
+              >
+                <Copy className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                <span>Duplicar ítem</span>
+              </button>
+
+              <div className="my-1 border-t border-slate-200 dark:border-zinc-800" />
+
+              <button
+                type="button"
+                onClick={() => {
+                  setContextMenu(null);
+                  guardedDeleteItem(targetItem.id);
+                }}
+                className="w-full px-3 py-1.5 text-left hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center gap-2 cursor-pointer font-medium"
+              >
+                <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                <span>Eliminar ítem</span>
+              </button>
             </div>
           );
         })()}
