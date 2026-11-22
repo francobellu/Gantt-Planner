@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.10.9',
+    date: '22 Nov 2026',
+    title: 'Arrastre visual flotante para filas de Proyecto',
+    isLatest: true,
+    features: [
+      'Se añade asa de arrastre y vista previa flotante siguiendo el puntero en las filas de proyecto',
+      'Reordenamiento directo de proyectos dentro de la misma release mediante moveProject con indicador de destino antes/después',
+    ],
+  },
+  {
     version: '1.10.8',
     date: '22 Nov 2026',
     title: 'Arrastre visual siguiendo el puntero y publicación automática determinística',
-    isLatest: true,
     features: [
       'Al arrastrar tareas en tabla WBS aparece una tarjeta flotante siguiendo el puntero y en el cronograma las barras se mueven 1:1 con silueta de encaje.',
       'Se añade flujo determinístico de publicación automática con Stop hook (.agents/hooks.json), regla AGENTS.md y script scripts/publish.mjs.',

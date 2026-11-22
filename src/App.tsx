@@ -100,6 +100,7 @@ import {
   preserveActiveWorkspaceInScenarios,
   propagateProjectChangesToItems,
   reorderProject,
+  moveProject,
   reorderTaskItem,
   resolveZoomPresetFromDayWidth,
   sanitizeGanttItem,
@@ -1783,6 +1784,38 @@ export function App({
     );
   };
 
+  const handleMoveProject = (
+    sourceProjectId: string,
+    targetProjectId: string,
+    position: 'before' | 'after'
+  ) => {
+    const sourceProj = guardAppProjectUnlocked(sourceProjectId, 'reordenar el proyecto');
+    if (!sourceProj) return;
+    const targetProj = effectiveProjects.find((p) => p.id === targetProjectId);
+    if (!targetProj) return;
+
+    const nextProjects = moveProject(
+      effectiveProjects,
+      sourceProjectId,
+      targetProjectId,
+      position
+    );
+    if (nextProjects === effectiveProjects) return;
+
+    const changed = nextProjects.some((p, idx) => p.id !== effectiveProjects[idx]?.id);
+    if (!changed) return;
+
+    setProjects(nextProjects);
+    recordPlanChange(
+      'reorder_project',
+      'Reordenar Proyecto',
+      `Mover proyecto '${sourceProj.name}' ${position === 'before' ? 'antes de' : 'después de'} '${targetProj.name}'`,
+      items,
+      nextProjects,
+      sourceProj.id
+    );
+  };
+
   const handleChangeProjectColor = (projectId: string, newColor: TaskColor) => {
     if (!guardAppProjectUnlocked(projectId, 'cambiar el color del proyecto')) return;
 
@@ -3032,6 +3065,7 @@ export function App({
               onToggleProjectCollapse={handleToggleProjectCollapse}
               onUpdateProject={handleUpdateProject}
               onReorderProject={handleReorderProject}
+              onMoveProject={handleMoveProject}
               onChangeProjectColor={handleChangeProjectColor}
               onDeleteProject={handleDeleteProject}
               onCreateProject={handleCreateProject}

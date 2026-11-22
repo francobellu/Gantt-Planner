@@ -528,6 +528,58 @@ export function reorderProject(
 }
 
 /**
+ * Moves a project before or after a target project within the same release,
+ * preserving invariant projectIndex badges.
+ */
+export function moveProject(
+  projects: GanttProject[],
+  sourceProjectId: string,
+  targetProjectId: string,
+  position: 'before' | 'after' = 'after'
+): GanttProject[] {
+  if (!sourceProjectId || !targetProjectId || sourceProjectId === targetProjectId) {
+    return projects;
+  }
+
+  const usedIndices = new Set<number>();
+  for (const p of projects) {
+    if (typeof p.projectIndex === 'number' && p.projectIndex >= 1) {
+      usedIndices.add(Math.round(p.projectIndex));
+    }
+  }
+  let nextIdx = 1;
+  const stamped = projects.map((p) => {
+    if (typeof p.projectIndex === 'number' && p.projectIndex >= 1) {
+      return p;
+    }
+    while (usedIndices.has(nextIdx)) {
+      nextIdx++;
+    }
+    usedIndices.add(nextIdx);
+    return { ...p, projectIndex: nextIdx };
+  });
+
+  const sourceIdx = stamped.findIndex((p) => p.id === sourceProjectId);
+  const targetIdx = stamped.findIndex((p) => p.id === targetProjectId);
+  if (sourceIdx === -1 || targetIdx === -1) return stamped;
+
+  const sourceProj = stamped[sourceIdx];
+  const targetProj = stamped[targetIdx];
+  if ((sourceProj.releaseId || '') !== (targetProj.releaseId || '')) {
+    return stamped;
+  }
+
+  const remaining = stamped.filter((p) => p.id !== sourceProjectId);
+  const adjustedTargetIdx = remaining.findIndex((p) => p.id === targetProjectId);
+  if (adjustedTargetIdx === -1) return stamped;
+
+  const insertIdx = position === 'before' ? adjustedTargetIdx : adjustedTargetIdx + 1;
+  const next = [...remaining];
+  next.splice(insertIdx, 0, sourceProj);
+  return next;
+}
+
+/**
  * Normalizes a partial or computed Gantt item into a clean GanttItem with
  * consistent startDate, endDate, duration, slack, and deep-cloned dependencies.
  */

@@ -189,6 +189,7 @@ interface GanttWorkspaceProps {
   onToggleProjectCollapse?: (projectId: string) => void;
   onUpdateProject?: (project: GanttProject) => void;
   onReorderProject?: (projectId: string, direction: 'up' | 'down') => void;
+  onMoveProject?: (sourceProjectId: string, targetProjectId: string, position: 'before' | 'after') => void;
   onChangeProjectColor?: (projectId: string, newColor: TaskColor) => void;
   onDeleteProject?: (projectId: string) => void;
   onCreateProject?: (project: GanttProject) => void;
@@ -206,6 +207,14 @@ interface GanttWorkspaceProps {
   initialMultiSelectedProjectIds?: string[];
   initialDragRowPreview?: {
     itemId: string;
+    x: number;
+    y: number;
+    offsetX?: number;
+    offsetY?: number;
+    width?: number;
+  } | null;
+  initialDragProjectPreview?: {
+    projectId: string;
     x: number;
     y: number;
     offsetX?: number;
@@ -576,6 +585,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   onToggleProjectCollapse,
   onUpdateProject,
   onReorderProject,
+  onMoveProject,
   onChangeProjectColor,
   onDeleteProject,
   onCreateProject,
@@ -598,6 +608,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   initialMultiSelectedItemIds,
   initialMultiSelectedProjectIds,
   initialDragRowPreview = null,
+  initialDragProjectPreview = null,
   baselineSnapshot = null,
   workCalendar,
   useRightSidebarInspector = false,
@@ -1607,6 +1618,40 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     id: string;
     position: 'before' | 'after';
   } | null>(null);
+
+  const [draggingProjectId, setDraggingProjectId] = useState<string | null>(
+    initialDragProjectPreview?.projectId ?? null
+  );
+  const [dragOverProject, setDragOverProject] = useState<{
+    id: string;
+    position: 'before' | 'after';
+  } | null>(null);
+  const [dragProjectPreview, setDragProjectPreview] = useState<{
+    projectId: string;
+    x: number;
+    y: number;
+    offsetX: number;
+    offsetY: number;
+    width: number;
+  } | null>(() =>
+    initialDragProjectPreview
+      ? {
+          projectId: initialDragProjectPreview.projectId,
+          x: initialDragProjectPreview.x,
+          y: initialDragProjectPreview.y,
+          offsetX: initialDragProjectPreview.offsetX ?? 24,
+          offsetY: initialDragProjectPreview.offsetY ?? ROW_HEIGHT / 2,
+          width: initialDragProjectPreview.width ?? 320,
+        }
+      : null
+  );
+  const draggingProjectIdRef = useRef<string | null>(null);
+  const dragOverProjectRef = useRef<{
+    id: string;
+    position: 'before' | 'after';
+  } | null>(null);
+  const onMoveProjectRef = useRef(onMoveProject);
+  onMoveProjectRef.current = onMoveProject;
   const cleanupPointerListenersRef = useRef<(() => void) | null>(null);
   const lastMouseDownInteractiveRef = useRef<boolean>(false);
   const onMoveItemRef = useRef(onMoveItem);
@@ -1851,6 +1896,190 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             activeTarget.id,
             activeTarget.position
           );
+        }
+      }
+    };
+
+    cleanupPointerListenersRef.current = detachListeners;
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('keydown', onKeyDown, true);
+  };
+
+  const handleProjectRowPointerMouseDown = (
+    e: React.MouseEvent,
+    projectId: string,
+    fromGripHandle = false
+  ) => {
+    if (e.button !== 0) return;
+    const targetEl = e.target as HTMLElement | null;
+    if (
+      !fromGripHandle &&
+      targetEl &&
+      targetEl.closest('input, button, select, textarea, a')
+    ) {
+      lastMouseDownInteractiveRef.current = true;
+      return;
+    }
+
+    lastMouseDownInteractiveRef.current = false;
+    e.preventDefault();
+    if (fromGripHandle) {
+      e.stopPropagation();
+    }
+
+    cleanupPointerListenersRef.current?.();
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const rowEl = (e.currentTarget as HTMLElement).closest('[data-project-group]') as HTMLElement | null;
+    const rowRect = rowEl?.getBoundingClientRect();
+    const previewWidth = rowRect
+      ? Math.min(Math.max(240, rowRect.width), Math.max(280, splitWidth - 16), 440)
+      : 320;
+    const grabOffsetX = rowRect
+      ? Math.min(Math.max(16, e.clientX - rowRect.left), previewWidth - 24)
+      : 24;
+    const grabOffsetY = rowRect
+      ? Math.min(Math.max(8, e.clientY - rowRect.top), ROW_HEIGHT - 8)
+      : ROW_HEIGHT / 2;
+
+    const sourceProj = projects.find((p) => p.id === projectId);
+    const sourceReleaseId = sourceProj?.releaseId || '';
+
+    const resetProjectDragVisuals = () => {
+      draggingProjectIdRef.current = null;
+      dragOverProjectRef.current = null;
+      setDraggingProjectId(null);
+      setDragOverProject(null);
+      setDragProjectPreview(null);
+      if (typeof document !== 'undefined') {
+        document.body.style.cursor = '';
+      }
+    };
+
+    const detachListeners = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener('keydown', onKeyDown, true);
+      if (cleanupPointerListenersRef.current === detachListeners) {
+        cleanupPointerListenersRef.current = null;
+      }
+    };
+
+    const onKeyDown = (keyEvent: KeyboardEvent) => {
+      if (keyEvent.key === 'Escape' && draggingProjectIdRef.current) {
+        keyEvent.preventDefault();
+        keyEvent.stopPropagation();
+        detachListeners();
+        resetProjectDragVisuals();
+      }
+    };
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      if (typeof moveEvent.buttons === 'number' && (moveEvent.buttons & 1) === 0) {
+        detachListeners();
+        resetProjectDragVisuals();
+        return;
+      }
+
+      const dist = Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY);
+      if (!draggingProjectIdRef.current && dist < 4) {
+        return;
+      }
+
+      if (!draggingProjectIdRef.current) {
+        if (!guardProjectUnlocked(projectId, 'reordenar proyecto en la tabla')) {
+          detachListeners();
+          resetProjectDragVisuals();
+          return;
+        }
+        draggingProjectIdRef.current = projectId;
+        setDraggingProjectId(projectId);
+        if (typeof document !== 'undefined') {
+          document.body.style.cursor = 'grabbing';
+        }
+      }
+
+      setDragProjectPreview({
+        projectId,
+        x: moveEvent.clientX,
+        y: moveEvent.clientY,
+        offsetX: grabOffsetX,
+        offsetY: grabOffsetY,
+        width: previewWidth,
+      });
+
+      const projNodes = document.querySelectorAll<HTMLElement>('[data-project-group]');
+      let matchedEl: HTMLElement | null = null;
+      let matchedRect: DOMRect | null = null;
+      let minDistance = Infinity;
+
+      projNodes.forEach((node) => {
+        const nodeProjId = node.getAttribute('data-project-group');
+        const nodeProj = projects.find((p) => p.id === nodeProjId);
+        if (!nodeProj || (nodeProj.releaseId || '') !== sourceReleaseId) return;
+
+        const rect = node.getBoundingClientRect();
+        if (moveEvent.clientY >= rect.top && moveEvent.clientY <= rect.bottom) {
+          matchedEl = node;
+          matchedRect = rect;
+          minDistance = 0;
+        } else if (minDistance > 0) {
+          const distToNode = Math.min(
+            Math.abs(moveEvent.clientY - rect.top),
+            Math.abs(moveEvent.clientY - rect.bottom)
+          );
+          if (distToNode < minDistance && distToNode <= 48) {
+            minDistance = distToNode;
+            matchedEl = node;
+            matchedRect = rect;
+          }
+        }
+      });
+
+      if (matchedEl && matchedRect) {
+        const el = matchedEl as HTMLElement;
+        const r = matchedRect as DOMRect;
+        const targetProjId = el.getAttribute('data-project-group');
+        if (targetProjId && targetProjId !== projectId) {
+          const relY = moveEvent.clientY - r.top;
+          const rawPos: 'before' | 'after' = relY < r.height / 2 ? 'before' : 'after';
+          const sameRel = projects.filter((p) => (p.releaseId || '') === sourceReleaseId);
+          const sIdx = sameRel.findIndex((p) => p.id === projectId);
+          const tIdx = sameRel.findIndex((p) => p.id === targetProjId);
+          let pos = rawPos;
+          if (sIdx !== -1 && tIdx !== -1) {
+            if (tIdx === sIdx + 1 && rawPos === 'before') pos = 'after';
+            if (tIdx === sIdx - 1 && rawPos === 'after') pos = 'before';
+          }
+          const nextOver = { id: targetProjId, position: pos };
+          dragOverProjectRef.current = nextOver;
+          setDragOverProject(nextOver);
+        } else {
+          dragOverProjectRef.current = null;
+          setDragOverProject(null);
+        }
+      } else {
+        dragOverProjectRef.current = null;
+        setDragOverProject(null);
+      }
+    };
+
+    const onMouseUp = () => {
+      detachListeners();
+      const activeSource = draggingProjectIdRef.current;
+      const activeTarget = dragOverProjectRef.current;
+      resetProjectDragVisuals();
+
+      if (
+        activeSource &&
+        activeTarget &&
+        activeSource !== activeTarget.id &&
+        onMoveProjectRef.current
+      ) {
+        if (guardProjectUnlocked(activeSource, 'reordenar proyecto en la tabla')) {
+          onMoveProjectRef.current(activeSource, activeTarget.id, activeTarget.position);
         }
       }
     };
@@ -5484,6 +5713,13 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             : group.project.name.slice(0, effectiveTruncateLimit) + '…';
 
                         const isProjectMultiSelected = multiSelectedProjectIds.has(group.project.id);
+                        const isDraggingThisProject = draggingProjectId === group.project.id;
+                        const isProjectReorderTargetBefore =
+                          dragOverProject?.id === group.project.id &&
+                          dragOverProject.position === 'before';
+                        const isProjectReorderTargetAfter =
+                          dragOverProject?.id === group.project.id &&
+                          dragOverProject.position === 'after';
                         return (
                           <div
                             key={row.rowId}
@@ -5491,6 +5727,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             data-project-locked={group.project.locked ? 'true' : 'false'}
                             data-multi-selected={isProjectMultiSelected ? 'true' : 'false'}
                             style={{ height: ROW_HEIGHT, minWidth: tableMinWidth }}
+                            onMouseDown={(e) =>
+                              handleProjectRowPointerMouseDown(e, group.project.id, false)
+                            }
                             onClick={(e) => {
                               if (e.metaKey || e.ctrlKey || e.shiftKey) {
                                 e.stopPropagation();
@@ -5509,7 +5748,13 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 ? 'border-y border-slate-200/80 dark:border-zinc-800/80'
                                 : 'border-y-0'
                             } transition-colors ${
-                              isProjectDragTarget
+                              isDraggingThisProject
+                                ? 'opacity-40 bg-indigo-50/50 dark:bg-indigo-950/30 cursor-grabbing'
+                                : isProjectReorderTargetBefore
+                                ? 'border-t-2 border-t-indigo-600 dark:border-t-indigo-400 bg-indigo-50/60 dark:bg-indigo-950/40'
+                                : isProjectReorderTargetAfter
+                                ? 'border-b-2 border-b-indigo-600 dark:border-b-indigo-400 bg-indigo-50/60 dark:bg-indigo-950/40'
+                                : isProjectDragTarget
                                 ? 'ring-2 ring-inset ring-indigo-500 bg-indigo-100/70 dark:bg-indigo-950/60'
                                 : isProjectMultiSelected
                                 ? 'ring-1 ring-inset ring-indigo-500 bg-indigo-50/90 dark:bg-indigo-950/50'
@@ -5543,6 +5788,17 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               >
                                 {isProjectMultiSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
                               </button>
+                              {/* Drag handle for project reordering */}
+                              <span
+                                data-testid={`project-drag-handle-${group.project.id}`}
+                                onMouseDown={(e) =>
+                                  handleProjectRowPointerMouseDown(e, group.project.id, true)
+                                }
+                                title="Arrastrar proyecto para reordenarlo dentro de su release"
+                                className="p-0.5 rounded text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-grab active:cursor-grabbing shrink-0 opacity-60 group-hover:opacity-100 transition-opacity"
+                              >
+                                <GripVertical className="w-3.5 h-3.5" />
+                              </span>
                               {/* Reorder project buttons within same release */}
                               <div className="flex flex-col -space-y-1 shrink-0">
                                 <button
@@ -9554,6 +9810,66 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               {targetProjectName && (
                 <div className="mt-1 inline-flex items-center px-2 py-0.5 rounded bg-indigo-600 text-white text-[10px] font-semibold shadow-lg">
                   {`→ Mover a: ${targetProjectName}`}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {dragProjectPreview && (() => {
+          const draggedGroup = allProjectGroups.find(
+            (g) => g.project.id === dragProjectPreview.projectId
+          );
+          const draggedProject =
+            draggedGroup?.project ||
+            projects.find((p) => p.id === dragProjectPreview.projectId);
+          if (!draggedProject) return null;
+
+          const draggedProjTheme =
+            COLOR_STYLES[draggedProject.color] || COLOR_STYLES.indigo;
+          const projectBadgeLabel =
+            draggedGroup?.projectIndex != null
+              ? `P${draggedGroup.projectIndex}`
+              : typeof draggedProject.projectIndex === 'number'
+              ? `P${draggedProject.projectIndex}`
+              : 'P';
+          const targetProject = dragOverProject
+            ? projects.find((p) => p.id === dragOverProject.id) || null
+            : null;
+
+          return (
+            <div
+              data-testid="project-row-drag-ghost"
+              data-dragging-project-id={draggedProject.id}
+              className="fixed top-0 left-0 pointer-events-none z-[100] select-none"
+              style={{
+                width: dragProjectPreview.width,
+                transform: `translate3d(${Math.round(dragProjectPreview.x - dragProjectPreview.offsetX)}px, ${Math.round(dragProjectPreview.y - dragProjectPreview.offsetY)}px, 0)`,
+                willChange: 'transform',
+              }}
+            >
+              <div
+                style={{ height: ROW_HEIGHT }}
+                className="bg-white/95 dark:bg-zinc-900/95 backdrop-blur-sm border-2 border-indigo-600 dark:border-indigo-400 rounded-[6px] shadow-2xl ring-4 ring-indigo-500/15 px-3 flex items-center gap-2 text-xs font-semibold"
+              >
+                <GripVertical className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                <span
+                  className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold text-white shrink-0 ${draggedProjTheme.badge}`}
+                >
+                  {projectBadgeLabel}
+                </span>
+                <span className="font-semibold text-[#0C0C09] dark:text-zinc-100 truncate flex-1">
+                  {draggedProject.name || 'Proyecto'}
+                </span>
+                <span className="font-mono text-[10px] text-[#6B6B66] dark:text-zinc-300 bg-[#F4F4F1] dark:bg-zinc-800 px-1.5 py-0.5 rounded shrink-0">
+                  {draggedGroup ? `${draggedGroup.duration}d · ${draggedGroup.progress}%` : 'Proyecto'}
+                </span>
+              </div>
+              {targetProject && (
+                <div className="mt-1 inline-flex items-center px-2 py-0.5 rounded bg-indigo-600 text-white text-[10px] font-semibold shadow-lg">
+                  {dragOverProject?.position === 'before'
+                    ? `↑ Antes de: ${targetProject.name}`
+                    : `↓ Después de: ${targetProject.name}`}
                 </div>
               )}
             </div>
