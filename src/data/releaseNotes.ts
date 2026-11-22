@@ -10,10 +10,18 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.10.22',
+    date: '22 Nov 2026',
+    title: 'Arrastre múltiple de tareas seleccionadas',
+    isLatest: true,
+    features: [
+      'Permite seleccionar múltiples tareas con Cmd/Ctrl+Clic o Shift+Clic en tabla y cronograma y arrastrarlas juntas tanto en fechas como en orden vertical entre o dentro de proyectos',
+    ],
+  },
+  {
     version: '1.10.21',
     date: '22 Nov 2026',
     title: 'Evitar re-animación de filas al soltar drag-and-drop',
-    isLatest: true,
     features: [
       'La transición de posición vertical (top/height) solo se aplica durante colapsado y expandido (isCollapseAnimating), evitando que la fila desplazada vuelva a moverse al soltar',
     ],

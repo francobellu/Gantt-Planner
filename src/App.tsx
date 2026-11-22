@@ -96,6 +96,7 @@ import {
   isDemoScenario,
   mergeImportedGanttData,
   moveTaskItem,
+  moveMultipleTaskItems,
   parseCSVToGanttData,
   parseDateSafe,
   preserveActiveWorkspaceInScenarios,
@@ -1563,6 +1564,36 @@ export function App({
       'reorder_item',
       'Reordenación',
       `Mover posición de '${it?.name || sourceId}'`,
+      next,
+      nextProjects
+    );
+  };
+
+  const handleMoveItems = (
+    sourceIds: string[],
+    targetId: string,
+    position: 'before' | 'after'
+  ) => {
+    const next = moveMultipleTaskItems(
+      items,
+      sourceIds,
+      targetId,
+      position,
+      effectiveProjects
+    );
+    let nextProjects = effectiveProjects;
+    if (targetId.startsWith('project:')) {
+      const targetProjId = targetId.slice('project:'.length);
+      nextProjects = effectiveProjects.map((p) =>
+        p.id === targetProjId && p.collapsed ? { ...p, collapsed: false } : p
+      );
+      setProjects(nextProjects);
+    }
+    setItems(next);
+    recordPlanChange(
+      'reorder_item',
+      'Reordenación múltiple',
+      `Mover posición de ${sourceIds.length} tareas seleccionadas`,
       next,
       nextProjects
     );
@@ -3117,6 +3148,7 @@ export function App({
               onUpdateItems={handleUpdateItems}
               onReorderItem={handleReorderItem}
               onMoveItem={handleMoveItem}
+              onMoveItems={handleMoveItems}
               onEditModal={handleOpenEditModal}
               onDeleteItem={handleDeleteItem}
               onDuplicateItem={handleDuplicateItem}

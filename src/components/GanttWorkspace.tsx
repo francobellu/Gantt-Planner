@@ -182,6 +182,7 @@ interface GanttWorkspaceProps {
   ) => void;
   onReorderItem?: (itemId: string, direction: 'up' | 'down') => void;
   onMoveItem?: (sourceId: string, targetId: string, position: 'before' | 'after') => void;
+  onMoveItems?: (sourceIds: string[], targetId: string, position: 'before' | 'after') => void;
   onEditModal: (item: ComputedGanttItem) => void;
   onDeleteItem: (id: string) => void;
   onDuplicateItem: (item: ComputedGanttItem) => void;
@@ -593,6 +594,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   onUpdateItems,
   onReorderItem,
   onMoveItem,
+  onMoveItems,
   onEditModal,
   onDeleteItem,
   onDuplicateItem,
@@ -1797,6 +1799,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   const [draggingRowId, setDraggingRowId] = useState<string | null>(
     initialDragRowPreview?.itemId ?? null
   );
+  const [draggingMultiRowIds, setDraggingMultiRowIds] = useState<Set<string> | null>(null);
   const [dragOverRow, setDragOverRow] = useState<{
     id: string;
     position: 'before' | 'after';
@@ -1808,6 +1811,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     offsetX: number;
     offsetY: number;
     width: number;
+    multiCount?: number;
   } | null>(() =>
     initialDragRowPreview
       ? {
@@ -1822,6 +1826,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   );
 
   const draggingRowIdRef = useRef<string | null>(null);
+  const draggingMultiRowIdsRef = useRef<Set<string> | null>(null);
   const dragOverRowRef = useRef<{
     id: string;
     position: 'before' | 'after';
@@ -1891,6 +1896,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   const lastMouseDownInteractiveRef = useRef<boolean>(false);
   const onMoveItemRef = useRef(onMoveItem);
   onMoveItemRef.current = onMoveItem;
+  const onMoveItemsRef = useRef(onMoveItems);
+  onMoveItemsRef.current = onMoveItems;
 
   const guardMoveRowUnlocked = (sourceId: string, targetId: string): boolean => {
     if (!guardItemUnlocked(sourceId, 'mover tarea de posición en la tabla')) {
@@ -2001,10 +2008,17 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         : [];
     const snapshots = tableSnapshots.length > 0 ? tableSnapshots : timelineSnapshots;
 
+    const movingMultiIds =
+      effectiveMultiItemIds.has(itemId) && effectiveMultiItemIds.size > 1
+        ? new Set(effectiveMultiItemIds)
+        : null;
+
     const resetRowDragVisuals = () => {
       draggingRowIdRef.current = null;
+      draggingMultiRowIdsRef.current = null;
       dragOverRowRef.current = null;
       setDraggingRowId(null);
+      setDraggingMultiRowIds(null);
       setDragOverRow(null);
       setDragRowPreview(null);
       if (typeof document !== 'undefined') {
@@ -2039,6 +2053,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
           offsetX: grabOffsetX,
           offsetY: grabOffsetY,
           width: previewWidth,
+          multiCount: movingMultiIds?.size,
         });
       }
 
@@ -2066,7 +2081,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
       if (matched) {
         if (matched.taskRowId) {
-          if (matched.taskRowId === itemId) {
+          if (
+            matched.taskRowId === itemId ||
+            (movingMultiIds && movingMultiIds.has(matched.taskRowId))
+          ) {
             dragOverRowRef.current = null;
             setDragOverRow(null);
           } else {
@@ -2109,13 +2127,18 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       }
 
       if (!draggingRowIdRef.current) {
-        if (!guardItemUnlocked(itemId, 'reordenar tarea en la tabla')) {
-          detachListeners();
-          resetRowDragVisuals();
-          return;
+        const idsToCheck = movingMultiIds ? Array.from(movingMultiIds) : [itemId];
+        for (const id of idsToCheck) {
+          if (!guardItemUnlocked(id, 'reordenar tarea en la tabla')) {
+            detachListeners();
+            resetRowDragVisuals();
+            return;
+          }
         }
         draggingRowIdRef.current = itemId;
+        draggingMultiRowIdsRef.current = movingMultiIds;
         setDraggingRowId(itemId);
+        setDraggingMultiRowIds(movingMultiIds);
         if (typeof document !== 'undefined') {
           document.body.style.cursor = 'grabbing';
         }
@@ -2128,32 +2151,47 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       detachListeners();
 
       const activeSource = draggingRowIdRef.current;
+      const activeMultiSources = draggingMultiRowIdsRef.current;
       const activeTarget = dragOverRowRef.current;
 
       resetRowDragVisuals();
 
-      if (
-        activeSource &&
-        activeTarget &&
-        activeSource !== activeTarget.id &&
-        onMoveItemRef.current
-      ) {
-        if (guardMoveRowUnlocked(activeSource, activeTarget.id)) {
-          onMoveItemRef.current(
-            activeSource,
-            activeTarget.id,
-            activeTarget.position
+      if (activeSource && activeTarget && activeSource !== activeTarget.id) {
+        if (
+          activeMultiSources &&
+          activeMultiSources.size > 1 &&
+          onMoveItemsRef.current
+        ) {
+          const ids = Array.from(activeMultiSources);
+          const allUnlocked = ids.every((id) =>
+            guardMoveRowUnlocked(id, activeTarget.id)
           );
+          if (allUnlocked) {
+            onMoveItemsRef.current(ids, activeTarget.id, activeTarget.position);
+          }
+        } else if (onMoveItemRef.current) {
+          if (guardMoveRowUnlocked(activeSource, activeTarget.id)) {
+            onMoveItemRef.current(
+              activeSource,
+              activeTarget.id,
+              activeTarget.position
+            );
+          }
         }
       }
     };
 
     if (opts?.immediateStart) {
-      if (!guardItemUnlocked(itemId, 'reordenar tarea')) {
-        return;
+      const idsToCheck = movingMultiIds ? Array.from(movingMultiIds) : [itemId];
+      for (const id of idsToCheck) {
+        if (!guardItemUnlocked(id, 'reordenar tarea')) {
+          return;
+        }
       }
       draggingRowIdRef.current = itemId;
+      draggingMultiRowIdsRef.current = movingMultiIds;
       setDraggingRowId(itemId);
+      setDraggingMultiRowIds(movingMultiIds);
       if (typeof document !== 'undefined') {
         document.body.style.cursor = 'grabbing';
       }
@@ -2172,6 +2210,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     fromGripHandle = false
   ) => {
     if (e.button !== 0) return;
+    if (!fromGripHandle && (e.metaKey || e.ctrlKey || e.shiftKey)) return;
     const targetEl = e.target as HTMLElement | null;
     if (
       !fromGripHandle &&
@@ -3170,31 +3209,58 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     const map = new Map<string, number>();
 
     if (draggingRowId && dragOverRow && !dragOverRow.id.startsWith('project:')) {
-      const dragIdx = displayRows.findIndex(
-        (r) => r.kind === 'item' && r.item.id === draggingRowId
-      );
-      const targetIdx = displayRows.findIndex(
-        (r) => r.kind === 'item' && r.item.id === dragOverRow.id
-      );
-      if (dragIdx !== -1 && targetIdx !== -1 && dragIdx !== targetIdx) {
-        const destIdx =
-          dragIdx < targetIdx
-            ? dragOverRow.position === 'before'
-              ? targetIdx - 1
-              : targetIdx
-            : dragOverRow.position === 'before'
-            ? targetIdx
-            : targetIdx + 1;
+      if (draggingMultiRowIds && draggingMultiRowIds.size > 1) {
+        const movingIndices = displayRows
+          .map((r, idx) => (r.kind === 'item' && draggingMultiRowIds.has(r.item.id) ? idx : -1))
+          .filter((idx) => idx !== -1);
+        const targetRow = displayRows.find(
+          (r) => r.kind === 'item' && r.item.id === dragOverRow.id
+        );
+        if (movingIndices.length > 0 && targetRow) {
+          const movingRows = movingIndices.map((idx) => displayRows[idx]);
+          const movingSet = new Set(movingRows.map((r) => r.rowId));
+          const remaining = displayRows.filter((r) => !movingSet.has(r.rowId));
+          const targetInRemaining = remaining.findIndex((r) => r.rowId === targetRow.rowId);
+          if (targetInRemaining !== -1) {
+            const insertIdx =
+              dragOverRow.position === 'before' ? targetInRemaining : targetInRemaining + 1;
+            const simulated = [...remaining];
+            simulated.splice(insertIdx, 0, ...movingRows);
+            simulated.forEach((r, newIdx) => {
+              const oldIdx = displayRows.findIndex((orig) => orig.rowId === r.rowId);
+              if (oldIdx !== -1 && newIdx !== oldIdx) {
+                map.set(r.rowId, (newIdx - oldIdx) * ROW_HEIGHT);
+              }
+            });
+          }
+        }
+      } else {
+        const dragIdx = displayRows.findIndex(
+          (r) => r.kind === 'item' && r.item.id === draggingRowId
+        );
+        const targetIdx = displayRows.findIndex(
+          (r) => r.kind === 'item' && r.item.id === dragOverRow.id
+        );
+        if (dragIdx !== -1 && targetIdx !== -1 && dragIdx !== targetIdx) {
+          const destIdx =
+            dragIdx < targetIdx
+              ? dragOverRow.position === 'before'
+                ? targetIdx - 1
+                : targetIdx
+              : dragOverRow.position === 'before'
+              ? targetIdx
+              : targetIdx + 1;
 
-        if (destIdx !== dragIdx) {
-          map.set(displayRows[dragIdx].rowId, (destIdx - dragIdx) * ROW_HEIGHT);
-          if (dragIdx < destIdx) {
-            for (let i = dragIdx + 1; i <= destIdx; i++) {
-              map.set(displayRows[i].rowId, -ROW_HEIGHT);
-            }
-          } else {
-            for (let i = destIdx; i < dragIdx; i++) {
-              map.set(displayRows[i].rowId, ROW_HEIGHT);
+          if (destIdx !== dragIdx) {
+            map.set(displayRows[dragIdx].rowId, (destIdx - dragIdx) * ROW_HEIGHT);
+            if (dragIdx < destIdx) {
+              for (let i = dragIdx + 1; i <= destIdx; i++) {
+                map.set(displayRows[i].rowId, -ROW_HEIGHT);
+              }
+            } else {
+              for (let i = destIdx; i < dragIdx; i++) {
+                map.set(displayRows[i].rowId, ROW_HEIGHT);
+              }
             }
           }
         }
@@ -3256,7 +3322,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     }
 
     return map;
-  }, [displayRows, draggingRowId, dragOverRow, draggingProjectId, dragOverProject]);
+  }, [displayRows, draggingRowId, draggingMultiRowIds, dragOverRow, draggingProjectId, dragOverProject]);
 
   const timelineScopedItems = useMemo(() => {
     if (
@@ -6719,7 +6785,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       const isLastInGroup = groupByProject
                         ? itemIndexInGroup === group.items.length - 1
                         : rowIndex === displayRows.length - 1;
-                      const isBeingDragged = draggingRowId === item.id;
+                      const isBeingDragged =
+                        draggingRowId === item.id || Boolean(draggingMultiRowIds?.has(item.id));
                       const isDropBefore = dragOverRow?.id === item.id && dragOverRow.position === 'before';
                       const isDropAfter = dragOverRow?.id === item.id && dragOverRow.position === 'after';
                       const effectiveReleaseId = item.releaseId || group.project.releaseId;
@@ -8505,7 +8572,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     onMouseEnter={() => setHoveredId(item.id)}
                     onMouseLeave={() => setHoveredId(null)}
                     className={`absolute left-0 right-0 flex items-center pointer-events-none ${
-                      draggingRowId === item.id || draggingProjectId === item.projectId
+                      draggingRowId === item.id ||
+                      Boolean(draggingMultiRowIds?.has(item.id)) ||
+                      draggingProjectId === item.projectId
                         ? 'z-40'
                         : 'z-20'
                     } ${
@@ -10044,6 +10113,14 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                 <span className="font-semibold text-[#0C0C09] dark:text-zinc-100 truncate flex-1">
                   {draggedItem.name || (draggedItem.type === 'milestone' ? 'Hito' : 'Tarea')}
                 </span>
+                {dragRowPreview.multiCount && dragRowPreview.multiCount > 1 && (
+                  <span
+                    data-testid="task-row-drag-ghost-count"
+                    className="px-1.5 py-0.5 rounded bg-indigo-600 text-white font-mono text-[10px] font-bold shrink-0"
+                  >
+                    {dragRowPreview.multiCount} tareas
+                  </span>
+                )}
                 <span className="font-mono text-[10px] text-[#6B6B66] dark:text-zinc-300 bg-[#F4F4F1] dark:bg-zinc-800 px-1.5 py-0.5 rounded shrink-0">
                   {formatDateDisplay(draggedItem.startDate, 'dd MMM')}
                   {draggedItem.type === 'task' ? ` · ${draggedItem.duration}d` : ''}

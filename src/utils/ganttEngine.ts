@@ -2407,6 +2407,73 @@ export function moveTaskItem(
 }
 
 /**
+ * Moves multiple selected tasks/milestones (`sourceIds`) together as a contiguous block
+ * (preserving their relative order) before or after `targetId`, or into a target project header (`project:<projectId>`).
+ */
+export function moveMultipleTaskItems(
+  items: GanttItem[],
+  sourceIds: string[],
+  targetId: string,
+  position: 'before' | 'after' = 'after',
+  projects: GanttProject[] = []
+): GanttItem[] {
+  if (!sourceIds || sourceIds.length === 0 || !targetId) return items;
+  if (sourceIds.length === 1) {
+    return moveTaskItem(items, sourceIds[0], targetId, position, projects);
+  }
+
+  const sourceSet = new Set(sourceIds);
+  const movingItems = items.filter((it) => sourceSet.has(it.id));
+  if (movingItems.length === 0) return items;
+
+  const fallbackProjectId = projects[0]?.id;
+  const resolvePid = (it: GanttItem) =>
+    it.projectId && (projects.length === 0 || projects.some((p) => p.id === it.projectId))
+      ? it.projectId
+      : it.projectId || fallbackProjectId;
+
+  if (targetId.startsWith('project:')) {
+    const targetProjectId = targetId.slice('project:'.length);
+    if (!targetProjectId) return items;
+    const updatedMoving = movingItems.map((it) => ({
+      ...it,
+      projectId: targetProjectId,
+    }));
+    const withoutMoving = items.filter((it) => !sourceSet.has(it.id));
+    const firstInTargetIdx = withoutMoving.findIndex(
+      (it) => resolvePid(it) === targetProjectId
+    );
+    const next = [...withoutMoving];
+    if (firstInTargetIdx >= 0) {
+      next.splice(firstInTargetIdx, 0, ...updatedMoving);
+    } else {
+      next.push(...updatedMoving);
+    }
+    return next;
+  }
+
+  if (sourceSet.has(targetId)) return items;
+  const targetItem = items.find((it) => it.id === targetId);
+  if (!targetItem) return items;
+
+  const resolvedTargetPid = resolvePid(targetItem);
+  const updatedMoving = movingItems.map((it) => ({
+    ...it,
+    ...(resolvedTargetPid ? { projectId: resolvedTargetPid } : {}),
+  }));
+
+  const withoutMoving = items.filter((it) => !sourceSet.has(it.id));
+  const targetIdxInFiltered = withoutMoving.findIndex((it) => it.id === targetId);
+  if (targetIdxInFiltered === -1) return items;
+
+  const insertIdx =
+    position === 'before' ? targetIdxInFiltered : targetIdxInFiltered + 1;
+  const next = [...withoutMoving];
+  next.splice(insertIdx, 0, ...updatedMoving);
+  return next;
+}
+
+/**
  * Reorders a task/milestone one step up or down within its project group (when `groupByProject` is true)
  * or globally in the items list (when `groupByProject` is false).
  */
