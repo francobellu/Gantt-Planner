@@ -10,10 +10,20 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.10.16',
+    date: '22 Nov 2026',
+    title: 'Botón Nueva Tarea sin borde, creación directa y limpieza de botones DIGI/SCR',
+    isLatest: true,
+    features: [
+      'El botón Nueva Tarea pasa a mostrarse sin borde y con texto coloreado en índigo',
+      'Al hacer clic crea directamente una tarea heredando automáticamente el proyecto y la release padres',
+      'Se eliminan los botones Tarea DIGI y Tarea SCR en proyectos vacíos dejando únicamente Nueva Tarea',
+    ],
+  },
+  {
     version: '1.10.15',
     date: '22 Nov 2026',
     title: 'Animación estable sin parpadeos y arrastre vertical desde barras del cronograma',
-    isLatest: true,
     features: [
       'Se corrige la oscilación al intercambiar filas congelando las posiciones base (snapshot) al iniciar el arrastre en lugar de leer getBoundingClientRect() durante la transición CSS',
       'Se añade soporte para reordenar tareas, hitos y proyectos arrastrando verticalmente directamente desde sus barras en el cronograma',

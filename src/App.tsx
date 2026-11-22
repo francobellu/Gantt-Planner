@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { differenceInCalendarDays } from 'date-fns';
+import { addDays, differenceInCalendarDays } from 'date-fns';
 import {
   AlertTriangle,
   BarChart3,
@@ -88,6 +88,7 @@ import {
   getDefaultSavedScenarios,
   getLockedProjectForItem,
   getProjectTemplates,
+  calculateEndDateFromDuration,
   getRelatedFocusEntityIds,
   groupItemsByProject,
   importGanttData,
@@ -1705,6 +1706,65 @@ export function App({
     );
   };
 
+  const handleCreateTaskDirect = (projectId: string) => {
+    const project = guardAppProjectUnlocked(projectId, 'crear una tarea');
+    if (!project) return;
+    const targetRelease = project.releaseId
+      ? releases.find((r) => r.id === project.releaseId)
+      : undefined;
+    const projectItems = items.filter((it) => it.projectId === project.id);
+    let startDate: string;
+    if (projectItems.length > 0) {
+      const latestEnd = projectItems.reduce(
+        (max, it) => ((it.endDate || it.startDate) > max ? it.endDate || it.startDate : max),
+        projectItems[0].endDate || projectItems[0].startDate
+      );
+      startDate = formatDateISO(addDays(parseDateSafe(latestEnd), 1));
+    } else if (targetRelease) {
+      startDate = getReleaseDateSpan(targetRelease).startDate;
+    } else {
+      startDate = formatDateISO(new Date());
+    }
+    const defaultDuration = 5;
+    const endDate = calculateEndDateFromDuration(
+      startDate,
+      defaultDuration,
+      'task',
+      workCalendar
+    );
+
+    const newTask: GanttItem = {
+      id: `task-${Date.now()}`,
+      projectId: project.id,
+      name: 'Nueva Tarea',
+      type: 'task',
+      startDate,
+      endDate,
+      duration: defaultDuration,
+      progress: 0,
+      dependencies: [],
+      slack: 0,
+      color: project.color || 'indigo',
+      releaseId: project.releaseId,
+      platform: project.platform,
+    };
+
+    const nextItems = [...items, newTask];
+    setItems(nextItems);
+    setSelectedEntity({ type: 'task', id: newTask.id, name: newTask.name });
+    showToast(
+      `Nueva tarea creada en '${project.name}'${targetRelease ? ` (${targetRelease.code})` : ''}`
+    );
+    recordPlanChange(
+      'create_item',
+      'Nueva Tarea',
+      `Crear tarea directa en proyecto '${project.name}'`,
+      nextItems,
+      effectiveProjects,
+      newTask.id
+    );
+  };
+
   const guardAppProjectUnlocked = (
     projectId: string,
     attemptedAction: string
@@ -3070,6 +3130,7 @@ export function App({
               onDeleteProject={handleDeleteProject}
               onCreateProject={handleCreateProject}
               onCreateDigiTask={handleCreateDigiTask}
+              onCreateTaskDirect={handleCreateTaskDirect}
               scrollContainerRef={scrollContainerRef}
               showTable={showTable}
               onToggleShowTable={() => setShowTable((prev) => !prev)}

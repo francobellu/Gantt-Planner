@@ -195,6 +195,7 @@ interface GanttWorkspaceProps {
   onDeleteProject?: (projectId: string) => void;
   onCreateProject?: (project: GanttProject) => void;
   onCreateDigiTask?: (project: GanttProject, taskType?: 'DIGI' | 'SCR') => void;
+  onCreateTaskDirect?: (projectId: string) => void;
   scrollContainerRef: React.RefObject<HTMLDivElement>;
   initialSelectedItemId?: string;
   initialHoveredItemId?: string;
@@ -605,6 +606,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   onDeleteProject,
   onCreateProject,
   onCreateDigiTask,
+  onCreateTaskDirect,
   scrollContainerRef,
   showTable: showTableProp,
   onToggleShowTable,
@@ -1162,6 +1164,17 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       return;
     }
     onQuickAdd(type, projectId);
+  };
+
+  const guardedCreateTaskDirect = (projectId: string) => {
+    if (!guardProjectUnlocked(projectId, 'añadir tarea en proyecto bloqueado')) {
+      return;
+    }
+    if (onCreateTaskDirect) {
+      onCreateTaskDirect(projectId);
+    } else {
+      onQuickAdd('task', projectId);
+    }
   };
 
   const guardedUpdateProject = (
@@ -6392,37 +6405,17 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               <button
                                 type="button"
                                 data-testid={`project-empty-add-task-btn-${group.project.id}`}
-                                onClick={() => guardedQuickAdd('task', group.project.id)}
-                                className="px-2.5 py-1 text-[11px] font-semibold rounded bg-white dark:bg-zinc-800 border border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-700 transition cursor-pointer flex items-center gap-1 shadow-xs"
-                                title="Crear primera tarea en este proyecto"
+                                onClick={() => guardedCreateTaskDirect(group.project.id)}
+                                className="px-2 py-1 text-[11px] font-semibold rounded text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:bg-indigo-50/80 dark:hover:bg-indigo-950/50 transition cursor-pointer flex items-center gap-1"
+                                title={
+                                  targetRel
+                                    ? `Crear nueva tarea en ${group.project.name} (Release ${targetRel.code})`
+                                    : `Crear primera tarea en ${group.project.name}`
+                                }
                               >
-                                <Plus className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                                <span>+ Nueva Tarea</span>
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>Nueva Tarea</span>
                               </button>
-                              {group.project.releaseId && onCreateDigiTask && (
-                                <>
-                                  <button
-                                    type="button"
-                                    data-testid={`project-empty-add-digi-btn-${group.project.id}`}
-                                    onClick={() => guardedCreateDigiTask(group.project, 'DIGI')}
-                                    className="px-2.5 py-1 text-[11px] font-semibold rounded bg-[#0C0C09] hover:bg-[#312C85] dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-[#0C0C09] transition cursor-pointer flex items-center gap-1 shadow-xs font-mono"
-                                    title="Crear tarea DIGI automática cubriendo toda la release asignada"
-                                  >
-                                    <span>🚀</span>
-                                    <span>+ Tarea DIGI ({targetRel?.code || group.project.releaseId})</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    data-testid={`project-empty-add-scr-btn-${group.project.id}`}
-                                    onClick={() => guardedCreateDigiTask(group.project, 'SCR')}
-                                    className="px-2.5 py-1 text-[11px] font-semibold rounded bg-indigo-600 hover:bg-indigo-500 text-white transition cursor-pointer flex items-center gap-1 shadow-xs font-mono"
-                                    title="Crear tarea SCR automática cubriendo toda la release asignada"
-                                  >
-                                    <span>🚀</span>
-                                    <span>+ Tarea SCR ({targetRel?.code || group.project.releaseId})</span>
-                                  </button>
-                                </>
-                              )}
                             </div>
                           </div>
                         );
@@ -6446,15 +6439,15 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               <button
                                 type="button"
                                 data-testid={`project-footer-add-task-btn-${group.project.id}`}
-                                onClick={() => guardedQuickAdd('task', group.project.id)}
-                                className="px-2.5 py-1 text-[11px] font-semibold rounded bg-white dark:bg-zinc-800 border border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-700 transition cursor-pointer flex items-center gap-1 shadow-xs"
+                                onClick={() => guardedCreateTaskDirect(group.project.id)}
+                                className="px-2 py-1 text-[11px] font-semibold rounded text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:bg-indigo-50/80 dark:hover:bg-indigo-950/50 transition cursor-pointer flex items-center gap-1"
                                 title={
                                   targetRel
                                     ? `Crear nueva tarea en ${group.project.name} (Release ${targetRel.code})`
                                     : `Crear nueva tarea al final de ${group.project.name}`
                                 }
                               >
-                                <Plus className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                                <Plus className="w-3.5 h-3.5" />
                                 <span>Nueva Tarea</span>
                               </button>
                             </div>
