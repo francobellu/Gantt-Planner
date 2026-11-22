@@ -10,10 +10,18 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.10.13',
+    date: '22 Nov 2026',
+    title: 'Checkbox de selección múltiple visible solo con Ctrl/Cmd+Clic',
+    isLatest: true,
+    features: [
+      'El checkbox de selección múltiple en filas de proyecto y tarea solo se muestra cuando el elemento está seleccionado mediante Ctrl/Cmd+Clic',
+    ],
+  },
+  {
     version: '1.10.12',
     date: '22 Nov 2026',
     title: 'Evitar recorte de insignias en filas de proyecto y tarea',
-    isLatest: true,
     features: [
       'Permite que el contenedor del nombre de proyecto y tarea encoja (min-w-0 shrink) en reposo para que las insignias como \'X ítems\' o indicadores de hito nunca queden recortadas',
     ],

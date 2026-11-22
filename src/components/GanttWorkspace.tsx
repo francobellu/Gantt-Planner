@@ -5813,28 +5813,22 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 isProjectNameExpanded ? '' : 'overflow-hidden'
                               }`}
                             >
-                              {/* Multi-select checkbox for project */}
-                              <button
-                                type="button"
-                                data-testid={`multi-select-project-${group.project.id}`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  toggleMultiSelectProject(group.project.id, e.shiftKey);
-                                }}
-                                title={
-                                  isProjectMultiSelected
-                                    ? 'Quitar proyecto de la selección múltiple'
-                                    : 'Seleccionar proyecto para mover junto a otros elementos (o Cmd/Ctrl+Clic)'
-                                }
-                                aria-label={`Seleccionar proyecto ${group.project.name}`}
-                                className={`w-3.5 h-3.5 rounded-[2px] border flex items-center justify-center shrink-0 transition cursor-pointer ${
-                                  isProjectMultiSelected
-                                    ? 'bg-indigo-600 border-indigo-600 text-white'
-                                    : 'border-slate-300 dark:border-zinc-600 bg-white/80 dark:bg-zinc-900 opacity-50 group-hover:opacity-100 hover:border-indigo-500'
-                                }`}
-                              >
-                                {isProjectMultiSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
-                              </button>
+                              {/* Multi-select checkbox for project (only visible when selected via Ctrl/Cmd+Click) */}
+                              {isProjectMultiSelected && (
+                                <button
+                                  type="button"
+                                  data-testid={`multi-select-project-${group.project.id}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleMultiSelectProject(group.project.id, e.shiftKey);
+                                  }}
+                                  title="Quitar proyecto de la selección múltiple"
+                                  aria-label={`Quitar selección del proyecto ${group.project.name}`}
+                                  className="w-3.5 h-3.5 rounded-[2px] border flex items-center justify-center shrink-0 transition cursor-pointer bg-indigo-600 border-indigo-600 text-white"
+                                >
+                                  <Check className="w-2.5 h-2.5 stroke-[3]" />
+                                </button>
+                              )}
                               {/* Drag handle for project reordering */}
                               <span
                                 data-testid={`project-drag-handle-${group.project.id}`}
@@ -6389,28 +6383,22 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 : 'overflow-hidden'
                             }`}
                           >
-                            {/* Multi-select checkbox for task/milestone */}
-                            <button
-                              type="button"
-                              data-testid={`multi-select-item-${item.id}`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleMultiSelectItem(item.id, e.shiftKey);
-                              }}
-                              title={
-                                isMultiSelectedItem
-                                  ? 'Quitar de la selección múltiple'
-                                  : 'Seleccionar para mover junto a otras tareas/proyectos (o Cmd/Ctrl+Clic)'
-                              }
-                              aria-label={`Seleccionar ${item.name}`}
-                              className={`w-3.5 h-3.5 rounded-[2px] border flex items-center justify-center shrink-0 transition cursor-pointer ${
-                                isMultiSelectedItem
-                                  ? 'bg-indigo-600 border-indigo-600 text-white'
-                                  : 'border-slate-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 opacity-35 group-hover:opacity-100 hover:border-indigo-500'
-                              }`}
-                            >
-                              {isMultiSelectedItem && <Check className="w-2.5 h-2.5 stroke-[3]" />}
-                            </button>
+                            {/* Multi-select checkbox for task/milestone (only visible when selected via Ctrl/Cmd+Click) */}
+                            {isMultiSelectedItem && (
+                              <button
+                                type="button"
+                                data-testid={`multi-select-item-${item.id}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleMultiSelectItem(item.id, e.shiftKey);
+                                }}
+                                title="Quitar de la selección múltiple"
+                                aria-label={`Quitar selección de ${item.name}`}
+                                className="w-3.5 h-3.5 rounded-[2px] border flex items-center justify-center shrink-0 transition cursor-pointer bg-indigo-600 border-indigo-600 text-white"
+                              >
+                                <Check className="w-2.5 h-2.5 stroke-[3]" />
+                              </button>
+                            )}
                             {/* Reorder grip handle and up/down arrows */}
                             <div className="flex items-center gap-0.5 shrink-0">
                               <span
