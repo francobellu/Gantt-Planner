@@ -5799,39 +5799,6 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               >
                                 <GripVertical className="w-3.5 h-3.5" />
                               </span>
-                              {/* Reorder project buttons within same release */}
-                              <div className="flex flex-col -space-y-1 shrink-0">
-                                <button
-                                  type="button"
-                                  disabled={isFirstInRelease}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    guardedReorderProject(group.project.id, 'up');
-                                  }}
-                                  className={`p-0.5 rounded-[2px] text-slate-500 hover:text-black dark:hover:text-white transition cursor-pointer ${
-                                    isFirstInRelease ? 'opacity-20 cursor-not-allowed hover:text-slate-500' : ''
-                                  }`}
-                                  title="Subir proyecto dentro de esta release"
-                                  data-testid={`project-reorder-up-${group.project.id}`}
-                                >
-                                  <ChevronUp className="w-3 h-3" />
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={isLastInRelease}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    guardedReorderProject(group.project.id, 'down');
-                                  }}
-                                  className={`p-0.5 rounded-[2px] text-slate-500 hover:text-black dark:hover:text-white transition cursor-pointer ${
-                                    isLastInRelease ? 'opacity-20 cursor-not-allowed hover:text-slate-500' : ''
-                                  }`}
-                                  title="Bajar proyecto dentro de esta release"
-                                  data-testid={`project-reorder-down-${group.project.id}`}
-                                >
-                                  <ChevronDown className="w-3 h-3" />
-                                </button>
-                              </div>
 
                               <button
                                 type="button"
@@ -6567,38 +6534,6 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               >
                                 <GripVertical className="w-3.5 h-3.5" />
                               </span>
-                              <div className="flex flex-col -space-y-1">
-                                <button
-                                  type="button"
-                                  disabled={isFirstInGroup}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    guardedReorderItem(item.id, 'up');
-                                  }}
-                                  className={`p-0.5 rounded-[2px] text-[#6B6B66] hover:text-[#0C0C09] dark:hover:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors ${
-                                    isFirstInGroup ? 'opacity-20 cursor-not-allowed hover:bg-transparent hover:text-[#6B6B66]' : ''
-                                  }`}
-                                  title="Subir posición (mover tarea arriba)"
-                                  data-move-up={item.id}
-                                >
-                                  <ChevronUp className="w-3 h-3" />
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={isLastInGroup}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    guardedReorderItem(item.id, 'down');
-                                  }}
-                                  className={`p-0.5 rounded-[2px] text-[#6B6B66] hover:text-[#0C0C09] dark:hover:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors ${
-                                    isLastInGroup ? 'opacity-20 cursor-not-allowed hover:bg-transparent hover:text-[#6B6B66]' : ''
-                                  }`}
-                                  title="Bajar posición (mover tarea abajo)"
-                                  data-move-down={item.id}
-                                >
-                                  <ChevronDown className="w-3 h-3" />
-                                </button>
-                              </div>
                             </div>
 
                             <span

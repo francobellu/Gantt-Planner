@@ -10,10 +10,18 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.10.10',
+    date: '22 Nov 2026',
+    title: 'Eliminación de botones chevron redundantes en proyectos y tareas',
+    isLatest: true,
+    features: [
+      'Se eliminan las flechas arriba/abajo redundantes en las filas de proyectos y tareas manteniendo el asa de arrastre flotante GripVertical',
+    ],
+  },
+  {
     version: '1.10.9',
     date: '22 Nov 2026',
     title: 'Arrastre visual flotante para filas de Proyecto',
-    isLatest: true,
     features: [
       'Se añade asa de arrastre y vista previa flotante siguiendo el puntero en las filas de proyecto',
       'Reordenamiento directo de proyectos dentro de la misma release mediante moveProject con indicador de destino antes/después',
