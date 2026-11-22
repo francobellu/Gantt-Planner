@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.10.20',
+    date: '22 Nov 2026',
+    title: 'Animación de colapso/expansión más lenta (450ms) y posición fija sin salto de scroll',
+    isLatest: true,
+    features: [
+      'Se añade animación de colapso de 450ms tanto en filas de tabla como en barras del cronograma antes de ocultar los hijos y se ralentiza la expansión a 450ms',
+      'Se fija la posición vertical de la barra colapsada mediante anclaje de scroll y espaciador inferior dinámico para evitar saltos al colapsar cerca del final',
+    ],
+  },
+  {
     version: '1.10.19',
     date: '22 Nov 2026',
     title: 'Animación sincronizada en tabla al colapsar y expandir',
-    isLatest: true,
     features: [
       'Las filas de la tabla utilizan posicionamiento vertical con transición suave en top y altura del contenedor para deslizarse sincronizadas con el cronograma al colapsar o expandir',
     ],

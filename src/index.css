@@ -49,7 +49,7 @@
 @keyframes ganttRowExpand {
   from {
     opacity: 0;
-    transform: translateY(-6px) scaleY(0.92);
+    transform: translateY(-8px) scaleY(0.9);
   }
   to {
     opacity: 1;
@@ -58,7 +58,48 @@
 }
 
 .animate-gantt-row-expand {
-  animation: ganttRowExpand 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: ganttRowExpand 450ms cubic-bezier(0.22, 1, 0.36, 1) both;
   transform-origin: top center;
+}
+
+@keyframes ganttRowCollapse {
+  from {
+    opacity: 1;
+    max-height: 60px;
+    transform: translateY(0) scaleY(1);
+  }
+  to {
+    opacity: 0;
+    max-height: 0px;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+    transform: translateY(-10px) scaleY(0.85);
+  }
+}
+
+.animate-gantt-row-collapse {
+  animation: ganttRowCollapse 450ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  transform-origin: top center;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+@keyframes ganttTimelineCollapse {
+  from {
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-28px) scaleY(0.65);
+  }
+}
+
+.animate-gantt-timeline-collapse {
+  animation: ganttTimelineCollapse 450ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  transform-origin: top center;
+  pointer-events: none;
 }
 

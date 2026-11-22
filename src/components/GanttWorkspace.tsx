@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   addDays,
   differenceInCalendarDays,
@@ -705,14 +705,50 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   );
   const expandAnimTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
+  const [recentlyCollapsedParentIds, setRecentlyCollapsedParentIds] = useState<Set<string>>(
+    () => new Set()
+  );
+  const collapseAnimTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  const collapseScrollAnchorRef = useRef<{
+    selector: string;
+    viewportTop: number;
+  } | null>(null);
+  const [collapseBottomSpacerPx, setCollapseBottomSpacerPx] = useState(0);
+
   useEffect(() => {
     return () => {
       expandAnimTimersRef.current.forEach((timer) => clearTimeout(timer));
       expandAnimTimersRef.current.clear();
+      collapseAnimTimersRef.current.forEach((timer) => clearTimeout(timer));
+      collapseAnimTimersRef.current.clear();
     };
   }, []);
 
+  const captureCollapseScrollAnchor = (selector: string) => {
+    if (typeof document === 'undefined' || typeof window === 'undefined') return;
+    const el = document.querySelector<HTMLElement>(selector);
+    if (!el) return;
+    collapseScrollAnchorRef.current = {
+      selector,
+      viewportTop: el.getBoundingClientRect().top,
+    };
+  };
+
   const triggerExpandAnimation = (parentKey: string) => {
+    const collapseTimer = collapseAnimTimersRef.current.get(parentKey);
+    if (collapseTimer) {
+      clearTimeout(collapseTimer);
+      collapseAnimTimersRef.current.delete(parentKey);
+      setRecentlyCollapsedParentIds((prev) => {
+        if (!prev.has(parentKey)) return prev;
+        const next = new Set(prev);
+        next.delete(parentKey);
+        return next;
+      });
+    }
+    setCollapseBottomSpacerPx(0);
+
     const existing = expandAnimTimersRef.current.get(parentKey);
     if (existing) clearTimeout(existing);
 
@@ -730,14 +766,51 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         return next;
       });
       expandAnimTimersRef.current.delete(parentKey);
-    }, 260);
+    }, 460);
     expandAnimTimersRef.current.set(parentKey, timer);
+  };
+
+  const triggerCollapseAnimation = (parentKey: string) => {
+    const expandTimer = expandAnimTimersRef.current.get(parentKey);
+    if (expandTimer) {
+      clearTimeout(expandTimer);
+      expandAnimTimersRef.current.delete(parentKey);
+      setRecentlyExpandedParentIds((prev) => {
+        if (!prev.has(parentKey)) return prev;
+        const next = new Set(prev);
+        next.delete(parentKey);
+        return next;
+      });
+    }
+
+    const existing = collapseAnimTimersRef.current.get(parentKey);
+    if (existing) clearTimeout(existing);
+
+    setRecentlyCollapsedParentIds((prev) => {
+      const next = new Set(prev);
+      next.add(parentKey);
+      return next;
+    });
+
+    const timer = setTimeout(() => {
+      setRecentlyCollapsedParentIds((prev) => {
+        if (!prev.has(parentKey)) return prev;
+        const next = new Set(prev);
+        next.delete(parentKey);
+        return next;
+      });
+      collapseAnimTimersRef.current.delete(parentKey);
+    }, 460);
+    collapseAnimTimersRef.current.set(parentKey, timer);
   };
 
   const handleToggleReleaseCollapse = (releaseId: string) => {
     const isCurrentlyCollapsed = collapsedReleaseIds.has(releaseId);
     if (isCurrentlyCollapsed) {
       triggerExpandAnimation(`rel:${releaseId}`);
+    } else {
+      captureCollapseScrollAnchor(`[data-release-summary-bar="${releaseId}"], [data-release-group="${releaseId}"]`);
+      triggerCollapseAnimation(`rel:${releaseId}`);
     }
     setCollapsedReleaseIds((prev) => {
       const next = new Set(prev);
@@ -752,8 +825,30 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       currentlyCollapsed ?? Boolean(projectsRef.current.find((p) => p.id === projectId)?.collapsed);
     if (isCollapsedNow) {
       triggerExpandAnimation(`proj:${projectId}`);
+    } else {
+      captureCollapseScrollAnchor(`[data-project-summary-bar="${projectId}"], [data-project-group="${projectId}"]`);
+      triggerCollapseAnimation(`proj:${projectId}`);
     }
     onToggleProjectCollapse?.(projectId);
+  };
+
+  const isRowCollapsing = (row: { kind: string; group: any }): boolean => {
+    if (recentlyCollapsedParentIds.size === 0) return false;
+    if (row.kind === 'project') {
+      const relKey = `rel:${row.group.project.releaseId || '__unassigned__'}`;
+      return recentlyCollapsedParentIds.has(relKey);
+    }
+    if (row.kind === 'add-project') {
+      return recentlyCollapsedParentIds.has(`rel:${row.group.release.id}`);
+    }
+    if (row.kind === 'empty-project' || row.kind === 'add-task' || row.kind === 'item') {
+      const relKey = `rel:${row.group.project.releaseId || '__unassigned__'}`;
+      return (
+        recentlyCollapsedParentIds.has(`proj:${row.group.project.id}`) ||
+        recentlyCollapsedParentIds.has(relKey)
+      );
+    }
+    return false;
   };
 
   const isRowJustExpanded = (row: { kind: string; group: any }): boolean => {
@@ -2927,14 +3022,14 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
           rowId: `release:${rg.release.id}`,
           group: rg,
         });
-        if (!collapsedReleaseIds.has(rg.release.id)) {
+        if (!collapsedReleaseIds.has(rg.release.id) || recentlyCollapsedParentIds.has(`rel:${rg.release.id}`)) {
           for (const group of rg.projectGroups) {
             rows.push({
               kind: 'project',
               rowId: `proj-${group.project.id}`,
               group,
             });
-            if (!group.project.collapsed) {
+            if (!group.project.collapsed || recentlyCollapsedParentIds.has(`proj:${group.project.id}`)) {
               if (group.items.length === 0) {
                 rows.push({
                   kind: 'empty-project',
@@ -2980,7 +3075,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
           rowId: `proj-${group.project.id}`,
           group,
         });
-        if (!group.project.collapsed) {
+        if (!group.project.collapsed || recentlyCollapsedParentIds.has(`proj:${group.project.id}`)) {
           if (group.items.length === 0) {
             rows.push({
               kind: 'empty-project',
@@ -3033,6 +3128,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     groupingMode,
     releases,
     collapsedReleaseIds,
+    recentlyCollapsedParentIds,
     groupByProject,
     visibleProjectGroups,
     effectiveItems,
@@ -3040,6 +3136,30 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     hiddenReleaseIds,
     focusRelatedSets,
   ]);
+
+  useLayoutEffect(() => {
+    const anchor = collapseScrollAnchorRef.current;
+    if (!anchor || typeof document === 'undefined' || typeof window === 'undefined') return;
+    const el = document.querySelector<HTMLElement>(anchor.selector);
+    if (!el) {
+      collapseScrollAnchorRef.current = null;
+      return;
+    }
+    const newTop = el.getBoundingClientRect().top;
+    const delta = newTop - anchor.viewportTop;
+    const desiredScrollY = Math.max(0, window.scrollY + delta);
+    const maxScrollY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+
+    if (desiredScrollY > maxScrollY + 1) {
+      setCollapseBottomSpacerPx((prev) => prev + Math.ceil(desiredScrollY - maxScrollY) + 16);
+      return;
+    }
+
+    if (Math.abs(delta) > 0.5) {
+      window.scrollTo(window.scrollX, desiredScrollY);
+    }
+    collapseScrollAnchorRef.current = null;
+  }, [displayRows, recentlyCollapsedParentIds, collapseBottomSpacerPx]);
 
   const isAnyRowOrProjectDragging = Boolean(draggingRowId || draggingProjectId);
 
@@ -4777,7 +4897,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   }, [depDragState, itemRowMap, enrichedItemById, items]);
 
   const totalCanvasWidth = timelineDays.length * dayWidth;
-  const totalCanvasHeight = Math.max(displayRows.length * ROW_HEIGHT + 56, 360);
+  const totalCanvasHeight = Math.max(displayRows.length * ROW_HEIGHT + 56, 360) + collapseBottomSpacerPx;
 
   // Group and tier milestone vertical guides to avoid label collision when dates coincide or are adjacent
   const milestoneGuides = useMemo(() => {
@@ -5915,7 +6035,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     {displayRows.length > 0 && (
                       <div
                         style={{ height: displayRows.length * ROW_HEIGHT, minWidth: tableMinWidth }}
-                        className="relative transition-[height] duration-200 ease-out"
+                        className="relative transition-[height] duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
                       >
                         {displayRows.map((row, rowIndex) => {
                       const rowShiftY = rowDragShiftYByRowId.get(row.rowId) || 0;
@@ -5924,9 +6044,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         : undefined;
                       const rowShiftClass = isAnyRowOrProjectDragging
                         ? 'transition-transform duration-200 ease-out'
-                        : 'transition-[top] duration-200 ease-out';
+                        : 'transition-[top] duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)]';
 
-                      const rowExpandClass = isRowJustExpanded(row)
+                      const rowExpandClass = isRowCollapsing(row)
+                        ? 'animate-gantt-row-collapse'
+                        : isRowJustExpanded(row)
                         ? 'animate-gantt-row-expand'
                         : '';
 
@@ -7957,8 +8079,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   : undefined;
                 const timelineRowShiftClass = isAnyRowOrProjectDragging
                   ? 'transition-transform duration-200 ease-out'
-                  : 'transition-[top] duration-200 ease-out';
-                const timelineRowExpandClass = isRowJustExpanded(row)
+                  : 'transition-[top] duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)]';
+                const timelineRowExpandClass = isRowCollapsing(row)
+                  ? 'animate-gantt-timeline-collapse'
+                  : isRowJustExpanded(row)
                   ? 'animate-gantt-row-expand'
                   : '';
 
@@ -8018,15 +8142,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         }}
                         onDoubleClick={(e) => {
                           e.stopPropagation();
-                          setCollapsedReleaseIds((prev) => {
-                            const next = new Set(prev);
-                            if (next.has(rGroup.release.id)) {
-                              next.delete(rGroup.release.id);
-                            } else {
-                              next.add(rGroup.release.id);
-                            }
-                            return next;
-                          });
+                          handleToggleReleaseCollapse(rGroup.release.id);
                         }}
                         className="relative z-20 h-full flex flex-col justify-start pt-1 pointer-events-auto cursor-pointer group overflow-visible select-none"
                         title={`${rGroup.release.name}: ${effectiveStartDate} → ${effectiveEndDate} (${spanDays}d · Duración completa de la release · Acotado hasta su último hito: ${effectiveEndDate} · Clic para seleccionar release en diagrama, doble clic para colapsar)`}
