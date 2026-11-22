@@ -1498,8 +1498,6 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   const [newProjectReleaseId, setNewProjectReleaseId] = useState<string>(
     () => releases[0]?.id || 'rel-t-26-12-1'
   );
-  const [inlineReleaseProjectTargetId, setInlineReleaseProjectTargetId] = useState<string | null>(null);
-  const [inlineReleaseProjectName, setInlineReleaseProjectName] = useState<string>('');
   const newProjectFormRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -5557,27 +5555,135 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
           <>
             <div
               style={{ width: splitWidth }}
-              className="shrink-0 flex flex-col border-r border-[#0C0C09] dark:border-zinc-800 bg-white dark:bg-[#0C0C09] overflow-hidden select-none"
+              className="relative shrink-0 flex flex-col border-r border-[#0C0C09] dark:border-zinc-800 bg-white dark:bg-[#0C0C09] overflow-hidden select-none"
             >
+              {/* Botón de Columnas siempre visible a la izquierda del separador */}
+              <div
+                style={{ height: HEADER_HEIGHT }}
+                className="absolute top-0 right-0 z-30 flex items-center justify-center pr-2 pl-1.5 bg-[#F4F4F1] dark:bg-[#18181b] border-b border-[#0C0C09] dark:border-zinc-800"
+              >
+                <div ref={columnsMenuRef} className="relative" data-dropdown-container="true">
+                  <button
+                    type="button"
+                    onClick={() => setShowColumnsMenu((prev) => !prev)}
+                    className="p-1 rounded-[4px] hover:bg-black/5 dark:hover:bg-white/10 text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09] dark:hover:text-white transition cursor-pointer"
+                    aria-label="Configurar columnas"
+                    title="Columnas visibles"
+                  >
+                    <SlidersHorizontal className="w-3.5 h-3.5" />
+                  </button>
+
+                  {showColumnsMenu && (
+                    <div className="absolute right-0 top-8 w-44 p-1.5 bg-white dark:bg-zinc-900 border border-[#0C0C09] dark:border-zinc-700 rounded-[4px] shadow-xl z-50 text-xs flex flex-col gap-1">
+                      <div className="px-2 py-1 text-[10px] font-mono font-bold uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400 border-b border-[#E2E2DC] dark:border-zinc-800">
+                        Mostrar Columnas
+                      </div>
+                      <label className="flex items-center gap-2 px-2 py-1 rounded-[2px] hover:bg-[#F4F4F1] dark:hover:bg-zinc-800/60 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={visibleColumns.team}
+                          onChange={() => toggleVisibleColumn('team')}
+                          className="rounded-[2px] border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09]"
+                        />
+                        <span className="text-[#0C0C09] dark:text-zinc-300 font-medium">Equipo</span>
+                      </label>
+                      <label className="flex items-center gap-2 px-2 py-1 rounded-[2px] hover:bg-[#F4F4F1] dark:hover:bg-zinc-800/60 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={visibleColumns.dates}
+                          onChange={() => toggleVisibleColumn('dates')}
+                          className="rounded-[2px] border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09]"
+                        />
+                        <span className="text-[#0C0C09] dark:text-zinc-300 font-medium">Fechas</span>
+                      </label>
+                      <label className="flex items-center gap-2 px-2 py-1 rounded-[2px] hover:bg-[#F4F4F1] dark:hover:bg-zinc-800/60 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={visibleColumns.dur}
+                          onChange={() => toggleVisibleColumn('dur')}
+                          className="rounded-[2px] border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09]"
+                        />
+                        <span className="text-[#0C0C09] dark:text-zinc-300 font-medium">Duración</span>
+                      </label>
+                      <label className="flex items-center gap-2 px-2 py-1 rounded-[2px] hover:bg-[#F4F4F1] dark:hover:bg-zinc-800/60 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={visibleColumns.slack}
+                          onChange={() => toggleVisibleColumn('slack')}
+                          className="rounded-[2px] border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09]"
+                        />
+                        <span className="text-[#0C0C09] dark:text-zinc-300 font-medium">Slack</span>
+                      </label>
+                      <label className="flex items-center gap-2 px-2 py-1 rounded-[2px] hover:bg-[#F4F4F1] dark:hover:bg-zinc-800/60 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={visibleColumns.deps}
+                          onChange={() => toggleVisibleColumn('deps')}
+                          className="rounded-[2px] border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09]"
+                        />
+                        <span className="text-[#0C0C09] dark:text-zinc-300 font-medium">Dependencias</span>
+                      </label>
+
+                      {/* Configuración de Truncamiento de Nombres */}
+                      <div className="pt-1.5 mt-1 border-t border-[#E2E2DC] dark:border-zinc-800 flex flex-col gap-1">
+                        <div className="px-2 text-[10px] font-mono font-bold uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400">
+                          Truncar Nombres
+                        </div>
+                        <div className="flex items-center justify-between px-2 py-0.5 gap-2">
+                          <span className="text-[11px] text-[#0C0C09] dark:text-zinc-300">Límite car.:</span>
+                          <input
+                            type="number"
+                            min={10}
+                            max={120}
+                            data-testid="columns-truncate-input"
+                            value={effectiveTruncateLimit}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value, 10);
+                              if (Number.isFinite(val)) {
+                                handleUpdateTruncateLimit(val);
+                              }
+                            }}
+                            className="w-14 px-1 py-0.5 rounded border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[11px] font-mono text-center font-bold"
+                          />
+                        </div>
+                        <div className="flex items-center justify-between px-2 pt-0.5 pb-1 gap-1">
+                          {[25, 37, 50, 75].map((preset) => (
+                            <button
+                              key={preset}
+                              type="button"
+                              data-testid={`truncate-preset-btn-${preset}`}
+                              onClick={() => handleUpdateTruncateLimit(preset)}
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition cursor-pointer ${
+                                effectiveTruncateLimit === preset
+                                  ? 'bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09] font-bold'
+                                  : 'bg-[#F4F4F1] dark:bg-zinc-800 text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09]'
+                              }`}
+                            >
+                              {preset}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="overflow-x-auto flex-1 flex flex-col">
                 <div className="min-w-full flex-1 flex flex-col">
                   {/* Minimalist Table Header (matches timeline HEADER_HEIGHT = 60px) */}
                   <div
                     ref={tableHeaderRef}
+                    data-testid="wbs-table-header"
                     style={{ height: HEADER_HEIGHT, minWidth: tableMinWidth }}
                     className="flex items-center justify-between px-3 bg-[#F4F4F1] dark:bg-[#18181b] border-b border-[#0C0C09] dark:border-zinc-800 text-[10px] font-mono font-bold uppercase tracking-wider text-[#0C0C09] dark:text-zinc-300 shrink-0 select-none shadow-xs sticky top-0 z-20"
                   >
                     <div
                       style={{ width: nameColumnWidth }}
                       className="flex items-center gap-2 shrink-0"
-                    >
-                        <span className="w-16 font-mono text-center shrink-0"># / Orden</span>
-                        <span className="font-semibold">
-                          Nombre{visibleColumns.team ? ' / Equipo' : ''}
-                        </span>
-                      </div>
+                    />
 
-                    {/* Column Titles & Icon-Only Configurator */}
+                    {/* Column Titles */}
                     <div className="flex items-center shrink-0">
                       {visibleColumns.dates && (
                         <span className="w-44 text-center text-[10px] font-mono text-[#6B6B66] dark:text-zinc-400 uppercase font-bold">
@@ -5603,114 +5709,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         </span>
                       )}
 
-                      {/* Botón de Columnas: SOLO ICONO VECTORIAL (sin texto) */}
-                      <div className="w-36 flex items-center justify-end pr-1 gap-1">
-                        <div ref={columnsMenuRef} className="relative" data-dropdown-container="true">
-                          <button
-                            type="button"
-                            onClick={() => setShowColumnsMenu((prev) => !prev)}
-                            className="p-1 rounded-[4px] hover:bg-black/5 dark:hover:bg-white/10 text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09] dark:hover:text-white transition cursor-pointer"
-                            aria-label="Configurar columnas"
-                            title="Columnas visibles"
-                          >
-                            <SlidersHorizontal className="w-3.5 h-3.5" />
-                          </button>
-
-                          {showColumnsMenu && (
-                            <div className="absolute right-0 top-8 w-44 p-1.5 bg-white dark:bg-zinc-900 border border-[#0C0C09] dark:border-zinc-700 rounded-[4px] shadow-xl z-50 text-xs flex flex-col gap-1">
-                              <div className="px-2 py-1 text-[10px] font-mono font-bold uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400 border-b border-[#E2E2DC] dark:border-zinc-800">
-                                Mostrar Columnas
-                              </div>
-                              <label className="flex items-center gap-2 px-2 py-1 rounded-[2px] hover:bg-[#F4F4F1] dark:hover:bg-zinc-800/60 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={visibleColumns.team}
-                                  onChange={() => toggleVisibleColumn('team')}
-                                  className="rounded-[2px] border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09]"
-                                />
-                                <span className="text-[#0C0C09] dark:text-zinc-300 font-medium">Equipo</span>
-                              </label>
-                              <label className="flex items-center gap-2 px-2 py-1 rounded-[2px] hover:bg-[#F4F4F1] dark:hover:bg-zinc-800/60 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={visibleColumns.dates}
-                                  onChange={() => toggleVisibleColumn('dates')}
-                                  className="rounded-[2px] border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09]"
-                                />
-                                <span className="text-[#0C0C09] dark:text-zinc-300 font-medium">Fechas</span>
-                              </label>
-                              <label className="flex items-center gap-2 px-2 py-1 rounded-[2px] hover:bg-[#F4F4F1] dark:hover:bg-zinc-800/60 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={visibleColumns.dur}
-                                  onChange={() => toggleVisibleColumn('dur')}
-                                  className="rounded-[2px] border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09]"
-                                />
-                                <span className="text-[#0C0C09] dark:text-zinc-300 font-medium">Duración</span>
-                              </label>
-                              <label className="flex items-center gap-2 px-2 py-1 rounded-[2px] hover:bg-[#F4F4F1] dark:hover:bg-zinc-800/60 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={visibleColumns.slack}
-                                  onChange={() => toggleVisibleColumn('slack')}
-                                  className="rounded-[2px] border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09]"
-                                />
-                                <span className="text-[#0C0C09] dark:text-zinc-300 font-medium">Slack</span>
-                              </label>
-                              <label className="flex items-center gap-2 px-2 py-1 rounded-[2px] hover:bg-[#F4F4F1] dark:hover:bg-zinc-800/60 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={visibleColumns.deps}
-                                  onChange={() => toggleVisibleColumn('deps')}
-                                  className="rounded-[2px] border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09]"
-                                />
-                                <span className="text-[#0C0C09] dark:text-zinc-300 font-medium">Dependencias</span>
-                              </label>
-
-                              {/* Configuración de Truncamiento de Nombres */}
-                              <div className="pt-1.5 mt-1 border-t border-[#E2E2DC] dark:border-zinc-800 flex flex-col gap-1">
-                                <div className="px-2 text-[10px] font-mono font-bold uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400">
-                                  Truncar Nombres
-                                </div>
-                                <div className="flex items-center justify-between px-2 py-0.5 gap-2">
-                                  <span className="text-[11px] text-[#0C0C09] dark:text-zinc-300">Límite car.:</span>
-                                  <input
-                                    type="number"
-                                    min={10}
-                                    max={120}
-                                    data-testid="columns-truncate-input"
-                                    value={effectiveTruncateLimit}
-                                    onChange={(e) => {
-                                      const val = parseInt(e.target.value, 10);
-                                      if (Number.isFinite(val)) {
-                                        handleUpdateTruncateLimit(val);
-                                      }
-                                    }}
-                                    className="w-14 px-1 py-0.5 rounded border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[11px] font-mono text-center font-bold"
-                                  />
-                                </div>
-                                <div className="flex items-center justify-between px-2 pt-0.5 pb-1 gap-1">
-                                  {[25, 37, 50, 75].map((preset) => (
-                                    <button
-                                      key={preset}
-                                      type="button"
-                                      data-testid={`truncate-preset-btn-${preset}`}
-                                      onClick={() => handleUpdateTruncateLimit(preset)}
-                                      className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition cursor-pointer ${
-                                        effectiveTruncateLimit === preset
-                                          ? 'bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09] font-bold'
-                                          : 'bg-[#F4F4F1] dark:bg-zinc-800 text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09]'
-                                      }`}
-                                    >
-                                      {preset}
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                      {/* Spacer matching w-28 action column */}
+                      <div className="w-28 shrink-0 pr-1" />
                     </div>
                   </div>
 
@@ -6457,7 +6457,6 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
                       if (row.kind === 'add-project') {
                         const { group: rGroup } = row;
-                        const isInlineEditing = inlineReleaseProjectTargetId === rGroup.release.id;
                         return (
                           <div
                             key={row.rowId}
@@ -6469,76 +6468,27 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 : 'border-b-0'
                             } pl-6`}
                           >
-                            {isInlineEditing ? (
-                              <form
-                                onSubmit={(e) => {
-                                  e.preventDefault();
-                                  const trimmed = inlineReleaseProjectName.trim();
-                                  if (!trimmed) return;
+                            <div className="flex items-center gap-2 pr-3 shrink-0">
+                              <button
+                                type="button"
+                                data-testid={`release-add-project-btn-${rGroup.release.id}`}
+                                onClick={() =>
                                   onCreateProject?.({
                                     id: `proj-${Date.now()}`,
-                                    name: trimmed,
+                                    name: 'Nuevo Proyecto',
                                     color: 'indigo',
                                     releaseId: rGroup.release.id,
                                     collapsed: false,
                                     isDemo: false,
-                                  });
-                                  setInlineReleaseProjectTargetId(null);
-                                  setInlineReleaseProjectName('');
-                                }}
-                                className="flex items-center gap-2 w-full pr-3"
+                                  })
+                                }
+                                className="px-2 py-1 text-[11px] font-semibold rounded text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:bg-indigo-50/80 dark:hover:bg-indigo-950/50 transition cursor-pointer flex items-center gap-1"
+                                title={`Crear nuevo proyecto en ${rGroup.release.code}`}
                               >
-                                <input
-                                  type="text"
-                                  autoFocus
-                                  data-testid={`release-add-project-input-${rGroup.release.id}`}
-                                  value={inlineReleaseProjectName}
-                                  onChange={(e) => setInlineReleaseProjectName(e.target.value)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Escape') {
-                                      setInlineReleaseProjectTargetId(null);
-                                      setInlineReleaseProjectName('');
-                                    }
-                                  }}
-                                  placeholder={`Nombre del nuevo proyecto en ${rGroup.release.code}...`}
-                                  className="flex-1 min-w-[180px] px-2.5 py-1 text-xs rounded border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[#0C0C09] dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 outline-none focus:ring-1 focus:ring-indigo-500"
-                                />
-                                <button
-                                  type="submit"
-                                  disabled={!inlineReleaseProjectName.trim()}
-                                  data-testid={`release-add-project-submit-${rGroup.release.id}`}
-                                  className="px-3 py-1 text-[11px] font-semibold rounded bg-[#0C0C09] hover:bg-[#312C85] dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-[#0C0C09] transition disabled:opacity-40 cursor-pointer"
-                                >
-                                  Crear
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setInlineReleaseProjectTargetId(null);
-                                    setInlineReleaseProjectName('');
-                                  }}
-                                  className="px-2.5 py-1 text-[11px] font-medium rounded border border-[#E2E2DC] dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition cursor-pointer"
-                                >
-                                  Cancelar
-                                </button>
-                              </form>
-                            ) : (
-                              <div className="flex items-center gap-2 pr-3 shrink-0">
-                                <button
-                                  type="button"
-                                  data-testid={`release-add-project-btn-${rGroup.release.id}`}
-                                  onClick={() => {
-                                    setInlineReleaseProjectTargetId(rGroup.release.id);
-                                    setInlineReleaseProjectName('');
-                                  }}
-                                  className="px-2.5 py-1 text-[11px] font-semibold rounded bg-white dark:bg-zinc-800 border border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-700 transition cursor-pointer flex items-center gap-1 shadow-xs"
-                                  title={`Crear nuevo proyecto en ${rGroup.release.code}`}
-                                >
-                                  <Plus className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                                  <span>Nuevo Proyecto</span>
-                                </button>
-                              </div>
-                            )}
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>Nuevo Proyecto</span>
+                              </button>
+                            </div>
                           </div>
                         );
                       }
@@ -8243,16 +8193,16 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         </div>
 
                         {/* Classic Gantt Project Summary Bracket Bar */}
-                        <div className="relative h-3 rounded-t-[2px] bg-[#0C0C09] dark:bg-zinc-200 overflow-visible shadow-none">
+                        <div className={`relative h-3 rounded-t-[2px] ${projTheme.badge} overflow-visible shadow-none`}>
                           {/* Progress Fill Inside Project Summary Bar */}
                           <div
                             style={{ width: `${group.progress}%` }}
                             className={`h-full rounded-tl-[2px] transition-all ${projTheme.fillBg}`}
                           />
                           {/* Left Bracket Downward Cap */}
-                          <div className="absolute -bottom-1.5 left-0 w-2 h-2 bg-[#0C0C09] dark:bg-zinc-200 clip-path-bracket-left" />
+                          <div className={`absolute -bottom-1.5 left-0 w-2 h-2 ${projTheme.badge} clip-path-bracket-left`} />
                           {/* Right Bracket Downward Cap */}
-                          <div className="absolute -bottom-1.5 right-0 w-2 h-2 bg-[#0C0C09] dark:bg-zinc-200 clip-path-bracket-right" />
+                          <div className={`absolute -bottom-1.5 right-0 w-2 h-2 ${projTheme.badge} clip-path-bracket-right`} />
                         </div>
                       </div>
                     </div>

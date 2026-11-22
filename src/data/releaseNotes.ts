@@ -10,10 +10,20 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.10.17',
+    date: '22 Nov 2026',
+    title: 'Nuevo Proyecto sin borde, cabecera fija y barra de proyecto coloreada',
+    isLatest: true,
+    features: [
+      'El botón Nuevo Proyecto adopta el estilo sin borde en índigo y crea directamente el proyecto heredando la release padre',
+      'Botón de configuración de columnas fijado a la izquierda del separador y eliminación de textos # / Orden y Nombre',
+      'La barra de resumen de proyecto en el cronograma usa el mismo color asignado al proyecto en la tabla',
+    ],
+  },
+  {
     version: '1.10.16',
     date: '22 Nov 2026',
     title: 'Botón Nueva Tarea sin borde, creación directa y limpieza de botones DIGI/SCR',
-    isLatest: true,
     features: [
       'El botón Nueva Tarea pasa a mostrarse sin borde y con texto coloreado en índigo',
       'Al hacer clic crea directamente una tarea heredando automáticamente el proyecto y la release padres',
