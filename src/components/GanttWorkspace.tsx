@@ -700,6 +700,88 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     } catch {}
   }, [collapsedReleaseIds]);
 
+  const [recentlyExpandedParentIds, setRecentlyExpandedParentIds] = useState<Set<string>>(
+    () => new Set()
+  );
+  const expandAnimTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  useEffect(() => {
+    return () => {
+      expandAnimTimersRef.current.forEach((timer) => clearTimeout(timer));
+      expandAnimTimersRef.current.clear();
+    };
+  }, []);
+
+  const triggerExpandAnimation = (parentKey: string) => {
+    const existing = expandAnimTimersRef.current.get(parentKey);
+    if (existing) clearTimeout(existing);
+
+    setRecentlyExpandedParentIds((prev) => {
+      const next = new Set(prev);
+      next.add(parentKey);
+      return next;
+    });
+
+    const timer = setTimeout(() => {
+      setRecentlyExpandedParentIds((prev) => {
+        if (!prev.has(parentKey)) return prev;
+        const next = new Set(prev);
+        next.delete(parentKey);
+        return next;
+      });
+      expandAnimTimersRef.current.delete(parentKey);
+    }, 260);
+    expandAnimTimersRef.current.set(parentKey, timer);
+  };
+
+  const handleToggleReleaseCollapse = (releaseId: string) => {
+    const isCurrentlyCollapsed = collapsedReleaseIds.has(releaseId);
+    if (isCurrentlyCollapsed) {
+      triggerExpandAnimation(`rel:${releaseId}`);
+    }
+    setCollapsedReleaseIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(releaseId)) next.delete(releaseId);
+      else next.add(releaseId);
+      return next;
+    });
+  };
+
+  const handleToggleProjectCollapse = (projectId: string, currentlyCollapsed?: boolean) => {
+    const isCollapsedNow =
+      currentlyCollapsed ?? Boolean(projectsRef.current.find((p) => p.id === projectId)?.collapsed);
+    if (isCollapsedNow) {
+      triggerExpandAnimation(`proj:${projectId}`);
+    }
+    onToggleProjectCollapse?.(projectId);
+  };
+
+  const isRowJustExpanded = (row: { kind: string; group: any }): boolean => {
+    if (recentlyExpandedParentIds.size === 0) return false;
+    if (row.kind === 'project') {
+      const relKey = `rel:${row.group.project.releaseId || '__unassigned__'}`;
+      return recentlyExpandedParentIds.has(relKey);
+    }
+    if (row.kind === 'add-project') {
+      return recentlyExpandedParentIds.has(`rel:${row.group.release.id}`);
+    }
+    if (row.kind === 'empty-project' || row.kind === 'add-task') {
+      const relKey = `rel:${row.group.project.releaseId || '__unassigned__'}`;
+      return (
+        recentlyExpandedParentIds.has(`proj:${row.group.project.id}`) ||
+        recentlyExpandedParentIds.has(relKey)
+      );
+    }
+    if (row.kind === 'item') {
+      const relKey = `rel:${row.group.project.releaseId || '__unassigned__'}`;
+      return (
+        recentlyExpandedParentIds.has(`proj:${row.group.project.id}`) ||
+        recentlyExpandedParentIds.has(relKey)
+      );
+    }
+    return false;
+  };
+
   const [visibleMilestoneKeys, setVisibleMilestoneKeys] = useState<Set<string>>(() => {
     if (initialVisibleMilestoneKeys) {
       return new Set(initialVisibleMilestoneKeys.map((k) => k.toLowerCase()));
@@ -5839,6 +5921,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         ? 'transition-transform duration-200 ease-out'
                         : '';
 
+                      const rowExpandClass = isRowJustExpanded(row)
+                        ? 'animate-gantt-row-expand'
+                        : '';
+
                       if (row.kind === 'release') {
                         const { group: rGroup } = row;
                         const isCollapsed = collapsedReleaseIds.has(rGroup.release.id);
@@ -5861,21 +5947,14 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               <button
                                 type="button"
                                 data-testid={`toggle-collapse-release-${rGroup.release.id}`}
-                                onClick={() => {
-                                  setCollapsedReleaseIds((prev) => {
-                                    const next = new Set(prev);
-                                    if (next.has(rGroup.release.id)) next.delete(rGroup.release.id);
-                                    else next.add(rGroup.release.id);
-                                    return next;
-                                  });
-                                }}
+                                onClick={() => handleToggleReleaseCollapse(rGroup.release.id)}
                                 className="p-1 rounded hover:bg-white/10 dark:hover:bg-black/10 transition cursor-pointer shrink-0"
                               >
-                                {isCollapsed ? (
-                                  <ChevronRight className="w-4 h-4" />
-                                ) : (
-                                  <ChevronDown className="w-4 h-4" />
-                                )}
+                                <ChevronRight
+                                  className={`w-4 h-4 transition-transform duration-200 ease-out ${
+                                    isCollapsed ? 'rotate-0' : 'rotate-90'
+                                  }`}
+                                />
                               </button>
                               <span className="font-mono text-xs px-1.5 py-0.5 rounded bg-white/20 dark:bg-black/10 shrink-0">
                                 {rGroup.release.code}
@@ -6067,7 +6146,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             onDrop={(e) =>
                               handleDropRow(e, `project:${group.project.id}`)
                             }
-                            className={`group flex items-center justify-start px-3 text-xs font-semibold ${rowShiftClass} ${
+                            className={`group flex items-center justify-start px-3 text-xs font-semibold ${rowShiftClass} ${rowExpandClass} ${
                               showRowSeparators
                                 ? 'border-y border-slate-200/80 dark:border-zinc-800/80'
                                 : 'border-y-0'
@@ -6122,17 +6201,17 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
                               <button
                                 type="button"
-                                onClick={() => onToggleProjectCollapse?.(group.project.id)}
+                                onClick={() => handleToggleProjectCollapse(group.project.id, isCollapsed)}
                                 className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 shrink-0"
                                 title={
                                   isCollapsed ? 'Expandir proyecto' : 'Colapsar proyecto'
                                 }
                               >
-                                {isCollapsed ? (
-                                  <ChevronRight className="w-4 h-4" />
-                                ) : (
-                                  <ChevronDown className="w-4 h-4" />
-                                )}
+                                <ChevronRight
+                                  className={`w-4 h-4 transition-transform duration-200 ease-out ${
+                                    isCollapsed ? 'rotate-0' : 'rotate-90'
+                                  }`}
+                                />
                               </button>
 
                               <button
@@ -6395,7 +6474,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             key={row.rowId}
                             data-empty-project-row={group.project.id}
                             style={{ height: ROW_HEIGHT, minWidth: tableMinWidth, ...rowShiftStyle }}
-                            className={`flex items-center justify-start px-3 text-xs bg-indigo-50/20 dark:bg-zinc-900/40 ${rowShiftClass} ${
+                            className={`flex items-center justify-start px-3 text-xs bg-indigo-50/20 dark:bg-zinc-900/40 ${rowShiftClass} ${rowExpandClass} ${
                               showRowSeparators
                                 ? 'border-b border-[#E2E2DC] dark:border-zinc-800/60'
                                 : 'border-b-0'
@@ -6429,7 +6508,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             key={row.rowId}
                             data-add-task-row={group.project.id}
                             style={{ height: ROW_HEIGHT, minWidth: tableMinWidth, ...rowShiftStyle }}
-                            className={`flex items-center justify-start px-3 text-xs bg-slate-50/60 dark:bg-zinc-900/30 ${rowShiftClass} ${
+                            className={`flex items-center justify-start px-3 text-xs bg-slate-50/60 dark:bg-zinc-900/30 ${rowShiftClass} ${rowExpandClass} ${
                               showRowSeparators
                                 ? 'border-b border-[#E2E2DC] dark:border-zinc-800/60'
                                 : 'border-b-0'
@@ -6462,7 +6541,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             key={row.rowId}
                             data-add-project-row={rGroup.release.id}
                             style={{ height: ROW_HEIGHT, minWidth: tableMinWidth }}
-                            className={`flex items-center justify-start px-3 text-xs bg-indigo-50/20 dark:bg-zinc-900/40 ${
+                            className={`flex items-center justify-start px-3 text-xs bg-indigo-50/20 dark:bg-zinc-900/40 ${rowExpandClass} ${
                               showRowSeparators
                                 ? 'border-b border-[#E2E2DC] dark:border-zinc-800/60'
                                 : 'border-b-0'
@@ -6551,7 +6630,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           onDragOver={(e) => handleDragRowOver(e, item.id)}
                           onDragLeave={handleDragRowLeave}
                           onDrop={(e) => handleDropRow(e, item.id)}
-                          className={`group flex items-center justify-start px-3 text-xs transition-colors ${rowShiftClass} ${
+                          className={`group flex items-center justify-start px-3 text-xs transition-colors ${rowShiftClass} ${rowExpandClass} ${
                             showRowSeparators
                               ? 'border-b border-[#E2E2DC] dark:border-zinc-800'
                               : 'border-b-0'
@@ -7871,6 +7950,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   : undefined;
                 const timelineRowShiftClass = isAnyRowOrProjectDragging
                   ? 'transition-transform duration-200 ease-out'
+                  : 'transition-[top] duration-200 ease-out';
+                const timelineRowExpandClass = isRowJustExpanded(row)
+                  ? 'animate-gantt-row-expand'
                   : '';
 
                 if (row.kind === 'release') {
@@ -8022,7 +8104,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         }}
                         className={`absolute left-0 right-0 flex items-center pointer-events-none ${
                           draggingProjectId === group.project.id ? 'z-40' : 'z-20'
-                        } ${timelineRowShiftClass}`}
+                        } ${timelineRowShiftClass} ${timelineRowExpandClass}`}
                       >
                         <div
                           style={{ left: groupStartX, width: groupWidth }}
@@ -8041,7 +8123,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           }}
                           onDoubleClick={(e) => {
                             e.stopPropagation();
-                            onToggleProjectCollapse?.(group.project.id);
+                            handleToggleProjectCollapse(group.project.id, group.project.collapsed);
                           }}
                           title={`${group.project.name}${group.project.locked ? ' · 🔒 Bloqueado' : ''} (Sin tareas aún · ${targetRel ? `Release ${targetRel.code}` : 'Ventana estimada'}: ${formatDateDisplay(groupStartDateStr, 'dd MMM')} → ${formatDateDisplay(groupEndDateStr, 'dd MMM yyyy')} · Clic para seleccionar proyecto en diagrama)`}
                           className={`relative z-20 flex flex-col justify-center cursor-pointer pointer-events-auto group overflow-visible ${
@@ -8116,7 +8198,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       }}
                       className={`absolute left-0 right-0 flex items-center pointer-events-none ${
                         draggingProjectId === group.project.id ? 'z-40' : 'z-20'
-                      } ${timelineRowShiftClass}`}
+                      } ${timelineRowShiftClass} ${timelineRowExpandClass}`}
                     >
                       <div
                         style={{ left: groupStartX + projectSmoothOffsetX, width: groupWidth }}
@@ -8135,7 +8217,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         }}
                         onDoubleClick={(e) => {
                           e.stopPropagation();
-                          onToggleProjectCollapse?.(group.project.id);
+                          handleToggleProjectCollapse(group.project.id, group.project.collapsed);
                         }}
                         title={`${group.project.name}${group.project.locked ? ' · 🔒 Bloqueado' : ''}: ${formatDateDisplay(
                           group.startDate,
@@ -8296,8 +8378,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     } ${
                       isAnyRowOrProjectDragging
                         ? 'transition-[transform,opacity] duration-200 ease-out'
-                        : 'transition-opacity'
-                    } ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
+                        : 'transition-[top,opacity] duration-200 ease-out'
+                    } ${timelineRowExpandClass} ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
                   >
                     {item.type === 'milestone' ? (
                       <>

@@ -10,10 +10,20 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.10.18',
+    date: '22 Nov 2026',
+    title: 'Animación al colapsar y expandir releases y proyectos',
+    isLatest: true,
+    features: [
+      'Rotación suave del chevron en cabeceras de release y proyecto al colapsar o expandir',
+      'Animación progresiva de entrada en filas y barras al expandir',
+      'Desplazamiento vertical fluido en el cronograma al colapsar o expandir grupos',
+    ],
+  },
+  {
     version: '1.10.17',
     date: '22 Nov 2026',
     title: 'Nuevo Proyecto sin borde, cabecera fija y barra de proyecto coloreada',
-    isLatest: true,
     features: [
       'El botón Nuevo Proyecto adopta el estilo sin borde en índigo y crea directamente el proyecto heredando la release padre',
       'Botón de configuración de columnas fijado a la izquierda del separador y eliminación de textos # / Orden y Nombre',
