@@ -1755,44 +1755,61 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     return rawPos;
   };
 
-  const handleRowPointerMouseDown = (
-    e: React.MouseEvent,
+  const startTaskRowReorderDrag = (
     itemId: string,
-    fromGripHandle = false
+    startX: number,
+    startY: number,
+    opts?: {
+      rowRect?: DOMRect;
+      fromTimeline?: boolean;
+      immediateStart?: boolean;
+      clientX?: number;
+      clientY?: number;
+    }
   ) => {
-    if (e.button !== 0) return;
-    const targetEl = e.target as HTMLElement | null;
-    if (
-      !fromGripHandle &&
-      targetEl &&
-      targetEl.closest('input, button, select, textarea, a')
-    ) {
-      lastMouseDownInteractiveRef.current = true;
-      return;
-    }
-
-    lastMouseDownInteractiveRef.current = false;
-    // Prevent native HTML5 dragstart from hijacking pointer mousemove/mouseup events
-    e.preventDefault();
-    if (fromGripHandle) {
-      e.stopPropagation();
-    }
-
     cleanupPointerListenersRef.current?.();
 
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const rowEl = (e.currentTarget as HTMLElement).closest('[data-task-row]') as HTMLElement | null;
-    const rowRect = rowEl?.getBoundingClientRect();
+    const rowRect = opts?.rowRect;
+    const fromTimeline = Boolean(opts?.fromTimeline);
     const previewWidth = rowRect
       ? Math.min(Math.max(240, rowRect.width), Math.max(280, splitWidth - 16), 440)
       : 320;
     const grabOffsetX = rowRect
-      ? Math.min(Math.max(16, e.clientX - rowRect.left), previewWidth - 24)
+      ? Math.min(Math.max(16, startX - rowRect.left), previewWidth - 24)
       : 24;
     const grabOffsetY = rowRect
-      ? Math.min(Math.max(8, e.clientY - rowRect.top), ROW_HEIGHT - 8)
+      ? Math.min(Math.max(8, startY - rowRect.top), ROW_HEIGHT - 8)
       : ROW_HEIGHT / 2;
+
+    const initialScrollTop = scrollContainerRef.current?.scrollTop ?? 0;
+    const tableSnapshots = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-task-row], [data-project-group]')
+    ).map((node) => {
+      const rect = node.getBoundingClientRect();
+      return {
+        taskRowId: node.getAttribute('data-task-row'),
+        projGroupId: node.getAttribute('data-project-group'),
+        top: rect.top,
+        bottom: rect.bottom,
+        height: rect.height,
+      };
+    });
+    const timelineSnapshots =
+      tableSnapshots.length === 0
+        ? Array.from(
+            document.querySelectorAll<HTMLElement>('[data-timeline-bar-row]')
+          ).map((node) => {
+            const rect = node.getBoundingClientRect();
+            return {
+              taskRowId: node.getAttribute('data-timeline-bar-row'),
+              projGroupId: null as string | null,
+              top: rect.top,
+              bottom: rect.bottom,
+              height: rect.height,
+            };
+          })
+        : [];
+    const snapshots = tableSnapshots.length > 0 ? tableSnapshots : timelineSnapshots;
 
     const resetRowDragVisuals = () => {
       draggingRowIdRef.current = null;
@@ -1823,8 +1840,73 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       }
     };
 
+    const updateHitTarget = (clientX: number, clientY: number) => {
+      if (!fromTimeline) {
+        setDragRowPreview({
+          itemId,
+          x: clientX,
+          y: clientY,
+          offsetX: grabOffsetX,
+          offsetY: grabOffsetY,
+          width: previewWidth,
+        });
+      }
+
+      const scrollDelta = (scrollContainerRef.current?.scrollTop ?? 0) - initialScrollTop;
+      const moveY = clientY + scrollDelta;
+
+      let matched: (typeof snapshots)[number] | null = null;
+      let minDistance = Infinity;
+
+      for (const snap of snapshots) {
+        if (moveY >= snap.top && moveY <= snap.bottom) {
+          matched = snap;
+          minDistance = 0;
+          break;
+        }
+        const distToNode = Math.min(
+          Math.abs(moveY - snap.top),
+          Math.abs(moveY - snap.bottom)
+        );
+        if (distToNode < minDistance && distToNode <= 28) {
+          minDistance = distToNode;
+          matched = snap;
+        }
+      }
+
+      if (matched) {
+        if (matched.taskRowId) {
+          if (matched.taskRowId === itemId) {
+            dragOverRowRef.current = null;
+            setDragOverRow(null);
+          } else {
+            const relY = moveY - matched.top;
+            const rawPosition: 'before' | 'after' =
+              relY < matched.height / 2 ? 'before' : 'after';
+            const position = resolveEffectiveDropPosition(
+              itemId,
+              matched.taskRowId,
+              rawPosition
+            );
+            const nextOver = { id: matched.taskRowId, position };
+            dragOverRowRef.current = nextOver;
+            setDragOverRow(nextOver);
+          }
+        } else if (matched.projGroupId) {
+          const nextOver = {
+            id: `project:${matched.projGroupId}`,
+            position: 'after' as const,
+          };
+          dragOverRowRef.current = nextOver;
+          setDragOverRow(nextOver);
+        }
+      } else {
+        dragOverRowRef.current = null;
+        setDragOverRow(null);
+      }
+    };
+
     const onMouseMove = (moveEvent: MouseEvent) => {
-      // Safety check: if left mouse button was released outside window or consumed, clean up immediately
       if (typeof moveEvent.buttons === 'number' && (moveEvent.buttons & 1) === 0) {
         detachListeners();
         resetRowDragVisuals();
@@ -1849,76 +1931,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         }
       }
 
-      setDragRowPreview({
-        itemId,
-        x: moveEvent.clientX,
-        y: moveEvent.clientY,
-        offsetX: grabOffsetX,
-        offsetY: grabOffsetY,
-        width: previewWidth,
-      });
-
-      const rowNodes = document.querySelectorAll<HTMLElement>(
-        '[data-task-row], [data-project-group]'
-      );
-      let matchedEl: HTMLElement | null = null;
-      let matchedRect: DOMRect | null = null;
-      let minDistance = Infinity;
-
-      rowNodes.forEach((node) => {
-        const rect = node.getBoundingClientRect();
-        if (moveEvent.clientY >= rect.top && moveEvent.clientY <= rect.bottom) {
-          matchedEl = node;
-          matchedRect = rect;
-          minDistance = 0;
-        } else if (minDistance > 0) {
-          const distToNode = Math.min(
-            Math.abs(moveEvent.clientY - rect.top),
-            Math.abs(moveEvent.clientY - rect.bottom)
-          );
-          if (distToNode < minDistance && distToNode <= 28) {
-            minDistance = distToNode;
-            matchedEl = node;
-            matchedRect = rect;
-          }
-        }
-      });
-
-      if (matchedEl && matchedRect) {
-        const el = matchedEl as HTMLElement;
-        const r = matchedRect as DOMRect;
-        const taskRowId = el.getAttribute('data-task-row');
-        const projGroupId = el.getAttribute('data-project-group');
-
-        if (taskRowId) {
-          if (taskRowId === itemId) {
-            dragOverRowRef.current = null;
-            setDragOverRow(null);
-          } else {
-            const relY = moveEvent.clientY - r.top;
-            const rawPosition: 'before' | 'after' =
-              relY < r.height / 2 ? 'before' : 'after';
-            const position = resolveEffectiveDropPosition(
-              itemId,
-              taskRowId,
-              rawPosition
-            );
-            const nextOver = { id: taskRowId, position };
-            dragOverRowRef.current = nextOver;
-            setDragOverRow(nextOver);
-          }
-        } else if (projGroupId) {
-          const nextOver = {
-            id: `project:${projGroupId}`,
-            position: 'after' as const,
-          };
-          dragOverRowRef.current = nextOver;
-          setDragOverRow(nextOver);
-        }
-      } else {
-        dragOverRowRef.current = null;
-        setDragOverRow(null);
-      }
+      updateHitTarget(moveEvent.clientX, moveEvent.clientY);
     };
 
     const onMouseUp = () => {
@@ -1945,15 +1958,27 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       }
     };
 
+    if (opts?.immediateStart) {
+      if (!guardItemUnlocked(itemId, 'reordenar tarea')) {
+        return;
+      }
+      draggingRowIdRef.current = itemId;
+      setDraggingRowId(itemId);
+      if (typeof document !== 'undefined') {
+        document.body.style.cursor = 'grabbing';
+      }
+      updateHitTarget(opts.clientX ?? startX, opts.clientY ?? startY);
+    }
+
     cleanupPointerListenersRef.current = detachListeners;
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
     window.addEventListener('keydown', onKeyDown, true);
   };
 
-  const handleProjectRowPointerMouseDown = (
+  const handleRowPointerMouseDown = (
     e: React.MouseEvent,
-    projectId: string,
+    itemId: string,
     fromGripHandle = false
   ) => {
     if (e.button !== 0) return;
@@ -1973,24 +1998,68 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       e.stopPropagation();
     }
 
+    const rowEl = (e.currentTarget as HTMLElement).closest('[data-task-row]') as HTMLElement | null;
+    startTaskRowReorderDrag(itemId, e.clientX, e.clientY, {
+      rowRect: rowEl?.getBoundingClientRect(),
+      fromTimeline: false,
+    });
+  };
+
+  const startProjectRowReorderDrag = (
+    projectId: string,
+    startX: number,
+    startY: number,
+    opts?: {
+      rowRect?: DOMRect;
+      fromTimeline?: boolean;
+      immediateStart?: boolean;
+      clientX?: number;
+      clientY?: number;
+    }
+  ) => {
     cleanupPointerListenersRef.current?.();
 
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const rowEl = (e.currentTarget as HTMLElement).closest('[data-project-group]') as HTMLElement | null;
-    const rowRect = rowEl?.getBoundingClientRect();
+    const rowRect = opts?.rowRect;
+    const fromTimeline = Boolean(opts?.fromTimeline);
     const previewWidth = rowRect
       ? Math.min(Math.max(240, rowRect.width), Math.max(280, splitWidth - 16), 440)
       : 320;
     const grabOffsetX = rowRect
-      ? Math.min(Math.max(16, e.clientX - rowRect.left), previewWidth - 24)
+      ? Math.min(Math.max(16, startX - rowRect.left), previewWidth - 24)
       : 24;
     const grabOffsetY = rowRect
-      ? Math.min(Math.max(8, e.clientY - rowRect.top), ROW_HEIGHT - 8)
+      ? Math.min(Math.max(8, startY - rowRect.top), ROW_HEIGHT - 8)
       : ROW_HEIGHT / 2;
 
     const sourceProj = projects.find((p) => p.id === projectId);
     const sourceReleaseId = sourceProj?.releaseId || '';
+    const initialScrollTop = scrollContainerRef.current?.scrollTop ?? 0;
+
+    const tableProjSnapshots = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-project-group]')
+    )
+      .map((node) => {
+        const projId = node.getAttribute('data-project-group');
+        const proj = projects.find((p) => p.id === projId);
+        if (!projId || !proj || (proj.releaseId || '') !== sourceReleaseId) return null;
+        const rect = node.getBoundingClientRect();
+        return { projId, top: rect.top, bottom: rect.bottom, height: rect.height };
+      })
+      .filter((x): x is { projId: string; top: number; bottom: number; height: number } => Boolean(x));
+
+    const timelineProjSnapshots =
+      tableProjSnapshots.length === 0
+        ? Array.from(document.querySelectorAll<HTMLElement>('[data-project-summary-bar]'))
+            .map((node) => {
+              const projId = node.getAttribute('data-project-summary-bar');
+              const proj = projects.find((p) => p.id === projId);
+              if (!projId || !proj || (proj.releaseId || '') !== sourceReleaseId) return null;
+              const rect = node.getBoundingClientRect();
+              return { projId, top: rect.top, bottom: rect.bottom, height: rect.height };
+            })
+            .filter((x): x is { projId: string; top: number; bottom: number; height: number } => Boolean(x))
+        : [];
+    const projSnapshots = tableProjSnapshots.length > 0 ? tableProjSnapshots : timelineProjSnapshots;
 
     const resetProjectDragVisuals = () => {
       draggingProjectIdRef.current = null;
@@ -2021,6 +2090,60 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       }
     };
 
+    const updateHitTarget = (clientX: number, clientY: number) => {
+      if (!fromTimeline) {
+        setDragProjectPreview({
+          projectId,
+          x: clientX,
+          y: clientY,
+          offsetX: grabOffsetX,
+          offsetY: grabOffsetY,
+          width: previewWidth,
+        });
+      }
+
+      const scrollDelta = (scrollContainerRef.current?.scrollTop ?? 0) - initialScrollTop;
+      const moveY = clientY + scrollDelta;
+
+      let matched: (typeof projSnapshots)[number] | null = null;
+      let minDistance = Infinity;
+
+      for (const snap of projSnapshots) {
+        if (moveY >= snap.top && moveY <= snap.bottom) {
+          matched = snap;
+          minDistance = 0;
+          break;
+        }
+        const distToNode = Math.min(
+          Math.abs(moveY - snap.top),
+          Math.abs(moveY - snap.bottom)
+        );
+        if (distToNode < minDistance && distToNode <= 48) {
+          minDistance = distToNode;
+          matched = snap;
+        }
+      }
+
+      if (matched && matched.projId !== projectId) {
+        const relY = moveY - matched.top;
+        const rawPos: 'before' | 'after' = relY < matched.height / 2 ? 'before' : 'after';
+        const sameRel = projects.filter((p) => (p.releaseId || '') === sourceReleaseId);
+        const sIdx = sameRel.findIndex((p) => p.id === projectId);
+        const tIdx = sameRel.findIndex((p) => p.id === matched.projId);
+        let pos = rawPos;
+        if (sIdx !== -1 && tIdx !== -1) {
+          if (tIdx === sIdx + 1 && rawPos === 'before') pos = 'after';
+          if (tIdx === sIdx - 1 && rawPos === 'after') pos = 'before';
+        }
+        const nextOver = { id: matched.projId, position: pos };
+        dragOverProjectRef.current = nextOver;
+        setDragOverProject(nextOver);
+      } else {
+        dragOverProjectRef.current = null;
+        setDragOverProject(null);
+      }
+    };
+
     const onMouseMove = (moveEvent: MouseEvent) => {
       if (typeof moveEvent.buttons === 'number' && (moveEvent.buttons & 1) === 0) {
         detachListeners();
@@ -2046,69 +2169,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         }
       }
 
-      setDragProjectPreview({
-        projectId,
-        x: moveEvent.clientX,
-        y: moveEvent.clientY,
-        offsetX: grabOffsetX,
-        offsetY: grabOffsetY,
-        width: previewWidth,
-      });
-
-      const projNodes = document.querySelectorAll<HTMLElement>('[data-project-group]');
-      let matchedEl: HTMLElement | null = null;
-      let matchedRect: DOMRect | null = null;
-      let minDistance = Infinity;
-
-      projNodes.forEach((node) => {
-        const nodeProjId = node.getAttribute('data-project-group');
-        const nodeProj = projects.find((p) => p.id === nodeProjId);
-        if (!nodeProj || (nodeProj.releaseId || '') !== sourceReleaseId) return;
-
-        const rect = node.getBoundingClientRect();
-        if (moveEvent.clientY >= rect.top && moveEvent.clientY <= rect.bottom) {
-          matchedEl = node;
-          matchedRect = rect;
-          minDistance = 0;
-        } else if (minDistance > 0) {
-          const distToNode = Math.min(
-            Math.abs(moveEvent.clientY - rect.top),
-            Math.abs(moveEvent.clientY - rect.bottom)
-          );
-          if (distToNode < minDistance && distToNode <= 48) {
-            minDistance = distToNode;
-            matchedEl = node;
-            matchedRect = rect;
-          }
-        }
-      });
-
-      if (matchedEl && matchedRect) {
-        const el = matchedEl as HTMLElement;
-        const r = matchedRect as DOMRect;
-        const targetProjId = el.getAttribute('data-project-group');
-        if (targetProjId && targetProjId !== projectId) {
-          const relY = moveEvent.clientY - r.top;
-          const rawPos: 'before' | 'after' = relY < r.height / 2 ? 'before' : 'after';
-          const sameRel = projects.filter((p) => (p.releaseId || '') === sourceReleaseId);
-          const sIdx = sameRel.findIndex((p) => p.id === projectId);
-          const tIdx = sameRel.findIndex((p) => p.id === targetProjId);
-          let pos = rawPos;
-          if (sIdx !== -1 && tIdx !== -1) {
-            if (tIdx === sIdx + 1 && rawPos === 'before') pos = 'after';
-            if (tIdx === sIdx - 1 && rawPos === 'after') pos = 'before';
-          }
-          const nextOver = { id: targetProjId, position: pos };
-          dragOverProjectRef.current = nextOver;
-          setDragOverProject(nextOver);
-        } else {
-          dragOverProjectRef.current = null;
-          setDragOverProject(null);
-        }
-      } else {
-        dragOverProjectRef.current = null;
-        setDragOverProject(null);
-      }
+      updateHitTarget(moveEvent.clientX, moveEvent.clientY);
     };
 
     const onMouseUp = () => {
@@ -2129,10 +2190,51 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       }
     };
 
+    if (opts?.immediateStart) {
+      if (!guardProjectUnlocked(projectId, 'reordenar proyecto')) {
+        return;
+      }
+      draggingProjectIdRef.current = projectId;
+      setDraggingProjectId(projectId);
+      if (typeof document !== 'undefined') {
+        document.body.style.cursor = 'grabbing';
+      }
+      updateHitTarget(opts.clientX ?? startX, opts.clientY ?? startY);
+    }
+
     cleanupPointerListenersRef.current = detachListeners;
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
     window.addEventListener('keydown', onKeyDown, true);
+  };
+
+  const handleProjectRowPointerMouseDown = (
+    e: React.MouseEvent,
+    projectId: string,
+    fromGripHandle = false
+  ) => {
+    if (e.button !== 0) return;
+    const targetEl = e.target as HTMLElement | null;
+    if (
+      !fromGripHandle &&
+      targetEl &&
+      targetEl.closest('input, button, select, textarea, a')
+    ) {
+      lastMouseDownInteractiveRef.current = true;
+      return;
+    }
+
+    lastMouseDownInteractiveRef.current = false;
+    e.preventDefault();
+    if (fromGripHandle) {
+      e.stopPropagation();
+    }
+
+    const rowEl = (e.currentTarget as HTMLElement).closest('[data-project-group]') as HTMLElement | null;
+    startProjectRowReorderDrag(projectId, e.clientX, e.clientY, {
+      rowRect: rowEl?.getBoundingClientRect(),
+      fromTimeline: false,
+    });
   };
 
   const handleDragRowStart = (e: React.DragEvent, itemId: string) => {
@@ -3127,6 +3229,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     }
     hasDraggedRef.current = false;
     const startX = e.clientX;
+    const startY = e.clientY;
+    let axisLocked: 'none' | 'horizontal' | 'vertical' =
+      mode === 'move' ? 'none' : 'horizontal';
     const origStart = parseDateSafe(item.startDate);
     const origDuration = item.type === 'milestone' ? 0 : Math.max(1, item.duration);
     const origProgress = item.progress ?? 0;
@@ -3211,6 +3316,29 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
     const onMouseMove = (moveEvent: MouseEvent) => {
       const dx = moveEvent.clientX - startX;
+      const dy = moveEvent.clientY - startY;
+
+      if (axisLocked === 'none') {
+        if (Math.abs(dy) >= 5 && Math.abs(dy) > Math.abs(dx) * 1.15) {
+          axisLocked = 'vertical';
+          hasDraggedRef.current = true;
+          detachListeners();
+          setDragState(null);
+          startTaskRowReorderDrag(item.id, startX, startY, {
+            fromTimeline: true,
+            immediateStart: true,
+            clientX: moveEvent.clientX,
+            clientY: moveEvent.clientY,
+          });
+          return;
+        }
+        if (Math.abs(dx) >= 4) {
+          axisLocked = 'horizontal';
+        } else {
+          return;
+        }
+      }
+
       if (Math.abs(dx) > 3) {
         hasDraggedRef.current = true;
         if (mode === 'move' && !lockedProj && typeof document !== 'undefined') {
@@ -3339,6 +3467,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     }
     hasDraggedRef.current = false;
     const startX = e.clientX;
+    const startY = e.clientY;
+    let axisLocked: 'none' | 'horizontal' | 'vertical' = 'none';
 
     const isPartOfMulti =
       multiSelectedProjectIds.has(group.project.id) &&
@@ -3418,6 +3548,29 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
     const onMouseMove = (moveEvent: MouseEvent) => {
       const dx = moveEvent.clientX - startX;
+      const dy = moveEvent.clientY - startY;
+
+      if (axisLocked === 'none') {
+        if (Math.abs(dy) >= 5 && Math.abs(dy) > Math.abs(dx) * 1.15) {
+          axisLocked = 'vertical';
+          hasDraggedRef.current = true;
+          detachListeners();
+          setDragState(null);
+          startProjectRowReorderDrag(group.project.id, startX, startY, {
+            fromTimeline: true,
+            immediateStart: true,
+            clientX: moveEvent.clientX,
+            clientY: moveEvent.clientY,
+          });
+          return;
+        }
+        if (Math.abs(dx) >= 4) {
+          axisLocked = 'horizontal';
+        } else {
+          return;
+        }
+      }
+
       if (Math.abs(dx) > 3) {
         hasDraggedRef.current = true;
         if (!lockedProj && typeof document !== 'undefined') {

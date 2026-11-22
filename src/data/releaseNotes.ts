@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.10.15',
+    date: '22 Nov 2026',
+    title: 'Animación estable sin parpadeos y arrastre vertical desde barras del cronograma',
+    isLatest: true,
+    features: [
+      'Se corrige la oscilación al intercambiar filas congelando las posiciones base (snapshot) al iniciar el arrastre en lugar de leer getBoundingClientRect() durante la transición CSS',
+      'Se añade soporte para reordenar tareas, hitos y proyectos arrastrando verticalmente directamente desde sus barras en el cronograma',
+    ],
+  },
+  {
     version: '1.10.14',
     date: '22 Nov 2026',
     title: 'Animación en vivo de intercambio en tabla y cronograma al arrastrar',
-    isLatest: true,
     features: [
       'Al arrastrar una tarea o proyecto también se desplaza su barra correspondiente en el cronograma',
       'Los elementos desplazados animan suavemente su posición (translateY con transition duration-200) para ocupar el lugar original del elemento arrastrado',
