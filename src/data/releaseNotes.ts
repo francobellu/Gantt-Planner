@@ -10,10 +10,18 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.10.21',
+    date: '22 Nov 2026',
+    title: 'Evitar re-animación de filas al soltar drag-and-drop',
+    isLatest: true,
+    features: [
+      'La transición de posición vertical (top/height) solo se aplica durante colapsado y expandido (isCollapseAnimating), evitando que la fila desplazada vuelva a moverse al soltar',
+    ],
+  },
+  {
     version: '1.10.20',
     date: '22 Nov 2026',
     title: 'Animación de colapso/expansión más lenta (450ms) y posición fija sin salto de scroll',
-    isLatest: true,
     features: [
       'Se añade animación de colapso de 450ms tanto en filas de tabla como en barras del cronograma antes de ocultar los hijos y se ralentiza la expansión a 450ms',
       'Se fija la posición vertical de la barra colapsada mediante anclaje de scroll y espaciador inferior dinámico para evitar saltos al colapsar cerca del final',
