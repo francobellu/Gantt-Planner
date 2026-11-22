@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.10.23',
+    date: '23 Nov 2026',
+    title: 'Ghost apilado y movimiento sincronizado en arrastre múltiple',
+    isLatest: true,
+    features: [
+      'El ghost flotante muestra todas las tareas seleccionadas apiladas al arrastrar',
+      'Las barras arrastradas en el cronograma siguen el cursor de forma inmediata sin retraso respecto a la tabla',
+    ],
+  },
+  {
     version: '1.10.22',
     date: '22 Nov 2026',
     title: 'Arrastre múltiple de tareas seleccionadas',
-    isLatest: true,
     features: [
       'Permite seleccionar múltiples tareas con Cmd/Ctrl+Clic o Shift+Clic en tabla y cronograma y arrastrarlas juntas tanto en fechas como en orden vertical entre o dentro de proyectos',
     ],

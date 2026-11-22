@@ -1800,6 +1800,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     initialDragRowPreview?.itemId ?? null
   );
   const [draggingMultiRowIds, setDraggingMultiRowIds] = useState<Set<string> | null>(null);
+  const [dragVerticalDeltaY, setDragVerticalDeltaY] = useState<number>(0);
   const [dragOverRow, setDragOverRow] = useState<{
     id: string;
     position: 'before' | 'after';
@@ -2019,6 +2020,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       dragOverRowRef.current = null;
       setDraggingRowId(null);
       setDraggingMultiRowIds(null);
+      setDragVerticalDeltaY(0);
       setDragOverRow(null);
       setDragRowPreview(null);
       if (typeof document !== 'undefined') {
@@ -2045,6 +2047,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     };
 
     const updateHitTarget = (clientX: number, clientY: number) => {
+      const scrollDelta = (scrollContainerRef.current?.scrollTop ?? 0) - initialScrollTop;
+      setDragVerticalDeltaY(clientY - startY + scrollDelta);
       if (!fromTimeline) {
         setDragRowPreview({
           itemId,
@@ -2057,7 +2061,6 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         });
       }
 
-      const scrollDelta = (scrollContainerRef.current?.scrollTop ?? 0) - initialScrollTop;
       const moveY = clientY + scrollDelta;
 
       let matched: (typeof snapshots)[number] | null = null;
@@ -8560,6 +8563,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       )
                     : coords.effectiveEndStr;
 
+                const isDraggingVerticalThis =
+                  draggingRowId === item.id || Boolean(draggingMultiRowIds?.has(item.id));
+                const effectiveTimelineRowShiftStyle = isDraggingVerticalThis
+                  ? { transform: `translateY(${dragVerticalDeltaY}px)` }
+                  : timelineRowShiftStyle;
+
                 return (
                   <div
                     key={`bar-${item.id}`}
@@ -8567,18 +8576,18 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     style={{
                       top: coords.index * ROW_HEIGHT,
                       height: ROW_HEIGHT,
-                      ...timelineRowShiftStyle,
+                      ...effectiveTimelineRowShiftStyle,
                     }}
                     onMouseEnter={() => setHoveredId(item.id)}
                     onMouseLeave={() => setHoveredId(null)}
                     className={`absolute left-0 right-0 flex items-center pointer-events-none ${
-                      draggingRowId === item.id ||
-                      Boolean(draggingMultiRowIds?.has(item.id)) ||
-                      draggingProjectId === item.projectId
+                      isDraggingVerticalThis || draggingProjectId === item.projectId
                         ? 'z-40'
                         : 'z-20'
                     } ${
-                      isAnyRowOrProjectDragging
+                      isDraggingVerticalThis
+                        ? 'opacity-95'
+                        : isAnyRowOrProjectDragging
                         ? 'transition-[transform,opacity] duration-200 ease-out'
                         : isCollapseAnimating
                         ? 'transition-[top,opacity] duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)]'
@@ -10086,6 +10095,16 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               ? projects.find((p) => p.id === targetProjId)?.name || null
               : null;
 
+          const previewItems =
+            draggingMultiRowIds && draggingMultiRowIds.size > 1
+              ? displayRows
+                  .filter(
+                    (r): r is Extract<(typeof displayRows)[number], { kind: 'item' }> =>
+                      r.kind === 'item' && draggingMultiRowIds.has(r.item.id)
+                  )
+                  .map((r) => r.item)
+              : [draggedItem];
+
           return (
             <div
               data-testid="task-row-drag-ghost"
@@ -10097,34 +10116,45 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                 willChange: 'transform',
               }}
             >
-              <div
-                style={{ height: ROW_HEIGHT }}
-                className="bg-white/95 dark:bg-zinc-900/95 backdrop-blur-sm border-2 border-indigo-600 dark:border-indigo-400 rounded-[6px] shadow-2xl ring-4 ring-indigo-500/15 px-3 flex items-center gap-2 text-xs"
-              >
-                <GripVertical className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
-                <span className="font-mono text-[10px] px-1.5 py-0.5 rounded-[2px] bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-300 border border-[#E2E2DC] dark:border-zinc-700 shrink-0 font-semibold">
-                  {draggedWbsLabel}
-                </span>
-                {draggedItem.type === 'milestone' ? (
-                  <Diamond className={`w-3.5 h-3.5 ${draggedStyleTheme.diamondText} fill-current shrink-0`} />
-                ) : (
-                  <span className={`w-2.5 h-2.5 rounded-[2px] shrink-0 ${draggedStyleTheme.badge}`} />
-                )}
-                <span className="font-semibold text-[#0C0C09] dark:text-zinc-100 truncate flex-1">
-                  {draggedItem.name || (draggedItem.type === 'milestone' ? 'Hito' : 'Tarea')}
-                </span>
-                {dragRowPreview.multiCount && dragRowPreview.multiCount > 1 && (
-                  <span
-                    data-testid="task-row-drag-ghost-count"
-                    className="px-1.5 py-0.5 rounded bg-indigo-600 text-white font-mono text-[10px] font-bold shrink-0"
-                  >
-                    {dragRowPreview.multiCount} tareas
-                  </span>
-                )}
-                <span className="font-mono text-[10px] text-[#6B6B66] dark:text-zinc-300 bg-[#F4F4F1] dark:bg-zinc-800 px-1.5 py-0.5 rounded shrink-0">
-                  {formatDateDisplay(draggedItem.startDate, 'dd MMM')}
-                  {draggedItem.type === 'task' ? ` · ${draggedItem.duration}d` : ''}
-                </span>
+              <div className="bg-white/95 dark:bg-zinc-900/95 backdrop-blur-sm border-2 border-indigo-600 dark:border-indigo-400 rounded-[6px] shadow-2xl ring-4 ring-indigo-500/15 overflow-hidden divide-y divide-indigo-100 dark:divide-zinc-800">
+                {previewItems.map((pItem, pIdx) => {
+                  const pColor = getItemEffectiveColor(pItem);
+                  const pTheme = COLOR_STYLES[pColor] || COLOR_STYLES.indigo;
+                  const pWbsLabel =
+                    enrichedItemById.get(pItem.id)?.wbsCode || `${pItem.wbs}.`;
+                  return (
+                    <div
+                      key={`ghost-item-${pItem.id}`}
+                      style={{ height: ROW_HEIGHT }}
+                      className="px-3 flex items-center gap-2 text-xs"
+                    >
+                      <GripVertical className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                      <span className="font-mono text-[10px] px-1.5 py-0.5 rounded-[2px] bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-300 border border-[#E2E2DC] dark:border-zinc-700 shrink-0 font-semibold">
+                        {pWbsLabel}
+                      </span>
+                      {pItem.type === 'milestone' ? (
+                        <Diamond className={`w-3.5 h-3.5 ${pTheme.diamondText} fill-current shrink-0`} />
+                      ) : (
+                        <span className={`w-2.5 h-2.5 rounded-[2px] shrink-0 ${pTheme.badge}`} />
+                      )}
+                      <span className="font-semibold text-[#0C0C09] dark:text-zinc-100 truncate flex-1">
+                        {pItem.name || (pItem.type === 'milestone' ? 'Hito' : 'Tarea')}
+                      </span>
+                      {pIdx === 0 && previewItems.length > 1 && (
+                        <span
+                          data-testid="task-row-drag-ghost-count"
+                          className="px-1.5 py-0.5 rounded bg-indigo-600 text-white font-mono text-[10px] font-bold shrink-0"
+                        >
+                          {previewItems.length} tareas
+                        </span>
+                      )}
+                      <span className="font-mono text-[10px] text-[#6B6B66] dark:text-zinc-300 bg-[#F4F4F1] dark:bg-zinc-800 px-1.5 py-0.5 rounded shrink-0">
+                        {formatDateDisplay(pItem.startDate, 'dd MMM')}
+                        {pItem.type === 'task' ? ` · ${pItem.duration}d` : ''}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
               {targetProjectName && (
                 <div className="mt-1 inline-flex items-center px-2 py-0.5 rounded bg-indigo-600 text-white text-[10px] font-semibold shadow-lg">
