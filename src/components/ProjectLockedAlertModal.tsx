@@ -43,7 +43,9 @@ export const ProjectLockedAlertModal: React.FC<ProjectLockedAlertModalProps> = (
       data-locked-project-id={project.id}
       onClick={(e) => {
         e.stopPropagation();
-        onClose();
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
       }}
       onMouseDown={(e) => e.stopPropagation()}
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in"

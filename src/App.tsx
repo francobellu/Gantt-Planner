@@ -1062,15 +1062,22 @@ export function App({
     };
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (createProjectModalOpen) {
+          e.preventDefault();
+          e.stopPropagation();
+          setCreateProjectModalOpen(false);
+          return;
+        }
         if (isFocusMode) {
           handleExitFocusMode();
           return;
         }
         setProjectMenuOpen(false);
         setMoreMenuOpen(false);
-        setCreateProjectModalOpen(false);
         setShowMetricsDrawer(false);
         setShowSettingsModal(false);
+        setShowReleasesModal(false);
+        setShowReleaseNotesModal(false);
         return;
       }
 
@@ -1107,7 +1114,7 @@ export function App({
       document.removeEventListener('mousedown', handleGlobalClick);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [showMetricsDrawer, handleUndo, handleRedo, isFocusMode]);
+  }, [showMetricsDrawer, handleUndo, handleRedo, isFocusMode, createProjectModalOpen]);
 
   // Modal state
   const [modalOpen, setModalOpen] = useState<boolean>(false);
@@ -3118,7 +3125,11 @@ export function App({
           aria-modal="true"
           data-testid="create-project-modal"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in"
-          onClick={() => setCreateProjectModalOpen(false)}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setCreateProjectModalOpen(false);
+            }
+          }}
         >
           <div
             className="w-full max-w-md bg-white dark:bg-zinc-900 border border-[#0C0C09] dark:border-zinc-700 rounded-[6px] shadow-2xl p-5 text-[#0C0C09] dark:text-zinc-100"

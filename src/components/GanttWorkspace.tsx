@@ -924,6 +924,19 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     }
     return null;
   });
+
+  useEffect(() => {
+    if (!inspectingProject || typeof window === 'undefined') return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        setInspectingProject(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [inspectingProject]);
   const [selectedDepLink, setSelectedDepLink] = useState<{
     predId: string;
     succId: string;
@@ -4612,7 +4625,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
           </div>
         </div>
 
-        {/* Right Side: The 6 Dedicated Icon-Only Buttons with Tooltip Hints */}
+        {/* Right Side: Dedicated Icon-Only Buttons with Tooltip Hints */}
         <div className="flex items-center gap-1.5 shrink-0">
           {/* 1. Líneas Filas (Separators) */}
           <div className="relative group inline-flex items-center">
@@ -4686,7 +4699,127 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             </div>
           </div>
 
-          {/* 4. Ajustar Zoom al Proyecto */}
+          {/* 4. Hitos de Release Visibles */}
+          <div ref={milestonesMenuRef} className="relative group inline-flex items-center" data-dropdown-container="true">
+            <button
+              type="button"
+              data-testid="toggle-milestones-menu-btn"
+              onClick={() => setShowMilestonesMenu((prev) => !prev)}
+              aria-label="Configurar hitos de release visibles"
+              title="Hitos de release visibles en cronograma (Por defecto: QG4, QG5)"
+              className={`w-7 h-7 flex items-center justify-center rounded-[3px] border transition cursor-pointer shrink-0 ${
+                showMilestonesMenu
+                  ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
+                  : 'bg-white dark:bg-zinc-800 border-[#E2E2DC] dark:border-zinc-700 text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09] dark:hover:text-white hover:border-[#0C0C09] dark:hover:border-zinc-500'
+              }`}
+            >
+              <Diamond className="w-3.5 h-3.5" />
+            </button>
+            {!showMilestonesMenu && (
+              <div className="pointer-events-none absolute top-full mt-1.5 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col items-center z-50 animate-fade-in">
+                <div className="w-1.5 h-1.5 bg-[#0C0C09] dark:bg-zinc-100 rotate-45 -mb-0.5" />
+                <div className="bg-[#0C0C09] dark:bg-zinc-100 text-white dark:text-[#0C0C09] text-[10px] font-medium px-2 py-0.5 rounded shadow-lg whitespace-nowrap">
+                  Hitos de release visibles
+                </div>
+              </div>
+            )}
+
+            {showMilestonesMenu && (
+              <div
+                data-testid="milestones-visibility-menu"
+                className="absolute right-0 top-full mt-1.5 w-60 p-2 bg-white dark:bg-zinc-900 border border-[#0C0C09] dark:border-zinc-700 rounded-[4px] shadow-xl z-50 text-xs flex flex-col gap-1.5"
+              >
+                <div className="flex items-center justify-between pb-1.5 border-b border-[#E2E2DC] dark:border-zinc-800">
+                  <div className="flex items-center gap-1.5">
+                    <Diamond className="w-3 h-3 text-amber-500 fill-current" />
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#0C0C09] dark:text-zinc-200">
+                      Hitos de Release
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-300 font-bold">
+                    {visibleMilestoneKeys.size}/16
+                  </span>
+                </div>
+
+                {/* Presets */}
+                <div className="grid grid-cols-3 gap-1 pb-1 border-b border-[#E2E2DC] dark:border-zinc-800 text-[10px]">
+                  <button
+                    type="button"
+                    data-testid="milestones-preset-default"
+                    onClick={() => setVisibleMilestoneKeys(new Set(['qg4', 'qg5']))}
+                    className="px-1 py-0.5 rounded bg-[#F4F4F1] dark:bg-zinc-800 hover:bg-[#0C0C09] hover:text-white dark:hover:bg-zinc-100 dark:hover:text-black font-medium transition cursor-pointer text-center"
+                    title="Mostrar únicamente QG4 y QG5 (valor por defecto)"
+                  >
+                    QG4/QG5
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="milestones-preset-all"
+                    onClick={() =>
+                      setVisibleMilestoneKeys(
+                        new Set(RELEASE_MILESTONE_DEFINITIONS.map((d) => d.id.toLowerCase()))
+                      )
+                    }
+                    className="px-1 py-0.5 rounded bg-[#F4F4F1] dark:bg-zinc-800 hover:bg-[#0C0C09] hover:text-white dark:hover:bg-zinc-100 dark:hover:text-black font-medium transition cursor-pointer text-center"
+                    title="Mostrar todos los 16 hitos"
+                  >
+                    Todos
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="milestones-preset-none"
+                    onClick={() => setVisibleMilestoneKeys(new Set())}
+                    className="px-1 py-0.5 rounded bg-[#F4F4F1] dark:bg-zinc-800 hover:bg-[#0C0C09] hover:text-white dark:hover:bg-zinc-100 dark:hover:text-black font-medium transition cursor-pointer text-center"
+                    title="Ocultar todos los hitos"
+                  >
+                    Ninguno
+                  </button>
+                </div>
+
+                {/* Milestone Checklist */}
+                <div className="max-h-56 overflow-y-auto flex flex-col gap-0.5 pr-0.5">
+                  {RELEASE_MILESTONE_DEFINITIONS.map((def) => {
+                    const isChecked = visibleMilestoneKeys.has(def.id.toLowerCase());
+                    return (
+                      <label
+                        key={def.id}
+                        data-testid={`milestone-toggle-${def.id}`}
+                        className="flex items-center justify-between px-2 py-1 rounded-[2px] hover:bg-[#F4F4F1] dark:hover:bg-zinc-800/60 cursor-pointer select-none"
+                      >
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {
+                              setVisibleMilestoneKeys((prev) => {
+                                const next = new Set(prev);
+                                const k = def.id.toLowerCase();
+                                if (next.has(k)) next.delete(k);
+                                else next.add(k);
+                                return next;
+                              });
+                            }}
+                            className="rounded-[2px] border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] cursor-pointer"
+                          />
+                          <span className="font-mono font-bold text-[11px] text-[#0C0C09] dark:text-zinc-200">
+                            {def.code}
+                          </span>
+                        </div>
+                        <span
+                          className="text-[10px] text-[#6B6B66] dark:text-zinc-400 truncate max-w-[110px]"
+                          title={def.name}
+                        >
+                          {def.category}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 5. Ajustar Zoom al Proyecto */}
           <div className="relative group inline-flex items-center">
             <button
               type="button"
@@ -4807,121 +4940,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         </span>
                       )}
 
-                      {/* Botones de Control: Hitos de Release y Columnas */}
+                      {/* Botón de Columnas: SOLO ICONO VECTORIAL (sin texto) */}
                       <div className="w-36 flex items-center justify-end pr-1 gap-1">
-                        {/* Botón y Panel de Hitos de Release */}
-                        <div ref={milestonesMenuRef} className="relative" data-dropdown-container="true">
-                          <button
-                            type="button"
-                            data-testid="toggle-milestones-menu-btn"
-                            onClick={() => setShowMilestonesMenu((prev) => !prev)}
-                            className={`p-1 rounded-[4px] transition cursor-pointer ${
-                              showMilestonesMenu
-                                ? 'bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09]'
-                                : 'hover:bg-black/5 dark:hover:bg-white/10 text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09] dark:hover:text-white'
-                            }`}
-                            aria-label="Configurar hitos de release visibles"
-                            title="Hitos de release visibles en cronograma (Por defecto: QG4, QG5)"
-                          >
-                            <Diamond className="w-3.5 h-3.5" />
-                          </button>
-
-                          {showMilestonesMenu && (
-                            <div
-                              data-testid="milestones-visibility-menu"
-                              className="absolute right-0 top-8 w-60 p-2 bg-white dark:bg-zinc-900 border border-[#0C0C09] dark:border-zinc-700 rounded-[4px] shadow-xl z-50 text-xs flex flex-col gap-1.5"
-                            >
-                              <div className="flex items-center justify-between pb-1.5 border-b border-[#E2E2DC] dark:border-zinc-800">
-                                <div className="flex items-center gap-1.5">
-                                  <Diamond className="w-3 h-3 text-amber-500 fill-current" />
-                                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#0C0C09] dark:text-zinc-200">
-                                    Hitos de Release
-                                  </span>
-                                </div>
-                                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-300 font-bold">
-                                  {visibleMilestoneKeys.size}/16
-                                </span>
-                              </div>
-
-                              {/* Presets */}
-                              <div className="grid grid-cols-3 gap-1 pb-1 border-b border-[#E2E2DC] dark:border-zinc-800 text-[10px]">
-                                <button
-                                  type="button"
-                                  data-testid="milestones-preset-default"
-                                  onClick={() => setVisibleMilestoneKeys(new Set(['qg4', 'qg5']))}
-                                  className="px-1 py-0.5 rounded bg-[#F4F4F1] dark:bg-zinc-800 hover:bg-[#0C0C09] hover:text-white dark:hover:bg-zinc-100 dark:hover:text-black font-medium transition cursor-pointer text-center"
-                                  title="Mostrar únicamente QG4 y QG5 (valor por defecto)"
-                                >
-                                  QG4/QG5
-                                </button>
-                                <button
-                                  type="button"
-                                  data-testid="milestones-preset-all"
-                                  onClick={() =>
-                                    setVisibleMilestoneKeys(
-                                      new Set(RELEASE_MILESTONE_DEFINITIONS.map((d) => d.id.toLowerCase()))
-                                    )
-                                  }
-                                  className="px-1 py-0.5 rounded bg-[#F4F4F1] dark:bg-zinc-800 hover:bg-[#0C0C09] hover:text-white dark:hover:bg-zinc-100 dark:hover:text-black font-medium transition cursor-pointer text-center"
-                                  title="Mostrar todos los 16 hitos"
-                                >
-                                  Todos
-                                </button>
-                                <button
-                                  type="button"
-                                  data-testid="milestones-preset-none"
-                                  onClick={() => setVisibleMilestoneKeys(new Set())}
-                                  className="px-1 py-0.5 rounded bg-[#F4F4F1] dark:bg-zinc-800 hover:bg-[#0C0C09] hover:text-white dark:hover:bg-zinc-100 dark:hover:text-black font-medium transition cursor-pointer text-center"
-                                  title="Ocultar todos los hitos"
-                                >
-                                  Ninguno
-                                </button>
-                              </div>
-
-                              {/* Milestone Checklist */}
-                              <div className="max-h-56 overflow-y-auto flex flex-col gap-0.5 pr-0.5">
-                                {RELEASE_MILESTONE_DEFINITIONS.map((def) => {
-                                  const isChecked = visibleMilestoneKeys.has(def.id.toLowerCase());
-                                  return (
-                                    <label
-                                      key={def.id}
-                                      data-testid={`milestone-toggle-${def.id}`}
-                                      className="flex items-center justify-between px-2 py-1 rounded-[2px] hover:bg-[#F4F4F1] dark:hover:bg-zinc-800/60 cursor-pointer select-none"
-                                    >
-                                      <div className="flex items-center gap-2 overflow-hidden">
-                                        <input
-                                          type="checkbox"
-                                          checked={isChecked}
-                                          onChange={() => {
-                                            setVisibleMilestoneKeys((prev) => {
-                                              const next = new Set(prev);
-                                              const k = def.id.toLowerCase();
-                                              if (next.has(k)) next.delete(k);
-                                              else next.add(k);
-                                              return next;
-                                            });
-                                          }}
-                                          className="rounded-[2px] border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] cursor-pointer"
-                                        />
-                                        <span className="font-mono font-bold text-[11px] text-[#0C0C09] dark:text-zinc-200">
-                                          {def.code}
-                                        </span>
-                                      </div>
-                                      <span
-                                        className="text-[10px] text-[#6B6B66] dark:text-zinc-400 truncate max-w-[110px]"
-                                        title={def.name}
-                                      >
-                                        {def.category}
-                                      </span>
-                                    </label>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Botón de Columnas: SOLO ICONO VECTORIAL (sin texto) */}
                         <div ref={columnsMenuRef} className="relative" data-dropdown-container="true">
                           <button
                             type="button"
@@ -8898,8 +8918,14 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         {/* Project Information & Description Modal */}
         {inspectingProject && (
           <div
+            role="dialog"
+            aria-modal="true"
             data-testid="project-details-modal"
-            onClick={() => setInspectingProject(null)}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setInspectingProject(null);
+              }
+            }}
             className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
           >
             <div

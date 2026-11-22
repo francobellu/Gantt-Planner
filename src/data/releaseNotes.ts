@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.10.7',
+    date: '22 Nov 2026',
+    title: 'Configuración de hitos en barra de cronograma y cierre universal de modales',
+    isLatest: true,
+    features: [
+      'Se mueve el botón de configuración de hitos de release visibles a la barra de herramientas del cronograma.',
+      'Todas las ventanas modales se cierran ahora al hacer clic fuera o al pulsar la tecla Escape.',
+    ],
+  },
+  {
     version: '1.10.6',
     date: '20 Nov 2026',
     title: 'Barra de release con color de proyecto y doble punta en cada extremo',
-    isLatest: true,
     features: [
       'La barra de release adopta el color de la barra de proyecto (#0C0C09 / zinc-200 en modo oscuro) y añade dos puntas en cada extremo para diferenciarla visualmente',
     ],
