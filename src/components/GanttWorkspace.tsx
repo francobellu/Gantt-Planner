@@ -204,6 +204,14 @@ interface GanttWorkspaceProps {
   initialLockedAlertProjectId?: string;
   initialMultiSelectedItemIds?: string[];
   initialMultiSelectedProjectIds?: string[];
+  initialDragRowPreview?: {
+    itemId: string;
+    x: number;
+    y: number;
+    offsetX?: number;
+    offsetY?: number;
+    width?: number;
+  } | null;
   baselineSnapshot?: { label: string; items: GanttItem[] } | null;
   workCalendar?: WorkCalendarConfig;
   useRightSidebarInspector?: boolean;
@@ -589,6 +597,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   initialLockedAlertProjectId,
   initialMultiSelectedItemIds,
   initialMultiSelectedProjectIds,
+  initialDragRowPreview = null,
   baselineSnapshot = null,
   workCalendar,
   useRightSidebarInspector = false,
@@ -1566,11 +1575,32 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   };
 
   // State and refs for drag-and-drop row reordering in the WBS table (supports both mouse/pointer drag and HTML5 DnD)
-  const [draggingRowId, setDraggingRowId] = useState<string | null>(null);
+  const [draggingRowId, setDraggingRowId] = useState<string | null>(
+    initialDragRowPreview?.itemId ?? null
+  );
   const [dragOverRow, setDragOverRow] = useState<{
     id: string;
     position: 'before' | 'after';
   } | null>(null);
+  const [dragRowPreview, setDragRowPreview] = useState<{
+    itemId: string;
+    x: number;
+    y: number;
+    offsetX: number;
+    offsetY: number;
+    width: number;
+  } | null>(() =>
+    initialDragRowPreview
+      ? {
+          itemId: initialDragRowPreview.itemId,
+          x: initialDragRowPreview.x,
+          y: initialDragRowPreview.y,
+          offsetX: initialDragRowPreview.offsetX ?? 24,
+          offsetY: initialDragRowPreview.offsetY ?? ROW_HEIGHT / 2,
+          width: initialDragRowPreview.width ?? 320,
+        }
+      : null
+  );
 
   const draggingRowIdRef = useRef<string | null>(null);
   const dragOverRowRef = useRef<{
@@ -1601,6 +1631,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   useEffect(() => {
     return () => {
       cleanupPointerListenersRef.current?.();
+      if (typeof document !== 'undefined') {
+        document.body.style.cursor = '';
+      }
     };
   }, []);
 
@@ -1657,13 +1690,46 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
     cleanupPointerListenersRef.current?.();
 
+    const startX = e.clientX;
     const startY = e.clientY;
+    const rowEl = (e.currentTarget as HTMLElement).closest('[data-task-row]') as HTMLElement | null;
+    const rowRect = rowEl?.getBoundingClientRect();
+    const previewWidth = rowRect
+      ? Math.min(Math.max(240, rowRect.width), Math.max(280, splitWidth - 16), 440)
+      : 320;
+    const grabOffsetX = rowRect
+      ? Math.min(Math.max(16, e.clientX - rowRect.left), previewWidth - 24)
+      : 24;
+    const grabOffsetY = rowRect
+      ? Math.min(Math.max(8, e.clientY - rowRect.top), ROW_HEIGHT - 8)
+      : ROW_HEIGHT / 2;
+
+    const resetRowDragVisuals = () => {
+      draggingRowIdRef.current = null;
+      dragOverRowRef.current = null;
+      setDraggingRowId(null);
+      setDragOverRow(null);
+      setDragRowPreview(null);
+      if (typeof document !== 'undefined') {
+        document.body.style.cursor = '';
+      }
+    };
 
     const detachListeners = () => {
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener('keydown', onKeyDown, true);
       if (cleanupPointerListenersRef.current === detachListeners) {
         cleanupPointerListenersRef.current = null;
+      }
+    };
+
+    const onKeyDown = (keyEvent: KeyboardEvent) => {
+      if (keyEvent.key === 'Escape' && draggingRowIdRef.current) {
+        keyEvent.preventDefault();
+        keyEvent.stopPropagation();
+        detachListeners();
+        resetRowDragVisuals();
       }
     };
 
@@ -1671,30 +1737,36 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       // Safety check: if left mouse button was released outside window or consumed, clean up immediately
       if (typeof moveEvent.buttons === 'number' && (moveEvent.buttons & 1) === 0) {
         detachListeners();
-        draggingRowIdRef.current = null;
-        dragOverRowRef.current = null;
-        setDraggingRowId(null);
-        setDragOverRow(null);
+        resetRowDragVisuals();
         return;
       }
 
-      const dy = Math.abs(moveEvent.clientY - startY);
-      if (!draggingRowIdRef.current && dy < 3) {
+      const dist = Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY);
+      if (!draggingRowIdRef.current && dist < 4) {
         return;
       }
 
       if (!draggingRowIdRef.current) {
         if (!guardItemUnlocked(itemId, 'reordenar tarea en la tabla')) {
           detachListeners();
-          draggingRowIdRef.current = null;
-          dragOverRowRef.current = null;
-          setDraggingRowId(null);
-          setDragOverRow(null);
+          resetRowDragVisuals();
           return;
         }
         draggingRowIdRef.current = itemId;
         setDraggingRowId(itemId);
+        if (typeof document !== 'undefined') {
+          document.body.style.cursor = 'grabbing';
+        }
       }
+
+      setDragRowPreview({
+        itemId,
+        x: moveEvent.clientX,
+        y: moveEvent.clientY,
+        offsetX: grabOffsetX,
+        offsetY: grabOffsetY,
+        width: previewWidth,
+      });
 
       const rowNodes = document.querySelectorAll<HTMLElement>(
         '[data-task-row], [data-project-group]'
@@ -1710,12 +1782,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
           matchedRect = rect;
           minDistance = 0;
         } else if (minDistance > 0) {
-          const dist = Math.min(
+          const distToNode = Math.min(
             Math.abs(moveEvent.clientY - rect.top),
             Math.abs(moveEvent.clientY - rect.bottom)
           );
-          if (dist < minDistance && dist <= 28) {
-            minDistance = dist;
+          if (distToNode < minDistance && distToNode <= 28) {
+            minDistance = distToNode;
             matchedEl = node;
             matchedRect = rect;
           }
@@ -1753,6 +1825,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
           dragOverRowRef.current = nextOver;
           setDragOverRow(nextOver);
         }
+      } else {
+        dragOverRowRef.current = null;
+        setDragOverRow(null);
       }
     };
 
@@ -1762,10 +1837,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       const activeSource = draggingRowIdRef.current;
       const activeTarget = dragOverRowRef.current;
 
-      draggingRowIdRef.current = null;
-      dragOverRowRef.current = null;
-      setDraggingRowId(null);
-      setDragOverRow(null);
+      resetRowDragVisuals();
 
       if (
         activeSource &&
@@ -1786,6 +1858,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     cleanupPointerListenersRef.current = detachListeners;
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('keydown', onKeyDown, true);
   };
 
   const handleDragRowStart = (e: React.DragEvent, itemId: string) => {
@@ -1878,6 +1951,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     dragOverRowRef.current = null;
     setDraggingRowId(null);
     setDragOverRow(null);
+    setDragRowPreview(null);
+    if (typeof document !== 'undefined') {
+      document.body.style.cursor = '';
+    }
   };
 
   const handleDragRowEnd = (e?: React.DragEvent) => {
@@ -1887,6 +1964,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     dragOverRowRef.current = null;
     setDraggingRowId(null);
     setDragOverRow(null);
+    setDragRowPreview(null);
+    if (typeof document !== 'undefined') {
+      document.body.style.cursor = '';
+    }
   };
 
   // Calculate longest task name to size the column snugly without artificial gaps
@@ -1973,6 +2054,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     origStart: Date;
     origDuration: number;
     dayDelta: number;
+    pixelDeltaX?: number;
     origProgress?: number;
     nextProgress?: number;
     multiItems?: Map<string, { origStart: Date; origDuration: number; type: 'task' | 'milestone' }>;
@@ -2733,21 +2815,44 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         origStart,
         origDuration,
         dayDelta: 0,
+        pixelDeltaX: 0,
         origProgress,
         nextProgress: origProgress,
         multiItems: multiItemsMap,
       });
     }
 
+    const detachListeners = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener('keydown', onKeyDown, true);
+      if (typeof document !== 'undefined') {
+        document.body.style.cursor = '';
+      }
+    };
+
+    const onKeyDown = (keyEvent: KeyboardEvent) => {
+      if (keyEvent.key === 'Escape') {
+        keyEvent.preventDefault();
+        keyEvent.stopPropagation();
+        detachListeners();
+        setDragState(null);
+      }
+    };
+
     const onMouseMove = (moveEvent: MouseEvent) => {
       const dx = moveEvent.clientX - startX;
       if (Math.abs(dx) > 3) {
         hasDraggedRef.current = true;
+        if (mode === 'move' && !lockedProj && typeof document !== 'undefined') {
+          document.body.style.cursor = 'grabbing';
+        }
       }
       if (lockedProj) {
         if (Math.abs(dx) > 3 && !lockPromptTriggered) {
           lockPromptTriggered = true;
           window.removeEventListener('mousemove', onMouseMove);
+          window.removeEventListener('keydown', onKeyDown, true);
           setDragState(null);
           setLockedAlertState({
             project: lockedProj,
@@ -2763,12 +2868,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         return;
       }
       const deltaDays = Math.round(dx / dayWidth);
-      setDragState((prev) => (prev ? { ...prev, dayDelta: deltaDays } : null));
+      setDragState((prev) => (prev ? { ...prev, dayDelta: deltaDays, pixelDeltaX: dx } : null));
     };
 
     const onMouseUp = (upEvent: MouseEvent) => {
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
+      detachListeners();
 
       const dx = upEvent.clientX - startX;
       const deltaDays = Math.round(dx / dayWidth);
@@ -2852,6 +2956,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('keydown', onKeyDown, true);
   };
 
   // Handle mouse drag for project summary bars (moves all tasks in the project, or all multi-selected projects/tasks together)
@@ -2919,19 +3024,42 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         origStart: parseDateSafe(group.startDate),
         origDuration: group.duration,
         dayDelta: 0,
+        pixelDeltaX: 0,
         multiItems: multiItemsMap,
       });
     }
+
+    const detachListeners = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener('keydown', onKeyDown, true);
+      if (typeof document !== 'undefined') {
+        document.body.style.cursor = '';
+      }
+    };
+
+    const onKeyDown = (keyEvent: KeyboardEvent) => {
+      if (keyEvent.key === 'Escape') {
+        keyEvent.preventDefault();
+        keyEvent.stopPropagation();
+        detachListeners();
+        setDragState(null);
+      }
+    };
 
     const onMouseMove = (moveEvent: MouseEvent) => {
       const dx = moveEvent.clientX - startX;
       if (Math.abs(dx) > 3) {
         hasDraggedRef.current = true;
+        if (!lockedProj && typeof document !== 'undefined') {
+          document.body.style.cursor = 'grabbing';
+        }
       }
       if (lockedProj) {
         if (Math.abs(dx) > 3 && !lockPromptTriggered) {
           lockPromptTriggered = true;
           window.removeEventListener('mousemove', onMouseMove);
+          window.removeEventListener('keydown', onKeyDown, true);
           setDragState(null);
           setLockedAlertState({
             project: lockedProj,
@@ -2941,12 +3069,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         return;
       }
       const deltaDays = Math.round(dx / dayWidth);
-      setDragState((prev) => (prev ? { ...prev, dayDelta: deltaDays } : null));
+      setDragState((prev) => (prev ? { ...prev, dayDelta: deltaDays, pixelDeltaX: dx } : null));
     };
 
     const onMouseUp = (upEvent: MouseEvent) => {
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
+      detachListeners();
 
       const dx = upEvent.clientX - startX;
       const deltaDays = Math.round(dx / dayWidth);
@@ -2971,6 +3098,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('keydown', onKeyDown, true);
   };
 
   const showDepToast = showWorkspaceToast;
@@ -6116,9 +6244,13 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               : 'border-b-0'
                           } ${
                             isDropBefore
-                              ? 'border-t-2 border-t-[#0C0C09] bg-[#F4F4F1] dark:bg-zinc-800'
+                              ? 'border-t-2 border-t-indigo-600 dark:border-t-indigo-400 bg-indigo-50/50 dark:bg-indigo-950/30'
                               : isDropAfter
-                              ? 'border-b-2 border-b-[#0C0C09] bg-[#F4F4F1] dark:bg-zinc-800'
+                              ? 'border-b-2 border-b-indigo-600 dark:border-b-indigo-400 bg-indigo-50/50 dark:bg-indigo-950/30'
+                              : ''
+                          } ${
+                            isBeingDragged
+                              ? 'opacity-35 border-dashed border-indigo-400 dark:border-indigo-500 bg-indigo-50/30 dark:bg-indigo-950/20'
                               : ''
                           } ${
                             isRowSelected
@@ -6129,8 +6261,6 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               ? 'ring-1 ring-inset ring-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/40 text-[#0C0C09] dark:text-zinc-100'
                               : item.hidden
                               ? 'opacity-60 bg-zinc-50/70 dark:bg-zinc-900/30'
-                              : isBeingDragged
-                              ? 'opacity-40 bg-[#F4F4F1] dark:bg-zinc-800/60'
                               : isHovered
                               ? 'bg-[#F4F4F1] dark:bg-zinc-900/60'
                               : isCrit
@@ -7691,6 +7821,16 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   const groupWidth = Math.max(dayWidth, group.duration * dayWidth);
                   const projTheme =
                     COLOR_STYLES[group.project.color] || COLOR_STYLES.indigo;
+                  const isDraggingProjectBar =
+                    dragState?.mode === 'move' &&
+                    (dragState.itemId === `project:${group.project.id}` ||
+                      (Boolean(dragState.multiItems) &&
+                        group.items.length > 0 &&
+                        group.items.every((it) => dragState.multiItems!.has(it.id))));
+                  const projectSmoothOffsetX =
+                    isDraggingProjectBar && typeof dragState?.pixelDeltaX === 'number'
+                      ? dragState.pixelDeltaX - dragState.dayDelta * dayWidth
+                      : 0;
 
                   return (
                     <div
@@ -7706,7 +7846,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       className="absolute left-0 right-0 flex items-center pointer-events-none z-20"
                     >
                       <div
-                        style={{ left: groupStartX, width: groupWidth }}
+                        style={{ left: groupStartX + projectSmoothOffsetX, width: groupWidth }}
                         onMouseDown={(e) => handleProjectBarMouseDown(e, group)}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -7838,6 +7978,16 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   item.type === 'milestone'
                     ? 20
                     : Math.max(6, dayWidth, coords.endX - coords.startX);
+                const smoothMoveOffsetX =
+                  isDraggingThis &&
+                  dragState?.mode === 'move' &&
+                  typeof dragState.pixelDeltaX === 'number'
+                    ? dragState.pixelDeltaX - dragState.dayDelta * dayWidth
+                    : 0;
+                const isActivelyMovingBar =
+                  isDraggingThis &&
+                  dragState?.mode === 'move' &&
+                  Math.abs(dragState.pixelDeltaX ?? 0) > 3;
 
                 // Visual Slack width: automatic free slack given FS successor tasks (or manual slack if configured)
                 const autoSlackDays = Math.max(0, item.freeSlack ?? 0);
@@ -7869,18 +8019,26 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     }`}
                   >
                     {item.type === 'milestone' ? (
-                      /* MILESTONE RENDERER (◆ Diamond) + Dependency Connector Ports */
-                      <div
-                        style={{ left: barLeft }}
-                        onMouseDown={(e) => handleBarMouseDown(e, item, 'move')}
-                        onClick={(e) => handleBarClick(e, item.id)}
-                        onDoubleClick={() => guardedEditModal(item)}
-                        data-timeline-milestone={item.id}
-                        data-milestone-color={item.color}
-                        className={`absolute z-20 flex items-center pointer-events-auto group cursor-grab active:cursor-grabbing ${
-                          isDraggingThis ? 'z-40' : ''
-                        }`}
-                      >
+                      <>
+                        {isActivelyMovingBar && (
+                          <div
+                            data-testid="timeline-drag-snap-ghost"
+                            style={{ left: barLeft }}
+                            className="absolute w-5 h-5 rotate-45 rounded-[4px] border-2 border-dashed border-indigo-400/80 bg-indigo-500/15 pointer-events-none z-10"
+                          />
+                        )}
+                        {/* MILESTONE RENDERER (◆ Diamond) + Dependency Connector Ports */}
+                        <div
+                          style={{ left: barLeft + smoothMoveOffsetX }}
+                          onMouseDown={(e) => handleBarMouseDown(e, item, 'move')}
+                          onClick={(e) => handleBarClick(e, item.id)}
+                          onDoubleClick={() => guardedEditModal(item)}
+                          data-timeline-milestone={item.id}
+                          data-milestone-color={item.color}
+                          className={`absolute z-20 flex items-center pointer-events-auto group cursor-grab active:cursor-grabbing ${
+                            isDraggingThis ? 'z-40' : ''
+                          }`}
+                        >
                         {/* Left Input Dependency Connector Port (Sucesora) */}
                         <button
                           type="button"
@@ -7968,15 +8126,24 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             ({formatDateDisplay(coords.effectiveStartStr, 'dd MMM')})
                           </span>
                         </div>
-                      </div>
+                        </div>
+                      </>
                     ) : (
-                      /* STANDARD TASK BAR + SLACK EXTENSION BAR + Dependency Connector Ports */
-                      <div
-                        style={{ left: barLeft }}
-                        className={`absolute z-20 flex items-center pointer-events-auto group ${
-                          isDraggingThis ? 'z-40' : ''
-                        }`}
-                      >
+                      <>
+                        {isActivelyMovingBar && (
+                          <div
+                            data-testid="timeline-drag-snap-ghost"
+                            style={{ left: barLeft, width: barWidth }}
+                            className="absolute h-7 rounded-[4px] border-2 border-dashed border-indigo-400/80 dark:border-indigo-400/70 bg-indigo-500/10 pointer-events-none z-10"
+                          />
+                        )}
+                        {/* STANDARD TASK BAR + SLACK EXTENSION BAR + Dependency Connector Ports */}
+                        <div
+                          style={{ left: barLeft + smoothMoveOffsetX }}
+                          className={`absolute z-20 flex items-center pointer-events-auto group ${
+                            isDraggingThis ? 'z-40' : ''
+                          }`}
+                        >
                         {isDraggingThis && (
                           <div className="absolute -top-7 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-slate-900/95 dark:bg-zinc-100/95 text-white dark:text-zinc-900 text-[10px] font-mono font-bold shadow-xl border border-slate-700/60 dark:border-zinc-300/60 pointer-events-none whitespace-nowrap z-50">
                             {formatDateDisplay(coords.effectiveStartStr, 'd MMM')} → {formatDateDisplay(coords.effectiveEndStr, 'd MMM')} ({coords.effectiveDuration}d)
@@ -8035,7 +8202,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               styleTheme.barBg
                             } ${
                               isDraggingThis
-                                ? 'ring-2 ring-[#0C0C09] ring-offset-1 dark:ring-offset-black opacity-95'
+                                ? 'ring-2 ring-indigo-500 ring-offset-1 dark:ring-offset-black shadow-2xl scale-[1.02] opacity-95'
                                 : isMultiSelectedThis
                                 ? 'ring-2 ring-indigo-500 ring-offset-1 dark:ring-offset-black'
                                 : isDepDropTarget
@@ -8126,7 +8293,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 parseDateSafe(baseItem.startDate)
                               ) + 1
                             );
-                            const baseLeftPx = baseStartOffset * dayWidth - barLeft;
+                            const baseLeftPx = baseStartOffset * dayWidth - (barLeft + smoothMoveOffsetX);
                             const baseWidthPx = Math.max(6, baseDur * dayWidth);
                             const varianceDays = differenceInCalendarDays(
                               parseDateSafe(item.endDate),
@@ -8216,6 +8383,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           </div>
                         )}
                       </div>
+                      </>
                     )}
                   </div>
                 );
@@ -9319,6 +9487,78 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             </button>
           </div>
         )}
+
+        {dragRowPreview && (() => {
+          const enrichedDragged = enrichedItemById.get(dragRowPreview.itemId);
+          const draggedItem =
+            enrichedDragged ||
+            effectiveItems.find((it) => it.id === dragRowPreview.itemId) ||
+            items.find((it) => it.id === dragRowPreview.itemId);
+          if (!draggedItem) return null;
+
+          const draggedEffectiveColor = getItemEffectiveColor(draggedItem);
+          const draggedStyleTheme = COLOR_STYLES[draggedEffectiveColor] || COLOR_STYLES.indigo;
+          const draggedWbsLabel = enrichedDragged?.wbsCode || `${draggedItem.wbs}.`;
+
+          const sourceGroup = allProjectGroups.find((g) =>
+            g.items.some((it) => it.id === draggedItem.id)
+          );
+          const sourceProjectId =
+            sourceGroup?.project.id || draggedItem.projectId || projects[0]?.id;
+          let targetProjId: string | undefined;
+          if (dragOverRow) {
+            if (dragOverRow.id.startsWith('project:')) {
+              targetProjId = dragOverRow.id.slice('project:'.length);
+            } else {
+              const targetItem = items.find((it) => it.id === dragOverRow.id);
+              targetProjId = targetItem?.projectId || projects[0]?.id;
+            }
+          }
+          const targetProjectName =
+            targetProjId && targetProjId !== sourceProjectId
+              ? projects.find((p) => p.id === targetProjId)?.name || null
+              : null;
+
+          return (
+            <div
+              data-testid="task-row-drag-ghost"
+              data-dragging-item-id={draggedItem.id}
+              className="fixed top-0 left-0 pointer-events-none z-[100] select-none"
+              style={{
+                width: dragRowPreview.width,
+                transform: `translate3d(${Math.round(dragRowPreview.x - dragRowPreview.offsetX)}px, ${Math.round(dragRowPreview.y - dragRowPreview.offsetY)}px, 0)`,
+                willChange: 'transform',
+              }}
+            >
+              <div
+                style={{ height: ROW_HEIGHT }}
+                className="bg-white/95 dark:bg-zinc-900/95 backdrop-blur-sm border-2 border-indigo-600 dark:border-indigo-400 rounded-[6px] shadow-2xl ring-4 ring-indigo-500/15 px-3 flex items-center gap-2 text-xs"
+              >
+                <GripVertical className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                <span className="font-mono text-[10px] px-1.5 py-0.5 rounded-[2px] bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-300 border border-[#E2E2DC] dark:border-zinc-700 shrink-0 font-semibold">
+                  {draggedWbsLabel}
+                </span>
+                {draggedItem.type === 'milestone' ? (
+                  <Diamond className={`w-3.5 h-3.5 ${draggedStyleTheme.diamondText} fill-current shrink-0`} />
+                ) : (
+                  <span className={`w-2.5 h-2.5 rounded-[2px] shrink-0 ${draggedStyleTheme.badge}`} />
+                )}
+                <span className="font-semibold text-[#0C0C09] dark:text-zinc-100 truncate flex-1">
+                  {draggedItem.name || (draggedItem.type === 'milestone' ? 'Hito' : 'Tarea')}
+                </span>
+                <span className="font-mono text-[10px] text-[#6B6B66] dark:text-zinc-300 bg-[#F4F4F1] dark:bg-zinc-800 px-1.5 py-0.5 rounded shrink-0">
+                  {formatDateDisplay(draggedItem.startDate, 'dd MMM')}
+                  {draggedItem.type === 'task' ? ` · ${draggedItem.duration}d` : ''}
+                </span>
+              </div>
+              {targetProjectName && (
+                <div className="mt-1 inline-flex items-center px-2 py-0.5 rounded bg-indigo-600 text-white text-[10px] font-semibold shadow-lg">
+                  {`→ Mover a: ${targetProjectName}`}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         <ProjectLockedAlertModal
           project={lockedAlertState?.project || null}

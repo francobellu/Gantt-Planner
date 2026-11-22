@@ -4525,7 +4525,7 @@ test('Help page, version control v1.2.0, release selection on project creation, 
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version control consistency
-  assert.equal(pkg.version, '1.10.7', 'package.json version must be 1.9.2');
+  assert.equal(pkg.version, '1.10.8', 'package.json version must be 1.9.2');
   assert.ok(pkg.scripts['version:patch'], 'package.json must contain version:patch script');
   assert.ok(pkg.scripts['version:minor'], 'package.json must contain version:minor script');
   assert.ok(pkg.scripts['release:patch'], 'package.json must contain release:patch script');
@@ -5306,10 +5306,10 @@ test('Task name positioning, configurable row separators, 37 char truncation, v1
     const htmlWithoutWeekendShading = renderToString(mod.renderWorkspaceWithWeekendShading(false));
     assert.ok(!htmlWithoutWeekendShading.includes('bg-[#E5E5DF]'), 'Canvas and header must NOT render weekend shading when showWeekendShading is false (clean uniform background)');
 
-    // 9. App Header displays v1.10.7 badge, row-separators-btn, and weekend-shading-btn
+    // 9. App Header displays v1.10.8 badge, row-separators-btn, and weekend-shading-btn
     const appHtml = renderToString(mod.renderAppHeader());
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'Header must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.10.7'), 'Header badge must display v1.10.7');
+    assert.ok(appHtml.includes('v1.10.8'), 'Header badge must display v1.10.8');
     assert.ok(appHtml.includes('data-testid="header-toggle-row-separators-btn"'), 'Header must contain header-toggle-row-separators-btn');
     assert.ok(appHtml.includes('data-testid="header-toggle-weekend-shading-btn"'), 'Header must contain header-toggle-weekend-shading-btn');
 
@@ -5339,7 +5339,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version Bump Verification
-  assert.equal(pkg.version, '1.10.7', 'package.json version must equal 1.9.2');
+  assert.equal(pkg.version, '1.10.8', 'package.json version must equal 1.9.2');
 
   // Verify scripts/bump-version.mjs works properly
   const bumpScript = await fs.readFile(path.resolve(__dirname, '../scripts/bump-version.mjs'), 'utf8');
@@ -5513,7 +5513,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // A. APP_VERSION equals 1.9.2
-    assert.equal(mod.APP_VERSION, '1.10.7', 'APP_VERSION must be 1.9.2');
+    assert.equal(mod.APP_VERSION, '1.10.8', 'APP_VERSION must be 1.9.2');
 
     // A2. Excel Export Unit Test
     const sampleReleases = [
@@ -5590,7 +5590,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     assert.ok(appHtml.includes('data-testid="table-platform-filter"'), 'App must contain unified table-platform-filter');
     assert.ok(!appHtml.includes('data-testid="header-toggle-focus-mode-btn"'), 'Redundant header-toggle-focus-mode-btn must be removed');
     assert.ok(appHtml.includes('data-testid="header-reports-btn"'), 'App header must contain header-reports-btn');
-    assert.ok(appHtml.includes('v1.10.7'), 'App header must display version v1.10.7');
+    assert.ok(appHtml.includes('v1.10.8'), 'App header must display version v1.10.8');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6042,8 +6042,8 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
-  // 1. Version Bump Verification v1.10.7
-  assert.equal(pkg.version, '1.10.7', 'package.json version must equal 1.9.2');
+  // 1. Version Bump Verification v1.10.8
+  assert.equal(pkg.version, '1.10.8', 'package.json version must equal 1.9.2');
 
   // 2. SSR Bundle verification for TaskFormModal, App Header, and sanitizeGanttItem
   const tmpFile = path.resolve(__dirname, `tmp_test59_bundle_${Date.now()}.mjs`);
@@ -6141,7 +6141,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.equal(mod.APP_VERSION, '1.10.7', 'mod.APP_VERSION must equal 1.9.2');
+    assert.equal(mod.APP_VERSION, '1.10.8', 'mod.APP_VERSION must equal 1.9.2');
 
     // sanitizeGanttItem preserves platform
     const sanitizedIos = mod.sanitizeGanttItem({
@@ -6186,7 +6186,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     assert.ok(appHtml.includes('data-testid="header-more-menu-btn"'), 'App header must render header-more-menu-btn');
     assert.ok(appHtml.includes('data-testid="header-more-menu-dropdown"'), 'App must render header-more-menu-dropdown');
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'More menu must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.10.7'), 'Version badge must display v1.10.7');
+    assert.ok(appHtml.includes('v1.10.8'), 'Version badge must display v1.10.8');
     assert.ok(appHtml.includes('data-testid="force-reload-btn"'), 'More menu must contain force-reload-btn');
 
     // 7. Verify secondary buttons are rendered inside the menu
@@ -6208,7 +6208,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
       hiddenReleaseCount: 0,
     }));
     assert.ok(settingsHtml.includes('data-testid="settings-version-badge"'), 'SettingsModal must contain settings-version-badge');
-    assert.ok(settingsHtml.includes('1.10.7') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.9.2');
+    assert.ok(settingsHtml.includes('1.10.8') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.9.2');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6362,14 +6362,14 @@ test('Test 61: Version button, compiled release notes modal and changelog across
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
 
     // 1. Check RELEASE_NOTES compiled data
-    assert.strictEqual(mod.APP_VERSION, '1.10.7');
+    assert.strictEqual(mod.APP_VERSION, '1.10.8');
     assert.ok(Array.isArray(mod.RELEASE_NOTES), 'RELEASE_NOTES must be an array');
     assert.ok(mod.RELEASE_NOTES.length >= 10, 'RELEASE_NOTES must have at least 10 releases');
 
     const latest = mod.RELEASE_NOTES[0];
-    assert.strictEqual(latest.version, '1.10.7', 'First release note must be 1.9.2');
+    assert.strictEqual(latest.version, '1.10.8', 'First release note must be 1.9.2');
     assert.strictEqual(latest.isLatest, true, 'First release note must be isLatest: true');
-    assert.ok(latest.features.length > 0, 'v1.10.7 must contain features');
+    assert.ok(latest.features.length > 0, 'v1.10.8 must contain features');
 
     // 2. Render App and verify version button exists in dropdown menu and is NOT duplicated in top header
     const appHtml = renderToString(React.createElement(mod.App));
@@ -6382,8 +6382,8 @@ test('Test 61: Version button, compiled release notes modal and changelog across
       'App dropdown must contain data-testid="app-version-badge"'
     );
     assert.ok(
-      appHtml.includes('<button') && appHtml.includes('data-testid="app-version-badge"') && appHtml.includes('v1.10.7'),
-      'app-version-badge in tools dropdown must be an interactive button showing v1.10.7'
+      appHtml.includes('<button') && appHtml.includes('data-testid="app-version-badge"') && appHtml.includes('v1.10.8'),
+      'app-version-badge in tools dropdown must be an interactive button showing v1.10.8'
     );
 
     // 3. Render ReleaseNotesModal
@@ -8197,7 +8197,7 @@ test('Test 73: v1.9.0 project alert level (0-3), workspace toolbar alert filter,
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.strictEqual(mod.APP_VERSION, '1.10.7', 'APP_VERSION must be 1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.10.8', 'APP_VERSION must be 1.9.2');
 
     // 1. Check sanitizeProject and describeProjectStateChanges for alertLevel
     const pSanitized0 = mod.sanitizeProject({ id: 'p-1', name: 'Proj 1', alertLevel: 0 });
@@ -8391,7 +8391,7 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.strictEqual(mod.APP_VERSION, '1.10.7', 'APP_VERSION must be 1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.10.8', 'APP_VERSION must be 1.9.2');
 
     // 1. Verify description format: <descripción del proyecto si existe>\n\n* <nombre> <desc>
     const pWithDesc = {
@@ -8490,8 +8490,8 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
   }
 });
 
-// TEST 75: v1.10.7 Project locking, accidental move guard & unlock prompt modal
-test('Test 75: v1.10.7 project locking, cascade/dependency protection, plan history badge, and unlock alert modal', async () => {
+// TEST 75: v1.10.8 Project locking, accidental move guard & unlock prompt modal
+test('Test 75: v1.10.8 project locking, cascade/dependency protection, plan history badge, and unlock alert modal', async () => {
   const fs = await import('node:fs/promises');
   const path = await import('node:path');
   const { fileURLToPath } = await import('node:url');
@@ -8502,7 +8502,7 @@ test('Test 75: v1.10.7 project locking, cascade/dependency protection, plan hist
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
-  assert.strictEqual(pkg.version, '1.10.7', 'package.json version must equal 1.9.2');
+  assert.strictEqual(pkg.version, '1.10.8', 'package.json version must equal 1.9.2');
 
   const tmpFile = path.resolve(__dirname, `tmp_test75_bundle_${Date.now()}.mjs`);
   try {
@@ -8564,9 +8564,9 @@ test('Test 75: v1.10.7 project locking, cascade/dependency protection, plan hist
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // 1. Version & release notes verification
-    assert.strictEqual(mod.APP_VERSION, '1.10.7', 'APP_VERSION must equal 1.9.2');
-    assert.strictEqual(mod.RELEASE_NOTES[0].version, '1.10.7', 'Latest release note must be 1.9.2');
-    assert.strictEqual(mod.RELEASE_NOTES[0].isLatest, true, 'v1.10.7 release note must be marked isLatest');
+    assert.strictEqual(mod.APP_VERSION, '1.10.8', 'APP_VERSION must equal 1.9.2');
+    assert.strictEqual(mod.RELEASE_NOTES[0].version, '1.10.8', 'Latest release note must be 1.9.2');
+    assert.strictEqual(mod.RELEASE_NOTES[0].isLatest, true, 'v1.10.8 release note must be marked isLatest');
 
     // 2. sanitizeProject, getLockedProjectForItem, describeProjectStateChanges
     const lockedProj = mod.sanitizeProject({
@@ -8763,7 +8763,7 @@ test('Test 75: v1.10.7 project locking, cascade/dependency protection, plan hist
   }
 });
 
-test('Test 76: v1.10.7 automatic Free Slack calculation given successor tasks across engine, table badge, inspector sidebar and task modal', async () => {
+test('Test 76: v1.10.8 automatic Free Slack calculation given successor tasks across engine, table badge, inspector sidebar and task modal', async () => {
   // 1. Engine calculation: FS dependency with multiple successors
   const testItems = [
     {
@@ -10053,6 +10053,266 @@ test('Test 83: Footer quick-add rows for tasks at end of project and projects at
     );
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
+test('Test 84: Visual drag ghost following pointer for WBS rows & 1:1 sub-day offset invariance for timeline bars', async () => {
+  const esbuild = await import('esbuild');
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const { pathToFileURL } = await import('node:url');
+
+  const tmpFile = path.resolve(process.cwd(), `tests/tmp_test84_bundle_${Date.now()}.mjs`);
+  try {
+    await esbuild.build({
+      stdin: {
+        contents: `
+          import React from 'react';
+          import { GanttWorkspace } from './src/components/GanttWorkspace.tsx';
+          import { computeGanttMetrics } from './src/utils/ganttEngine.ts';
+          export { React, GanttWorkspace, computeGanttMetrics };
+        `,
+        resolveDir: process.cwd(),
+        loader: 'tsx',
+      },
+      bundle: true,
+      format: 'esm',
+      outfile: tmpFile,
+      external: [
+        'react',
+        'react-dom',
+        'react-dom/server',
+        'clsx',
+        'tailwind-merge',
+        'lucide-react',
+        'date-fns',
+      ],
+      jsx: 'automatic',
+    });
+
+    const mod = await import(pathToFileURL(tmpFile).href + '?t=' + Date.now());
+    const React = mod.React;
+    const { renderToString } = await import('react-dom/server');
+
+    const releases = [
+      {
+        id: 'rel-1',
+        code: 'T_26.12.1',
+        name: 'Release Drag Test',
+        color: 'indigo',
+        milestones: [
+          { id: 'qg1', key: 'qg1', code: 'QG1', name: 'QG1', category: 'SCOPE RELEASE', date: '2026-12-01' },
+          { id: 'pro', key: 'pro', code: 'PRO', name: 'PRO', category: 'Entorno PRO', date: '2026-12-20' },
+        ],
+      },
+    ];
+    const projects = [
+      { id: 'p1', name: 'Proyecto Drag', color: 'indigo', releaseId: 'rel-1', collapsed: false },
+    ];
+    const items = mod.computeGanttMetrics([
+      {
+        id: 't-drag-1',
+        projectId: 'p1',
+        name: 'Tarea Arrastrada Visual',
+        type: 'task',
+        startDate: '2026-12-03',
+        endDate: '2026-12-06',
+        duration: 4,
+        progress: 25,
+        dependencies: [],
+        slack: 0,
+      },
+    ]);
+
+    const html = renderToString(
+      React.createElement(mod.GanttWorkspace, {
+        items,
+        projects,
+        releases,
+        groupingMode: 'release',
+        groupByProject: true,
+        showTable: true,
+        scrollContainerRef: { current: null },
+        selectedProjectId: 'all',
+        selectedProjectIds: ['p1'],
+        zoom: 'day',
+        dayWidth: 32,
+        showCriticalPath: false,
+        showCpmFloat: true,
+        autoCascade: true,
+        arrowVisibility: 'all',
+        initialDragRowPreview: {
+          itemId: 't-drag-1',
+          x: 260,
+          y: 340,
+          offsetX: 40,
+          offsetY: 20,
+          width: 340,
+        },
+        onUpdateItem: () => {},
+        onEditModal: () => {},
+        onDeleteItem: () => {},
+        onQuickAdd: () => {},
+        onCreateProject: () => {},
+      })
+    );
+
+    assert.ok(
+      html.includes('data-testid="task-row-drag-ghost"') &&
+        html.includes('data-dragging-item-id="t-drag-1"'),
+      'Must render floating drag ghost card following the pointer when initialDragRowPreview is active'
+    );
+    assert.ok(
+      html.includes('Tarea Arrastrada Visual'),
+      'Drag ghost card must display the dragged task name'
+    );
+    assert.ok(
+      html.includes('translate3d(220px, 320px, 0)') ||
+        html.includes('translate3d(220px,320px,0)'),
+      'Drag ghost card transform must place it at (x - offsetX, y - offsetY)'
+    );
+    assert.ok(
+      html.includes('opacity-35'),
+      'Origin WBS row must be dimmed with opacity-35 placeholder styling while dragging'
+    );
+
+    // Mathematical invariance of 1:1 smooth sub-day offset across positive and negative deltas
+    const dayWidth = 32;
+    for (const pixelDeltaX of [-95, -47, -14, -4, 0, 5, 15, 49, 110]) {
+      const dayDelta = Math.round(pixelDeltaX / dayWidth);
+      const smoothMoveOffsetX = pixelDeltaX - dayDelta * dayWidth;
+      assert.equal(
+        dayDelta * dayWidth + smoothMoveOffsetX,
+        pixelDeltaX,
+        `1:1 smooth pointer tracking must preserve exact pixel delta (${pixelDeltaX}px)`
+      );
+    }
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
+test('Test 85: Deterministic auto-publish Stop hook (.agents/hooks.json) and enforce-publish.mjs behavior', async () => {
+  const { execFileSync } = await import('node:child_process');
+  const fs = await import('node:fs/promises');
+  const os = await import('node:os');
+  const path = await import('node:path');
+
+  const hooksJsonPath = path.resolve(process.cwd(), '.agents/hooks.json');
+  const hookScriptPath = path.resolve(process.cwd(), '.agents/hooks/enforce-publish.mjs');
+  const publishScriptPath = path.resolve(process.cwd(), 'scripts/publish.mjs');
+  const pkgJsonPath = path.resolve(process.cwd(), 'package.json');
+
+  const hooksConfig = JSON.parse(await fs.readFile(hooksJsonPath, 'utf8'));
+  assert.ok(
+    Array.isArray(hooksConfig['auto-publish-feature']?.Stop),
+    '.agents/hooks.json must define auto-publish-feature.Stop array'
+  );
+  const stopHandlers = hooksConfig['auto-publish-feature'].Stop;
+  assert.ok(stopHandlers.length > 0, 'auto-publish-feature.Stop must be non-empty');
+  assert.equal(stopHandlers[0].type, 'command');
+  assert.equal(stopHandlers[0].command, 'node ./hooks/enforce-publish.mjs');
+
+  await fs.access(publishScriptPath);
+  const pkg = JSON.parse(await fs.readFile(pkgJsonPath, 'utf8'));
+  assert.equal(pkg.scripts['publish:feature'], 'node scripts/publish.mjs');
+
+  const tmpRepo = await fs.mkdtemp(path.join(os.tmpdir(), 'gantt-auto-publish-test-'));
+  const tmpStateFile = path.join(os.tmpdir(), `gantt-stop-guard-test-${Date.now()}.json`);
+
+  const runHook = (payloadObj) => {
+    const out = execFileSync('node', [hookScriptPath], {
+      input: JSON.stringify(payloadObj),
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        ENFORCE_PUBLISH_STATE_FILE: tmpStateFile,
+      },
+    });
+    return JSON.parse(out.trim());
+  };
+
+  try {
+    execFileSync('git', ['init'], { cwd: tmpRepo, stdio: 'ignore' });
+    execFileSync('git', ['checkout', '-B', 'main'], { cwd: tmpRepo, stdio: 'ignore' });
+    execFileSync('git', ['config', 'user.name', 'Test Bot'], { cwd: tmpRepo, stdio: 'ignore' });
+    execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: tmpRepo, stdio: 'ignore' });
+    await fs.writeFile(path.join(tmpRepo, 'a.txt'), 'initial\n', 'utf8');
+    execFileSync('git', ['add', 'a.txt'], { cwd: tmpRepo, stdio: 'ignore' });
+    execFileSync('git', ['commit', '-m', 'init'], { cwd: tmpRepo, stdio: 'ignore' });
+
+    // 1. Clean repo + NO_TOOL_CALL -> allows stop ({})
+    const cleanRes = runHook({
+      conversationId: 'conv-test-85',
+      cwd: tmpRepo,
+      terminationReason: 'NO_TOOL_CALL',
+      fullyIdle: true,
+      lastUserInput: 'implementa feature',
+    });
+    assert.deepEqual(cleanRes, {}, 'Clean repo must allow stop');
+
+    // 2. Dirty repo cases
+    await fs.writeFile(path.join(tmpRepo, 'a.txt'), 'modified\n', 'utf8');
+
+    // 2a. USER_CANCELED -> allows stop
+    const canceledRes = runHook({
+      conversationId: 'conv-test-85',
+      cwd: tmpRepo,
+      terminationReason: 'USER_CANCELED',
+      fullyIdle: true,
+      lastUserInput: 'implementa feature',
+    });
+    assert.deepEqual(canceledRes, {}, 'USER_CANCELED must allow stop even when repo is dirty');
+
+    // 2b. Explicit no-publish user intent -> allows stop
+    const noPublishRes = runHook({
+      conversationId: 'conv-test-85',
+      cwd: tmpRepo,
+      terminationReason: 'NO_TOOL_CALL',
+      fullyIdle: true,
+      lastUserInput: 'haz esto sin publicar',
+    });
+    assert.deepEqual(noPublishRes, {}, 'Explicit no-publish user intent must allow stop');
+
+    // 2c. Dirty repo + NO_TOOL_CALL -> blocks stop on 1st and 2nd calls
+    const firstBlock = runHook({
+      conversationId: 'conv-test-85',
+      cwd: tmpRepo,
+      terminationReason: 'NO_TOOL_CALL',
+      fullyIdle: true,
+      lastUserInput: 'implementa feature',
+    });
+    assert.equal(firstBlock.decision, 'continue', '1st call with dirty repo must block stop');
+    assert.ok(
+      typeof firstBlock.reason === 'string' && firstBlock.reason.includes('scripts/publish.mjs'),
+      'Block reason must instruct agent to run scripts/publish.mjs'
+    );
+
+    const secondBlock = runHook({
+      conversationId: 'conv-test-85',
+      cwd: tmpRepo,
+      terminationReason: 'NO_TOOL_CALL',
+      fullyIdle: true,
+      lastUserInput: 'implementa feature',
+    });
+    assert.equal(secondBlock.decision, 'continue', '2nd call with dirty repo must block stop');
+
+    // 2d. 3rd call with identical dirty state & conversationId -> anti-loop guard allows stop
+    const thirdGuardRes = runHook({
+      conversationId: 'conv-test-85',
+      cwd: tmpRepo,
+      terminationReason: 'NO_TOOL_CALL',
+      fullyIdle: true,
+      lastUserInput: 'implementa feature',
+    });
+    assert.deepEqual(
+      thirdGuardRes,
+      {},
+      'Anti-loop guard must allow stop after 2 blocked attempts on the same state'
+    );
+  } finally {
+    await fs.rm(tmpRepo, { recursive: true, force: true }).catch(() => {});
+    await fs.unlink(tmpStateFile).catch(() => {});
   }
 });
 

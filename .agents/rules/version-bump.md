@@ -1,15 +1,17 @@
 ---
-description: Obligación de incrementar la versión y actualizar releaseNotes.ts antes de publicar a main
+description: Obligación de publicar determinísticamente (versión, releaseNotes, tests, build, commit y push) al finalizar cada feature
 ---
 
-# Versionado determinístico antes de cada push a `main`
+# Publicación y Versionado Determinístico en `main`
 
-Siempre que vayas a hacer `git push` a `main` (o publicar cambios), **debes** incrementar la versión antes del commit/push usando `scripts/bump-version.mjs` (el hook `.githooks/pre-push` bloqueará el push si no se hace):
+Siempre que termines una feature, mejora o fix en `main` (o vayas a publicar cambios), **debes** ejecutar el script determinístico unificado `scripts/publish.mjs` antes de finalizar tu respuesta (salvo que el usuario pida explícitamente no publicar):
 
-1. Ejecuta:
-   ```bash
-   node scripts/bump-version.mjs patch "<Título breve en español>" "<Descripción clara de los cambios; separada por ; si hay varios>"
-   ```
-   (Usa `minor` o `major` cuando corresponda por entidad del cambio.)
-2. Verifica que `npm test && npm run build` pasan **después** del bump.
-3. Haz commit con el prefijo de versión (por ejemplo `v1.10.5: ...`) y entonces `git push`.
+```bash
+node scripts/publish.mjs patch "<Título breve en español>" "<Descripción clara de los cambios; separada por ; si hay varios>"
+```
+*(Usa `minor` o `major` cuando corresponda por entidad del cambio.)*
+
+Este flujo está garantizado por tres barreras determinísticas:
+1. **Regla always-on** en `AGENTS.md` y esta guía.
+2. **Lifecycle Hook `Stop`** en `.agents/hooks.json` (`.agents/hooks/enforce-publish.mjs`), que bloquea la finalización del agente si quedan archivos modificados o commits sin hacer push en `main`.
+3. **Hook `.githooks/pre-push`**, que bloquea cualquier `git push` a `main` si no se actualizaron `package.json`, `src/types/gantt.ts` y `src/data/releaseNotes.ts`.

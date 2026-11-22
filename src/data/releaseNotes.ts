@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.10.8',
+    date: '22 Nov 2026',
+    title: 'Arrastre visual siguiendo el puntero y publicación automática determinística',
+    isLatest: true,
+    features: [
+      'Al arrastrar tareas en tabla WBS aparece una tarjeta flotante siguiendo el puntero y en el cronograma las barras se mueven 1:1 con silueta de encaje.',
+      'Se añade flujo determinístico de publicación automática con Stop hook (.agents/hooks.json), regla AGENTS.md y script scripts/publish.mjs.',
+    ],
+  },
+  {
     version: '1.10.7',
     date: '22 Nov 2026',
     title: 'Configuración de hitos en barra de cronograma y cierre universal de modales',
-    isLatest: true,
     features: [
       'Se mueve el botón de configuración de hitos de release visibles a la barra de herramientas del cronograma.',
       'Todas las ventanas modales se cierran ahora al hacer clic fuera o al pulsar la tecla Escape.',

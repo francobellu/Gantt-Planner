@@ -1,0 +1,11 @@
+{
+  "auto-publish-feature": {
+    "Stop": [
+      {
+        "type": "command",
+        "command": "node ./hooks/enforce-publish.mjs",
+        "timeout": 15
+      }
+    ]
+  }
+}
