@@ -709,6 +709,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     () => new Set()
   );
   const collapseAnimTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const isCollapseAnimating =
+    recentlyExpandedParentIds.size > 0 || recentlyCollapsedParentIds.size > 0;
 
   const collapseScrollAnchorRef = useRef<{
     selector: string;
@@ -6035,7 +6037,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     {displayRows.length > 0 && (
                       <div
                         style={{ height: displayRows.length * ROW_HEIGHT, minWidth: tableMinWidth }}
-                        className="relative transition-[height] duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
+                        className={`relative ${
+                          isCollapseAnimating
+                            ? 'transition-[height] duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)]'
+                            : ''
+                        }`}
                       >
                         {displayRows.map((row, rowIndex) => {
                       const rowShiftY = rowDragShiftYByRowId.get(row.rowId) || 0;
@@ -6044,7 +6050,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         : undefined;
                       const rowShiftClass = isAnyRowOrProjectDragging
                         ? 'transition-transform duration-200 ease-out'
-                        : 'transition-[top] duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)]';
+                        : isCollapseAnimating
+                        ? 'transition-[top] duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)]'
+                        : '';
 
                       const rowExpandClass = isRowCollapsing(row)
                         ? 'animate-gantt-row-collapse'
@@ -8079,7 +8087,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   : undefined;
                 const timelineRowShiftClass = isAnyRowOrProjectDragging
                   ? 'transition-transform duration-200 ease-out'
-                  : 'transition-[top] duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)]';
+                  : isCollapseAnimating
+                  ? 'transition-[top] duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)]'
+                  : '';
                 const timelineRowExpandClass = isRowCollapsing(row)
                   ? 'animate-gantt-timeline-collapse'
                   : isRowJustExpanded(row)
@@ -8501,7 +8511,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                     } ${
                       isAnyRowOrProjectDragging
                         ? 'transition-[transform,opacity] duration-200 ease-out'
-                        : 'transition-[top,opacity] duration-200 ease-out'
+                        : isCollapseAnimating
+                        ? 'transition-[top,opacity] duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)]'
+                        : 'transition-opacity'
                     } ${timelineRowExpandClass} ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
                   >
                     {item.type === 'milestone' ? (
