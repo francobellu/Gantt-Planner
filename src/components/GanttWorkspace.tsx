@@ -214,6 +214,10 @@ interface GanttWorkspaceProps {
     offsetY?: number;
     width?: number;
   } | null;
+  initialDragOverRow?: {
+    id: string;
+    position: 'before' | 'after';
+  } | null;
   initialDragProjectPreview?: {
     projectId: string;
     x: number;
@@ -221,6 +225,10 @@ interface GanttWorkspaceProps {
     offsetX?: number;
     offsetY?: number;
     width?: number;
+  } | null;
+  initialDragOverProject?: {
+    id: string;
+    position: 'before' | 'after';
   } | null;
   initialContextMenu?: {
     type: 'project' | 'task';
@@ -615,7 +623,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   initialMultiSelectedItemIds,
   initialMultiSelectedProjectIds,
   initialDragRowPreview = null,
+  initialDragOverRow = null,
   initialDragProjectPreview = null,
+  initialDragOverProject = null,
   initialContextMenu = null,
   baselineSnapshot = null,
   workCalendar,
@@ -1600,7 +1610,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   const [dragOverRow, setDragOverRow] = useState<{
     id: string;
     position: 'before' | 'after';
-  } | null>(null);
+  } | null>(initialDragOverRow);
   const [dragRowPreview, setDragRowPreview] = useState<{
     itemId: string;
     x: number;
@@ -1633,7 +1643,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   const [dragOverProject, setDragOverProject] = useState<{
     id: string;
     position: 'before' | 'after';
-  } | null>(null);
+  } | null>(initialDragOverProject);
   const [dragProjectPreview, setDragProjectPreview] = useState<{
     projectId: string;
     x: number;
@@ -2835,6 +2845,101 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     hiddenReleaseIds,
     focusRelatedSets,
   ]);
+
+  const isAnyRowOrProjectDragging = Boolean(draggingRowId || draggingProjectId);
+
+  // Live vertical shift (translateY) for both table rows and timeline bars during row/project drag
+  const rowDragShiftYByRowId = useMemo(() => {
+    const map = new Map<string, number>();
+
+    if (draggingRowId && dragOverRow && !dragOverRow.id.startsWith('project:')) {
+      const dragIdx = displayRows.findIndex(
+        (r) => r.kind === 'item' && r.item.id === draggingRowId
+      );
+      const targetIdx = displayRows.findIndex(
+        (r) => r.kind === 'item' && r.item.id === dragOverRow.id
+      );
+      if (dragIdx !== -1 && targetIdx !== -1 && dragIdx !== targetIdx) {
+        const destIdx =
+          dragIdx < targetIdx
+            ? dragOverRow.position === 'before'
+              ? targetIdx - 1
+              : targetIdx
+            : dragOverRow.position === 'before'
+            ? targetIdx
+            : targetIdx + 1;
+
+        if (destIdx !== dragIdx) {
+          map.set(displayRows[dragIdx].rowId, (destIdx - dragIdx) * ROW_HEIGHT);
+          if (dragIdx < destIdx) {
+            for (let i = dragIdx + 1; i <= destIdx; i++) {
+              map.set(displayRows[i].rowId, -ROW_HEIGHT);
+            }
+          } else {
+            for (let i = destIdx; i < dragIdx; i++) {
+              map.set(displayRows[i].rowId, ROW_HEIGHT);
+            }
+          }
+        }
+      }
+    } else if (draggingProjectId && dragOverProject) {
+      const findProjectSlice = (pid: string): [number, number] | null => {
+        const start = displayRows.findIndex(
+          (r) => r.kind === 'project' && r.group.project.id === pid
+        );
+        if (start === -1) return null;
+        let end = start;
+        while (end + 1 < displayRows.length) {
+          const next = displayRows[end + 1];
+          if (
+            next.kind === 'project' ||
+            next.kind === 'release' ||
+            next.kind === 'add-project'
+          ) {
+            break;
+          }
+          end++;
+        }
+        return [start, end];
+      };
+
+      const srcSlice = findProjectSlice(draggingProjectId);
+      const tgtSlice = findProjectSlice(dragOverProject.id);
+      if (srcSlice && tgtSlice && srcSlice[0] !== tgtSlice[0]) {
+        const [srcStart, srcEnd] = srcSlice;
+        const [tgtStart, tgtEnd] = tgtSlice;
+        const srcLen = srcEnd - srcStart + 1;
+
+        if (srcStart < tgtStart) {
+          const blockEnd =
+            dragOverProject.position === 'before' ? tgtStart - 1 : tgtEnd;
+          if (blockEnd > srcEnd) {
+            const srcShift = (blockEnd - srcEnd) * ROW_HEIGHT;
+            for (let i = srcStart; i <= srcEnd; i++) {
+              map.set(displayRows[i].rowId, srcShift);
+            }
+            for (let i = srcEnd + 1; i <= blockEnd; i++) {
+              map.set(displayRows[i].rowId, -srcLen * ROW_HEIGHT);
+            }
+          }
+        } else {
+          const blockStart =
+            dragOverProject.position === 'before' ? tgtStart : tgtEnd + 1;
+          if (blockStart < srcStart) {
+            const srcShift = -(srcStart - blockStart) * ROW_HEIGHT;
+            for (let i = srcStart; i <= srcEnd; i++) {
+              map.set(displayRows[i].rowId, srcShift);
+            }
+            for (let i = blockStart; i < srcStart; i++) {
+              map.set(displayRows[i].rowId, srcLen * ROW_HEIGHT);
+            }
+          }
+        }
+      }
+    }
+
+    return map;
+  }, [displayRows, draggingRowId, dragOverRow, draggingProjectId, dragOverProject]);
 
   const timelineScopedItems = useMemo(() => {
     if (
@@ -5560,6 +5665,14 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       </div>
                     )}
                     {displayRows.map((row, rowIndex) => {
+                      const rowShiftY = rowDragShiftYByRowId.get(row.rowId) || 0;
+                      const rowShiftStyle = rowShiftY
+                        ? { transform: `translateY(${rowShiftY}px)` }
+                        : undefined;
+                      const rowShiftClass = isAnyRowOrProjectDragging
+                        ? 'transition-transform duration-200 ease-out'
+                        : '';
+
                       if (row.kind === 'release') {
                         const { group: rGroup } = row;
                         const isCollapsed = collapsedReleaseIds.has(rGroup.release.id);
@@ -5761,7 +5874,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             data-project-group={group.project.id}
                             data-project-locked={group.project.locked ? 'true' : 'false'}
                             data-multi-selected={isProjectMultiSelected ? 'true' : 'false'}
-                            style={{ height: ROW_HEIGHT, minWidth: tableMinWidth }}
+                            style={{ height: ROW_HEIGHT, minWidth: tableMinWidth, ...rowShiftStyle }}
                             onMouseDown={(e) =>
                               handleProjectRowPointerMouseDown(e, group.project.id, false)
                             }
@@ -5788,7 +5901,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             onDrop={(e) =>
                               handleDropRow(e, `project:${group.project.id}`)
                             }
-                            className={`group flex items-center justify-start px-3 text-xs font-semibold ${
+                            className={`group flex items-center justify-start px-3 text-xs font-semibold ${rowShiftClass} ${
                               showRowSeparators
                                 ? 'border-y border-slate-200/80 dark:border-zinc-800/80'
                                 : 'border-y-0'
@@ -6115,8 +6228,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           <div
                             key={row.rowId}
                             data-empty-project-row={group.project.id}
-                            style={{ height: ROW_HEIGHT, minWidth: tableMinWidth }}
-                            className={`flex items-center justify-start px-3 text-xs bg-indigo-50/20 dark:bg-zinc-900/40 ${
+                            style={{ height: ROW_HEIGHT, minWidth: tableMinWidth, ...rowShiftStyle }}
+                            className={`flex items-center justify-start px-3 text-xs bg-indigo-50/20 dark:bg-zinc-900/40 ${rowShiftClass} ${
                               showRowSeparators
                                 ? 'border-b border-[#E2E2DC] dark:border-zinc-800/60'
                                 : 'border-b-0'
@@ -6169,8 +6282,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           <div
                             key={row.rowId}
                             data-add-task-row={group.project.id}
-                            style={{ height: ROW_HEIGHT, minWidth: tableMinWidth }}
-                            className={`flex items-center justify-start px-3 text-xs bg-slate-50/60 dark:bg-zinc-900/30 ${
+                            style={{ height: ROW_HEIGHT, minWidth: tableMinWidth, ...rowShiftStyle }}
+                            className={`flex items-center justify-start px-3 text-xs bg-slate-50/60 dark:bg-zinc-900/30 ${rowShiftClass} ${
                               showRowSeparators
                                 ? 'border-b border-[#E2E2DC] dark:border-zinc-800/60'
                                 : 'border-b-0'
@@ -6317,7 +6430,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           data-selected-task-row={isRowSelected ? 'true' : undefined}
                           data-multi-selected={isMultiSelectedItem ? 'true' : 'false'}
                           draggable={true}
-                          style={{ height: ROW_HEIGHT, minWidth: tableMinWidth }}
+                          style={{ height: ROW_HEIGHT, minWidth: tableMinWidth, ...rowShiftStyle }}
                           onClick={(e) => {
                             if (e.metaKey || e.ctrlKey || e.shiftKey) {
                               e.stopPropagation();
@@ -6342,7 +6455,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           onDragOver={(e) => handleDragRowOver(e, item.id)}
                           onDragLeave={handleDragRowLeave}
                           onDrop={(e) => handleDropRow(e, item.id)}
-                          className={`group flex items-center justify-start px-3 text-xs transition-colors ${
+                          className={`group flex items-center justify-start px-3 text-xs transition-colors ${rowShiftClass} ${
                             showRowSeparators
                               ? 'border-b border-[#E2E2DC] dark:border-zinc-800'
                               : 'border-b-0'
@@ -7656,6 +7769,14 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
               {/* Foreground Project Rollup Summary Bars, Task Bars, Slack Ghost Bars & Milestones */}
               {displayRows.map((row, rowIndex) => {
+                const timelineRowShiftY = rowDragShiftYByRowId.get(row.rowId) || 0;
+                const timelineRowShiftStyle = timelineRowShiftY
+                  ? { transform: `translateY(${timelineRowShiftY}px)` }
+                  : undefined;
+                const timelineRowShiftClass = isAnyRowOrProjectDragging
+                  ? 'transition-transform duration-200 ease-out'
+                  : '';
+
                 if (row.kind === 'release') {
                   const { group: rGroup } = row;
                   const relSpan = getReleaseDateSpan(rGroup.release);
@@ -7700,8 +7821,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       style={{
                         top: rowIndex * ROW_HEIGHT,
                         height: ROW_HEIGHT,
+                        ...timelineRowShiftStyle,
                       }}
-                      className="absolute left-0 right-0 flex items-center pointer-events-none z-20"
+                      className={`absolute left-0 right-0 flex items-center pointer-events-none z-20 ${timelineRowShiftClass}`}
                     >
                       <div
                         style={{ left: rStartX, width: rWidth }}
@@ -7800,8 +7922,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         style={{
                           top: rowIndex * ROW_HEIGHT,
                           height: ROW_HEIGHT,
+                          ...timelineRowShiftStyle,
                         }}
-                        className="absolute left-0 right-0 flex items-center pointer-events-none z-20"
+                        className={`absolute left-0 right-0 flex items-center pointer-events-none ${
+                          draggingProjectId === group.project.id ? 'z-40' : 'z-20'
+                        } ${timelineRowShiftClass}`}
                       >
                         <div
                           style={{ left: groupStartX, width: groupWidth }}
@@ -7891,8 +8016,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       style={{
                         top: rowIndex * ROW_HEIGHT,
                         height: ROW_HEIGHT,
+                        ...timelineRowShiftStyle,
                       }}
-                      className="absolute left-0 right-0 flex items-center pointer-events-none z-20"
+                      className={`absolute left-0 right-0 flex items-center pointer-events-none ${
+                        draggingProjectId === group.project.id ? 'z-40' : 'z-20'
+                      } ${timelineRowShiftClass}`}
                     >
                       <div
                         style={{ left: groupStartX + projectSmoothOffsetX, width: groupWidth }}
@@ -8057,15 +8185,23 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                 return (
                   <div
                     key={`bar-${item.id}`}
+                    data-timeline-bar-row={item.id}
                     style={{
                       top: coords.index * ROW_HEIGHT,
                       height: ROW_HEIGHT,
+                      ...timelineRowShiftStyle,
                     }}
                     onMouseEnter={() => setHoveredId(item.id)}
                     onMouseLeave={() => setHoveredId(null)}
-                    className={`absolute left-0 right-0 flex items-center pointer-events-none z-20 transition-opacity ${
-                      isDimmed ? 'opacity-40' : 'opacity-100'
-                    }`}
+                    className={`absolute left-0 right-0 flex items-center pointer-events-none ${
+                      draggingRowId === item.id || draggingProjectId === item.projectId
+                        ? 'z-40'
+                        : 'z-20'
+                    } ${
+                      isAnyRowOrProjectDragging
+                        ? 'transition-[transform,opacity] duration-200 ease-out'
+                        : 'transition-opacity'
+                    } ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
                   >
                     {item.type === 'milestone' ? (
                       <>

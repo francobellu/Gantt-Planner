@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.10.14',
+    date: '22 Nov 2026',
+    title: 'Animación en vivo de intercambio en tabla y cronograma al arrastrar',
+    isLatest: true,
+    features: [
+      'Al arrastrar una tarea o proyecto también se desplaza su barra correspondiente en el cronograma',
+      'Los elementos desplazados animan suavemente su posición (translateY con transition duration-200) para ocupar el lugar original del elemento arrastrado',
+    ],
+  },
+  {
     version: '1.10.13',
     date: '22 Nov 2026',
     title: 'Checkbox de selección múltiple visible solo con Ctrl/Cmd+Clic',
-    isLatest: true,
     features: [
       'El checkbox de selección múltiple en filas de proyecto y tarea solo se muestra cuando el elemento está seleccionado mediante Ctrl/Cmd+Clic',
     ],
