@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.11.8',
+    date: '23 Nov 2026',
+    title: 'Selector principal Cronograma | Informes y botones Importar/Exportar a la derecha',
+    isLatest: true,
+    features: [
+      'Creado selector segmentado de páginas principales al mismo nivel (Cronograma | Informes) en la cabecera',
+      'Movidos los botones de Importar y Exportar a la derecha de la misma barra superior',
+    ],
+  },
+  {
     version: '1.11.7',
     date: '23 Nov 2026',
     title: 'Abrir RightSidePanel con detalles al seleccionar filas en Informes',
-    isLatest: true,
     features: [
       'Al seleccionar una tarea, proyecto o release en cualquiera de las 3 pestañas de Informes se abre el panel derecho en la pestaña Detalles mostrando el elemento seleccionado y resaltando la fila',
     ],

@@ -2756,8 +2756,96 @@ export function App({
             )}
           </div>
 
-          {/* Botones de Importar y Exportar directos en barra superior (Icon-Only) */}
-          <div className="flex items-center border border-[#0C0C09] dark:border-zinc-700 rounded-[4px] bg-white dark:bg-zinc-900 overflow-hidden shrink-0">
+          {/* Selector de páginas principales al mismo nivel: Cronograma | Informes */}
+          <div
+            data-testid="header-primary-nav"
+            role="tablist"
+            aria-label="Vistas principales"
+            className="flex items-center border border-[#0C0C09] dark:border-zinc-700 rounded-[4px] bg-white dark:bg-zinc-900 overflow-hidden shrink-0"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={currentView === 'gantt'}
+              data-testid="header-gantt-btn"
+              onClick={() => setCurrentView('gantt')}
+              className={`px-2.5 py-1 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+                currentView === 'gantt'
+                  ? 'bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09]'
+                  : 'text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800'
+              }`}
+              title="Vista principal de Cronograma Gantt"
+              aria-label="Cronograma"
+            >
+              <CalendarDays className="w-3.5 h-3.5 shrink-0" />
+              <span>Cronograma</span>
+            </button>
+            <div className="w-px h-4 bg-[#E2E2DC] dark:bg-zinc-800" />
+            <button
+              type="button"
+              role="tab"
+              aria-selected={currentView === 'reports'}
+              data-testid="header-reports-btn"
+              onClick={() => setCurrentView('reports')}
+              className={`px-2.5 py-1 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+                currentView === 'reports'
+                  ? 'bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09]'
+                  : 'text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800'
+              }`}
+              title="Informes y descarga Excel (.xlsx)"
+              aria-label="Informes"
+            >
+              <FileSpreadsheet
+                className={`w-3.5 h-3.5 shrink-0 ${
+                  currentView === 'reports'
+                    ? 'text-emerald-400 dark:text-emerald-600'
+                    : 'text-emerald-600 dark:text-emerald-400'
+                }`}
+              />
+              <span>Informes</span>
+            </button>
+          </div>
+
+          {/* Botón para restablecer releases ocultas cuando hay alguna oculta (Icon-Only) */}
+          {hiddenReleaseIds.length > 0 && (
+            <button
+              type="button"
+              data-testid="header-reset-hidden-releases-btn"
+              onClick={handleResetHiddenReleases}
+              className="p-1.5 rounded-[4px] border border-amber-600 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/60 transition cursor-pointer shrink-0 animate-fade-in flex items-center justify-center"
+              title={`Hay ${hiddenReleaseIds.length} release(s) oculta(s). Clic para restablecer la visibilidad y ver todos los proyectos.`}
+              aria-label="Restablecer visibilidad de releases"
+            >
+              <Eye className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+            </button>
+          )}
+
+          {scenarioSavedToast && (
+            <span
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-[11px] font-mono font-semibold text-white shadow-none animate-fade-in ${
+                scenarioSavedToast.startsWith('Error')
+                  ? 'bg-[#DC2626]'
+                  : 'bg-[#16A34A]'
+              }`}
+            >
+              {scenarioSavedToast.startsWith('Error') ? (
+                <AlertTriangle className="w-3.5 h-3.5" />
+              ) : (
+                <Check className="w-3.5 h-3.5" />
+              )}
+              {scenarioSavedToast}
+            </span>
+          )}
+        </div>
+
+        {/* RIGHT: Import/Export + Quick Theme Toggle + Unified Tools & Settings Dropdown Menu */}
+        <div data-testid="header-right-actions" className="flex items-center gap-2 shrink-0">
+
+          {/* Botones de Importar y Exportar a la derecha de la barra superior */}
+          <div
+            data-testid="header-import-export-group"
+            className="flex items-center border border-[#0C0C09] dark:border-zinc-700 rounded-[4px] bg-white dark:bg-zinc-900 overflow-hidden shrink-0"
+          >
             <button
               type="button"
               data-testid="header-import-btn"
@@ -2780,57 +2868,6 @@ export function App({
               <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
             </button>
           </div>
-
-          {/* Botón para restablecer releases ocultas cuando hay alguna oculta (Icon-Only) */}
-          {hiddenReleaseIds.length > 0 && (
-            <button
-              type="button"
-              data-testid="header-reset-hidden-releases-btn"
-              onClick={handleResetHiddenReleases}
-              className="p-1.5 rounded-[4px] border border-amber-600 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/60 transition cursor-pointer shrink-0 animate-fade-in flex items-center justify-center"
-              title={`Hay ${hiddenReleaseIds.length} release(s) oculta(s). Clic para restablecer la visibilidad y ver todos los proyectos.`}
-              aria-label="Restablecer visibilidad de releases"
-            >
-              <Eye className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-            </button>
-          )}
-
-          {/* Informes Button (Tablas tipo Excel - Icon-Only) */}
-          <button
-            type="button"
-            data-testid="header-reports-btn"
-            onClick={() => setCurrentView((prev) => (prev === 'reports' ? 'gantt' : 'reports'))}
-            className={`p-1.5 rounded-[4px] border transition cursor-pointer shrink-0 flex items-center justify-center ${
-              currentView === 'reports'
-                ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
-                : 'bg-white dark:bg-zinc-900 border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800'
-            }`}
-            title="Informes y descarga Excel (.xlsx)"
-            aria-label="Informes"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-          </button>
-
-          {scenarioSavedToast && (
-            <span
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-[11px] font-mono font-semibold text-white shadow-none animate-fade-in ${
-                scenarioSavedToast.startsWith('Error')
-                  ? 'bg-[#DC2626]'
-                  : 'bg-[#16A34A]'
-              }`}
-            >
-              {scenarioSavedToast.startsWith('Error') ? (
-                <AlertTriangle className="w-3.5 h-3.5" />
-              ) : (
-                <Check className="w-3.5 h-3.5" />
-              )}
-              {scenarioSavedToast}
-            </span>
-          )}
-        </div>
-
-        {/* RIGHT: Quick Theme Toggle + Unified Tools & Settings Dropdown Menu */}
-        <div className="flex items-center gap-2 shrink-0">
 
           {/* Selector Rápido de Tema (Claro / Oscuro) */}
           <button
