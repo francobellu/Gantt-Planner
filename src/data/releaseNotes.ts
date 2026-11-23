@@ -10,10 +10,18 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.11.6',
+    date: '23 Nov 2026',
+    title: 'Ocultar automáticamente el RightSidePanel al clicar fuera',
+    isLatest: true,
+    features: [
+      'El panel lateral derecho se oculta al hacer clic en áreas de la pantalla que no requieren su visibilidad, manteniéndose abierto al interactuar con el propio panel, botones de toggle/conflictos, filas/barras seleccionables y diálogos',
+    ],
+  },
+  {
     version: '1.11.5',
     date: '23 Nov 2026',
     title: 'Columna Equipo en informes Cronograma Completo y Resumen Proyectos',
-    isLatest: true,
     features: [
       'Añadida columna configurable y redimensionable Equipo en las pestañas 1 (Cronograma Completo, editable inline por tarea) y 2 (Resumen Proyectos, equipos agregados del proyecto) además de la exportación Excel y búsqueda',
     ],

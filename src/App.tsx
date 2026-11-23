@@ -367,6 +367,29 @@ export function App({
     initialCommitsSidebarOpen
   );
   const [rightSidebarTab, setRightSidebarTab] = useState<RightSidebarTab>(initialRightSidebarTab);
+
+  useEffect(() => {
+    if (!showCommitsSidebar || typeof document === 'undefined') return;
+    const keepSelectors = [
+      '[data-testid="right-side-panel"]',
+      '[data-testid="toggle-commits-sidebar-btn"]',
+      '[data-testid="header-conflicts-pill"]',
+      '[data-task-row]',
+      '[data-project-group]',
+      '[data-timeline-task]',
+      '[data-timeline-milestone]',
+      '[data-project-summary-bar]',
+      '[data-release-summary-bar]',
+      '[role="dialog"]',
+    ].join(', ');
+    const handleOutsideMouseDown = (e: MouseEvent) => {
+      const target = e.target as Element | null;
+      if (target?.closest(keepSelectors)) return;
+      setShowCommitsSidebar(false);
+    };
+    document.addEventListener('mousedown', handleOutsideMouseDown);
+    return () => document.removeEventListener('mousedown', handleOutsideMouseDown);
+  }, [showCommitsSidebar]);
   const [activeBaselineCommitId, setActiveBaselineCommitId] = useState<string | null>(
     initialBaselineCommitId
   );
