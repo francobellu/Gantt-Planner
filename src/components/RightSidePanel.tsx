@@ -814,7 +814,7 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                     value={taskNotes}
                     onChange={(e) => setTaskNotes(e.target.value)}
                     placeholder="Añade detalles, alcance o notas..."
-                    className="w-full px-2.5 py-1.5 rounded-[4px] border border-[#E2E2DC] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs resize-none"
+                    className="w-full px-2.5 py-1.5 rounded-[4px] border border-[#E2E2DC] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs resize-y min-h-[68px]"
                   />
                 </div>
 
@@ -987,7 +987,7 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                     onUpdateProject({ ...selectedProject, description: e.target.value })
                   }
                   placeholder="Descripción del proyecto..."
-                  className="w-full px-2.5 py-1.5 rounded-[4px] border border-[#E2E2DC] dark:border-zinc-700 bg-[#FAFAF8] dark:bg-zinc-900 text-xs resize-none"
+                  className="w-full px-2.5 py-1.5 rounded-[4px] border border-[#E2E2DC] dark:border-zinc-700 bg-[#FAFAF8] dark:bg-zinc-900 text-xs resize-y min-h-[68px]"
                 />
               </div>
 

@@ -1128,15 +1128,6 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
           });
         }
       }
-      if (tableSearchQuery) {
-        setTableSearchQuery('');
-      }
-      if (tablePlatformFilter !== 'all') {
-        setTablePlatformFilter('all');
-      }
-      if (tableAlertFilter !== 'all') {
-        setTableAlertFilter('all');
-      }
     }
   }, [selectedEntity]);
 
@@ -9951,7 +9942,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       })
                     }
                     placeholder="Describe los objetivos del proyecto, alcance, entregables clave, notas o enlaces de documentación..."
-                    className="w-full px-3 py-2 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs text-[#0C0C09] dark:text-zinc-200 outline-none focus:ring-1 focus:ring-indigo-500 resize-none"
+                    className="w-full px-3 py-2 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs text-[#0C0C09] dark:text-zinc-200 outline-none focus:ring-1 focus:ring-indigo-500 resize-y min-h-[68px]"
                   />
                 </div>
               </div>

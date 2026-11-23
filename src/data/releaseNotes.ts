@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.11.4',
+    date: '23 Nov 2026',
+    title: 'Cajas de descripción redimensionables y conservación de filtros al seleccionar',
+    isLatest: true,
+    features: [
+      'Las cajas de texto de descripción y notas en panel derecho, modal de tarea e inspector de proyecto ahora son redimensionables verticalmente (resize-y)',
+      'Seleccionar un proyecto o tarea filtrada para ver sus detalles en el panel derecho ya no limpia los filtros activos de búsqueda, plataforma o alerta',
+    ],
+  },
+  {
     version: '1.11.3',
     date: '23 Nov 2026',
     title: 'Nivel de alerta en tareas y selección desde tabla en panel de detalle',
-    isLatest: true,
     features: [
       'Soporte de alertLevel (0-3) en tareas e hitos desde el panel derecho, modal de tarea, tabla y cronograma completo',
       'Clicar proyectos o tareas en la tabla selecciona el elemento y actualiza el panel de detalle derecho igual que desde el cronograma',
