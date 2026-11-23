@@ -139,11 +139,12 @@ const EditableReportTextCell: React.FC<EditableReportTextCellProps> = ({
   };
 
   if (multiline) {
+    const rowCount = Math.min(6, Math.max(2, (draft || '').split('\n').length));
     return (
       <textarea
         data-testid={testId}
         value={draft}
-        rows={2}
+        rows={rowCount}
         placeholder={placeholder}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
@@ -1843,22 +1844,15 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                         {isColVisible('projects', 'description') && (
                           <td className="px-2 py-1.5 font-sans text-xs text-[#6B6B66] dark:text-zinc-400 whitespace-pre-line leading-relaxed">
                             {linkedProj && onUpdateProject ? (
-                              <div className="flex flex-col gap-1">
-                                <EditableReportTextCell
-                                  testId={`report-proj-desc-${linkedProj.id}`}
-                                  value={linkedProj.description || ''}
-                                  placeholder="Añadir descripción del proyecto..."
-                                  multiline
-                                  onCommit={(next) =>
-                                    onUpdateProject({ ...linkedProj, description: next })
-                                  }
-                                />
-                                {row.description && (
-                                  <div className="text-[10px] text-[#6B6B66] dark:text-zinc-500 whitespace-pre-line px-1.5">
-                                    {row.description}
-                                  </div>
-                                )}
-                              </div>
+                              <EditableReportTextCell
+                                testId={`report-proj-desc-${linkedProj.id}`}
+                                value={row.description || linkedProj.description || ''}
+                                placeholder="Añadir descripción del proyecto..."
+                                multiline
+                                onCommit={(next) =>
+                                  onUpdateProject({ ...linkedProj, description: next })
+                                }
+                              />
                             ) : (
                               row.description || '—'
                             )}

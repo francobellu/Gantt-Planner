@@ -10,10 +10,18 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.11.1',
+    date: '23 Nov 2026',
+    title: 'Edición directa de la descripción existente en Resumen Proyectos',
+    isLatest: true,
+    features: [
+      'La celda de Descripción en Resumen Proyectos ahora carga el texto completo existente dentro del textarea editable en lugar de mostrarlo duplicado en solo lectura',
+    ],
+  },
+  {
     version: '1.11.0',
     date: '23 Nov 2026',
     title: 'Informes con columnas configurables, redimensionables y edición directa',
-    isLatest: true,
     features: [
       'Añade selector de columnas visibles por pestaña en ReportsView persistido en localStorage',
       'Añade tiradores para redimensionar el ancho de cada columna en Cronograma Completo, Resumen Proyectos y Catálogo Releases',
