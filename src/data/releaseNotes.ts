@@ -10,10 +10,18 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.11.5',
+    date: '23 Nov 2026',
+    title: 'Columna Equipo en informes Cronograma Completo y Resumen Proyectos',
+    isLatest: true,
+    features: [
+      'Añadida columna configurable y redimensionable Equipo en las pestañas 1 (Cronograma Completo, editable inline por tarea) y 2 (Resumen Proyectos, equipos agregados del proyecto) además de la exportación Excel y búsqueda',
+    ],
+  },
+  {
     version: '1.11.4',
     date: '23 Nov 2026',
     title: 'Cajas de descripción redimensionables y conservación de filtros al seleccionar',
-    isLatest: true,
     features: [
       'Las cajas de texto de descripción y notas en panel derecho, modal de tarea e inspector de proyecto ahora son redimensionables verticalmente (resize-y)',
       'Seleccionar un proyecto o tarea filtrada para ver sus detalles en el panel derecho ya no limpia los filtros activos de búsqueda, plataforma o alerta',

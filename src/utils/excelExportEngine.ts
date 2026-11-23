@@ -19,6 +19,7 @@ export interface CronogramaReportRow {
   projectName: string;
   projectId?: string;
   platform: string;
+  team: string;
   alertLevel?: number;
   type: string;
   startDate: string;
@@ -39,6 +40,7 @@ export interface ProjectSummaryReportRow {
   code: string;
   projectName: string;
   platform: string;
+  team: string;
   alertLevel: number;
   alertLevelLabel: string;
   releaseCode: string;
@@ -73,6 +75,7 @@ export const CRONOGRAMA_HEADER = [
   'Release Asignada',
   'Proyecto',
   'Plataforma',
+  'Equipo',
   'Tipo',
   'Fecha Inicio',
   'Fecha Fin',
@@ -89,6 +92,7 @@ export const PROJECT_SUMMARY_HEADER = [
   'Código',
   'Proyecto',
   'Plataforma',
+  'Equipo',
   'Nivel de Alerta',
   'Release Asignada',
   'Fecha Inicio',
@@ -130,6 +134,13 @@ export function resolveDependencyName(
   return `${depId} (${depType})`;
 }
 
+export function collectProjectTeams(items: ComputedGanttItem[]): string {
+  const uniqueTeams = Array.from(
+    new Set(items.map((it) => (it.assignee ? it.assignee.trim() : '')).filter(Boolean))
+  );
+  return uniqueTeams.length > 0 ? uniqueTeams.join(', ') : '—';
+}
+
 /**
  * Generates structured rows for the full hierarchical schedule (Sheet 1).
  * When an element has multiple dependencies, each dependency is listed in its own
@@ -157,6 +168,7 @@ export function generateCronogramaCompletoRows(
         releaseId: rg.release.id,
         projectName: '—',
         platform: '—',
+        team: '—',
         alertLevel: undefined,
         type: 'Release',
         startDate: rg.startDate,
@@ -185,6 +197,7 @@ export function generateCronogramaCompletoRows(
           projectName: pg.project.name,
           projectId: pg.project.id,
           platform: platformLabel,
+          team: collectProjectTeams(pg.items),
           alertLevel: pg.project.alertLevel ?? 0,
           type: 'Proyecto',
           startDate: pg.startDate,
@@ -233,6 +246,7 @@ export function generateCronogramaCompletoRows(
               projectName: pg.project.name,
               projectId: pg.project.id,
               platform: normalizePlatform(item.platform) || platformLabel,
+              team: item.assignee?.trim() || '—',
               alertLevel: item.alertLevel ?? pg.project.alertLevel ?? 0,
               type: typeLabel,
               startDate: item.startDate,
@@ -266,6 +280,7 @@ export function generateCronogramaCompletoRows(
                 projectName: pg.project.name,
                 projectId: pg.project.id,
                 platform: normalizePlatform(item.platform) || platformLabel,
+                team: item.assignee?.trim() || '—',
                 alertLevel: item.alertLevel ?? pg.project.alertLevel ?? 0,
                 type: typeLabel,
                 startDate: item.startDate,
@@ -300,6 +315,7 @@ export function generateCronogramaCompletoRows(
         projectName: pg.project.name,
         projectId: pg.project.id,
         platform: platformLabel,
+        team: collectProjectTeams(pg.items),
         alertLevel: pg.project.alertLevel ?? 0,
         type: 'Proyecto',
         startDate: pg.startDate,
@@ -334,6 +350,7 @@ export function generateCronogramaCompletoRows(
             projectName: pg.project.name,
             projectId: pg.project.id,
             platform: normalizePlatform(item.platform) || platformLabel,
+            team: item.assignee?.trim() || '—',
             alertLevel: item.alertLevel ?? pg.project.alertLevel ?? 0,
             type: typeLabel,
             startDate: item.startDate,
@@ -364,6 +381,7 @@ export function generateCronogramaCompletoRows(
               projectName: pg.project.name,
               projectId: pg.project.id,
               platform: normalizePlatform(item.platform) || platformLabel,
+              team: item.assignee?.trim() || '—',
               alertLevel: item.alertLevel ?? pg.project.alertLevel ?? 0,
               type: typeLabel,
               startDate: item.startDate,
@@ -434,6 +452,7 @@ export function generateProjectSummaryRows(
       code: `P${pg.projectIndex}`,
       projectName: pg.project.name,
       platform: normalizePlatform(pg.project.platform) || 'iOS/Android',
+      team: collectProjectTeams(pg.items),
       alertLevel,
       alertLevelLabel: `Nivel ${alertLevel}`,
       releaseCode: assignedRelease ? assignedRelease.code : 'Sin asignar',
@@ -510,6 +529,7 @@ export function exportFullGanttToWorkbook(
       r.releaseCode,
       r.projectName,
       r.platform,
+      r.team,
       r.type,
       r.startDate,
       r.endDate,
@@ -530,6 +550,7 @@ export function exportFullGanttToWorkbook(
     { wch: 16 }, // Release Asignada
     { wch: 28 }, // Proyecto
     { wch: 18 }, // Plataforma
+    { wch: 18 }, // Equipo
     { wch: 12 }, // Tipo
     { wch: 14 }, // Fecha Inicio
     { wch: 14 }, // Fecha Fin
@@ -551,6 +572,7 @@ export function exportFullGanttToWorkbook(
       r.code,
       r.projectName,
       r.platform,
+      r.team,
       `Nivel ${r.alertLevel}`,
       r.releaseCode,
       r.startDate,
@@ -566,6 +588,7 @@ export function exportFullGanttToWorkbook(
   wsProjects['!cols'] = [
     { wch: 10 },
     { wch: 32 },
+    { wch: 18 },
     { wch: 18 },
     { wch: 16 },
     { wch: 18 },

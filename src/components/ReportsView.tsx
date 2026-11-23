@@ -60,6 +60,7 @@ const CRONO_COLUMNS: ReportColumnDef[] = [
   { key: 'releaseCode', label: 'Release', defaultWidth: 135 },
   { key: 'projectName', label: 'Proyecto', defaultWidth: 185 },
   { key: 'platform', label: 'Plataforma', defaultWidth: 125 },
+  { key: 'team', label: 'Equipo', defaultWidth: 150 },
   { key: 'type', label: 'Tipo', defaultWidth: 105 },
   { key: 'startDate', label: 'Inicio', defaultWidth: 135 },
   { key: 'endDate', label: 'Fin', defaultWidth: 135 },
@@ -76,6 +77,7 @@ const PROJECT_COLUMNS: ReportColumnDef[] = [
   { key: 'code', label: 'Código', defaultWidth: 85 },
   { key: 'projectName', label: 'Proyecto', defaultWidth: 225 },
   { key: 'platform', label: 'Plataforma', defaultWidth: 130 },
+  { key: 'team', label: 'Equipo', defaultWidth: 165 },
   { key: 'alertLevel', label: 'Nivel de Alerta', defaultWidth: 145 },
   { key: 'releaseCode', label: 'Release Asignada', defaultWidth: 145 },
   { key: 'startDate', label: 'Fecha Inicio', defaultWidth: 120 },
@@ -455,6 +457,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         const matchesDep = row.dependency.toLowerCase().includes(q);
         const matchesType = row.type.toLowerCase().includes(q);
         const matchesPlatform = row.platform.toLowerCase().includes(q);
+        const matchesTeam = row.team.toLowerCase().includes(q);
         const matchesAlert =
           row.alertLevel !== undefined &&
           (`nivel ${row.alertLevel}`.includes(q) || String(row.alertLevel) === q);
@@ -466,6 +469,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           !matchesDep &&
           !matchesType &&
           !matchesPlatform &&
+          !matchesTeam &&
           !matchesAlert
         ) {
           return false;
@@ -538,8 +542,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         const matchesRel = row.releaseCode.toLowerCase().includes(q);
         const matchesDesc = row.description.toLowerCase().includes(q);
         const matchesPlatform = row.platform.toLowerCase().includes(q);
+        const matchesTeam = row.team.toLowerCase().includes(q);
         const matchesAlert = `nivel ${row.alertLevel}`.includes(q) || String(row.alertLevel) === q;
-        if (!matchesName && !matchesCode && !matchesRel && !matchesDesc && !matchesPlatform && !matchesAlert) {
+        if (!matchesName && !matchesCode && !matchesRel && !matchesDesc && !matchesPlatform && !matchesTeam && !matchesAlert) {
           return false;
         }
       }
@@ -1381,6 +1386,33 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                           </td>
                         )}
 
+                        {/* Team / Equipo */}
+                        {isColVisible('cronograma', 'team') && (
+                          <td className="px-2 py-1 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap">
+                            {linkedItem && onUpdateItem && !isDepSubRow ? (
+                              <EditableReportTextCell
+                                testId={`report-crono-team-${linkedItem.id}`}
+                                value={linkedItem.assignee || ''}
+                                placeholder="Sin equipo"
+                                onCommit={(val) =>
+                                  onUpdateItem(
+                                    { ...linkedItem, assignee: val.trim() || undefined },
+                                    false
+                                  )
+                                }
+                              />
+                            ) : (
+                              <span
+                                data-testid={`report-crono-team-text-${row.rowId}`}
+                                className="px-1.5 text-[11px] text-slate-600 dark:text-zinc-300 truncate block"
+                                title={row.team}
+                              >
+                                {row.team}
+                              </span>
+                            )}
+                          </td>
+                        )}
+
                         {/* Type (Selector) */}
                         {isColVisible('cronograma', 'type') && (
                           <td className="px-2 py-1 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-[#6B6B66] dark:text-zinc-400">
@@ -1719,6 +1751,17 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                                 {row.platform}
                               </span>
                             )}
+                          </td>
+                        )}
+                        {isColVisible('projects', 'team') && (
+                          <td className="px-2.5 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 text-[11px] text-slate-700 dark:text-zinc-300 whitespace-nowrap">
+                            <span
+                              data-testid={`report-proj-team-${row.code}`}
+                              className="truncate block max-w-full"
+                              title={row.team}
+                            >
+                              {row.team}
+                            </span>
                           </td>
                         )}
                         {isColVisible('projects', 'alertLevel') && (
