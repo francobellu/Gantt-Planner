@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.11.2',
+    date: '23 Nov 2026',
+    title: 'Creación de tareas y proyectos sin release desde la barra inferior',
+    isLatest: true,
+    features: [
+      'El botón + Nuevo Proyecto de la barra inferior ahora inicia sin release seleccionada (opción Sin release) y crea proyectos fuera de releases',
+      'El botón + Nueva Tarea de la barra inferior crea tareas directamente sin ninguna release asociada mediante handleCreateUnassignedTask',
+    ],
+  },
+  {
     version: '1.11.1',
     date: '23 Nov 2026',
     title: 'Edición directa de la descripción existente en Resumen Proyectos',
-    isLatest: true,
     features: [
       'La celda de Descripción en Resumen Proyectos ahora carga el texto completo existente dentro del textarea editable en lugar de mostrarlo duplicado en solo lectura',
     ],

@@ -197,6 +197,7 @@ interface GanttWorkspaceProps {
   onCreateProject?: (project: GanttProject) => void;
   onCreateDigiTask?: (project: GanttProject, taskType?: 'DIGI' | 'SCR') => void;
   onCreateTaskDirect?: (projectId: string) => void;
+  onCreateUnassignedTask?: () => void;
   scrollContainerRef: React.RefObject<HTMLDivElement>;
   initialSelectedItemId?: string;
   initialHoveredItemId?: string;
@@ -609,6 +610,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   onCreateProject,
   onCreateDigiTask,
   onCreateTaskDirect,
+  onCreateUnassignedTask,
   scrollContainerRef,
   showTable: showTableProp,
   onToggleShowTable,
@@ -7317,14 +7319,15 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         type="button"
                         data-quick-add-task-btn="true"
                         onClick={() => {
-                          const targetProjId =
-                            visibleProjectGroups.length > 0
-                              ? visibleProjectGroups[visibleProjectGroups.length - 1].project.id
-                              : undefined;
-                          guardedQuickAdd('task', targetProjId);
+                          if (onCreateUnassignedTask) {
+                            onCreateUnassignedTask();
+                          } else {
+                            const unassignedProj = projects.find((p) => !p.releaseId);
+                            guardedQuickAdd('task', unassignedProj?.id);
+                          }
                         }}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 transition cursor-pointer"
-                        title="Crear nueva tarea"
+                        title="Crear nueva tarea sin release"
                       >
                         <Plus className="w-3.5 h-3.5" />
                         <span>Nueva Tarea</span>
@@ -7340,10 +7343,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             setIsCreatingProject(true);
                             setNewProjectName('');
                             setNewProjectColor('indigo');
-                            setNewProjectReleaseId(releases[0]?.id || 'rel-t-26-12-1');
+                            setNewProjectReleaseId('');
                           }}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 dark:text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition cursor-pointer"
-                          title="Crear nuevo proyecto"
+                          title="Crear nuevo proyecto sin release"
                         >
                           <Plus className="w-3.5 h-3.5" />
                           <span>Nuevo Proyecto</span>
@@ -7358,7 +7361,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               id: `proj-${Date.now()}`,
                               name: trimmed,
                               color: newProjectColor,
-                              releaseId: newProjectReleaseId,
+                              releaseId: newProjectReleaseId || undefined,
                               collapsed: false,
                               isDemo: false,
                             });
@@ -7388,6 +7391,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             className="px-2 py-1 text-xs rounded border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-800 dark:text-zinc-200 outline-none focus:ring-1 focus:ring-indigo-500 font-mono"
                             title="Release asociada"
                           >
+                            <option value="">Sin release</option>
                             {releases.map((rel) => (
                               <option key={rel.id} value={rel.id}>
                                 {rel.code} ({rel.name})

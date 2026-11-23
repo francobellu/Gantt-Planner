@@ -1652,6 +1652,7 @@ export function App({
   const handleCreateProject = (newProj?: Partial<GanttProject>) => {
     const nextProjectIndex =
       effectiveProjects.reduce((max, p, i) => Math.max(max, p.projectIndex || i + 1), 0) + 1;
+    const hasExplicitRelease = newProj && 'releaseId' in newProj;
     const clean = {
       ...sanitizeProject(
         {
@@ -1659,7 +1660,9 @@ export function App({
           projectIndex: nextProjectIndex,
           name: newProj?.name || `Proyecto ${nextProjectIndex}`,
           color: newProj?.color || 'indigo',
-          releaseId: newProj?.releaseId || releases[0]?.id || 'rel-t-26-12-1',
+          releaseId: hasExplicitRelease
+            ? newProj.releaseId || undefined
+            : releases[0]?.id || 'rel-t-26-12-1',
           platform: newProj?.platform || 'iOS/Android',
           ...newProj,
           isDemo: false,
@@ -1792,6 +1795,72 @@ export function App({
       `Crear tarea directa en proyecto '${project.name}'`,
       nextItems,
       effectiveProjects,
+      newTask.id
+    );
+  };
+
+  const handleCreateUnassignedTask = () => {
+    let targetProj: GanttProject | undefined = effectiveProjects.find((p) => !p.releaseId);
+    let nextProjectsList: GanttProject[] = effectiveProjects;
+    if (!targetProj) {
+      const nextProjectIndex =
+        effectiveProjects.reduce((max, p, i) => Math.max(max, p.projectIndex || i + 1), 0) + 1;
+      const createdProj = sanitizeProject(
+        {
+          id: `proj-unassigned-${Date.now()}`,
+          projectIndex: nextProjectIndex,
+          name: 'Tareas sin release',
+          color: 'indigo',
+          releaseId: undefined,
+          platform: 'iOS/Android',
+          collapsed: false,
+          isDemo: false,
+        },
+        effectiveProjects.length
+      );
+      targetProj = createdProj;
+      nextProjectsList = [...effectiveProjects, createdProj];
+      setProjects(nextProjectsList);
+      setSelectedProjectIds((prev) =>
+        prev.includes(createdProj.id) ? prev : [...prev, createdProj.id]
+      );
+    }
+
+    const startDate = formatDateISO(new Date());
+    const defaultDuration = 5;
+    const endDate = calculateEndDateFromDuration(
+      startDate,
+      defaultDuration,
+      'task',
+      workCalendar
+    );
+
+    const newTask: GanttItem = {
+      id: `task-${Date.now()}`,
+      projectId: targetProj.id,
+      name: 'Nueva Tarea',
+      type: 'task',
+      startDate,
+      endDate,
+      duration: defaultDuration,
+      progress: 0,
+      dependencies: [],
+      slack: 0,
+      color: targetProj.color || 'indigo',
+      releaseId: undefined,
+      platform: targetProj.platform,
+    };
+
+    const nextItems = [...items, newTask];
+    setItems(nextItems);
+    setSelectedEntity({ type: 'task', id: newTask.id, name: newTask.name });
+    showToast('Nueva tarea creada sin release');
+    recordPlanChange(
+      'create_item',
+      'Nueva Tarea sin Release',
+      `Crear tarea sin release en '${targetProj.name}'`,
+      nextItems,
+      nextProjectsList,
       newTask.id
     );
   };
@@ -3170,6 +3239,7 @@ export function App({
               onCreateProject={handleCreateProject}
               onCreateDigiTask={handleCreateDigiTask}
               onCreateTaskDirect={handleCreateTaskDirect}
+              onCreateUnassignedTask={handleCreateUnassignedTask}
               scrollContainerRef={scrollContainerRef}
               showTable={showTable}
               onToggleShowTable={() => setShowTable((prev) => !prev)}
