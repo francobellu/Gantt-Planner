@@ -113,16 +113,19 @@ const COLUMNS_BY_TAB: Record<ReportTab, ReportColumnDef[]> = {
 
 const REPORT_HIDDEN_COLS_KEY = 'ganttflow_report_hidden_cols_v1';
 const REPORT_COL_WIDTHS_KEY = 'ganttflow_report_col_widths_v1';
-const REPORT_COL_ORDER_KEY = 'ganttflow_report_col_order_v1';
+export const REPORT_COL_ORDER_KEY = 'ganttflow_report_col_order_v1';
 export const REPORT_COLUMN_PRESETS_KEY = 'gantt_report_column_presets_v1';
 export const REPORT_ACTIVE_PRESET_KEY = 'gantt_report_active_preset_v1';
 export const REPORT_PRESET_NAMES_KEY = 'gantt_report_preset_names_v1';
+
+export type ReportRowTypeFilter = 'all' | 'RELEASE' | 'PROYECTO' | 'TAREA' | 'HITO';
 
 export interface ReportColumnPreset {
   id: string;
   name: string;
   tab: ReportTab;
   visibleColKeys: string[];
+  colOrder?: string[];
   isCustom?: boolean;
 }
 
@@ -132,13 +135,7 @@ export const DEFAULT_COLUMN_PRESETS: ReportColumnPreset[] = [
     name: 'Formato Completo (Todas)',
     tab: 'cronograma',
     visibleColKeys: CRONO_COLUMNS.map((c) => c.key),
-    isCustom: false,
-  },
-  {
-    id: 'preset-executive',
-    name: 'Resumen Ejecutivo',
-    tab: 'cronograma',
-    visibleColKeys: ['hierarchy', 'name', 'releaseCode', 'projectName', 'startDate', 'endDate', 'progress', 'compliance', 'alertLevel'],
+    colOrder: CRONO_COLUMNS.map((c) => c.key),
     isCustom: false,
   },
   {
@@ -146,6 +143,7 @@ export const DEFAULT_COLUMN_PRESETS: ReportColumnPreset[] = [
     name: 'Formato Completo (Releases)',
     tab: 'releases',
     visibleColKeys: RELEASE_COLUMNS.map((c) => c.key),
+    colOrder: RELEASE_COLUMNS.map((c) => c.key),
     isCustom: false,
   },
 ];
@@ -153,15 +151,43 @@ export const DEFAULT_COLUMN_PRESETS: ReportColumnPreset[] = [
 export function createColumnPreset(
   name: string,
   tab: ReportTab,
-  visibleColKeys: string[]
+  visibleColKeys: string[],
+  colOrder?: string[]
 ): ReportColumnPreset {
   return {
     id: `preset-custom-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
     name: name.trim(),
     tab,
     visibleColKeys: [...visibleColKeys],
+    colOrder: colOrder ? [...colOrder] : undefined,
     isCustom: true,
   };
+}
+
+export function computeColOrderFromPreset(
+  tab: ReportTab,
+  preset: ReportColumnPreset,
+  allColumns: ReportColumnDef[] = COLUMNS_BY_TAB[tab]
+): string[] {
+  const defaultKeys = allColumns.map((c) => c.key);
+  if (!preset.colOrder || !Array.isArray(preset.colOrder) || preset.colOrder.length === 0) {
+    return defaultKeys;
+  }
+  const validSet = new Set(defaultKeys);
+  const kept: string[] = [];
+  const seen = new Set<string>();
+  for (const k of preset.colOrder) {
+    if (validSet.has(k) && !seen.has(k)) {
+      kept.push(k);
+      seen.add(k);
+    }
+  }
+  for (const k of defaultKeys) {
+    if (!seen.has(k)) {
+      kept.push(k);
+    }
+  }
+  return kept;
 }
 
 export function computeHiddenColsFromPreset(
@@ -262,6 +288,7 @@ interface ReportsViewProps {
   initialShowFormatMenu?: boolean;
   initialCustomPresets?: ReportColumnPreset[];
   initialActivePresetId?: string;
+  initialTypeFilter?: ReportRowTypeFilter;
   selectedEntity?: FocusEntity | null;
   onSelectEntity?: (entity: FocusEntity) => void;
   onUpdateItem?: (item: GanttItem, autoCascade: boolean) => void;
@@ -278,6 +305,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   initialShowFormatMenu = false,
   initialCustomPresets,
   initialActivePresetId,
+  initialTypeFilter = 'all',
   selectedEntity = null,
   onSelectEntity,
   onUpdateItem,
@@ -411,21 +439,40 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       releases: RELEASE_COLUMNS.map((c) => c.key),
     };
     try {
-      const saved = typeof localStorage !== 'undefined' ? localStorage.getItem(REPORT_COL_ORDER_KEY) : null;
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        const mergeOrder = (tab: ReportTab): string[] => {
-          const base = Array.isArray(parsed[tab]) ? parsed[tab] : [];
-          const validKeys = new Set(defaults[tab]);
-          const kept = base.filter((k: string) => validKeys.has(k));
-          const missing = defaults[tab].filter((k) => !kept.includes(k));
-          return [...kept, ...missing];
-        };
-        return {
-          cronograma: mergeOrder('cronograma'),
-          projects: mergeOrder('projects'),
-          releases: mergeOrder('releases'),
-        };
+      if (!initialActivePresetId) {
+        const saved = typeof localStorage !== 'undefined' ? localStorage.getItem(REPORT_COL_ORDER_KEY) : null;
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          const mergeOrder = (tab: ReportTab): string[] => {
+            const base = Array.isArray(parsed[tab]) ? parsed[tab] : [];
+            const validKeys = new Set(defaults[tab]);
+            const kept = base.filter((k: string) => validKeys.has(k));
+            const missing = defaults[tab].filter((k) => !kept.includes(k));
+            return [...kept, ...missing];
+          };
+          return {
+            cronograma: mergeOrder('cronograma'),
+            projects: mergeOrder('projects'),
+            releases: mergeOrder('releases'),
+          };
+        }
+      }
+      const targetPresetId = initialActivePresetId || (typeof localStorage !== 'undefined' ? localStorage.getItem(REPORT_ACTIVE_PRESET_KEY) : null);
+      if (targetPresetId && targetPresetId !== 'custom') {
+        let custom: ReportColumnPreset[] = initialCustomPresets || [];
+        if (custom.length === 0) {
+          try {
+            const savedCustom = localStorage.getItem(REPORT_COLUMN_PRESETS_KEY);
+            if (savedCustom) custom = JSON.parse(savedCustom);
+          } catch {}
+        }
+        const preset = [...DEFAULT_COLUMN_PRESETS, ...custom].find((p) => p.id === targetPresetId);
+        if (preset && preset.colOrder && Array.isArray(preset.colOrder)) {
+          return {
+            ...defaults,
+            [preset.tab]: computeColOrderFromPreset(preset.tab, preset),
+          };
+        }
       }
     } catch {}
     return defaults;
@@ -433,6 +480,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const [draggingCol, setDraggingCol] = useState<{ tab: ReportTab; key: string } | null>(null);
   const [dragOverColKey, setDragOverColKey] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedType, setSelectedType] = useState<ReportRowTypeFilter>(initialTypeFilter);
+  const [showTypeFilterMenu, setShowTypeFilterMenu] = useState<boolean>(false);
+  const typeFilterMenuRef = useRef<HTMLDivElement>(null);
+
   const [selectedPlatform, setSelectedPlatform] = useState<'all' | ProjectPlatform>('all');
   const [showPlatformFilterMenu, setShowPlatformFilterMenu] = useState<boolean>(false);
   const platformFilterMenuRef = useRef<HTMLDivElement>(null);
@@ -446,6 +497,12 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
+      if (
+        typeFilterMenuRef.current &&
+        !typeFilterMenuRef.current.contains(e.target as Node)
+      ) {
+        setShowTypeFilterMenu(false);
+      }
       if (
         platformFilterMenuRef.current &&
         !platformFilterMenuRef.current.contains(e.target as Node)
@@ -480,6 +537,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        setShowTypeFilterMenu(false);
         setShowPlatformFilterMenu(false);
         setShowAlertFilterMenu(false);
         setShowColumnsMenu(false);
@@ -494,44 +552,64 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     return !hiddenColsByTab[tab]?.[key];
   };
 
+  const getOrderedColumns = (tab: ReportTab): ReportColumnDef[] => {
+    const defs = COLUMNS_BY_TAB[tab];
+    const order = colOrderByTab[tab] || [];
+    const byKey = new Map(defs.map((c) => [c.key, c]));
+    const ordered: ReportColumnDef[] = [];
+    for (const k of order) {
+      const def = byKey.get(k);
+      if (def) {
+        ordered.push(def);
+        byKey.delete(k);
+      }
+    }
+    for (const rem of byKey.values()) {
+      ordered.push(rem);
+    }
+    return ordered;
+  };
+
   const defaultPresetsForTab = DEFAULT_COLUMN_PRESETS.filter((p) => p.tab === activeTab);
   const customPresetsForTab = customPresets.filter((p) => (p.tab || 'cronograma') === activeTab);
   const allPresetsForTab = [...defaultPresetsForTab, ...customPresetsForTab];
 
-  const currentVisibleColKeys = (COLUMNS_BY_TAB[activeTab] || [])
+  const currentVisibleColKeysInOrder = getOrderedColumns(activeTab)
     .filter((c) => isColVisible(activeTab, c.key))
     .map((c) => c.key);
+
+  const doesPresetMatchLayout = (
+    tab: ReportTab,
+    preset: ReportColumnPreset,
+    visibleColsInOrder: string[]
+  ): boolean => {
+    if (preset.visibleColKeys.length !== visibleColsInOrder.length) return false;
+    const set = new Set(preset.visibleColKeys);
+    if (!visibleColsInOrder.every((k) => set.has(k))) return false;
+    if (preset.colOrder && Array.isArray(preset.colOrder) && preset.colOrder.length > 0) {
+      const expectedVisibleOrder = computeColOrderFromPreset(tab, preset).filter((k) => set.has(k));
+      if (expectedVisibleOrder.length !== visibleColsInOrder.length) return false;
+      return expectedVisibleOrder.every((k, idx) => k === visibleColsInOrder[idx]);
+    }
+    return true;
+  };
 
   const activePresetId = useMemo(() => {
     const preferredId = activePresetByTab[activeTab];
     if (preferredId && preferredId !== 'custom') {
       const found = allPresetsForTab.find((p) => p.id === preferredId);
-      if (
-        found &&
-        found.visibleColKeys.length === currentVisibleColKeys.length &&
-        currentVisibleColKeys.every((k) => found.visibleColKeys.includes(k))
-      ) {
+      if (found && doesPresetMatchLayout(activeTab, found, currentVisibleColKeysInOrder)) {
         return found.id;
       }
     }
 
-    const matched = allPresetsForTab.find((p) => {
-      if (p.visibleColKeys.length !== currentVisibleColKeys.length) return false;
-      const set = new Set(p.visibleColKeys);
-      return currentVisibleColKeys.every((k) => set.has(k));
-    });
+    const matched = allPresetsForTab.find((p) =>
+      doesPresetMatchLayout(activeTab, p, currentVisibleColKeysInOrder)
+    );
     if (matched) return matched.id;
 
-    const allCols = COLUMNS_BY_TAB[activeTab] || [];
-    if (allCols.length > 0 && currentVisibleColKeys.length === allCols.length) {
-      const defaultAll = defaultPresetsForTab.find(
-        (p) => p.id === 'preset-all' || p.id === 'preset-releases-all'
-      );
-      if (defaultAll) return defaultAll.id;
-    }
-
     return 'custom';
-  }, [activeTab, activePresetByTab, allPresetsForTab, currentVisibleColKeys, defaultPresetsForTab]);
+  }, [activeTab, activePresetByTab, allPresetsForTab, currentVisibleColKeysInOrder]);
 
   const getPresetDisplayName = (preset: ReportColumnPreset) => {
     return presetNameOverrides[preset.id] || preset.name;
@@ -601,6 +679,14 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       } catch {}
       return next;
     });
+    const nextOrder = computeColOrderFromPreset(preset.tab, preset);
+    setColOrderByTab((prev) => {
+      const next = { ...prev, [preset.tab]: nextOrder };
+      try {
+        localStorage.setItem(REPORT_COL_ORDER_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
     setActivePresetByTab((prev) => {
       const next = { ...prev, [preset.tab]: preset.id };
       try {
@@ -614,7 +700,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const handleSavePreset = () => {
     const trimmed = newPresetName.trim();
     if (!trimmed) return;
-    const currentVisible = (COLUMNS_BY_TAB[activeTab] || [])
+    const orderedCols = getOrderedColumns(activeTab);
+    const currentOrder = orderedCols.map((c) => c.key);
+    const currentVisible = orderedCols
       .filter((c) => isColVisible(activeTab, c.key))
       .map((c) => c.key);
 
@@ -628,7 +716,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     if (existingIndex >= 0) {
       savedId = customPresets[existingIndex].id;
       nextCustom = customPresets.map((p, idx) =>
-        idx === existingIndex ? { ...p, visibleColKeys: currentVisible } : p
+        idx === existingIndex
+          ? { ...p, visibleColKeys: currentVisible, colOrder: currentOrder }
+          : p
       );
     } else {
       savedId = `preset-custom-${Date.now()}`;
@@ -637,6 +727,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         name: trimmed,
         tab: activeTab,
         visibleColKeys: currentVisible,
+        colOrder: currentOrder,
         isCustom: true,
       };
       nextCustom = [...customPresets, newPreset];
@@ -699,16 +790,16 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         localStorage.setItem(REPORT_HIDDEN_COLS_KEY, JSON.stringify(next));
       } catch {}
 
-      const currentVisible = allCols.filter((c) => !tabHidden[c.key]).map((c) => c.key);
+      const currentVisibleInOrder = getOrderedColumns(tab)
+        .filter((c) => !tabHidden[c.key])
+        .map((c) => c.key);
       const allPresets = [
         ...DEFAULT_COLUMN_PRESETS.filter((p) => p.tab === tab),
         ...customPresets.filter((p) => (p.tab || 'cronograma') === tab),
       ];
-      const matched = allPresets.find((p) => {
-        if (p.visibleColKeys.length !== currentVisible.length) return false;
-        const set = new Set(p.visibleColKeys);
-        return currentVisible.every((k) => set.has(k));
-      });
+      const matched = allPresets.find((p) =>
+        doesPresetMatchLayout(tab, p, currentVisibleInOrder)
+      );
       const newPresetId = matched ? matched.id : 'custom';
       setActivePresetByTab((old) => {
         const updated = { ...old, [tab]: newPresetId };
@@ -748,24 +839,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     });
   };
 
-  const getOrderedColumns = (tab: ReportTab): ReportColumnDef[] => {
-    const defs = COLUMNS_BY_TAB[tab];
-    const order = colOrderByTab[tab] || [];
-    const byKey = new Map(defs.map((c) => [c.key, c]));
-    const ordered: ReportColumnDef[] = [];
-    for (const k of order) {
-      const def = byKey.get(k);
-      if (def) {
-        ordered.push(def);
-        byKey.delete(k);
-      }
-    }
-    for (const rem of byKey.values()) {
-      ordered.push(rem);
-    }
-    return ordered;
-  };
-
   const reorderReportCols = (tab: ReportTab, fromKey: string, toKey: string) => {
     if (fromKey === toKey) return;
     setColOrderByTab((prev) => {
@@ -780,6 +853,25 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       try {
         localStorage.setItem(REPORT_COL_ORDER_KEY, JSON.stringify(next));
       } catch {}
+
+      const tabHidden = hiddenColsByTab[tab] || {};
+      const nextVisibleInOrder = nextOrder.filter((k) => !tabHidden[k]);
+      const allPresets = [
+        ...DEFAULT_COLUMN_PRESETS.filter((p) => p.tab === tab),
+        ...customPresets.filter((p) => (p.tab || 'cronograma') === tab),
+      ];
+      const matched = allPresets.find((p) =>
+        doesPresetMatchLayout(tab, p, nextVisibleInOrder)
+      );
+      const newPresetId = matched ? matched.id : 'custom';
+      setActivePresetByTab((old) => {
+        const updated = { ...old, [tab]: newPresetId };
+        try {
+          localStorage.setItem(REPORT_ACTIVE_PRESET_KEY, newPresetId);
+        } catch {}
+        return updated;
+      });
+
       return next;
     });
   };
@@ -988,6 +1080,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     };
 
     const hasFilters =
+      selectedType !== 'all' ||
       selectedRelease !== 'all' ||
       selectedAlert !== 'all' ||
       selectedPlatform !== 'all' ||
@@ -995,6 +1088,25 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
     if (!hasFilters) {
       return cronoRows;
+    }
+
+    if (selectedType !== 'all') {
+      if (selectedType === 'RELEASE' && (selectedPlatform !== 'all' || selectedAlert !== 'all')) {
+        const matchingReleaseCodes = new Set<string>();
+        for (const r of cronoRows) {
+          if (r.level !== 'RELEASE' && matchesNonReleaseRow(r) && r.releaseCode && r.releaseCode !== '—') {
+            matchingReleaseCodes.add(r.releaseCode);
+          }
+        }
+        return cronoRows.filter((row) => {
+          if (row.level !== 'RELEASE') return false;
+          if (selectedRelease !== 'all' && row.releaseCode !== selectedRelease) return false;
+          if (!matchingReleaseCodes.has(row.releaseCode)) return false;
+          if (searchQuery.trim() && !matchesNonReleaseRow(row)) return false;
+          return true;
+        });
+      }
+      return cronoRows.filter((row) => row.level === selectedType && matchesNonReleaseRow(row));
     }
 
     const matchingRowIds = new Set<string>();
@@ -1024,7 +1136,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       }
       return matchingRowIds.has(row.rowId);
     });
-  }, [cronoRows, selectedPlatform, selectedAlert, selectedRelease, searchQuery]);
+  }, [cronoRows, selectedType, selectedPlatform, selectedAlert, selectedRelease, searchQuery]);
 
   // 3. Filter Tab 2: Resumen Proyectos
   const filteredProjectRows = useMemo(() => {
@@ -1233,6 +1345,68 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               </button>
             )}
           </div>
+          {/* Type Filter (Informe Planificación) */}
+          {activeTab === 'cronograma' && (
+            <div ref={typeFilterMenuRef} className="relative flex items-center shrink-0">
+              <button
+                type="button"
+                data-testid="reports-type-filter"
+                data-selected-type={selectedType}
+                onClick={() => setShowTypeFilterMenu((prev) => !prev)}
+                className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-sans font-medium normal-case rounded-[3px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700/70 outline-none cursor-pointer h-6.5 transition"
+                title="Filtrar por tipo de elemento"
+              >
+                <Filter className={`w-3 h-3 shrink-0 ${selectedType === 'all' ? 'text-zinc-500' : 'text-indigo-600 dark:text-indigo-400'}`} />
+                <span>
+                  {selectedType === 'all'
+                    ? 'Tipo'
+                    : selectedType === 'RELEASE'
+                    ? 'Release'
+                    : selectedType === 'PROYECTO'
+                    ? 'Proyecto'
+                    : selectedType === 'TAREA'
+                    ? 'Tarea'
+                    : 'Hito'}
+                </span>
+                <ChevronDown className="w-3 h-3 text-zinc-500 shrink-0" />
+              </button>
+
+              <div
+                data-testid="reports-type-filter-menu"
+                className={`absolute left-0 top-full mt-1 z-50 min-w-[130px] rounded-[4px] border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg py-1 ${
+                  showTypeFilterMenu ? 'flex flex-col' : 'hidden'
+                }`}
+              >
+                {(
+                  [
+                    { value: 'all', label: 'Todos los tipos' },
+                    { value: 'RELEASE', label: 'Release' },
+                    { value: 'PROYECTO', label: 'Proyecto' },
+                    { value: 'TAREA', label: 'Tarea' },
+                    { value: 'HITO', label: 'Hito' },
+                  ] as { value: ReportRowTypeFilter; label: string }[]
+                ).map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    data-testid={`reports-type-filter-option-${opt.value}`}
+                    onClick={() => {
+                      setSelectedType(opt.value);
+                      setShowTypeFilterMenu(false);
+                    }}
+                    className={`flex items-center gap-2 px-2.5 py-1.5 text-[10px] font-sans font-medium cursor-pointer transition text-left ${
+                      selectedType === opt.value
+                        ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                        : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                    }`}
+                  >
+                    <span>{opt.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Platform Filter (Custom UI with Icons) */}
           <div ref={platformFilterMenuRef} className="relative flex items-center shrink-0">
             <button
@@ -1246,7 +1420,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               {selectedPlatform === 'all' ? (
                 <>
                   <Smartphone className="w-3 h-3 text-zinc-500 shrink-0" />
-                  <span>Todas</span>
+                  <span>Plat.</span>
                 </>
               ) : selectedPlatform === 'iOS' ? (
                 <AppleIosIcon
@@ -1281,25 +1455,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             >
               <button
                 type="button"
-                data-testid="reports-platform-filter-option-all"
-                onClick={() => {
-                  setSelectedPlatform('all');
-                  setShowPlatformFilterMenu(false);
-                }}
-                className={`flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-[10px] font-sans font-medium cursor-pointer transition ${
-                  selectedPlatform === 'all'
-                    ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-                    : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                }`}
-                title="Todas las plataformas"
-              >
-                <span>Todas</span>
-              </button>
-              <button
-                type="button"
                 data-testid="reports-platform-filter-option-iOS"
                 onClick={() => {
-                  setSelectedPlatform('iOS');
+                  setSelectedPlatform(selectedPlatform === 'iOS' ? 'all' : 'iOS');
                   setShowPlatformFilterMenu(false);
                 }}
                 className={`flex items-center justify-center px-2.5 py-1.5 cursor-pointer transition ${
@@ -1318,7 +1476,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 type="button"
                 data-testid="reports-platform-filter-option-Android"
                 onClick={() => {
-                  setSelectedPlatform('Android');
+                  setSelectedPlatform(selectedPlatform === 'Android' ? 'all' : 'Android');
                   setShowPlatformFilterMenu(false);
                 }}
                 className={`flex items-center justify-center px-2.5 py-1.5 cursor-pointer transition ${
@@ -1337,7 +1495,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 type="button"
                 data-testid="reports-platform-filter-option-iOS/Android"
                 onClick={() => {
-                  setSelectedPlatform('iOS/Android');
+                  setSelectedPlatform(selectedPlatform === 'iOS/Android' ? 'all' : 'iOS/Android');
                   setShowPlatformFilterMenu(false);
                 }}
                 className={`flex items-center justify-center gap-1 px-2.5 py-1.5 cursor-pointer transition ${
@@ -1367,7 +1525,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               tabIndex={-1}
               aria-hidden="true"
             >
-              <option value="all">Todas</option>
+              <option value="all">Plat.</option>
               <option value="iOS">iOS</option>
               <option value="Android">Android</option>
               <option value="iOS/Android">iOS/Android</option>
@@ -1514,12 +1672,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           )}
 
           {/* Clear Filters Button */}
-          {(searchQuery || selectedPlatform !== 'all' || selectedAlert !== 'all' || selectedRelease !== 'all') && (
+          {(searchQuery || selectedType !== 'all' || selectedPlatform !== 'all' || selectedAlert !== 'all' || selectedRelease !== 'all') && (
             <button
               type="button"
               data-testid="reports-clear-filters-btn"
               onClick={() => {
                 setSearchQuery('');
+                setSelectedType('all');
                 setSelectedPlatform('all');
                 setSelectedAlert('all');
                 setSelectedRelease('all');

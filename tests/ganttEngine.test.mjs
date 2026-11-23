@@ -4520,7 +4520,7 @@ test('Help page, version control v1.2.0, release selection on project creation, 
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version control consistency
-  assert.equal(pkg.version, '1.11.16', 'package.json version must be 1.9.2');
+  assert.equal(pkg.version, '1.11.17', 'package.json version must be 1.9.2');
   assert.ok(pkg.scripts['version:patch'], 'package.json must contain version:patch script');
   assert.ok(pkg.scripts['version:minor'], 'package.json must contain version:minor script');
   assert.ok(pkg.scripts['release:patch'], 'package.json must contain release:patch script');
@@ -5301,10 +5301,10 @@ test('Task name positioning, configurable row separators, 37 char truncation, v1
     const htmlWithoutWeekendShading = renderToString(mod.renderWorkspaceWithWeekendShading(false));
     assert.ok(!htmlWithoutWeekendShading.includes('bg-[#E5E5DF]'), 'Canvas and header must NOT render weekend shading when showWeekendShading is false (clean uniform background)');
 
-    // 9. App Header displays v1.11.16 badge, row-separators-btn, and weekend-shading-btn
+    // 9. App Header displays v1.11.17 badge, row-separators-btn, and weekend-shading-btn
     const appHtml = renderToString(mod.renderAppHeader());
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'Header must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.11.16'), 'Header badge must display v1.11.16');
+    assert.ok(appHtml.includes('v1.11.17'), 'Header badge must display v1.11.17');
     assert.ok(appHtml.includes('data-testid="header-toggle-row-separators-btn"'), 'Header must contain header-toggle-row-separators-btn');
     assert.ok(appHtml.includes('data-testid="header-toggle-weekend-shading-btn"'), 'Header must contain header-toggle-weekend-shading-btn');
 
@@ -5334,7 +5334,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version Bump Verification
-  assert.equal(pkg.version, '1.11.16', 'package.json version must equal 1.9.2');
+  assert.equal(pkg.version, '1.11.17', 'package.json version must equal 1.9.2');
 
   // Verify scripts/bump-version.mjs works properly
   const bumpScript = await fs.readFile(path.resolve(__dirname, '../scripts/bump-version.mjs'), 'utf8');
@@ -5508,7 +5508,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // A. APP_VERSION equals 1.9.2
-    assert.equal(mod.APP_VERSION, '1.11.16', 'APP_VERSION must be 1.9.2');
+    assert.equal(mod.APP_VERSION, '1.11.17', 'APP_VERSION must be 1.9.2');
 
     // A2. Excel Export Unit Test
     const sampleReleases = [
@@ -5585,7 +5585,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     assert.ok(appHtml.includes('data-testid="table-platform-filter"'), 'App must contain unified table-platform-filter');
     assert.ok(!appHtml.includes('data-testid="header-toggle-focus-mode-btn"'), 'Redundant header-toggle-focus-mode-btn must be removed');
     assert.ok(appHtml.includes('data-testid="header-reports-btn"'), 'App header must contain header-reports-btn');
-    assert.ok(appHtml.includes('v1.11.16'), 'App header must display version v1.11.16');
+    assert.ok(appHtml.includes('v1.11.17'), 'App header must display version v1.11.17');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6035,8 +6035,8 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
-  // 1. Version Bump Verification v1.11.16
-  assert.equal(pkg.version, '1.11.16', 'package.json version must equal 1.9.2');
+  // 1. Version Bump Verification v1.11.17
+  assert.equal(pkg.version, '1.11.17', 'package.json version must equal 1.9.2');
 
   // 2. SSR Bundle verification for TaskFormModal, App Header, and sanitizeGanttItem
   const tmpFile = path.resolve(__dirname, `tmp_test59_bundle_${Date.now()}.mjs`);
@@ -6134,7 +6134,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.equal(mod.APP_VERSION, '1.11.16', 'mod.APP_VERSION must equal 1.9.2');
+    assert.equal(mod.APP_VERSION, '1.11.17', 'mod.APP_VERSION must equal 1.9.2');
 
     // sanitizeGanttItem preserves platform
     const sanitizedIos = mod.sanitizeGanttItem({
@@ -6179,7 +6179,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     assert.ok(appHtml.includes('data-testid="header-more-menu-btn"'), 'App header must render header-more-menu-btn');
     assert.ok(appHtml.includes('data-testid="header-more-menu-dropdown"'), 'App must render header-more-menu-dropdown');
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'More menu must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.11.16'), 'Version badge must display v1.11.16');
+    assert.ok(appHtml.includes('v1.11.17'), 'Version badge must display v1.11.17');
     assert.ok(appHtml.includes('data-testid="force-reload-btn"'), 'More menu must contain force-reload-btn');
 
     // 7. Verify secondary buttons are rendered inside the menu
@@ -6201,7 +6201,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
       hiddenReleaseCount: 0,
     }));
     assert.ok(settingsHtml.includes('data-testid="settings-version-badge"'), 'SettingsModal must contain settings-version-badge');
-    assert.ok(settingsHtml.includes('1.11.16') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.9.2');
+    assert.ok(settingsHtml.includes('1.11.17') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.9.2');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6355,14 +6355,14 @@ test('Test 61: Version button, compiled release notes modal and changelog across
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
 
     // 1. Check RELEASE_NOTES compiled data
-    assert.strictEqual(mod.APP_VERSION, '1.11.16');
+    assert.strictEqual(mod.APP_VERSION, '1.11.17');
     assert.ok(Array.isArray(mod.RELEASE_NOTES), 'RELEASE_NOTES must be an array');
     assert.ok(mod.RELEASE_NOTES.length >= 10, 'RELEASE_NOTES must have at least 10 releases');
 
     const latest = mod.RELEASE_NOTES[0];
-    assert.strictEqual(latest.version, '1.11.16', 'First release note must be 1.9.2');
+    assert.strictEqual(latest.version, '1.11.17', 'First release note must be 1.9.2');
     assert.strictEqual(latest.isLatest, true, 'First release note must be isLatest: true');
-    assert.ok(latest.features.length > 0, 'v1.11.16 must contain features');
+    assert.ok(latest.features.length > 0, 'v1.11.17 must contain features');
 
     // 2. Render App and verify version button exists in dropdown menu and is NOT duplicated in top header
     const appHtml = renderToString(React.createElement(mod.App));
@@ -6375,8 +6375,8 @@ test('Test 61: Version button, compiled release notes modal and changelog across
       'App dropdown must contain data-testid="app-version-badge"'
     );
     assert.ok(
-      appHtml.includes('<button') && appHtml.includes('data-testid="app-version-badge"') && appHtml.includes('v1.11.16'),
-      'app-version-badge in tools dropdown must be an interactive button showing v1.11.16'
+      appHtml.includes('<button') && appHtml.includes('data-testid="app-version-badge"') && appHtml.includes('v1.11.17'),
+      'app-version-badge in tools dropdown must be an interactive button showing v1.11.17'
     );
 
     // 3. Render ReleaseNotesModal
@@ -8193,7 +8193,7 @@ test('Test 73: v1.9.0 project alert level (0-3), workspace toolbar alert filter,
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.strictEqual(mod.APP_VERSION, '1.11.16', 'APP_VERSION must be 1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.11.17', 'APP_VERSION must be 1.9.2');
 
     // 1. Check sanitizeProject and describeProjectStateChanges for alertLevel
     const pSanitized0 = mod.sanitizeProject({ id: 'p-1', name: 'Proj 1', alertLevel: 0 });
@@ -8382,7 +8382,7 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.strictEqual(mod.APP_VERSION, '1.11.16', 'APP_VERSION must be 1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.11.17', 'APP_VERSION must be 1.9.2');
 
     // 1. Verify description format: <descripción del proyecto si existe>\n\n* <nombre> <desc>
     const pWithDesc = {
@@ -8467,8 +8467,8 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
   }
 });
 
-// TEST 75: v1.11.16 Project locking, accidental move guard & unlock prompt modal
-test('Test 75: v1.11.16 project locking, cascade/dependency protection, plan history badge, and unlock alert modal', async () => {
+// TEST 75: v1.11.17 Project locking, accidental move guard & unlock prompt modal
+test('Test 75: v1.11.17 project locking, cascade/dependency protection, plan history badge, and unlock alert modal', async () => {
   const fs = await import('node:fs/promises');
   const path = await import('node:path');
   const { fileURLToPath } = await import('node:url');
@@ -8479,7 +8479,7 @@ test('Test 75: v1.11.16 project locking, cascade/dependency protection, plan his
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
-  assert.strictEqual(pkg.version, '1.11.16', 'package.json version must equal 1.9.2');
+  assert.strictEqual(pkg.version, '1.11.17', 'package.json version must equal 1.9.2');
 
   const tmpFile = path.resolve(__dirname, `tmp_test75_bundle_${Date.now()}.mjs`);
   try {
@@ -8541,9 +8541,9 @@ test('Test 75: v1.11.16 project locking, cascade/dependency protection, plan his
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // 1. Version & release notes verification
-    assert.strictEqual(mod.APP_VERSION, '1.11.16', 'APP_VERSION must equal 1.9.2');
-    assert.strictEqual(mod.RELEASE_NOTES[0].version, '1.11.16', 'Latest release note must be 1.9.2');
-    assert.strictEqual(mod.RELEASE_NOTES[0].isLatest, true, 'v1.11.16 release note must be marked isLatest');
+    assert.strictEqual(mod.APP_VERSION, '1.11.17', 'APP_VERSION must equal 1.9.2');
+    assert.strictEqual(mod.RELEASE_NOTES[0].version, '1.11.17', 'Latest release note must be 1.9.2');
+    assert.strictEqual(mod.RELEASE_NOTES[0].isLatest, true, 'v1.11.17 release note must be marked isLatest');
 
     // 2. sanitizeProject, getLockedProjectForItem, describeProjectStateChanges
     const lockedProj = mod.sanitizeProject({
@@ -8740,7 +8740,7 @@ test('Test 75: v1.11.16 project locking, cascade/dependency protection, plan his
   }
 });
 
-test('Test 76: v1.11.16 automatic Free Slack calculation given successor tasks across engine, table badge, inspector sidebar and task modal', async () => {
+test('Test 76: v1.11.17 automatic Free Slack calculation given successor tasks across engine, table badge, inspector sidebar and task modal', async () => {
   // 1. Engine calculation: FS dependency with multiple successors
   const testItems = [
     {
@@ -12358,6 +12358,7 @@ test('Test 105: Format selector (presets), saving custom presets, switching view
             REPORT_PRESET_NAMES_KEY,
             createColumnPreset,
             computeHiddenColsFromPreset,
+            computeColOrderFromPreset,
           } from './src/components/ReportsView.tsx';
           export {
             React,
@@ -12369,6 +12370,7 @@ test('Test 105: Format selector (presets), saving custom presets, switching view
             REPORT_PRESET_NAMES_KEY,
             createColumnPreset,
             computeHiddenColsFromPreset,
+            computeColOrderFromPreset,
           };
         `,
         resolveDir: process.cwd(),
@@ -12401,33 +12403,34 @@ test('Test 105: Format selector (presets), saving custom presets, switching view
       'Preset names storage key must match gantt_report_preset_names_v1'
     );
 
-    // 2. Default presets structure (Only preset-all and preset-executive for cronograma)
+    // 2. Default presets structure (Only preset-all for cronograma and preset-releases-all for releases)
     const defaultPresets = mod.DEFAULT_COLUMN_PRESETS;
     const allPreset = defaultPresets.find((p) => p.id === 'preset-all');
     const execPreset = defaultPresets.find((p) => p.id === 'preset-executive');
     const trackPreset = defaultPresets.find((p) => p.id === 'preset-tracking');
+    const relAllPreset = defaultPresets.find((p) => p.id === 'preset-releases-all');
 
     assert.ok(allPreset && allPreset.name.includes('Formato Completo'), 'Must have preset-all');
-    assert.ok(execPreset && execPreset.name.includes('Resumen Ejecutivo'), 'Must have preset-executive');
+    assert.ok(Array.isArray(allPreset.colOrder) && allPreset.colOrder.length > 0, 'preset-all must include default colOrder');
+    assert.ok(!execPreset, 'preset-executive must be removed from default presets');
     assert.ok(!trackPreset, 'preset-tracking must be removed from default presets');
-    assert.ok(!execPreset.visibleColKeys.includes('wbsCode'), 'Executive preset must not contain wbsCode');
-    assert.ok(execPreset.visibleColKeys.includes('hierarchy'), 'Executive preset must contain hierarchy');
+    assert.ok(relAllPreset, 'Must have preset-releases-all for releases tab');
 
-    // 3. Preset computation helpers
-    const hiddenExec = mod.computeHiddenColsFromPreset('cronograma', execPreset);
-    assert.ok(!hiddenExec.name && !hiddenExec.hierarchy, 'Executive preset must keep name and hierarchy visible');
-    assert.ok(hiddenExec.team, 'Executive preset must hide team column');
-    assert.ok(hiddenExec.slack, 'Executive preset must hide slack column');
-
-    const custom = mod.createColumnPreset('Vista Sprint Review', 'cronograma', ['hierarchy', 'name', 'progress']);
+    // 3. Preset computation helpers (visibility + column position)
+    const customOrder = ['progress', 'name', 'hierarchy'];
+    const custom = mod.createColumnPreset('Vista Sprint Review', 'cronograma', ['hierarchy', 'name', 'progress'], customOrder);
     assert.equal(custom.name, 'Vista Sprint Review');
     assert.equal(custom.tab, 'cronograma');
     assert.equal(custom.isCustom, true);
     assert.deepEqual(custom.visibleColKeys, ['hierarchy', 'name', 'progress']);
+    assert.deepEqual(custom.colOrder, customOrder);
 
     const hiddenCustom = mod.computeHiddenColsFromPreset('cronograma', custom);
     assert.ok(!hiddenCustom.hierarchy && !hiddenCustom.name && !hiddenCustom.progress, 'Custom preset keeps selected columns');
     assert.ok(hiddenCustom.startDate && hiddenCustom.endDate && hiddenCustom.duration, 'Custom preset hides non-selected columns');
+
+    const computedOrder = mod.computeColOrderFromPreset('cronograma', custom);
+    assert.deepEqual(computedOrder.slice(0, 3), ['progress', 'name', 'hierarchy'], 'computeColOrderFromPreset must honor saved column positions first');
 
     // 4. UI rendering in ReportsView (Default Cronograma)
     const releases = [{ id: 'rel-1', code: 'T_27.3.1', name: 'Release 27.3', milestones: [] }];
@@ -12455,49 +12458,43 @@ test('Test 105: Format selector (presets), saving custom presets, switching view
       })
     );
 
-    // Format button
+    // Format button & menu
     assert.ok(html.includes('data-testid="reports-format-btn"'), 'Must render format selector button');
     assert.ok(html.includes('Formato: Completo'), 'Default format display name must be Formato: Completo');
-
-    // Format menu
     assert.ok(html.includes('data-testid="reports-format-menu"'), 'Must render format dropdown menu');
     assert.ok(html.includes('Formatos predeterminados'), 'Must display Formatos predeterminados section');
     assert.ok(html.includes('data-testid="reports-preset-option-preset-all"'), 'Must list preset-all option');
-    assert.ok(html.includes('data-testid="reports-preset-option-preset-executive"'), 'Must list preset-executive option');
+    assert.ok(!html.includes('data-testid="reports-preset-option-preset-executive"'), 'Must not list preset-executive option');
     assert.ok(!html.includes('data-testid="reports-preset-option-preset-tracking"'), 'Must not list preset-tracking option');
 
-    // Rename buttons for default presets
+    // Rename button for default complete preset
     assert.ok(html.includes('data-testid="reports-preset-rename-btn-preset-all"'), 'Must render rename button for preset-all');
-    assert.ok(html.includes('data-testid="reports-preset-rename-btn-preset-executive"'), 'Must render rename button for preset-executive');
 
-    // Ensure no WBS column header
-    assert.ok(!html.includes('Código WBS'), 'Must not render Código WBS column header or cell in table');
+    // Type filter next to search input & Platform filter renamed to Plat. without Todas option
+    const searchIdx = html.indexOf('data-testid="reports-search-input"');
+    const typeIdx = html.indexOf('data-testid="reports-type-filter"');
+    const platIdx = html.indexOf('data-testid="reports-platform-filter"');
+    assert.ok(searchIdx > -1 && typeIdx > searchIdx && platIdx > typeIdx, 'Type filter must sit right next to search input before platform filter');
+    assert.ok(html.includes('data-testid="reports-type-filter-option-RELEASE"'), 'Type filter must include Release option');
+    assert.ok(html.includes('data-testid="reports-type-filter-option-PROYECTO"'), 'Type filter must include Proyecto option');
+    assert.ok(html.includes('data-testid="reports-type-filter-option-TAREA"'), 'Type filter must include Tarea option');
+    assert.ok(html.includes('data-testid="reports-type-filter-option-HITO"'), 'Type filter must include Hito option');
+    assert.ok(html.includes('>Plat.<'), 'Platform filter default label must be Plat.');
+    assert.ok(!html.includes('data-testid="reports-platform-filter-option-all"'), 'Platform filter menu must not include Todas option');
+    assert.ok(html.includes('data-testid="reports-platform-filter-option-iOS/Android"'), 'Platform filter menu must include iOS/Android option');
 
     // Save format controls
     assert.ok(html.includes('+ Guardar formato actual'), 'Must display + Guardar formato actual label');
     assert.ok(html.includes('data-testid="reports-preset-name-input"'), 'Must render preset name input field');
     assert.ok(html.includes('data-testid="reports-preset-save-btn"'), 'Must render preset save button');
 
-    // 5. Active preset selection & display
-    const execHtml = mod.renderToString(
-      mod.React.createElement(mod.ReportsView, {
-        releases,
-        projects,
-        items,
-        initialTab: 'cronograma',
-        initialActivePresetId: 'preset-executive',
-        initialShowFormatMenu: true,
-      })
-    );
-    assert.ok(execHtml.includes('Formato: Resumen Ejecutivo'), 'Must display Formato: Resumen Ejecutivo when executive preset active');
-    assert.ok(execHtml.includes('data-testid="reports-preset-option-preset-executive" data-active-preset="true"'), 'Executive preset must have data-active-preset=true');
-
-    // 6. Custom presets rendering, rename action & delete action
+    // 5. Custom presets rendering with column order, rename action & delete action
     const customPreset1 = {
       id: 'custom-preset-123',
       name: 'Vista Seguimiento Semanal',
       tab: 'cronograma',
       visibleColKeys: ['hierarchy', 'name', 'progress', 'team'],
+      colOrder: ['team', 'progress', 'name', 'hierarchy'],
       isCustom: true,
     };
     const customHtml = mod.renderToString(
@@ -12517,7 +12514,17 @@ test('Test 105: Format selector (presets), saving custom presets, switching view
     assert.ok(customHtml.includes('data-testid="reports-preset-delete-custom-preset-123"'), 'Must render delete button for custom preset');
     assert.ok(customHtml.includes('data-testid="reports-preset-option-custom-preset-123" data-active-preset="true"'), 'Custom preset must be marked active');
 
-    // 7. Tab switching to releases maintains independent format
+    // Verify column headers render in customPreset1's colOrder: team before progress before name before hierarchy
+    const thTeam = customHtml.indexOf('data-testid="report-col-header-cronograma-team"');
+    const thProgress = customHtml.indexOf('data-testid="report-col-header-cronograma-progress"');
+    const thName = customHtml.indexOf('data-testid="report-col-header-cronograma-name"');
+    const thHierarchy = customHtml.indexOf('data-testid="report-col-header-cronograma-hierarchy"');
+    assert.ok(
+      thTeam > -1 && thTeam < thProgress && thProgress < thName && thName < thHierarchy,
+      'Custom preset colOrder must dictate rendered table column header order'
+    );
+
+    // 6. Tab switching to releases maintains independent format and hides cronograma-only type filter
     const releasesHtml = mod.renderToString(
       mod.React.createElement(mod.ReportsView, {
         releases,
@@ -12529,6 +12536,50 @@ test('Test 105: Format selector (presets), saving custom presets, switching view
     );
     assert.ok(releasesHtml.includes('Formato: Completo'), 'Releases tab must display Formato: Completo');
     assert.ok(releasesHtml.includes('data-testid="reports-preset-option-preset-releases-all" data-active-preset="true"'), 'Releases preset must be marked active on releases tab');
+    assert.ok(!releasesHtml.includes('data-testid="reports-type-filter"'), 'Releases tab must not show cronograma type filter');
+
+    // 7. Type filter filtering behavior
+    const itemsWithMilestone = [
+      ...items,
+      {
+        id: 'm1',
+        projectId: 'p1',
+        name: 'Hito Demo',
+        startDate: '2026-03-06',
+        endDate: '2026-03-06',
+        duration: 0,
+        type: 'milestone',
+        dependencies: [],
+      },
+    ];
+    const hitoHtml = mod.renderToString(
+      mod.React.createElement(mod.ReportsView, {
+        releases,
+        projects,
+        items: itemsWithMilestone,
+        initialTab: 'cronograma',
+        initialTypeFilter: 'HITO',
+      })
+    );
+    assert.ok(hitoHtml.includes('data-selected-type="HITO"'), 'Type filter button must reflect HITO');
+    assert.ok(hitoHtml.includes('data-report-row="m1-0"'), 'HITO filter must include milestone row');
+    assert.ok(!hitoHtml.includes('data-report-row="t1-0"'), 'HITO filter must exclude task row');
+    assert.ok(!hitoHtml.includes('data-report-row="proj-p1"'), 'HITO filter must exclude project row');
+    assert.ok(!hitoHtml.includes('data-report-row="rel-rel-1"'), 'HITO filter must exclude release row');
+
+    const projOnlyHtml = mod.renderToString(
+      mod.React.createElement(mod.ReportsView, {
+        releases,
+        projects,
+        items: itemsWithMilestone,
+        initialTab: 'cronograma',
+        initialTypeFilter: 'PROYECTO',
+      })
+    );
+    assert.ok(projOnlyHtml.includes('data-report-row="proj-p1"'), 'PROYECTO filter must include project row');
+    assert.ok(!projOnlyHtml.includes('data-report-row="t1-0"'), 'PROYECTO filter must exclude task row');
+    assert.ok(!projOnlyHtml.includes('data-report-row="m1-0"'), 'PROYECTO filter must exclude milestone row');
+    assert.ok(!projOnlyHtml.includes('data-report-row="rel-rel-1"'), 'PROYECTO filter must exclude release row');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
