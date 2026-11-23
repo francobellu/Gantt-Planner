@@ -21,6 +21,7 @@ import {
   LayoutTemplate,
   Plus,
   Trash2,
+  Pencil,
 } from 'lucide-react';
 import {
   ComputedGanttItem,
@@ -58,7 +59,6 @@ interface ReportColumnDef {
 
 const CRONO_COLUMNS: ReportColumnDef[] = [
   { key: 'hierarchy', label: 'Jerarquía', defaultWidth: 125 },
-  { key: 'wbsCode', label: 'Código WBS', defaultWidth: 105 },
   { key: 'name', label: 'Nombre del Elemento', defaultWidth: 250 },
   { key: 'releaseCode', label: 'Release', defaultWidth: 135 },
   { key: 'projectName', label: 'Proyecto', defaultWidth: 185 },
@@ -116,6 +116,7 @@ const REPORT_COL_WIDTHS_KEY = 'ganttflow_report_col_widths_v1';
 const REPORT_COL_ORDER_KEY = 'ganttflow_report_col_order_v1';
 export const REPORT_COLUMN_PRESETS_KEY = 'gantt_report_column_presets_v1';
 export const REPORT_ACTIVE_PRESET_KEY = 'gantt_report_active_preset_v1';
+export const REPORT_PRESET_NAMES_KEY = 'gantt_report_preset_names_v1';
 
 export interface ReportColumnPreset {
   id: string;
@@ -137,14 +138,7 @@ export const DEFAULT_COLUMN_PRESETS: ReportColumnPreset[] = [
     id: 'preset-executive',
     name: 'Resumen Ejecutivo',
     tab: 'cronograma',
-    visibleColKeys: ['wbsCode', 'name', 'releaseCode', 'projectName', 'startDate', 'endDate', 'progress', 'compliance', 'alertLevel'],
-    isCustom: false,
-  },
-  {
-    id: 'preset-tracking',
-    name: 'Seguimiento y Dependencias',
-    tab: 'cronograma',
-    visibleColKeys: ['wbsCode', 'name', 'team', 'startDate', 'endDate', 'duration', 'slack', 'dependency', 'isCritical'],
+    visibleColKeys: ['hierarchy', 'name', 'releaseCode', 'projectName', 'startDate', 'endDate', 'progress', 'compliance', 'alertLevel'],
     isCustom: false,
   },
   {
@@ -297,6 +291,22 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const [showFormatMenu, setShowFormatMenu] = useState<boolean>(initialShowFormatMenu);
   const formatMenuRef = useRef<HTMLDivElement>(null);
   const [newPresetName, setNewPresetName] = useState<string>('');
+
+  const [presetNameOverrides, setPresetNameOverrides] = useState<Record<string, string>>(() => {
+    try {
+      const saved = typeof localStorage !== 'undefined' ? localStorage.getItem(REPORT_PRESET_NAMES_KEY) : null;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object') {
+          return parsed;
+        }
+      }
+    } catch {}
+    return {};
+  });
+
+  const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
+  const [editingPresetName, setEditingPresetName] = useState<string>('');
 
   const [customPresets, setCustomPresets] = useState<ReportColumnPreset[]>(() => {
     if (initialCustomPresets && Array.isArray(initialCustomPresets)) {
@@ -523,15 +533,58 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     return 'custom';
   }, [activeTab, activePresetByTab, allPresetsForTab, currentVisibleColKeys, defaultPresetsForTab]);
 
+  const getPresetDisplayName = (preset: ReportColumnPreset) => {
+    return presetNameOverrides[preset.id] || preset.name;
+  };
+
   const activePreset = allPresetsForTab.find((p) => p.id === activePresetId);
   let activePresetDisplayName = 'Personalizado';
   if (activePreset) {
-    if (activePreset.id === 'preset-all' || activePreset.id === 'preset-releases-all') {
+    if (presetNameOverrides[activePreset.id]) {
+      activePresetDisplayName = presetNameOverrides[activePreset.id];
+    } else if (activePreset.id === 'preset-all' || activePreset.id === 'preset-releases-all') {
       activePresetDisplayName = 'Completo';
     } else {
       activePresetDisplayName = activePreset.name.replace(/^Formato\s+/i, '');
     }
   }
+
+  const startRenamePreset = (preset: ReportColumnPreset, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingPresetId(preset.id);
+    setEditingPresetName(getPresetDisplayName(preset));
+  };
+
+  const handleSaveRename = (presetId: string) => {
+    const trimmed = editingPresetName.trim();
+    if (trimmed) {
+      const nextOverrides = { ...presetNameOverrides, [presetId]: trimmed };
+      setPresetNameOverrides(nextOverrides);
+      try {
+        localStorage.setItem(REPORT_PRESET_NAMES_KEY, JSON.stringify(nextOverrides));
+      } catch {}
+
+      const nextCustom = customPresets.map((p) =>
+        p.id === presetId ? { ...p, name: trimmed } : p
+      );
+      if (nextCustom.some((p) => p.id === presetId)) {
+        setCustomPresets(nextCustom);
+        try {
+          localStorage.setItem(REPORT_COLUMN_PRESETS_KEY, JSON.stringify(nextCustom));
+        } catch {}
+      }
+
+      setToastMessage(`Formato renombrado a "${trimmed}".`);
+      setTimeout(() => setToastMessage(null), 3000);
+    }
+    setEditingPresetId(null);
+    setEditingPresetName('');
+  };
+
+  const handleCancelRename = () => {
+    setEditingPresetId(null);
+    setEditingPresetName('');
+  };
 
   const applyPreset = (preset: ReportColumnPreset) => {
     const visibleSet = new Set(preset.visibleColKeys);
@@ -613,6 +666,14 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     try {
       localStorage.setItem(REPORT_COLUMN_PRESETS_KEY, JSON.stringify(nextCustom));
     } catch {}
+    if (presetNameOverrides[presetId]) {
+      const nextOverrides = { ...presetNameOverrides };
+      delete nextOverrides[presetId];
+      setPresetNameOverrides(nextOverrides);
+      try {
+        localStorage.setItem(REPORT_PRESET_NAMES_KEY, JSON.stringify(nextOverrides));
+      } catch {}
+    }
     if (activePresetId === presetId) {
       const fallbackPreset = DEFAULT_COLUMN_PRESETS.find((p) => p.tab === activeTab) || DEFAULT_COLUMN_PRESETS[0];
       applyPreset(fallbackPreset);
@@ -1505,20 +1566,70 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 {/* Default presets */}
                 {defaultPresetsForTab.map((preset) => {
                   const isActive = activePresetId === preset.id;
+                  const isEditing = editingPresetId === preset.id;
+
+                  if (isEditing) {
+                    return (
+                      <div
+                        key={preset.id}
+                        className="flex items-center gap-1.5 px-2 py-1 bg-zinc-50 dark:bg-zinc-800 rounded border border-indigo-400"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <input
+                          type="text"
+                          data-testid={`reports-preset-rename-input-${preset.id}`}
+                          autoFocus
+                          value={editingPresetName}
+                          onChange={(e) => setEditingPresetName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleSaveRename(preset.id);
+                            } else if (e.key === 'Escape') {
+                              e.preventDefault();
+                              handleCancelRename();
+                            }
+                          }}
+                          className="flex-1 px-1.5 py-0.5 text-xs rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 outline-none"
+                        />
+                        <button
+                          type="button"
+                          data-testid={`reports-preset-rename-save-${preset.id}`}
+                          onClick={() => handleSaveRename(preset.id)}
+                          className="p-1 text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 cursor-pointer"
+                          title="Guardar nombre"
+                        >
+                          <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        </button>
+                        <button
+                          type="button"
+                          data-testid={`reports-preset-rename-cancel-${preset.id}`}
+                          onClick={handleCancelRename}
+                          className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer"
+                          title="Cancelar"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    );
+                  }
+
                   return (
-                    <button
+                    <div
                       key={preset.id}
-                      type="button"
-                      data-testid={`reports-preset-option-${preset.id}`}
-                      data-active-preset={isActive ? 'true' : 'false'}
-                      onClick={() => applyPreset(preset)}
-                      className={`flex items-center justify-between px-2 py-1.5 rounded-[3px] text-xs text-left cursor-pointer transition ${
+                      className={`flex items-center justify-between px-2 py-1.5 rounded-[3px] text-xs transition group ${
                         isActive
                           ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-semibold'
                           : 'text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
                       }`}
                     >
-                      <div className="flex items-center gap-2 truncate">
+                      <button
+                        type="button"
+                        data-testid={`reports-preset-option-${preset.id}`}
+                        data-active-preset={isActive ? 'true' : 'false'}
+                        onClick={() => applyPreset(preset)}
+                        className="flex items-center gap-2 truncate flex-1 text-left cursor-pointer"
+                      >
                         <span
                           className={`w-3.5 h-3.5 rounded-[2px] border flex items-center justify-center shrink-0 ${
                             isActive
@@ -1528,12 +1639,24 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                         >
                           {isActive && <Check className="w-2.5 h-2.5 stroke-[3]" />}
                         </span>
-                        <span className="truncate">{preset.name}</span>
+                        <span className="truncate">{getPresetDisplayName(preset)}</span>
+                      </button>
+
+                      <div className="flex items-center gap-1 shrink-0 ml-1">
+                        <span className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500">
+                          {preset.visibleColKeys.length} cols
+                        </span>
+                        <button
+                          type="button"
+                          data-testid={`reports-preset-rename-btn-${preset.id}`}
+                          onClick={(e) => startRenamePreset(preset, e)}
+                          className="p-1 text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded cursor-pointer transition opacity-70 group-hover:opacity-100"
+                          title="Editar nombre de este formato"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
                       </div>
-                      <span className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500 shrink-0">
-                        {preset.visibleColKeys.length} cols
-                      </span>
-                    </button>
+                    </div>
                   );
                 })}
 
@@ -1547,6 +1670,54 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     </div>
                     {customPresetsForTab.map((preset) => {
                       const isActive = activePresetId === preset.id;
+                      const isEditing = editingPresetId === preset.id;
+
+                      if (isEditing) {
+                        return (
+                          <div
+                            key={preset.id}
+                            className="flex items-center gap-1.5 px-2 py-1 bg-zinc-50 dark:bg-zinc-800 rounded border border-indigo-400"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <input
+                              type="text"
+                              data-testid={`reports-preset-rename-input-${preset.id}`}
+                              autoFocus
+                              value={editingPresetName}
+                              onChange={(e) => setEditingPresetName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleSaveRename(preset.id);
+                                } else if (e.key === 'Escape') {
+                                  e.preventDefault();
+                                  handleCancelRename();
+                                }
+                              }}
+                              className="flex-1 px-1.5 py-0.5 text-xs rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 outline-none"
+                            />
+                            <button
+                              type="button"
+                              data-testid={`reports-preset-rename-save-${preset.id}`}
+                              onClick={() => handleSaveRename(preset.id)}
+                              className="p-1 text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 cursor-pointer"
+                              title="Guardar nombre"
+                            >
+                              <Check className="w-3.5 h-3.5 stroke-[3]" />
+                            </button>
+                            <button
+                              type="button"
+                              data-testid={`reports-preset-rename-cancel-${preset.id}`}
+                              onClick={handleCancelRename}
+                              className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer"
+                              title="Cancelar"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        );
+                      }
+
                       return (
                         <div
                           key={preset.id}
@@ -1572,13 +1743,22 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                             >
                               {isActive && <Check className="w-2.5 h-2.5 stroke-[3]" />}
                             </span>
-                            <span className="truncate">{preset.name}</span>
+                            <span className="truncate">{getPresetDisplayName(preset)}</span>
                           </button>
 
                           <div className="flex items-center gap-1 shrink-0 ml-1">
                             <span className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500">
                               {preset.visibleColKeys.length} cols
                             </span>
+                            <button
+                              type="button"
+                              data-testid={`reports-preset-rename-btn-${preset.id}`}
+                              onClick={(e) => startRenamePreset(preset, e)}
+                              className="p-1 text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded cursor-pointer transition opacity-70 group-hover:opacity-100"
+                              title="Editar nombre de este formato"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
                             <button
                               type="button"
                               data-testid={`reports-preset-delete-${preset.id}`}
@@ -1818,12 +1998,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                                         TAREA
                                       </span>
                                     )}
-                                  </td>
-                                );
-                              case 'wbsCode':
-                                return (
-                                  <td key={col.key} className="px-3 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap font-bold text-[#0C0C09] dark:text-zinc-200 truncate">
-                                    {row.wbsCode}
                                   </td>
                                 );
                               case 'name':

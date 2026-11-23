@@ -10,10 +10,20 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.11.16',
+    date: '23 Nov 2026',
+    title: 'Eliminar Código WBS, simplificar formatos predeterminados y permitir renombrado',
+    isLatest: true,
+    features: [
+      'Eliminada columna redundante Código WBS en informe y exportación Excel',
+      'Conservados solo formatos predeterminados Completo y Resumen Ejecutivo',
+      'Añadida edición y renombrado interactivo de formatos con persistencia local',
+    ],
+  },
+  {
     version: '1.11.15',
     date: '23 Nov 2026',
     title: 'Sincronización por pestaña y actualización de presets de formato en Informes',
-    isLatest: true,
     features: [
       'Sincroniza el preset activo por pestaña evitando desajustes al alternar entre Cronograma y Releases',
       'Actualiza presets personalizados existentes al guardar con el mismo nombre',

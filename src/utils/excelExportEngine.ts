@@ -72,7 +72,6 @@ export interface ReleaseSummaryReportRow {
 
 export const CRONOGRAMA_HEADER = [
   'Jerarquía',
-  'Código WBS',
   'Nombre',
   'Release Asignada',
   'Proyecto',
@@ -484,7 +483,6 @@ export function exportFullGanttToWorkbook(
     CRONOGRAMA_HEADER,
     ...cronoRows.map((r) => [
       r.hierarchyLabel,
-      r.wbsCode,
       r.name,
       r.releaseCode,
       r.projectName,
@@ -507,7 +505,6 @@ export function exportFullGanttToWorkbook(
   const wsHierarchy = XLSX.utils.aoa_to_sheet(cronoAoa);
   wsHierarchy['!cols'] = [
     { wch: 18 }, // Jerarquía
-    { wch: 14 }, // Código WBS
     { wch: 38 }, // Nombre
     { wch: 16 }, // Release Asignada
     { wch: 28 }, // Proyecto
