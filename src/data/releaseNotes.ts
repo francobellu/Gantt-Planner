@@ -10,10 +10,18 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.11.9',
+    date: '23 Nov 2026',
+    title: 'Detalle completo de proyectos en el RightSidePanel',
+    isLatest: true,
+    features: [
+      'Añadido soporte completo para proyectos en el panel lateral derecho con cabecera de badges, edición de nombre, color, release, plataforma y nivel de alerta, métricas de tareas/hitos/equipos y listado clicable de tareas e hitos hijos',
+    ],
+  },
+  {
     version: '1.11.8',
     date: '23 Nov 2026',
     title: 'Selector principal Cronograma | Informes y botones Importar/Exportar a la derecha',
-    isLatest: true,
     features: [
       'Creado selector segmentado de páginas principales al mismo nivel (Cronograma | Informes) en la cabecera',
       'Movidos los botones de Importar y Exportar a la derecha de la misma barra superior',

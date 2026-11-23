@@ -187,6 +187,12 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
   const [taskNotes, setTaskNotes] = useState('');
   const [autoCascade, setAutoCascade] = useState(true);
   const [savedNotice, setSavedNotice] = useState(false);
+  const [projName, setProjName] = useState(() => selectedProject?.name || '');
+
+  useEffect(() => {
+    if (!selectedProject) return;
+    setProjName(selectedProject.name);
+  }, [selectedProject?.id, selectedProject?.name]);
 
   useEffect(() => {
     if (!selectedTask) return;
@@ -883,145 +889,309 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
           })()}
 
           {/* PROJECT DETAILS */}
-          {selectedProject && (
-            <div data-testid={`sidebar-project-details-${selectedProject.id}`} className="flex flex-col gap-3">
-              <div className="flex items-start justify-between gap-2 pb-2.5 border-b border-[#E2E2DC] dark:border-zinc-800">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <FolderKanban className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
-                    <span className="text-[10px] font-mono uppercase tracking-wider font-bold text-indigo-600 dark:text-indigo-400">
-                      Proyecto
-                    </span>
-                    {selectedProject.locked && (
-                      <span className="px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 text-[9px] font-mono font-bold">
-                        Bloqueado
+          {selectedProject && (() => {
+            const projRelease = releases.find((r) => r.id === selectedProject.releaseId);
+            const projPlatform = normalizePlatform(selectedProject.platform);
+            const projAlert = selectedProject.alertLevel ?? 0;
+            const projItems = projectGroup?.items || items.filter((it) => it.projectId === selectedProject.id);
+            const projTeams = Array.from(
+              new Set(projItems.map((it) => it.assignee?.trim()).filter(Boolean))
+            );
+            const projCode = projectGroup?.projectIndex || selectedProject.projectIndex;
+            const isProjLocked = Boolean(selectedProject.locked);
+
+            return (
+              <div data-testid={`sidebar-project-details-${selectedProject.id}`} className="flex flex-col gap-3">
+                {/* Header Badges */}
+                <div className="flex items-start justify-between gap-2 pb-2 border-b border-[#E2E2DC] dark:border-zinc-800">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {projCode && (
+                        <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded-[2px] bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 border border-[#E2E2DC] dark:border-zinc-700">
+                          {`#P${projCode}`}
+                        </span>
+                      )}
+                      <span className="text-[10px] font-mono uppercase tracking-wider font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
+                        <FolderKanban className="w-3.5 h-3.5 shrink-0" />
+                        <span>Proyecto</span>
                       </span>
-                    )}
+                      {projPlatform && (
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-[2px] border border-sky-500/20 bg-sky-500/10 text-sky-700 dark:text-sky-300">
+                          {projPlatform}
+                        </span>
+                      )}
+                      {projAlert > 0 && (
+                        <span
+                          data-testid={`sidebar-project-alert-badge-${selectedProject.id}`}
+                          className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-[2px] border ${
+                            projAlert === 1
+                              ? 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
+                              : projAlert === 2
+                              ? 'bg-orange-50 text-orange-800 border-orange-300 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800'
+                              : 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
+                          }`}
+                        >
+                          {`Nivel ${projAlert}`}
+                        </span>
+                      )}
+                      {projRelease && (
+                        <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded-[2px] border border-indigo-500/20 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300">
+                          {projRelease.code}
+                        </span>
+                      )}
+                      {isProjLocked && (
+                        <span className="px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 text-[9px] font-mono font-bold">
+                          Bloqueado
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <h3 className="font-bold text-sm text-[#0C0C09] dark:text-zinc-100 mt-1 break-words">
-                    {selectedProject.name}
-                  </h3>
                 </div>
-              </div>
 
-              {projectGroup && (
-                <div className="grid grid-cols-2 gap-2 p-2.5 rounded-[4px] bg-[#FAFAF8] dark:bg-zinc-900/40 border border-[#E2E2DC] dark:border-zinc-800 text-[11px]">
-                  <div>
-                    <span className="text-[#6B6B66] dark:text-zinc-400 block">Inicio:</span>
-                    <span className="font-mono font-semibold">
-                      {formatDateDisplay(projectGroup.startDate, 'dd MMM yyyy')}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[#6B6B66] dark:text-zinc-400 block">Fin:</span>
-                    <span className="font-mono font-semibold">
-                      {formatDateDisplay(projectGroup.endDate, 'dd MMM yyyy')}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[#6B6B66] dark:text-zinc-400 block">Duración:</span>
-                    <span className="font-mono font-semibold">{projectGroup.duration}d</span>
-                  </div>
-                  <div>
-                    <span className="text-[#6B6B66] dark:text-zinc-400 block">Avance:</span>
-                    <span className="font-mono font-semibold">{projectGroup.progress}%</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Editable Platform & Alert Level */}
-              <div className="grid grid-cols-2 gap-2">
+                {/* Editable Project Name */}
                 <div>
                   <label className="block text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400 mb-1">
-                    Plataforma
+                    Nombre del Proyecto
                   </label>
-                  <select
-                    value={selectedProject.platform || 'iOS/Android'}
-                    disabled={Boolean(selectedProject.locked)}
-                    onChange={(e) =>
-                      onUpdateProject({
-                        ...selectedProject,
-                        platform: e.target.value as ProjectPlatform,
-                      })
-                    }
-                    className="w-full px-2 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs disabled:opacity-50"
-                  >
-                    <option value="iOS/Android">iOS/Android</option>
-                    <option value="iOS">iOS</option>
-                    <option value="Android">Android</option>
-                  </select>
+                  <input
+                    type="text"
+                    data-testid="sidebar-project-name-input"
+                    value={projName}
+                    readOnly={isProjLocked}
+                    onChange={(e) => setProjName(e.target.value)}
+                    onBlur={() => {
+                      if (isProjLocked) return;
+                      const trimmed = projName.trim() || selectedProject.name;
+                      setProjName(trimmed);
+                      if (trimmed !== selectedProject.name) {
+                        onUpdateProject({ ...selectedProject, name: trimmed });
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        (e.currentTarget as HTMLInputElement).blur();
+                      }
+                    }}
+                    className="w-full px-2.5 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-semibold text-[#0C0C09] dark:text-zinc-100"
+                  />
                 </div>
+
+                {/* Project Color Swatches */}
                 <div>
                   <label className="block text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400 mb-1">
-                    Nivel Alerta
+                    Color
                   </label>
-                  <select
-                    value={selectedProject.alertLevel ?? 0}
-                    disabled={Boolean(selectedProject.locked)}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {COLOR_SWATCHES.map((c) => (
+                      <button
+                        key={c.value}
+                        type="button"
+                        disabled={isProjLocked}
+                        data-testid={`sidebar-project-color-${c.value}`}
+                        onClick={() => onUpdateProject({ ...selectedProject, color: c.value })}
+                        className={`w-4 h-4 rounded-full ${c.bg} transition cursor-pointer disabled:opacity-50 ${
+                          selectedProject.color === c.value
+                            ? 'ring-2 ring-offset-1 ring-[#0C0C09] scale-110'
+                            : 'opacity-70 hover:opacity-100'
+                        }`}
+                        title={c.value}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Editable Platform, Release & Alert Level */}
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400 mb-1">
+                      Plataforma
+                    </label>
+                    <select
+                      data-testid="sidebar-project-platform-select"
+                      value={selectedProject.platform || 'iOS/Android'}
+                      disabled={isProjLocked}
+                      onChange={(e) =>
+                        onUpdateProject({
+                          ...selectedProject,
+                          platform: e.target.value as ProjectPlatform,
+                        })
+                      }
+                      className="w-full px-2 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs disabled:opacity-50"
+                    >
+                      <option value="iOS/Android">iOS/Android</option>
+                      <option value="iOS">iOS</option>
+                      <option value="Android">Android</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400 mb-1">
+                      Release
+                    </label>
+                    <select
+                      data-testid="sidebar-project-release-select"
+                      value={selectedProject.releaseId || ''}
+                      disabled={isProjLocked}
+                      onChange={(e) =>
+                        onUpdateProject({
+                          ...selectedProject,
+                          releaseId: e.target.value || undefined,
+                        })
+                      }
+                      className="w-full px-2 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs disabled:opacity-50"
+                    >
+                      <option value="">Sin release</option>
+                      {releases.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.code}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400 mb-1">
+                      Nivel Alerta
+                    </label>
+                    <select
+                      data-testid="sidebar-project-alert-select"
+                      value={projAlert}
+                      disabled={isProjLocked}
+                      onChange={(e) =>
+                        onUpdateProject({
+                          ...selectedProject,
+                          alertLevel: Number(e.target.value) as ProjectAlertLevel,
+                        })
+                      }
+                      className="w-full px-2 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs disabled:opacity-50"
+                    >
+                      <option value={0}>0 — Normal</option>
+                      <option value={1}>1 — Baja</option>
+                      <option value={2}>2 — Media</option>
+                      <option value={3}>3 — Alta</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Dates, Duration, Progress, Counts & Teams */}
+                {projectGroup && (
+                  <div className="grid grid-cols-2 gap-2 p-2.5 rounded-[4px] bg-[#FAFAF8] dark:bg-zinc-900/40 border border-[#E2E2DC] dark:border-zinc-800 text-[11px]">
+                    <div>
+                      <span className="text-[#6B6B66] dark:text-zinc-400 block">Inicio:</span>
+                      <span className="font-mono font-semibold">
+                        {formatDateDisplay(projectGroup.startDate, 'dd MMM yyyy')}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[#6B6B66] dark:text-zinc-400 block">Fin:</span>
+                      <span className="font-mono font-semibold">
+                        {formatDateDisplay(projectGroup.endDate, 'dd MMM yyyy')}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[#6B6B66] dark:text-zinc-400 block">Duración:</span>
+                      <span className="font-mono font-semibold">{projectGroup.duration}d</span>
+                    </div>
+                    <div>
+                      <span className="text-[#6B6B66] dark:text-zinc-400 block">Avance:</span>
+                      <span className="font-mono font-semibold">{projectGroup.progress}%</span>
+                    </div>
+                    <div>
+                      <span className="text-[#6B6B66] dark:text-zinc-400 block">Tareas / Hitos:</span>
+                      <span className="font-mono font-semibold">
+                        {projectGroup.tasksCount} / {projectGroup.milestonesCount}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[#6B6B66] dark:text-zinc-400 block">Equipos:</span>
+                      <span className="font-semibold truncate block" title={projTeams.join(', ') || 'Sin asignar'}>
+                        {projTeams.length > 0 ? projTeams.join(', ') : '—'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Project Description */}
+                <div>
+                  <label className="block text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400 mb-1">
+                    Descripción / Notas
+                  </label>
+                  <textarea
+                    rows={4}
+                    readOnly={isProjLocked}
+                    value={selectedProject.description || ''}
                     onChange={(e) =>
-                      onUpdateProject({
-                        ...selectedProject,
-                        alertLevel: Number(e.target.value) as ProjectAlertLevel,
-                      })
+                      onUpdateProject({ ...selectedProject, description: e.target.value })
                     }
-                    className="w-full px-2 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs disabled:opacity-50"
+                    placeholder="Descripción del proyecto..."
+                    className="w-full px-2.5 py-1.5 rounded-[4px] border border-[#E2E2DC] dark:border-zinc-700 bg-[#FAFAF8] dark:bg-zinc-900 text-xs resize-y min-h-[68px]"
+                  />
+                </div>
+
+                {/* Project Tasks & Milestones List */}
+                <div
+                  data-testid="sidebar-project-tasks-list"
+                  className="p-2.5 rounded-[4px] border border-[#E2E2DC] dark:border-zinc-800 bg-[#FAFAF8] dark:bg-zinc-900/30"
+                >
+                  <div className="text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400 mb-1.5">
+                    Tareas e Hitos ({projItems.length})
+                  </div>
+                  {projItems.length > 0 ? (
+                    <div className="flex flex-col gap-1 max-h-44 overflow-y-auto">
+                      {projItems.map((it) => (
+                        <button
+                          key={it.id}
+                          type="button"
+                          data-testid={`sidebar-project-task-item-${it.id}`}
+                          onClick={() => onSelectEntity({ type: 'task', id: it.id, name: it.name })}
+                          className="w-full text-left px-2 py-1 rounded-[3px] border border-[#E2E2DC] dark:border-zinc-700 bg-white dark:bg-zinc-900 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 text-[11px] flex items-center justify-between gap-2 cursor-pointer transition"
+                        >
+                          <span className="truncate font-medium">
+                            #{it.wbsCode || it.wbs} {it.name}
+                          </span>
+                          <span className="font-mono text-[10px] text-[#6B6B66] dark:text-zinc-400 shrink-0">
+                            {it.type === 'milestone' ? '◆' : `${it.duration}d · ${it.progress}%`}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-[11px] text-[#6B6B66] dark:text-zinc-500">
+                      Sin tareas ni hitos en este proyecto.
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#E2E2DC] dark:border-zinc-800">
+                  <button
+                    type="button"
+                    onClick={() => onToggleProjectLock(selectedProject)}
+                    className="px-2.5 py-1 rounded-[3px] border border-[#E2E2DC] dark:border-zinc-700 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 text-[11px] font-medium flex items-center gap-1 cursor-pointer"
                   >
-                    <option value={0}>0 — Normal</option>
-                    <option value={1}>1 — Baja</option>
-                    <option value={2}>2 — Media</option>
-                    <option value={3}>3 — Alta</option>
-                  </select>
+                    {isProjLocked ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+                    <span>{isProjLocked ? 'Desbloquear' : 'Bloquear'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isFocusMode && focusEntity?.type === 'project' && focusEntity.id === selectedProject.id) {
+                        onExitFocusMode();
+                      } else {
+                        onSetFocusEntity({ type: 'project', id: selectedProject.id, name: selectedProject.name });
+                      }
+                    }}
+                    className="px-2.5 py-1 rounded-[3px] bg-[#0C0C09] hover:bg-[#312C85] dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-[#0C0C09] font-semibold text-[11px] flex items-center gap-1 cursor-pointer"
+                  >
+                    <Crosshair className="w-3.5 h-3.5" />
+                    <span>
+                      {isFocusMode && focusEntity?.type === 'project' && focusEntity.id === selectedProject.id
+                        ? 'Salir Enfoque'
+                        : 'Enfocar Proyecto'}
+                    </span>
+                  </button>
                 </div>
               </div>
-
-              {/* Project Description */}
-              <div>
-                <label className="block text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400 mb-1">
-                  Descripción / Notas
-                </label>
-                <textarea
-                  rows={4}
-                  readOnly={Boolean(selectedProject.locked)}
-                  value={selectedProject.description || ''}
-                  onChange={(e) =>
-                    onUpdateProject({ ...selectedProject, description: e.target.value })
-                  }
-                  placeholder="Descripción del proyecto..."
-                  className="w-full px-2.5 py-1.5 rounded-[4px] border border-[#E2E2DC] dark:border-zinc-700 bg-[#FAFAF8] dark:bg-zinc-900 text-xs resize-y min-h-[68px]"
-                />
-              </div>
-
-              <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#E2E2DC] dark:border-zinc-800">
-                <button
-                  type="button"
-                  onClick={() => onToggleProjectLock(selectedProject)}
-                  className="px-2.5 py-1 rounded-[3px] border border-[#E2E2DC] dark:border-zinc-700 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 text-[11px] font-medium flex items-center gap-1 cursor-pointer"
-                >
-                  {selectedProject.locked ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
-                  <span>{selectedProject.locked ? 'Desbloquear' : 'Bloquear'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (isFocusMode && focusEntity?.type === 'project' && focusEntity.id === selectedProject.id) {
-                      onExitFocusMode();
-                    } else {
-                      onSetFocusEntity({ type: 'project', id: selectedProject.id, name: selectedProject.name });
-                    }
-                  }}
-                  className="px-2.5 py-1 rounded-[3px] bg-[#0C0C09] hover:bg-[#312C85] dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-[#0C0C09] font-semibold text-[11px] flex items-center gap-1 cursor-pointer"
-                >
-                  <Crosshair className="w-3.5 h-3.5" />
-                  <span>
-                    {isFocusMode && focusEntity?.type === 'project' && focusEntity.id === selectedProject.id
-                      ? 'Salir Enfoque'
-                      : 'Enfocar Proyecto'}
-                  </span>
-                </button>
-              </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* RELEASE DETAILS */}
           {selectedRelease && (() => {
