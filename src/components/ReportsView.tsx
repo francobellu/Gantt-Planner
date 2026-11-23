@@ -574,7 +574,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchesName = row.name.toLowerCase().includes(q);
-        const matchesWbs = row.wbsCode.toLowerCase().includes(q);
+        const matchesWbs =
+          row.wbsCode.toLowerCase().includes(q) || row.displayId.toLowerCase().includes(q);
         const matchesProject = row.projectName.toLowerCase().includes(q);
         const matchesRelease = row.releaseCode.toLowerCase().includes(q);
         const matchesDep = row.dependency.toLowerCase().includes(q);
@@ -1235,8 +1236,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             <table className="w-full table-fixed border-collapse text-left text-xs">
               <thead className="sticky top-0 z-10 bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 border-b-2 border-[#0C0C09] dark:border-zinc-700 font-mono text-[11px] font-bold uppercase tracking-wider">
                 <tr>
-                  <th className="px-2.5 py-2 border-r border-[#E2E2DC] dark:border-zinc-700 w-12 text-center bg-[#ECECE8] dark:bg-zinc-900 text-[#6B6B66] select-none">
-                    #
+                  <th
+                    data-testid="report-col-id-header"
+                    className="px-2.5 py-2 border-r border-[#E2E2DC] dark:border-zinc-700 w-20 text-center bg-[#ECECE8] dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-200 select-none"
+                  >
+                    ID
                   </th>
                   {getOrderedColumns('cronograma').map((col) =>
                     renderResizableTh(
@@ -1307,9 +1311,12 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                             : 'hover:bg-indigo-50/70 dark:hover:bg-indigo-950/40'
                         } cursor-pointer transition-colors`}
                       >
-                        {/* Excel Row Index */}
-                        <td className="px-2.5 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 text-center text-[10px] text-[#6B6B66] dark:text-zinc-500 bg-[#ECECE8]/40 dark:bg-zinc-900/50 select-none">
-                          {idx + 1}
+                        {/* Unique ID column */}
+                        <td
+                          data-testid={`report-crono-id-${row.rowId}`}
+                          className="px-2 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 text-center text-[10px] font-mono font-bold text-[#0C0C09] dark:text-zinc-200 bg-[#ECECE8]/40 dark:bg-zinc-900/50 select-none whitespace-nowrap"
+                        >
+                          {row.displayId}
                         </td>
 
                         {getOrderedColumns('cronograma')
@@ -1884,8 +1891,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             <table className="w-full table-fixed border-collapse text-left text-xs">
               <thead className="sticky top-0 z-10 bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 border-b-2 border-[#0C0C09] dark:border-zinc-700 font-mono text-[11px] font-bold uppercase tracking-wider">
                 <tr>
-                  <th className="px-2.5 py-2 border-r border-[#E2E2DC] dark:border-zinc-700 w-12 text-center bg-[#ECECE8] dark:bg-zinc-900 text-[#6B6B66] select-none">
-                    #
+                  <th
+                    data-testid="report-col-id-header"
+                    className="px-2.5 py-2 border-r border-[#E2E2DC] dark:border-zinc-700 w-20 text-center bg-[#ECECE8] dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-200 select-none"
+                  >
+                    ID
                   </th>
                   {getOrderedColumns('projects').map((col) => renderResizableTh('projects', col))}
                 </tr>
@@ -1924,8 +1934,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                             : 'bg-white dark:bg-[#0C0C09] hover:bg-indigo-50/50 dark:hover:bg-indigo-950/30'
                         } cursor-pointer transition-colors`}
                       >
-                        <td className="px-2.5 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 text-center text-[10px] text-[#6B6B66] bg-[#ECECE8]/40 dark:bg-zinc-900 select-none">
-                          {idx + 1}
+                        <td
+                          data-testid={`report-proj-id-${row.code}`}
+                          className="px-2 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 text-center text-[10px] font-mono font-bold text-[#0C0C09] dark:text-zinc-200 bg-[#ECECE8]/40 dark:bg-zinc-900 select-none whitespace-nowrap"
+                        >
+                          {row.code}
                         </td>
                         {getOrderedColumns('projects')
                           .filter((c) => isColVisible('projects', c.key))
@@ -2165,8 +2178,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             <table className="w-full table-fixed border-collapse text-left text-xs">
               <thead className="sticky top-0 z-10 bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 border-b-2 border-[#0C0C09] dark:border-zinc-700 font-mono text-[11px] font-bold uppercase tracking-wider">
                 <tr>
-                  <th className="px-2.5 py-2 border-r border-[#E2E2DC] dark:border-zinc-700 w-12 text-center bg-[#ECECE8] dark:bg-zinc-900 text-[#6B6B66] select-none">
-                    #
+                  <th
+                    data-testid="report-col-id-header"
+                    className="px-2.5 py-2 border-r border-[#E2E2DC] dark:border-zinc-700 w-20 text-center bg-[#ECECE8] dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-200 select-none"
+                  >
+                    ID
                   </th>
                   {getOrderedColumns('releases').map((col) => renderResizableTh('releases', col))}
                 </tr>
@@ -2205,8 +2221,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                             : 'bg-white dark:bg-[#0C0C09] hover:bg-amber-50/40 dark:hover:bg-amber-950/20'
                         } cursor-pointer transition-colors`}
                       >
-                        <td className="px-2.5 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 text-center text-[10px] text-[#6B6B66] bg-[#ECECE8]/40 dark:bg-zinc-900 select-none">
-                          {idx + 1}
+                        <td
+                          data-testid={`report-rel-id-${row.code}`}
+                          className="px-2 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 text-center text-[10px] font-mono font-bold text-amber-700 dark:text-amber-400 bg-[#ECECE8]/40 dark:bg-zinc-900 select-none whitespace-nowrap"
+                        >
+                          {row.code}
                         </td>
                         {getOrderedColumns('releases')
                           .filter((c) => isColVisible('releases', c.key))

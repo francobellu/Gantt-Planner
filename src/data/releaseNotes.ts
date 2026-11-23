@@ -10,10 +10,20 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.11.12',
+    date: '23 Nov 2026',
+    title: 'ID único para proyectos y tareas (P1, T1, P1T1), badge coloreado en tabla y columna ID en Informes',
+    isLatest: true,
+    features: [
+      'Añadido taskIndex estable y displayId único (P1, T1, P1T1) en motor y creación de tareas',
+      'Etiqueta coloreada con el ID de cada tarea en la tabla del cronograma con el mismo estilo que los proyectos',
+      'Reemplazada la columna # por la columna ID en las 3 pestañas de Informes',
+    ],
+  },
+  {
     version: '1.11.11',
     date: '23 Nov 2026',
     title: 'Eliminado botón redundante Volver al Gantt en Informes',
-    isLatest: true,
     features: [
       'Eliminado el botón Volver al Gantt de la cabecera de Informes al existir ya el selector principal Cronograma | Informes en la barra superior',
     ],

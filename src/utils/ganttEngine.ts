@@ -338,6 +338,18 @@ export function normalizePlatform(
   return undefined;
 }
 
+export function formatTaskDisplayId(
+  projectIndex: number | undefined,
+  taskIndex: number,
+  isStandalone = false
+): string {
+  const safeTaskIdx = Math.max(1, Math.round(taskIndex || 1));
+  if (isStandalone || !projectIndex) {
+    return `T${safeTaskIdx}`;
+  }
+  return `P${Math.round(projectIndex)}T${safeTaskIdx}`;
+}
+
 export function normalizeAlertLevel(rawVal: unknown): ProjectAlertLevel | undefined {
   if (rawVal === undefined || rawVal === null || rawVal === '') return undefined;
   const parsedAlert = Number(rawVal);
@@ -709,6 +721,9 @@ export function sanitizeGanttItem(
         : undefined,
     ...(normalizeAlertLevel(raw.alertLevel) !== undefined
       ? { alertLevel: normalizeAlertLevel(raw.alertLevel) }
+      : {}),
+    ...(typeof raw.taskIndex === 'number' && Number.isFinite(raw.taskIndex) && raw.taskIndex >= 1
+      ? { taskIndex: Math.round(raw.taskIndex) }
       : {}),
   };
 
@@ -1422,15 +1437,40 @@ export function groupItemsByProject(
 
   const todayStr = formatDateISO(new Date());
 
+  const isFallbackOnly = projects.length === 0;
+  const knownProjectIds = new Set(projects.map((p) => p.id));
+
   return effectiveProjects.map((project, pIdx) => {
     const projectIndex = project.projectIndex || pIdx + 1;
     const rawGroupItems = bucketMap.get(project.id) || [];
 
-    const enrichedItems: ComputedGanttItem[] = rawGroupItems.map((it, itemIdx) => ({
-      ...it,
-      projectId: project.id,
-      wbsCode: `${projectIndex}.${itemIdx + 1}`,
-    }));
+    const usedTaskIndices = new Set<number>();
+    for (const it of rawGroupItems) {
+      if (typeof it.taskIndex === 'number' && Number.isFinite(it.taskIndex) && it.taskIndex >= 1) {
+        usedTaskIndices.add(Math.round(it.taskIndex));
+      }
+    }
+    let nextTaskIdx = 1;
+    const enrichedItems: ComputedGanttItem[] = rawGroupItems.map((it, itemIdx) => {
+      let resolvedTaskIndex: number;
+      if (typeof it.taskIndex === 'number' && Number.isFinite(it.taskIndex) && it.taskIndex >= 1) {
+        resolvedTaskIndex = Math.round(it.taskIndex);
+      } else {
+        while (usedTaskIndices.has(nextTaskIdx)) {
+          nextTaskIdx++;
+        }
+        resolvedTaskIndex = nextTaskIdx;
+        usedTaskIndices.add(nextTaskIdx);
+      }
+      const isStandalone = isFallbackOnly || !it.projectId || !knownProjectIds.has(it.projectId);
+      return {
+        ...it,
+        projectId: project.id,
+        taskIndex: resolvedTaskIndex,
+        wbsCode: `${projectIndex}.${itemIdx + 1}`,
+        displayId: formatTaskDisplayId(projectIndex, resolvedTaskIndex, isStandalone),
+      };
+    });
 
     if (enrichedItems.length === 0) {
       return {

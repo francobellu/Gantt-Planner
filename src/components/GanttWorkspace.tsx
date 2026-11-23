@@ -6941,36 +6941,38 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               </span>
                             </div>
 
-                            <span
-                              className="font-mono text-[10px] w-8 text-center py-0.5 rounded-[2px] bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-300 border border-[#E2E2DC] dark:border-zinc-700 shrink-0 font-semibold"
-                              title={`Código WBS ${item.wbsCode || item.wbs} (Global #${item.wbs})`}
-                            >
-                              {groupByProject ? item.wbsCode || `${item.wbs}.` : `${item.wbs}.`}
-                            </span>
-                            {item.type === 'milestone' ? (
-                              <div className="flex items-center gap-1 shrink-0">
-                                <Diamond
-                                  className={`w-3.5 h-3.5 ${
-                                    (COLOR_STYLES[itemEffectiveColor] || COLOR_STYLES.amber).diamondText
-                                  } fill-current shrink-0`}
-                                />
-                                {item.isExternal && (
+                            {(() => {
+                              const taskDisplayId =
+                                item.displayId ||
+                                (groupByProject && group.projectIndex
+                                  ? `P${group.projectIndex}T${item.taskIndex || item.wbs}`
+                                  : `T${item.taskIndex || item.wbs}`);
+                              const badgeBg =
+                                COLOR_STYLES[itemEffectiveColor]?.badge || 'bg-indigo-500';
+                              return (
+                                <div className="flex items-center gap-1 shrink-0">
                                   <span
-                                    data-testid={`milestone-external-badge-${item.id}`}
-                                    title="Hito externo (no pertenece a la release)"
-                                    className="px-1 py-0.2 rounded text-[8.5px] font-mono font-bold bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 shrink-0"
+                                    data-testid={`task-id-badge-${item.id}`}
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold text-white shrink-0 inline-flex items-center gap-1 ${badgeBg}`}
+                                    title={`ID ${taskDisplayId} · WBS ${item.wbsCode || item.wbs}`}
                                   >
-                                    EXT
+                                    {item.type === 'milestone' && (
+                                      <Diamond className="w-2.5 h-2.5 fill-current shrink-0" />
+                                    )}
+                                    <span>{taskDisplayId}</span>
                                   </span>
-                                )}
-                              </div>
-                            ) : (
-                              <span
-                                className={`w-2.5 h-2.5 rounded-[2px] shrink-0 ${
-                                  COLOR_STYLES[itemEffectiveColor]?.badge || 'bg-indigo-500'
-                                }`}
-                              />
-                            )}
+                                  {item.type === 'milestone' && item.isExternal && (
+                                    <span
+                                      data-testid={`milestone-external-badge-${item.id}`}
+                                      title="Hito externo (no pertenece a la release)"
+                                      className="px-1 py-0.2 rounded text-[8.5px] font-mono font-bold bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 shrink-0"
+                                    >
+                                      EXT
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })()}
                             {(item.alertLevel ?? 0) > 0 && (() => {
                               const taskAlert = (item.alertLevel ?? 0) as ProjectAlertLevel;
                               const alertCfg = ALERT_LEVEL_CONFIG[taskAlert];

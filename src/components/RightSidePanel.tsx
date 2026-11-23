@@ -446,7 +446,10 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded-[2px] bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 border border-[#E2E2DC] dark:border-zinc-700">
-                        #{selectedTask.wbsCode || selectedTask.wbs}
+                        {selectedTask.displayId ||
+                          (itemProj?.projectIndex
+                            ? `P${itemProj.projectIndex}T${selectedTask.taskIndex || selectedTask.wbs}`
+                            : `T${selectedTask.taskIndex || selectedTask.wbs}`)}
                       </span>
                       <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
                         {taskType === 'milestone' ? 'Hito' : 'Tarea'}
@@ -1145,7 +1148,7 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                           className="w-full text-left px-2 py-1 rounded-[3px] border border-[#E2E2DC] dark:border-zinc-700 bg-white dark:bg-zinc-900 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 text-[11px] flex items-center justify-between gap-2 cursor-pointer transition"
                         >
                           <span className="truncate font-medium">
-                            #{it.wbsCode || it.wbs} {it.name}
+                            {`${it.displayId || (projCode ? `P${projCode}T${it.taskIndex || it.wbs}` : `T${it.taskIndex || it.wbs}`)} ${it.name}`}
                           </span>
                           <span className="font-mono text-[10px] text-[#6B6B66] dark:text-zinc-400 shrink-0">
                             {it.type === 'milestone' ? '◆' : `${it.duration}d · ${it.progress}%`}

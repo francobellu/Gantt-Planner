@@ -12,6 +12,7 @@ export interface CronogramaReportRow {
   itemId?: string;
   level: 'RELEASE' | 'PROYECTO' | 'TAREA' | 'HITO';
   hierarchyLabel: string;
+  displayId: string;
   wbsCode: string;
   name: string;
   releaseCode: string;
@@ -165,6 +166,7 @@ export function generateCronogramaCompletoRows(
         rowId: `rel-${rg.release.id}`,
         level: 'RELEASE',
         hierarchyLabel: 'RELEASE',
+        displayId: rg.release.code,
         wbsCode: rg.release.code,
         name: rg.release.name,
         releaseCode: rg.release.code,
@@ -194,6 +196,7 @@ export function generateCronogramaCompletoRows(
           rowId: `proj-${pg.project.id}`,
           level: 'PROYECTO',
           hierarchyLabel: '  └─ PROYECTO',
+          displayId: `P${pg.projectIndex}`,
           wbsCode: `P${pg.projectIndex}`,
           name: pg.project.name,
           releaseCode: rg.release.code,
@@ -244,6 +247,7 @@ export function generateCronogramaCompletoRows(
               itemId: item.id,
               level: isMilestone ? 'HITO' : 'TAREA',
               hierarchyLabel: levelLabel,
+              displayId: item.displayId || (item.projectId ? `P${pg.projectIndex}T${item.taskIndex || item.wbs}` : `T${item.taskIndex || item.wbs}`),
               wbsCode,
               name: item.name,
               releaseCode: effectiveReleaseCode,
@@ -279,6 +283,7 @@ export function generateCronogramaCompletoRows(
                 itemId: item.id,
                 level: isMilestone ? 'HITO' : 'TAREA',
                 hierarchyLabel: dIdx === 0 ? levelLabel : `${levelLabel} (Dep. ${dIdx + 1})`,
+                displayId: item.displayId || (item.projectId ? `P${pg.projectIndex}T${item.taskIndex || item.wbs}` : `T${item.taskIndex || item.wbs}`),
                 wbsCode,
                 name: item.name,
                 releaseCode: effectiveReleaseCode,
@@ -316,6 +321,7 @@ export function generateCronogramaCompletoRows(
         rowId: `proj-${pg.project.id}`,
         level: 'PROYECTO',
         hierarchyLabel: 'PROYECTO',
+        displayId: `P${pg.projectIndex}`,
         wbsCode: `P${pg.projectIndex}`,
         name: pg.project.name,
         releaseCode: '—',
@@ -352,6 +358,7 @@ export function generateCronogramaCompletoRows(
             rowId: `${item.id}-0`,
             level: isMilestone ? 'HITO' : 'TAREA',
             hierarchyLabel: levelLabel,
+            displayId: item.displayId || (item.projectId ? `P${pg.projectIndex}T${item.taskIndex || item.wbs}` : `T${item.taskIndex || item.wbs}`),
             wbsCode,
             name: item.name,
             releaseCode: '—',
@@ -384,6 +391,7 @@ export function generateCronogramaCompletoRows(
               rowId: `${item.id}-${dIdx}`,
               level: isMilestone ? 'HITO' : 'TAREA',
               hierarchyLabel: dIdx === 0 ? levelLabel : `${levelLabel} (Dep. ${dIdx + 1})`,
+              displayId: item.displayId || (item.projectId ? `P${pg.projectIndex}T${item.taskIndex || item.wbs}` : `T${item.taskIndex || item.wbs}`),
               wbsCode,
               name: item.name,
               releaseCode: '—',

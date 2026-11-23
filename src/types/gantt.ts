@@ -1,4 +1,4 @@
-export const APP_VERSION = '1.11.11';
+export const APP_VERSION = '1.11.12';
 
 export const DEFAULT_TRUNCATE_CHAR_LIMIT = 37;
 export const TRUNCATE_LIMIT_STORAGE_KEY = 'ganttflow_truncate_char_limit';
@@ -94,11 +94,13 @@ export interface GanttItem {
   platform?: ProjectPlatform; // Optional task-level platform override (iOS, Android, Multiplataforma)
   releaseId?: string; // Optional task-level release association (propagated from project or overridden; used by DIGI, SCR, etc.)
   alertLevel?: ProjectAlertLevel; // Alert level 0 (Normal), 1 (Baja), 2 (Media), 3 (Alta)
+  taskIndex?: number; // Unique, fixed task identifier number within its project or standalone (e.g. 1 -> P1T1 or T1)
 }
 
 export interface ComputedGanttItem extends GanttItem {
   wbs: number;
   wbsCode?: string;
+  displayId?: string; // Unique formatted ID: P1T1 (inside project P1) or T1 (standalone task)
   slackEndDate: string;
   cpmTotalFloat: number;
   freeSlack: number; // Automatic free slack given successor tasks (in calendar days)

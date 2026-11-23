@@ -1791,9 +1791,13 @@ export function App({
       workCalendar
     );
 
+    const nextTaskIndex =
+      projectItems.reduce((max, it, i) => Math.max(max, it.taskIndex || i + 1), 0) + 1;
+
     const newTask: GanttItem = {
       id: `task-${Date.now()}`,
       projectId: project.id,
+      taskIndex: nextTaskIndex,
       name: 'Nueva Tarea',
       type: 'task',
       startDate,
@@ -1859,9 +1863,14 @@ export function App({
       workCalendar
     );
 
+    const targetProjItems = items.filter((it) => it.projectId === targetProj!.id);
+    const nextTaskIndex =
+      targetProjItems.reduce((max, it, i) => Math.max(max, it.taskIndex || i + 1), 0) + 1;
+
     const newTask: GanttItem = {
       id: `task-${Date.now()}`,
       projectId: targetProj.id,
+      taskIndex: nextTaskIndex,
       name: 'Nueva Tarea',
       type: 'task',
       startDate,

@@ -4520,7 +4520,7 @@ test('Help page, version control v1.2.0, release selection on project creation, 
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version control consistency
-  assert.equal(pkg.version, '1.11.11', 'package.json version must be 1.9.2');
+  assert.equal(pkg.version, '1.11.12', 'package.json version must be 1.9.2');
   assert.ok(pkg.scripts['version:patch'], 'package.json must contain version:patch script');
   assert.ok(pkg.scripts['version:minor'], 'package.json must contain version:minor script');
   assert.ok(pkg.scripts['release:patch'], 'package.json must contain release:patch script');
@@ -5301,10 +5301,10 @@ test('Task name positioning, configurable row separators, 37 char truncation, v1
     const htmlWithoutWeekendShading = renderToString(mod.renderWorkspaceWithWeekendShading(false));
     assert.ok(!htmlWithoutWeekendShading.includes('bg-[#E5E5DF]'), 'Canvas and header must NOT render weekend shading when showWeekendShading is false (clean uniform background)');
 
-    // 9. App Header displays v1.11.11 badge, row-separators-btn, and weekend-shading-btn
+    // 9. App Header displays v1.11.12 badge, row-separators-btn, and weekend-shading-btn
     const appHtml = renderToString(mod.renderAppHeader());
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'Header must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.11.11'), 'Header badge must display v1.11.11');
+    assert.ok(appHtml.includes('v1.11.12'), 'Header badge must display v1.11.12');
     assert.ok(appHtml.includes('data-testid="header-toggle-row-separators-btn"'), 'Header must contain header-toggle-row-separators-btn');
     assert.ok(appHtml.includes('data-testid="header-toggle-weekend-shading-btn"'), 'Header must contain header-toggle-weekend-shading-btn');
 
@@ -5334,7 +5334,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version Bump Verification
-  assert.equal(pkg.version, '1.11.11', 'package.json version must equal 1.9.2');
+  assert.equal(pkg.version, '1.11.12', 'package.json version must equal 1.9.2');
 
   // Verify scripts/bump-version.mjs works properly
   const bumpScript = await fs.readFile(path.resolve(__dirname, '../scripts/bump-version.mjs'), 'utf8');
@@ -5508,7 +5508,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // A. APP_VERSION equals 1.9.2
-    assert.equal(mod.APP_VERSION, '1.11.11', 'APP_VERSION must be 1.9.2');
+    assert.equal(mod.APP_VERSION, '1.11.12', 'APP_VERSION must be 1.9.2');
 
     // A2. Excel Export Unit Test
     const sampleReleases = [
@@ -5585,7 +5585,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     assert.ok(appHtml.includes('data-testid="table-platform-filter"'), 'App must contain unified table-platform-filter');
     assert.ok(!appHtml.includes('data-testid="header-toggle-focus-mode-btn"'), 'Redundant header-toggle-focus-mode-btn must be removed');
     assert.ok(appHtml.includes('data-testid="header-reports-btn"'), 'App header must contain header-reports-btn');
-    assert.ok(appHtml.includes('v1.11.11'), 'App header must display version v1.11.11');
+    assert.ok(appHtml.includes('v1.11.12'), 'App header must display version v1.11.12');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6034,8 +6034,8 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
-  // 1. Version Bump Verification v1.11.11
-  assert.equal(pkg.version, '1.11.11', 'package.json version must equal 1.9.2');
+  // 1. Version Bump Verification v1.11.12
+  assert.equal(pkg.version, '1.11.12', 'package.json version must equal 1.9.2');
 
   // 2. SSR Bundle verification for TaskFormModal, App Header, and sanitizeGanttItem
   const tmpFile = path.resolve(__dirname, `tmp_test59_bundle_${Date.now()}.mjs`);
@@ -6133,7 +6133,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.equal(mod.APP_VERSION, '1.11.11', 'mod.APP_VERSION must equal 1.9.2');
+    assert.equal(mod.APP_VERSION, '1.11.12', 'mod.APP_VERSION must equal 1.9.2');
 
     // sanitizeGanttItem preserves platform
     const sanitizedIos = mod.sanitizeGanttItem({
@@ -6178,7 +6178,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     assert.ok(appHtml.includes('data-testid="header-more-menu-btn"'), 'App header must render header-more-menu-btn');
     assert.ok(appHtml.includes('data-testid="header-more-menu-dropdown"'), 'App must render header-more-menu-dropdown');
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'More menu must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.11.11'), 'Version badge must display v1.11.11');
+    assert.ok(appHtml.includes('v1.11.12'), 'Version badge must display v1.11.12');
     assert.ok(appHtml.includes('data-testid="force-reload-btn"'), 'More menu must contain force-reload-btn');
 
     // 7. Verify secondary buttons are rendered inside the menu
@@ -6200,7 +6200,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
       hiddenReleaseCount: 0,
     }));
     assert.ok(settingsHtml.includes('data-testid="settings-version-badge"'), 'SettingsModal must contain settings-version-badge');
-    assert.ok(settingsHtml.includes('1.11.11') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.9.2');
+    assert.ok(settingsHtml.includes('1.11.12') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.9.2');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6354,14 +6354,14 @@ test('Test 61: Version button, compiled release notes modal and changelog across
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
 
     // 1. Check RELEASE_NOTES compiled data
-    assert.strictEqual(mod.APP_VERSION, '1.11.11');
+    assert.strictEqual(mod.APP_VERSION, '1.11.12');
     assert.ok(Array.isArray(mod.RELEASE_NOTES), 'RELEASE_NOTES must be an array');
     assert.ok(mod.RELEASE_NOTES.length >= 10, 'RELEASE_NOTES must have at least 10 releases');
 
     const latest = mod.RELEASE_NOTES[0];
-    assert.strictEqual(latest.version, '1.11.11', 'First release note must be 1.9.2');
+    assert.strictEqual(latest.version, '1.11.12', 'First release note must be 1.9.2');
     assert.strictEqual(latest.isLatest, true, 'First release note must be isLatest: true');
-    assert.ok(latest.features.length > 0, 'v1.11.11 must contain features');
+    assert.ok(latest.features.length > 0, 'v1.11.12 must contain features');
 
     // 2. Render App and verify version button exists in dropdown menu and is NOT duplicated in top header
     const appHtml = renderToString(React.createElement(mod.App));
@@ -6374,8 +6374,8 @@ test('Test 61: Version button, compiled release notes modal and changelog across
       'App dropdown must contain data-testid="app-version-badge"'
     );
     assert.ok(
-      appHtml.includes('<button') && appHtml.includes('data-testid="app-version-badge"') && appHtml.includes('v1.11.11'),
-      'app-version-badge in tools dropdown must be an interactive button showing v1.11.11'
+      appHtml.includes('<button') && appHtml.includes('data-testid="app-version-badge"') && appHtml.includes('v1.11.12'),
+      'app-version-badge in tools dropdown must be an interactive button showing v1.11.12'
     );
 
     // 3. Render ReleaseNotesModal
@@ -8192,7 +8192,7 @@ test('Test 73: v1.9.0 project alert level (0-3), workspace toolbar alert filter,
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.strictEqual(mod.APP_VERSION, '1.11.11', 'APP_VERSION must be 1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.11.12', 'APP_VERSION must be 1.9.2');
 
     // 1. Check sanitizeProject and describeProjectStateChanges for alertLevel
     const pSanitized0 = mod.sanitizeProject({ id: 'p-1', name: 'Proj 1', alertLevel: 0 });
@@ -8386,7 +8386,7 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.strictEqual(mod.APP_VERSION, '1.11.11', 'APP_VERSION must be 1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.11.12', 'APP_VERSION must be 1.9.2');
 
     // 1. Verify description format: <descripción del proyecto si existe>\n\n* <nombre> <desc>
     const pWithDesc = {
@@ -8485,8 +8485,8 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
   }
 });
 
-// TEST 75: v1.11.11 Project locking, accidental move guard & unlock prompt modal
-test('Test 75: v1.11.11 project locking, cascade/dependency protection, plan history badge, and unlock alert modal', async () => {
+// TEST 75: v1.11.12 Project locking, accidental move guard & unlock prompt modal
+test('Test 75: v1.11.12 project locking, cascade/dependency protection, plan history badge, and unlock alert modal', async () => {
   const fs = await import('node:fs/promises');
   const path = await import('node:path');
   const { fileURLToPath } = await import('node:url');
@@ -8497,7 +8497,7 @@ test('Test 75: v1.11.11 project locking, cascade/dependency protection, plan his
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
-  assert.strictEqual(pkg.version, '1.11.11', 'package.json version must equal 1.9.2');
+  assert.strictEqual(pkg.version, '1.11.12', 'package.json version must equal 1.9.2');
 
   const tmpFile = path.resolve(__dirname, `tmp_test75_bundle_${Date.now()}.mjs`);
   try {
@@ -8559,9 +8559,9 @@ test('Test 75: v1.11.11 project locking, cascade/dependency protection, plan his
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // 1. Version & release notes verification
-    assert.strictEqual(mod.APP_VERSION, '1.11.11', 'APP_VERSION must equal 1.9.2');
-    assert.strictEqual(mod.RELEASE_NOTES[0].version, '1.11.11', 'Latest release note must be 1.9.2');
-    assert.strictEqual(mod.RELEASE_NOTES[0].isLatest, true, 'v1.11.11 release note must be marked isLatest');
+    assert.strictEqual(mod.APP_VERSION, '1.11.12', 'APP_VERSION must equal 1.9.2');
+    assert.strictEqual(mod.RELEASE_NOTES[0].version, '1.11.12', 'Latest release note must be 1.9.2');
+    assert.strictEqual(mod.RELEASE_NOTES[0].isLatest, true, 'v1.11.12 release note must be marked isLatest');
 
     // 2. sanitizeProject, getLockedProjectForItem, describeProjectStateChanges
     const lockedProj = mod.sanitizeProject({
@@ -8758,7 +8758,7 @@ test('Test 75: v1.11.11 project locking, cascade/dependency protection, plan his
   }
 });
 
-test('Test 76: v1.11.11 automatic Free Slack calculation given successor tasks across engine, table badge, inspector sidebar and task modal', async () => {
+test('Test 76: v1.11.12 automatic Free Slack calculation given successor tasks across engine, table badge, inspector sidebar and task modal', async () => {
   // 1. Engine calculation: FS dependency with multiple successors
   const testItems = [
     {
@@ -11998,6 +11998,203 @@ test('Test 101: Cronograma Completo alertLevel & notes columns and drag-and-drop
     await fs.unlink(tmpFile).catch(() => {});
   }
 });
+
+// Test 102: Unique IDs (P1, T1, P1T1), colored task ID badge in GanttWorkspace, and ID column in ReportsView
+test('Test 102: Unique IDs (P1, T1, P1T1), colored task ID badge in GanttWorkspace, and ID column in ReportsView', async () => {
+  const esbuild = await import('esbuild');
+  const fs = await import('node:fs/promises');
+  const { pathToFileURL } = await import('node:url');
+
+  const tmpFile = path.resolve(process.cwd(), `tests/tmp_test102_bundle_${Date.now()}.mjs`);
+  try {
+    await esbuild.build({
+      stdin: {
+        contents: `
+          import React from 'react';
+          import { GanttWorkspace } from './src/components/GanttWorkspace.tsx';
+          import { ReportsView } from './src/components/ReportsView.tsx';
+          import {
+            computeGanttMetrics,
+            formatTaskDisplayId,
+            groupItemsByProject,
+            sanitizeGanttItem,
+          } from './src/utils/ganttEngine.ts';
+          export {
+            React,
+            GanttWorkspace,
+            ReportsView,
+            computeGanttMetrics,
+            formatTaskDisplayId,
+            groupItemsByProject,
+            sanitizeGanttItem,
+          };
+        `,
+        resolveDir: process.cwd(),
+        loader: 'tsx',
+      },
+      bundle: true,
+      format: 'esm',
+      outfile: tmpFile,
+      external: ['react', 'react-dom', 'react-dom/server', 'clsx', 'tailwind-merge', 'lucide-react', 'date-fns', 'xlsx'],
+      jsx: 'automatic',
+    });
+
+    const mod = await import(pathToFileURL(tmpFile).href + '?t=' + Date.now());
+    const React = mod.React;
+    const { renderToString } = await import('react-dom/server');
+
+    // 1. formatTaskDisplayId & sanitizeGanttItem
+    assert.strictEqual(mod.formatTaskDisplayId(1, 2, false), 'P1T2');
+    assert.strictEqual(mod.formatTaskDisplayId(undefined, 3, false), 'T3');
+    assert.strictEqual(mod.formatTaskDisplayId(1, 4, true), 'T4');
+
+    const sanitized = mod.sanitizeGanttItem({
+      id: 't-idx',
+      name: 'Tarea Con Indice',
+      type: 'task',
+      startDate: '2026-12-02',
+      endDate: '2026-12-04',
+      duration: 3,
+      taskIndex: 7,
+    });
+    assert.strictEqual(sanitized.taskIndex, 7, 'sanitizeGanttItem must preserve taskIndex');
+
+    // 2. groupItemsByProject computes P1T1, P1T2 and standalone T1
+    const releases = [
+      {
+        id: 'rel-1',
+        code: 'T_26.12.1',
+        name: 'Release 1',
+        color: 'indigo',
+        milestones: [{ id: 'qg1', key: 'qg1', code: 'QG1', name: 'QG1', category: 'SCOPE RELEASE', date: '2026-12-01' }],
+      },
+    ];
+    const projects = [
+      { id: 'p1', projectIndex: 1, name: 'Proyecto Uno', color: 'violet', releaseId: 'rel-1', collapsed: false },
+    ];
+    const items = mod.computeGanttMetrics([
+      {
+        id: 't1',
+        projectId: 'p1',
+        name: 'Primera Tarea',
+        type: 'task',
+        startDate: '2026-12-02',
+        endDate: '2026-12-04',
+        duration: 3,
+        progress: 0,
+        color: 'emerald',
+        dependencies: [],
+        slack: 0,
+      },
+      {
+        id: 't2',
+        projectId: 'p1',
+        name: 'Segunda Tarea',
+        type: 'task',
+        startDate: '2026-12-05',
+        endDate: '2026-12-07',
+        duration: 3,
+        progress: 0,
+        color: 'blue',
+        dependencies: [],
+        slack: 0,
+      },
+    ]);
+
+    const grouped = mod.groupItemsByProject(items, projects);
+    assert.strictEqual(grouped[0].items[0].displayId, 'P1T1');
+    assert.strictEqual(grouped[0].items[1].displayId, 'P1T2');
+
+    const standaloneGrouped = mod.groupItemsByProject(
+      mod.computeGanttMetrics([
+        {
+          id: 't-solo',
+          name: 'Tarea Suelta',
+          type: 'task',
+          startDate: '2026-12-02',
+          endDate: '2026-12-04',
+          duration: 3,
+          progress: 0,
+          dependencies: [],
+          slack: 0,
+        },
+      ]),
+      []
+    );
+    assert.strictEqual(standaloneGrouped[0].items[0].displayId, 'T1');
+
+    // 3. GanttWorkspace renders colored task ID badge matching project badge style
+    const gwHtml = renderToString(
+      React.createElement(mod.GanttWorkspace, {
+        items,
+        projects,
+        releases,
+        groupingMode: 'release',
+        groupByProject: true,
+        showTable: true,
+        scrollContainerRef: { current: null },
+        selectedProjectId: 'all',
+        selectedProjectIds: ['p1'],
+        zoom: 'day',
+        dayWidth: 32,
+        showCriticalPath: false,
+        showCpmFloat: true,
+        autoCascade: true,
+        arrowVisibility: 'all',
+        onUpdateItem: () => {},
+        onSelectItem: () => {},
+        onDeleteItem: () => {},
+        onReorderItems: () => {},
+      })
+    );
+    assert.ok(
+      gwHtml.includes('data-testid="task-id-badge-t1"') &&
+        gwHtml.includes('>P1T1</span>') &&
+        gwHtml.includes('text-white'),
+      'GanttWorkspace must render colored task ID pill badge (P1T1) matching project badge style'
+    );
+
+    // 4. ReportsView renders ID column instead of # across all 3 tabs
+    const sharedReportProps = {
+      releases,
+      projects,
+      items,
+      onBackToGantt: () => {},
+    };
+    const cronoHtml = renderToString(
+      React.createElement(mod.ReportsView, { ...sharedReportProps, initialTab: 'cronograma' })
+    );
+    assert.ok(
+      cronoHtml.includes('data-testid="report-col-id-header"') &&
+        cronoHtml.includes('>ID</th>') &&
+        cronoHtml.includes('data-testid="report-crono-id-t1-0"') &&
+        cronoHtml.includes('>P1T1</td>'),
+      'ReportsView Cronograma Completo must render ID column with unique IDs (P1, P1T1)'
+    );
+
+    const projHtml = renderToString(
+      React.createElement(mod.ReportsView, { ...sharedReportProps, initialTab: 'projects' })
+    );
+    assert.ok(
+      projHtml.includes('data-testid="report-col-id-header"') &&
+        projHtml.includes('data-testid="report-proj-id-P1"') &&
+        projHtml.includes('>P1</td>'),
+      'ReportsView Resumen Proyectos must render ID column with project IDs (P1)'
+    );
+
+    const relHtml = renderToString(
+      React.createElement(mod.ReportsView, { ...sharedReportProps, initialTab: 'releases' })
+    );
+    assert.ok(
+      relHtml.includes('data-testid="report-col-id-header"') &&
+        relHtml.includes('data-testid="report-rel-id-T_26.12.1"'),
+      'ReportsView Catálogo Releases must render ID column with release codes'
+    );
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
 
 
 
