@@ -18,6 +18,9 @@ import {
   Smartphone,
   SlidersHorizontal,
   Check,
+  LayoutTemplate,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import {
   ComputedGanttItem,
@@ -111,6 +114,76 @@ const COLUMNS_BY_TAB: Record<ReportTab, ReportColumnDef[]> = {
 const REPORT_HIDDEN_COLS_KEY = 'ganttflow_report_hidden_cols_v1';
 const REPORT_COL_WIDTHS_KEY = 'ganttflow_report_col_widths_v1';
 const REPORT_COL_ORDER_KEY = 'ganttflow_report_col_order_v1';
+export const REPORT_COLUMN_PRESETS_KEY = 'gantt_report_column_presets_v1';
+export const REPORT_ACTIVE_PRESET_KEY = 'gantt_report_active_preset_v1';
+
+export interface ReportColumnPreset {
+  id: string;
+  name: string;
+  tab: ReportTab;
+  visibleColKeys: string[];
+  isCustom?: boolean;
+}
+
+export const DEFAULT_COLUMN_PRESETS: ReportColumnPreset[] = [
+  {
+    id: 'preset-all',
+    name: 'Formato Completo (Todas)',
+    tab: 'cronograma',
+    visibleColKeys: CRONO_COLUMNS.map((c) => c.key),
+    isCustom: false,
+  },
+  {
+    id: 'preset-executive',
+    name: 'Resumen Ejecutivo',
+    tab: 'cronograma',
+    visibleColKeys: ['wbsCode', 'name', 'releaseCode', 'projectName', 'startDate', 'endDate', 'progress', 'compliance', 'alertLevel'],
+    isCustom: false,
+  },
+  {
+    id: 'preset-tracking',
+    name: 'Seguimiento y Dependencias',
+    tab: 'cronograma',
+    visibleColKeys: ['wbsCode', 'name', 'team', 'startDate', 'endDate', 'duration', 'slack', 'dependency', 'isCritical'],
+    isCustom: false,
+  },
+  {
+    id: 'preset-releases-all',
+    name: 'Formato Completo (Releases)',
+    tab: 'releases',
+    visibleColKeys: RELEASE_COLUMNS.map((c) => c.key),
+    isCustom: false,
+  },
+];
+
+export function createColumnPreset(
+  name: string,
+  tab: ReportTab,
+  visibleColKeys: string[]
+): ReportColumnPreset {
+  return {
+    id: `preset-custom-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    name: name.trim(),
+    tab,
+    visibleColKeys: [...visibleColKeys],
+    isCustom: true,
+  };
+}
+
+export function computeHiddenColsFromPreset(
+  tab: ReportTab,
+  preset: ReportColumnPreset,
+  allColumns: ReportColumnDef[] = COLUMNS_BY_TAB[tab]
+): Record<string, boolean> {
+  const visibleSet = new Set(preset.visibleColKeys);
+  const hidden: Record<string, boolean> = {};
+  for (const col of allColumns) {
+    if (!visibleSet.has(col.key)) {
+      hidden[col.key] = true;
+    }
+  }
+  return hidden;
+}
 
 interface EditableReportTextCellProps {
   value: string;
@@ -192,6 +265,7 @@ interface ReportsViewProps {
   onBackToGantt?: () => void;
   initialTab?: ReportTab;
   initialShowColumnsMenu?: boolean;
+  initialShowFormatMenu?: boolean;
   selectedEntity?: FocusEntity | null;
   onSelectEntity?: (entity: FocusEntity) => void;
   onUpdateItem?: (item: GanttItem, autoCascade: boolean) => void;
@@ -205,15 +279,41 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   items,
   initialTab = 'cronograma',
   initialShowColumnsMenu = false,
+  initialShowFormatMenu = false,
   selectedEntity = null,
   onSelectEntity,
   onUpdateItem,
   onUpdateProject,
   onUpdateRelease,
 }) => {
-  const [activeTab, setActiveTab] = useState<ReportTab>(initialTab);
+  const [activeTab, setActiveTab] = useState<ReportTab>(initialTab === 'projects' ? 'cronograma' : initialTab);
   const [showColumnsMenu, setShowColumnsMenu] = useState<boolean>(initialShowColumnsMenu);
   const columnsMenuRef = useRef<HTMLDivElement>(null);
+
+  const [showFormatMenu, setShowFormatMenu] = useState<boolean>(initialShowFormatMenu);
+  const formatMenuRef = useRef<HTMLDivElement>(null);
+  const [newPresetName, setNewPresetName] = useState<string>('');
+
+  const [customPresets, setCustomPresets] = useState<ReportColumnPreset[]>(() => {
+    try {
+      const saved = typeof localStorage !== 'undefined' ? localStorage.getItem(REPORT_COLUMN_PRESETS_KEY) : null;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
+      }
+    } catch {}
+    return [];
+  });
+
+  const [activePresetId, setActivePresetId] = useState<string>(() => {
+    try {
+      const saved = typeof localStorage !== 'undefined' ? localStorage.getItem(REPORT_ACTIVE_PRESET_KEY) : null;
+      if (saved) return saved;
+    } catch {}
+    return 'preset-all';
+  });
 
   const [hiddenColsByTab, setHiddenColsByTab] = useState<Record<ReportTab, Record<string, boolean>>>(() => {
     try {
@@ -225,6 +325,29 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           projects: parsed.projects || {},
           releases: parsed.releases || {},
         };
+      }
+      const savedPresetId = typeof localStorage !== 'undefined' ? localStorage.getItem(REPORT_ACTIVE_PRESET_KEY) : null;
+      if (savedPresetId && savedPresetId !== 'preset-all' && savedPresetId !== 'custom') {
+        let custom: ReportColumnPreset[] = [];
+        try {
+          const savedCustom = localStorage.getItem(REPORT_COLUMN_PRESETS_KEY);
+          if (savedCustom) custom = JSON.parse(savedCustom);
+        } catch {}
+        const preset = [...DEFAULT_COLUMN_PRESETS, ...custom].find((p) => p.id === savedPresetId);
+        if (preset) {
+          const visibleSet = new Set(preset.visibleColKeys);
+          const hiddenMap: Record<string, boolean> = {};
+          for (const col of COLUMNS_BY_TAB[preset.tab]) {
+            if (!visibleSet.has(col.key)) {
+              hiddenMap[col.key] = true;
+            }
+          }
+          return {
+            cronograma: preset.tab === 'cronograma' ? hiddenMap : {},
+            projects: {},
+            releases: preset.tab === 'releases' ? hiddenMap : {},
+          };
+        }
       }
     } catch {}
     return { cronograma: {}, projects: {}, releases: {} };
@@ -305,6 +428,12 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       ) {
         setShowColumnsMenu(false);
       }
+      if (
+        formatMenuRef.current &&
+        !formatMenuRef.current.contains(e.target as Node)
+      ) {
+        setShowFormatMenu(false);
+      }
     };
     document.addEventListener('pointerdown', handleOutsideClick);
     return () => {
@@ -318,6 +447,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         setShowPlatformFilterMenu(false);
         setShowAlertFilterMenu(false);
         setShowColumnsMenu(false);
+        setShowFormatMenu(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -326,6 +456,91 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
   const isColVisible = (tab: ReportTab, key: string): boolean => {
     return !hiddenColsByTab[tab]?.[key];
+  };
+
+  const defaultPresetsForTab = DEFAULT_COLUMN_PRESETS.filter((p) => p.tab === activeTab);
+  const customPresetsForTab = customPresets.filter((p) => (p.tab || 'cronograma') === activeTab);
+  const allPresetsForTab = [...defaultPresetsForTab, ...customPresetsForTab];
+
+  const activePreset = allPresetsForTab.find((p) => p.id === activePresetId);
+  let activePresetDisplayName = 'Personalizado';
+  if (activePreset) {
+    if (activePreset.id === 'preset-all' || activePreset.id === 'preset-releases-all') {
+      activePresetDisplayName = 'Completo';
+    } else {
+      activePresetDisplayName = activePreset.name.replace(/^Formato\s+/i, '');
+    }
+  } else {
+    const allCols = COLUMNS_BY_TAB[activeTab];
+    const isAllVisible = allCols.every((c) => isColVisible(activeTab, c.key));
+    if (isAllVisible) {
+      activePresetDisplayName = 'Completo';
+    }
+  }
+
+  const applyPreset = (preset: ReportColumnPreset) => {
+    const visibleSet = new Set(preset.visibleColKeys);
+    const newHidden: Record<string, boolean> = {};
+    for (const col of COLUMNS_BY_TAB[preset.tab]) {
+      if (!visibleSet.has(col.key)) {
+        newHidden[col.key] = true;
+      }
+    }
+    setHiddenColsByTab((prev) => {
+      const next = { ...prev, [preset.tab]: newHidden };
+      try {
+        localStorage.setItem(REPORT_HIDDEN_COLS_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+    setActivePresetId(preset.id);
+    try {
+      localStorage.setItem(REPORT_ACTIVE_PRESET_KEY, preset.id);
+    } catch {}
+    setShowFormatMenu(false);
+  };
+
+  const handleSavePreset = () => {
+    const trimmed = newPresetName.trim();
+    if (!trimmed) return;
+    const currentVisible = COLUMNS_BY_TAB[activeTab]
+      .filter((c) => isColVisible(activeTab, c.key))
+      .map((c) => c.key);
+
+    const newPreset: ReportColumnPreset = {
+      id: `preset-custom-${Date.now()}`,
+      name: trimmed,
+      tab: activeTab,
+      visibleColKeys: currentVisible,
+      isCustom: true,
+    };
+
+    const nextCustom = [...customPresets, newPreset];
+    setCustomPresets(nextCustom);
+    try {
+      localStorage.setItem(REPORT_COLUMN_PRESETS_KEY, JSON.stringify(nextCustom));
+    } catch {}
+    setActivePresetId(newPreset.id);
+    try {
+      localStorage.setItem(REPORT_ACTIVE_PRESET_KEY, newPreset.id);
+    } catch {}
+    setNewPresetName('');
+    setToastMessage(`Formato "${trimmed}" guardado correctamente.`);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleDeletePreset = (presetId: string) => {
+    const nextCustom = customPresets.filter((p) => p.id !== presetId);
+    setCustomPresets(nextCustom);
+    try {
+      localStorage.setItem(REPORT_COLUMN_PRESETS_KEY, JSON.stringify(nextCustom));
+    } catch {}
+    if (activePresetId === presetId) {
+      const fallbackPreset = DEFAULT_COLUMN_PRESETS.find((p) => p.tab === activeTab) || DEFAULT_COLUMN_PRESETS[0];
+      applyPreset(fallbackPreset);
+    }
+    setToastMessage('Formato personalizado eliminado.');
+    setTimeout(() => setToastMessage(null), 3000);
   };
 
   const toggleReportCol = (tab: ReportTab, key: string) => {
@@ -344,6 +559,23 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       try {
         localStorage.setItem(REPORT_HIDDEN_COLS_KEY, JSON.stringify(next));
       } catch {}
+
+      const currentVisible = allCols.filter((c) => !tabHidden[c.key]).map((c) => c.key);
+      const allPresets = [
+        ...DEFAULT_COLUMN_PRESETS.filter((p) => p.tab === tab),
+        ...customPresets.filter((p) => (p.tab || 'cronograma') === tab),
+      ];
+      const matched = allPresets.find((p) => {
+        if (p.visibleColKeys.length !== currentVisible.length) return false;
+        const set = new Set(p.visibleColKeys);
+        return currentVisible.every((k) => set.has(k));
+      });
+      const newPresetId = matched ? matched.id : 'custom';
+      setActivePresetId(newPresetId);
+      try {
+        localStorage.setItem(REPORT_ACTIVE_PRESET_KEY, newPresetId);
+      } catch {}
+
       return next;
     });
   };
@@ -363,6 +595,12 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       } catch {}
       return next;
     });
+    const defaultAllPreset = DEFAULT_COLUMN_PRESETS.find((p) => p.tab === tab && (p.id === 'preset-all' || p.id === 'preset-releases-all'));
+    const allId = defaultAllPreset ? defaultAllPreset.id : 'preset-all';
+    setActivePresetId(allId);
+    try {
+      localStorage.setItem(REPORT_ACTIVE_PRESET_KEY, allId);
+    } catch {}
   };
 
   const getOrderedColumns = (tab: ReportTab): ReportColumnDef[] => {
@@ -720,7 +958,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const handleDownloadExcel = () => {
     try {
       downloadGanttExcelFile(releases, projects, items);
-      setToastMessage('Archivo Excel descargado correctamente con las 3 pestañas.');
+      setToastMessage('Archivo Excel descargado correctamente (Informe Planificación y Catálogo Releases).');
       setTimeout(() => setToastMessage(null), 3500);
     } catch {
       setToastMessage('Error al generar el archivo Excel.');
@@ -745,7 +983,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 Informes del Plan (Hojas de Cálculo)
               </h1>
               <p className="text-[11px] text-[#6B6B66] dark:text-zinc-400">
-                Visualización tabular de datos con formato Excel, dependencias por fila y catálogo de releases.
+                Visualización tabular de datos con formato Excel: Informe Planificación y Catálogo de Releases.
               </p>
             </div>
           </div>
@@ -782,7 +1020,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       {/* Excel Sheet Tabs Bar (Estilo Hojas de Excel) */}
       <div className="flex items-center justify-between px-4 bg-[#EAEAE6] dark:bg-zinc-900/90 border-b border-[#0C0C09] dark:border-zinc-800 shrink-0">
         <div className="flex items-center gap-1 overflow-x-auto py-1">
-          {/* Tab 1: Cronograma Completo */}
+          {/* Tab 1: Informe Planificación */}
           <button
             type="button"
             data-testid="reports-tab-cronograma"
@@ -794,31 +1032,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             }`}
           >
             <Layers className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-            <span>1. Cronograma Completo</span>
+            <span>1. Informe Planificación</span>
             <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-[#F4F4F1] dark:bg-zinc-800 border border-[#E2E2DC] dark:border-zinc-700">
               {cronoRows.length}
             </span>
           </button>
 
-          {/* Tab 2: Resumen Proyectos */}
-          <button
-            type="button"
-            data-testid="reports-tab-projects"
-            onClick={() => setActiveTab('projects')}
-            className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-t-[4px] border-t-2 transition cursor-pointer shrink-0 ${
-              activeTab === 'projects'
-                ? 'bg-white dark:bg-[#0C0C09] text-[#0C0C09] dark:text-zinc-100 border-emerald-600 shadow-xs'
-                : 'bg-transparent text-[#6B6B66] dark:text-zinc-400 border-transparent hover:text-[#0C0C09] dark:hover:text-zinc-200'
-            }`}
-          >
-            <FolderKanban className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-            <span>2. Resumen Proyectos</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-[#F4F4F1] dark:bg-zinc-800 border border-[#E2E2DC] dark:border-zinc-700">
-              {projectRows.length}
-            </span>
-          </button>
-
-          {/* Tab 3: Catálogo Releases */}
+          {/* Tab 2: Catálogo Releases */}
           <button
             type="button"
             data-testid="reports-tab-releases"
@@ -830,7 +1050,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             }`}
           >
             <Rocket className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-            <span>3. Catálogo Releases</span>
+            <span>2. Catálogo Releases</span>
             <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-[#F4F4F1] dark:bg-zinc-800 border border-[#E2E2DC] dark:border-zinc-700">
               {releaseRows.length}
             </span>
@@ -845,17 +1065,18 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-2.5 px-4 py-2.5 bg-white dark:bg-[#0C0C09] border-b border-[#E2E2DC] dark:border-zinc-800 text-xs shrink-0">
-        <div className="flex items-center gap-2 flex-1 max-w-md">
-          <div className="relative flex-1">
+      <div className="flex flex-wrap items-center justify-between gap-2.5 px-4 py-2 bg-white dark:bg-[#0C0C09] border-b border-[#E2E2DC] dark:border-zinc-800 text-xs shrink-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Reduced length search input */}
+          <div className="relative w-56 sm:w-64 shrink-0">
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#6B6B66] dark:text-zinc-400" />
             <input
               type="text"
               data-testid="reports-search-input"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar en la tabla (tarea, WBS, release, proyecto, dependencia...)"
-              className="w-full pl-8 pr-7 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs text-[#0C0C09] dark:text-zinc-100 placeholder-[#6B6B66]/60 dark:placeholder-zinc-500 outline-none"
+              placeholder="Buscar en la tabla..."
+              className="w-full pl-8 pr-7 py-1 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs text-[#0C0C09] dark:text-zinc-100 placeholder-[#6B6B66]/60 dark:placeholder-zinc-500 outline-none h-6.5"
             />
             {searchQuery && (
               <button
@@ -867,9 +1088,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               </button>
             )}
           </div>
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
           {/* Platform Filter (Custom UI with Icons) */}
           <div ref={platformFilterMenuRef} className="relative flex items-center shrink-0">
             <button
@@ -1150,12 +1368,198 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             </div>
           )}
 
+          {/* Clear Filters Button */}
+          {(searchQuery || selectedPlatform !== 'all' || selectedAlert !== 'all' || selectedRelease !== 'all') && (
+            <button
+              type="button"
+              data-testid="reports-clear-filters-btn"
+              onClick={() => {
+                setSearchQuery('');
+                setSelectedPlatform('all');
+                setSelectedAlert('all');
+                setSelectedRelease('all');
+              }}
+              className="px-2 py-0.5 text-[11px] text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09] dark:hover:text-white underline cursor-pointer"
+            >
+              Limpiar filtros
+            </button>
+          )}
+        </div>
+
+        {/* Right side: Formats & Columns Configurators */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Format Selector Dropdown */}
+          <div className="relative shrink-0" ref={formatMenuRef}>
+            <button
+              type="button"
+              data-testid="reports-format-btn"
+              onClick={() => {
+                setShowFormatMenu((prev) => !prev);
+                setShowColumnsMenu(false);
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-[3px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[10px] font-semibold text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition cursor-pointer h-6.5"
+              title="Seleccionar formato de columnas"
+            >
+              <LayoutTemplate className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+              <span className="truncate max-w-[130px] sm:max-w-[180px]">
+                {`Formato: ${activePresetDisplayName}`}
+              </span>
+              <ChevronDown className="w-3 h-3 text-zinc-500 shrink-0" />
+            </button>
+            {showFormatMenu && (
+              <div
+                data-testid="reports-format-menu"
+                className="absolute right-0 top-full mt-1 w-64 max-h-96 overflow-y-auto bg-white dark:bg-zinc-900 border border-[#0C0C09] dark:border-zinc-700 rounded-[4px] shadow-2xl z-50 p-1.5 flex flex-col gap-1"
+              >
+                {/* Predeterminados header */}
+                <div className="px-2 py-1 border-b border-slate-200 dark:border-zinc-800">
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+                    Formatos predeterminados
+                  </span>
+                </div>
+
+                {/* Default presets */}
+                {defaultPresetsForTab.map((preset) => {
+                  const isActive = activePresetId === preset.id;
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      data-testid={`reports-preset-option-${preset.id}`}
+                      data-active-preset={isActive ? 'true' : 'false'}
+                      onClick={() => applyPreset(preset)}
+                      className={`flex items-center justify-between px-2 py-1.5 rounded-[3px] text-xs text-left cursor-pointer transition ${
+                        isActive
+                          ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-semibold'
+                          : 'text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <span
+                          className={`w-3.5 h-3.5 rounded-[2px] border flex items-center justify-center shrink-0 ${
+                            isActive
+                              ? 'bg-indigo-600 border-indigo-600 text-white'
+                              : 'border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900'
+                          }`}
+                        >
+                          {isActive && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                        </span>
+                        <span className="truncate">{preset.name}</span>
+                      </div>
+                      <span className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500 shrink-0">
+                        {preset.visibleColKeys.length} cols
+                      </span>
+                    </button>
+                  );
+                })}
+
+                {/* Custom presets section */}
+                {customPresetsForTab.length > 0 && (
+                  <>
+                    <div className="px-2 pt-2 pb-1 border-b border-slate-200 dark:border-zinc-800">
+                      <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+                        Formatos personalizados
+                      </span>
+                    </div>
+                    {customPresetsForTab.map((preset) => {
+                      const isActive = activePresetId === preset.id;
+                      return (
+                        <div
+                          key={preset.id}
+                          className={`flex items-center justify-between px-2 py-1.5 rounded-[3px] text-xs transition group ${
+                            isActive
+                              ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-semibold'
+                              : 'text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            data-testid={`reports-preset-option-${preset.id}`}
+                            data-active-preset={isActive ? 'true' : 'false'}
+                            onClick={() => applyPreset(preset)}
+                            className="flex items-center gap-2 truncate flex-1 text-left cursor-pointer"
+                          >
+                            <span
+                              className={`w-3.5 h-3.5 rounded-[2px] border flex items-center justify-center shrink-0 ${
+                                isActive
+                                  ? 'bg-indigo-600 border-indigo-600 text-white'
+                                  : 'border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900'
+                              }`}
+                            >
+                              {isActive && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                            </span>
+                            <span className="truncate">{preset.name}</span>
+                          </button>
+
+                          <div className="flex items-center gap-1 shrink-0 ml-1">
+                            <span className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500">
+                              {preset.visibleColKeys.length} cols
+                            </span>
+                            <button
+                              type="button"
+                              data-testid={`reports-preset-delete-${preset.id}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeletePreset(preset.id);
+                              }}
+                              className="p-1 text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 rounded cursor-pointer transition"
+                              title="Eliminar este formato"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
+
+                {/* Section: Save current format */}
+                <div className="pt-2 mt-1 border-t border-slate-200 dark:border-zinc-800 flex flex-col gap-1.5 px-1">
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+                    + Guardar formato actual
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      data-testid="reports-preset-name-input"
+                      placeholder="Nombre del formato..."
+                      value={newPresetName}
+                      onChange={(e) => setNewPresetName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleSavePreset();
+                        }
+                      }}
+                      className="flex-1 px-2 py-1 text-xs rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 outline-none focus:border-indigo-500"
+                    />
+                    <button
+                      type="button"
+                      data-testid="reports-preset-save-btn"
+                      onClick={handleSavePreset}
+                      disabled={!newPresetName.trim()}
+                      className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition shrink-0"
+                      title="Guardar formato actual"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>Guardar</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Columns Configurator Dropdown */}
           <div className="relative shrink-0" ref={columnsMenuRef}>
             <button
               type="button"
               data-testid="reports-columns-btn"
-              onClick={() => setShowColumnsMenu((prev) => !prev)}
+              onClick={() => {
+                setShowColumnsMenu((prev) => !prev);
+                setShowFormatMenu(false);
+              }}
               className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-[3px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[10px] font-semibold text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition cursor-pointer h-6.5"
               title="Configurar columnas visibles de esta tabla"
             >
@@ -1209,23 +1613,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               </div>
             )}
           </div>
-
-          {/* Clear Filters Button */}
-          {(searchQuery || selectedPlatform !== 'all' || selectedAlert !== 'all' || selectedRelease !== 'all') && (
-            <button
-              type="button"
-              data-testid="reports-clear-filters-btn"
-              onClick={() => {
-                setSearchQuery('');
-                setSelectedPlatform('all');
-                setSelectedAlert('all');
-                setSelectedRelease('all');
-              }}
-              className="px-2 py-0.5 text-[11px] text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09] dark:hover:text-white underline cursor-pointer"
-            >
-              Limpiar filtros
-            </button>
-          )}
         </div>
       </div>
 
@@ -1892,294 +2279,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           </div>
         )}
 
-        {/* Tab 2: Resumen Proyectos */}
-        {activeTab === 'projects' && (
-          <div className="min-w-full inline-block align-middle">
-            <table className="w-full table-fixed border-collapse text-left text-xs">
-              <thead className="sticky top-0 z-10 bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 border-b-2 border-[#0C0C09] dark:border-zinc-700 font-mono text-[11px] font-bold uppercase tracking-wider">
-                <tr>
-                  <th
-                    data-testid="report-col-id-header"
-                    className="px-2.5 py-2 border-r border-[#E2E2DC] dark:border-zinc-700 w-20 text-center bg-[#ECECE8] dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-200 select-none"
-                  >
-                    ID
-                  </th>
-                  {getOrderedColumns('projects').map((col) => renderResizableTh('projects', col))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#E2E2DC] dark:divide-zinc-800 font-mono text-[11px]">
-                {filteredProjectRows.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={1 + PROJECT_COLUMNS.filter((c) => isColVisible('projects', c.key)).length}
-                      className="px-4 py-8 text-center text-[#6B6B66] dark:text-zinc-400 font-sans"
-                    >
-                      No se encontraron proyectos que coincidan con los filtros.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredProjectRows.map((row, idx) => {
-                    const linkedProj = row.projectId
-                      ? projectById.get(row.projectId)
-                      : projects.find((p) => p.name === row.projectName);
-                    const isSelectedProj = Boolean(
-                      linkedProj && selectedEntity?.type === 'project' && selectedEntity.id === linkedProj.id
-                    );
-                    return (
-                      <tr
-                        key={row.projectId || row.code}
-                        data-report-row={row.projectId || row.code}
-                        data-selected-report-row={isSelectedProj ? 'true' : undefined}
-                        onClick={() => {
-                          if (linkedProj && onSelectEntity) {
-                            onSelectEntity({ type: 'project', id: linkedProj.id, name: linkedProj.name });
-                          }
-                        }}
-                        className={`${
-                          isSelectedProj
-                            ? 'ring-2 ring-inset ring-indigo-500 bg-indigo-50/80 dark:bg-indigo-950/50'
-                            : 'bg-white dark:bg-[#0C0C09] hover:bg-indigo-50/50 dark:hover:bg-indigo-950/30'
-                        } cursor-pointer transition-colors`}
-                      >
-                        <td
-                          data-testid={`report-proj-id-${row.code}`}
-                          className="px-2 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 text-center text-[10px] font-mono font-bold text-[#0C0C09] dark:text-zinc-200 bg-[#ECECE8]/40 dark:bg-zinc-900 select-none whitespace-nowrap"
-                        >
-                          {row.code}
-                        </td>
-                        {getOrderedColumns('projects')
-                          .filter((c) => isColVisible('projects', c.key))
-                          .map((col) => {
-                            switch (col.key) {
-                              case 'code':
-                                return (
-                                  <td key={col.key} className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 font-bold text-[#0C0C09] dark:text-zinc-100 truncate">
-                                    {row.code}
-                                  </td>
-                                );
-                              case 'projectName':
-                                return (
-                                  <td key={col.key} className="px-2 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 font-sans text-xs font-bold text-[#0C0C09] dark:text-zinc-100">
-                                    {linkedProj && onUpdateProject ? (
-                                      <EditableReportTextCell
-                                        testId={`report-proj-name-${linkedProj.id}`}
-                                        value={linkedProj.name}
-                                        className="font-bold"
-                                        onCommit={(next) =>
-                                          onUpdateProject({ ...linkedProj, name: next || linkedProj.name })
-                                        }
-                                      />
-                                    ) : (
-                                      <span className="truncate block px-1">{row.projectName}</span>
-                                    )}
-                                  </td>
-                                );
-                              case 'platform':
-                                return (
-                                  <td key={col.key} className="px-2 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap">
-                                    {linkedProj && onUpdateProject ? (
-                                      <select
-                                        data-testid={`report-proj-platform-${linkedProj.id}`}
-                                        value={normalizePlatform(linkedProj.platform) || 'iOS/Android'}
-                                        onChange={(e) =>
-                                          onUpdateProject({
-                                            ...linkedProj,
-                                            platform: e.target.value as ProjectPlatform,
-                                          })
-                                        }
-                                        className="w-full px-1.5 py-0.5 rounded-[2px] border border-transparent hover:border-slate-300 dark:hover:border-zinc-700 focus:border-indigo-500 text-[10px] font-bold bg-transparent outline-none cursor-pointer"
-                                      >
-                                        <option value="iOS">iOS</option>
-                                        <option value="Android">Android</option>
-                                        <option value="iOS/Android">iOS/Android</option>
-                                      </select>
-                                    ) : (
-                                      <span
-                                        className={`px-2 py-0.5 rounded-[2px] text-[10px] font-bold ${
-                                          row.platform === 'iOS'
-                                            ? 'bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300'
-                                            : row.platform === 'Android'
-                                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
-                                            : 'bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300'
-                                        }`}
-                                      >
-                                        {row.platform}
-                                      </span>
-                                    )}
-                                  </td>
-                                );
-                              case 'team':
-                                return (
-                                  <td key={col.key} className="px-2.5 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 text-[11px] text-slate-700 dark:text-zinc-300 whitespace-nowrap">
-                                    <span
-                                      data-testid={`report-proj-team-${row.code}`}
-                                      className="truncate block max-w-full"
-                                      title={row.team}
-                                    >
-                                      {row.team}
-                                    </span>
-                                  </td>
-                                );
-                              case 'alertLevel':
-                                return (
-                                  <td key={col.key} className="px-2 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap">
-                                    {linkedProj && onUpdateProject ? (
-                                      <select
-                                        data-testid={`report-project-alert-badge-${row.code}`}
-                                        value={linkedProj.alertLevel ?? 0}
-                                        onChange={(e) =>
-                                          onUpdateProject({
-                                            ...linkedProj,
-                                            alertLevel: Number(e.target.value) as ProjectAlertLevel,
-                                          })
-                                        }
-                                        className={`w-full px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border outline-none cursor-pointer ${
-                                          row.alertLevel === 1
-                                            ? 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
-                                            : row.alertLevel === 2
-                                            ? 'bg-orange-50 text-orange-800 border-orange-300 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800'
-                                            : row.alertLevel === 3
-                                            ? 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
-                                            : 'bg-zinc-100 text-zinc-600 border-zinc-300 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700'
-                                        }`}
-                                      >
-                                        <option value={0}>Nivel 0</option>
-                                        <option value={1}>Nivel 1</option>
-                                        <option value={2}>Nivel 2</option>
-                                        <option value={3}>Nivel 3</option>
-                                      </select>
-                                    ) : (
-                                      <span
-                                        data-testid={`report-project-alert-badge-${row.code}`}
-                                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border ${
-                                          row.alertLevel === 1
-                                            ? 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
-                                            : row.alertLevel === 2
-                                            ? 'bg-orange-50 text-orange-800 border-orange-300 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800'
-                                            : row.alertLevel === 3
-                                            ? 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
-                                            : 'bg-zinc-100 text-zinc-600 border-zinc-300 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700'
-                                        }`}
-                                      >
-                                        <span
-                                          className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                                            row.alertLevel === 1
-                                              ? 'bg-amber-500'
-                                              : row.alertLevel === 2
-                                              ? 'bg-orange-500'
-                                              : row.alertLevel === 3
-                                              ? 'bg-rose-500'
-                                              : 'bg-zinc-400'
-                                          }`}
-                                        />
-                                        <span>{`Nivel ${row.alertLevel}`}</span>
-                                      </span>
-                                    )}
-                                  </td>
-                                );
-                              case 'releaseCode':
-                                return (
-                                  <td key={col.key} className="px-2 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-[#0C0C09] dark:text-zinc-300">
-                                    {linkedProj && onUpdateProject ? (
-                                      <select
-                                        data-testid={`report-proj-release-${linkedProj.id}`}
-                                        value={linkedProj.releaseId || ''}
-                                        onChange={(e) =>
-                                          onUpdateProject({
-                                            ...linkedProj,
-                                            releaseId: e.target.value || undefined,
-                                          })
-                                        }
-                                        className="w-full bg-transparent px-1 py-0.5 rounded border border-transparent hover:border-slate-300 dark:hover:border-zinc-700 focus:border-indigo-500 text-[11px] outline-none cursor-pointer"
-                                      >
-                                        <option value="">Sin asignar</option>
-                                        {releases.map((r) => (
-                                          <option key={r.id} value={r.id}>
-                                            {r.code}
-                                          </option>
-                                        ))}
-                                      </select>
-                                    ) : (
-                                      <span className="px-1">{row.releaseCode}</span>
-                                    )}
-                                  </td>
-                                );
-                              case 'startDate':
-                                return (
-                                  <td key={col.key} className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap">
-                                    {row.startDate}
-                                  </td>
-                                );
-                              case 'endDate':
-                                return (
-                                  <td key={col.key} className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap">
-                                    {row.endDate}
-                                  </td>
-                                );
-                              case 'duration':
-                                return (
-                                  <td key={col.key} className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-right font-bold">
-                                    {row.duration} d
-                                  </td>
-                                );
-                              case 'progress':
-                                return (
-                                  <td key={col.key} className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-center">
-                                    <div className="flex items-center justify-center gap-1.5">
-                                      <div className="w-12 h-1.5 bg-[#E2E2DC] dark:bg-zinc-800 rounded-full overflow-hidden">
-                                        <div
-                                          className="h-full bg-emerald-600"
-                                          style={{ width: `${Math.min(100, Math.max(0, row.progress))}%` }}
-                                        />
-                                      </div>
-                                      <span>{row.progress}%</span>
-                                    </div>
-                                  </td>
-                                );
-                              case 'tasksCount':
-                                return (
-                                  <td key={col.key} className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-right">
-                                    {row.tasksCount}
-                                  </td>
-                                );
-                              case 'milestonesCount':
-                                return (
-                                  <td key={col.key} className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-right font-semibold text-amber-600 dark:text-amber-400">
-                                    {row.milestonesCount}
-                                  </td>
-                                );
-                              case 'description':
-                                return (
-                                  <td key={col.key} className="px-2 py-1.5 font-sans text-xs text-[#6B6B66] dark:text-zinc-400 whitespace-pre-line leading-relaxed">
-                                    {linkedProj && onUpdateProject ? (
-                                      <EditableReportTextCell
-                                        testId={`report-proj-desc-${linkedProj.id}`}
-                                        value={row.description || linkedProj.description || ''}
-                                        placeholder="Añadir descripción del proyecto..."
-                                        multiline
-                                        onCommit={(next) =>
-                                          onUpdateProject({ ...linkedProj, description: next })
-                                        }
-                                      />
-                                    ) : (
-                                      row.description || '—'
-                                    )}
-                                  </td>
-                                );
-                              default:
-                                return null;
-                            }
-                          })}
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
+        {/* Tab 2: Catálogo Releases */}
 
-        {/* Tab 3: Catálogo Releases */}
         {activeTab === 'releases' && (
           <div className="min-w-full inline-block align-middle">
             <table className="w-full table-fixed border-collapse text-left text-xs">
@@ -2343,9 +2444,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             Pestaña activa:{' '}
             <strong className="text-[#0C0C09] dark:text-zinc-200">
               {activeTab === 'cronograma'
-                ? 'Cronograma Completo'
-                : activeTab === 'projects'
-                ? 'Resumen Proyectos'
+                ? 'Informe Planificación'
                 : 'Catálogo Releases'}
             </strong>
           </span>
@@ -2354,8 +2453,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             <strong className="text-[#0C0C09] dark:text-zinc-200">
               {activeTab === 'cronograma'
                 ? `${filteredCronoRows.length} de ${cronoRows.length}`
-                : activeTab === 'projects'
-                ? `${filteredProjectRows.length} de ${projectRows.length}`
                 : `${filteredReleaseRows.length} de ${releaseRows.length}`}
             </strong>
           </span>

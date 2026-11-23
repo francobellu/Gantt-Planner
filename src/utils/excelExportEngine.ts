@@ -526,47 +526,9 @@ export function exportFullGanttToWorkbook(
     { wch: 30 }, // Cumplimiento Release
     { wch: 42 }, // Notas / Descripción
   ];
-  XLSX.utils.book_append_sheet(wb, wsHierarchy, 'Cronograma Completo');
+  XLSX.utils.book_append_sheet(wb, wsHierarchy, 'Informe Planificación');
 
-  // 2. SHEET 2: Resumen Proyectos
-  const projRows = generateProjectSummaryRows(releases, projects, items);
-  const projAoa: (string | number)[][] = [
-    PROJECT_SUMMARY_HEADER,
-    ...projRows.map((r) => [
-      r.code,
-      r.projectName,
-      r.platform,
-      r.team,
-      `Nivel ${r.alertLevel}`,
-      r.releaseCode,
-      r.startDate,
-      r.endDate,
-      r.duration,
-      `${r.progress}%`,
-      r.tasksCount,
-      r.milestonesCount,
-      r.description,
-    ]),
-  ];
-  const wsProjects = XLSX.utils.aoa_to_sheet(projAoa);
-  wsProjects['!cols'] = [
-    { wch: 10 },
-    { wch: 32 },
-    { wch: 18 },
-    { wch: 18 },
-    { wch: 16 },
-    { wch: 18 },
-    { wch: 14 },
-    { wch: 14 },
-    { wch: 16 },
-    { wch: 14 },
-    { wch: 14 },
-    { wch: 14 },
-    { wch: 45 },
-  ];
-  XLSX.utils.book_append_sheet(wb, wsProjects, 'Resumen Proyectos');
-
-  // 3. SHEET 3: Catálogo Releases
+  // 2. SHEET 2: Catálogo Releases
   if (releases && releases.length > 0) {
     const relRows = generateReleaseSummaryRows(releases, projects);
     const relAoa: (string | number)[][] = [

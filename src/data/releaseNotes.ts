@@ -10,10 +10,20 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.11.14',
+    date: '23 Nov 2026',
+    title: 'Selector de formatos y presets de columnas en Informe Planificación',
+    isLatest: true,
+    features: [
+      'Añade selector de formatos predeterminados y personalizados para columnas visibles en Informe Planificación',
+      'Permite guardar y nombrar presets de configuración de columnas con persistencia en localStorage',
+      'Permite alternar instantáneamente entre vistas y formatos',
+    ],
+  },
+  {
     version: '1.11.13',
     date: '23 Nov 2026',
     title: 'Unificar fila única por tarea en informe Cronograma Completo',
-    isLatest: true,
     features: [
       'Consolida tareas con múltiples dependencias en 1 sola fila en Cronograma Completo y Excel',
       'Agrupa dependencias con badges en la misma celda de la tabla',

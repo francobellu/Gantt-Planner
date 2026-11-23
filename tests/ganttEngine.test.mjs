@@ -4520,7 +4520,7 @@ test('Help page, version control v1.2.0, release selection on project creation, 
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version control consistency
-  assert.equal(pkg.version, '1.11.13', 'package.json version must be 1.9.2');
+  assert.equal(pkg.version, '1.11.14', 'package.json version must be 1.9.2');
   assert.ok(pkg.scripts['version:patch'], 'package.json must contain version:patch script');
   assert.ok(pkg.scripts['version:minor'], 'package.json must contain version:minor script');
   assert.ok(pkg.scripts['release:patch'], 'package.json must contain release:patch script');
@@ -5301,10 +5301,10 @@ test('Task name positioning, configurable row separators, 37 char truncation, v1
     const htmlWithoutWeekendShading = renderToString(mod.renderWorkspaceWithWeekendShading(false));
     assert.ok(!htmlWithoutWeekendShading.includes('bg-[#E5E5DF]'), 'Canvas and header must NOT render weekend shading when showWeekendShading is false (clean uniform background)');
 
-    // 9. App Header displays v1.11.13 badge, row-separators-btn, and weekend-shading-btn
+    // 9. App Header displays v1.11.14 badge, row-separators-btn, and weekend-shading-btn
     const appHtml = renderToString(mod.renderAppHeader());
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'Header must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.11.13'), 'Header badge must display v1.11.13');
+    assert.ok(appHtml.includes('v1.11.14'), 'Header badge must display v1.11.14');
     assert.ok(appHtml.includes('data-testid="header-toggle-row-separators-btn"'), 'Header must contain header-toggle-row-separators-btn');
     assert.ok(appHtml.includes('data-testid="header-toggle-weekend-shading-btn"'), 'Header must contain header-toggle-weekend-shading-btn');
 
@@ -5334,7 +5334,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version Bump Verification
-  assert.equal(pkg.version, '1.11.13', 'package.json version must equal 1.9.2');
+  assert.equal(pkg.version, '1.11.14', 'package.json version must equal 1.9.2');
 
   // Verify scripts/bump-version.mjs works properly
   const bumpScript = await fs.readFile(path.resolve(__dirname, '../scripts/bump-version.mjs'), 'utf8');
@@ -5508,7 +5508,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // A. APP_VERSION equals 1.9.2
-    assert.equal(mod.APP_VERSION, '1.11.13', 'APP_VERSION must be 1.9.2');
+    assert.equal(mod.APP_VERSION, '1.11.14', 'APP_VERSION must be 1.9.2');
 
     // A2. Excel Export Unit Test
     const sampleReleases = [
@@ -5527,11 +5527,10 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
       },
     ];
     const workbook = mod.exportFullGanttToWorkbook(sampleReleases, sampleProjects, sampleItems);
-    assert.ok(workbook.SheetNames.includes('Cronograma Completo'), 'Workbook must contain "Cronograma Completo" sheet');
-    assert.ok(workbook.SheetNames.includes('Resumen Proyectos'), 'Workbook must contain "Resumen Proyectos" sheet');
+    assert.ok(workbook.SheetNames.includes('Informe Planificación'), 'Workbook must contain "Informe Planificación" sheet');
     assert.ok(workbook.SheetNames.includes('Catálogo Releases'), 'Workbook must contain "Catálogo Releases" sheet');
 
-    const s1 = workbook.Sheets['Cronograma Completo'];
+    const s1 = workbook.Sheets['Informe Planificación'];
     const s1Content = JSON.stringify(s1);
     assert.ok(s1Content.includes('Código WBS'), 'Sheet 1 must contain WBS header');
     assert.ok(s1Content.includes('Plataforma'), 'Sheet 1 must contain Plataforma header');
@@ -5585,7 +5584,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     assert.ok(appHtml.includes('data-testid="table-platform-filter"'), 'App must contain unified table-platform-filter');
     assert.ok(!appHtml.includes('data-testid="header-toggle-focus-mode-btn"'), 'Redundant header-toggle-focus-mode-btn must be removed');
     assert.ok(appHtml.includes('data-testid="header-reports-btn"'), 'App header must contain header-reports-btn');
-    assert.ok(appHtml.includes('v1.11.13'), 'App header must display version v1.11.13');
+    assert.ok(appHtml.includes('v1.11.14'), 'App header must display version v1.11.14');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -5985,16 +5984,17 @@ test('Excel Cronograma Completo splits dependencies per row with element names, 
 
     // 3. Test exportFullGanttToWorkbook Excel output
     const wb = mod.exportFullGanttToWorkbook([r1], [p1], sampleItems);
-    const s1 = wb.Sheets['Cronograma Completo'];
+    const s1 = wb.Sheets['Informe Planificación'];
     const s1Str = JSON.stringify(s1);
     assert.ok(s1Str.includes('Análisis de Requisitos (FS)'), 'Excel sheet 1 must contain predecessor element name');
     assert.ok(s1Str.includes('Diseño de Base de Datos (SS)'), 'Excel sheet 1 must contain second predecessor element name');
 
-    // 4. Test ReportsView SSR rendering (Tab 1: Cronograma Completo)
+    // 4. Test ReportsView SSR rendering (Tab 1: Informe Planificación)
     const cronoHtml = renderToString(mod.renderReportsView('cronograma'));
     assert.ok(cronoHtml.includes('data-testid="reports-view"'), 'ReportsView container renders');
     assert.ok(cronoHtml.includes('data-testid="reports-tab-cronograma"'), 'Cronograma tab button renders');
-    assert.ok(cronoHtml.includes('data-testid="reports-tab-projects"'), 'Projects tab button renders');
+    assert.ok(!cronoHtml.includes('data-testid="reports-tab-projects"'), 'Projects tab button is removed');
+    assert.ok(cronoHtml.includes('1. Informe Planificación'), 'Tab button label is updated to Informe Planificación');
     assert.ok(cronoHtml.includes('data-testid="reports-tab-releases"'), 'Releases tab button renders');
     assert.ok(cronoHtml.includes('data-testid="reports-download-excel-btn"'), 'Download Excel button renders');
     assert.ok(!cronoHtml.includes('data-testid="reports-back-btn"'), 'Redundant Back to Gantt button is removed');
@@ -6034,8 +6034,8 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
-  // 1. Version Bump Verification v1.11.13
-  assert.equal(pkg.version, '1.11.13', 'package.json version must equal 1.9.2');
+  // 1. Version Bump Verification v1.11.14
+  assert.equal(pkg.version, '1.11.14', 'package.json version must equal 1.9.2');
 
   // 2. SSR Bundle verification for TaskFormModal, App Header, and sanitizeGanttItem
   const tmpFile = path.resolve(__dirname, `tmp_test59_bundle_${Date.now()}.mjs`);
@@ -6133,7 +6133,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.equal(mod.APP_VERSION, '1.11.13', 'mod.APP_VERSION must equal 1.9.2');
+    assert.equal(mod.APP_VERSION, '1.11.14', 'mod.APP_VERSION must equal 1.9.2');
 
     // sanitizeGanttItem preserves platform
     const sanitizedIos = mod.sanitizeGanttItem({
@@ -6178,7 +6178,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     assert.ok(appHtml.includes('data-testid="header-more-menu-btn"'), 'App header must render header-more-menu-btn');
     assert.ok(appHtml.includes('data-testid="header-more-menu-dropdown"'), 'App must render header-more-menu-dropdown');
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'More menu must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.11.13'), 'Version badge must display v1.11.13');
+    assert.ok(appHtml.includes('v1.11.14'), 'Version badge must display v1.11.14');
     assert.ok(appHtml.includes('data-testid="force-reload-btn"'), 'More menu must contain force-reload-btn');
 
     // 7. Verify secondary buttons are rendered inside the menu
@@ -6200,7 +6200,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
       hiddenReleaseCount: 0,
     }));
     assert.ok(settingsHtml.includes('data-testid="settings-version-badge"'), 'SettingsModal must contain settings-version-badge');
-    assert.ok(settingsHtml.includes('1.11.13') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.9.2');
+    assert.ok(settingsHtml.includes('1.11.14') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.9.2');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6354,14 +6354,14 @@ test('Test 61: Version button, compiled release notes modal and changelog across
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
 
     // 1. Check RELEASE_NOTES compiled data
-    assert.strictEqual(mod.APP_VERSION, '1.11.13');
+    assert.strictEqual(mod.APP_VERSION, '1.11.14');
     assert.ok(Array.isArray(mod.RELEASE_NOTES), 'RELEASE_NOTES must be an array');
     assert.ok(mod.RELEASE_NOTES.length >= 10, 'RELEASE_NOTES must have at least 10 releases');
 
     const latest = mod.RELEASE_NOTES[0];
-    assert.strictEqual(latest.version, '1.11.13', 'First release note must be 1.9.2');
+    assert.strictEqual(latest.version, '1.11.14', 'First release note must be 1.9.2');
     assert.strictEqual(latest.isLatest, true, 'First release note must be isLatest: true');
-    assert.ok(latest.features.length > 0, 'v1.11.13 must contain features');
+    assert.ok(latest.features.length > 0, 'v1.11.14 must contain features');
 
     // 2. Render App and verify version button exists in dropdown menu and is NOT duplicated in top header
     const appHtml = renderToString(React.createElement(mod.App));
@@ -6374,8 +6374,8 @@ test('Test 61: Version button, compiled release notes modal and changelog across
       'App dropdown must contain data-testid="app-version-badge"'
     );
     assert.ok(
-      appHtml.includes('<button') && appHtml.includes('data-testid="app-version-badge"') && appHtml.includes('v1.11.13'),
-      'app-version-badge in tools dropdown must be an interactive button showing v1.11.13'
+      appHtml.includes('<button') && appHtml.includes('data-testid="app-version-badge"') && appHtml.includes('v1.11.14'),
+      'app-version-badge in tools dropdown must be an interactive button showing v1.11.14'
     );
 
     // 3. Render ReleaseNotesModal
@@ -8192,7 +8192,7 @@ test('Test 73: v1.9.0 project alert level (0-3), workspace toolbar alert filter,
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.strictEqual(mod.APP_VERSION, '1.11.13', 'APP_VERSION must be 1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.11.14', 'APP_VERSION must be 1.9.2');
 
     // 1. Check sanitizeProject and describeProjectStateChanges for alertLevel
     const pSanitized0 = mod.sanitizeProject({ id: 'p-1', name: 'Proj 1', alertLevel: 0 });
@@ -8300,29 +8300,24 @@ test('Test 73: v1.9.0 project alert level (0-3), workspace toolbar alert filter,
       'App renders table-alert-filter in workspace toolbar'
     );
 
-    // 6. ReportsView Tab 2 (Resumen Proyectos) renders Nivel de Alerta column and multiline description
+    // 6. ReportsView Tab 1 (Informe Planificación) renders Nivel de Alerta column and project alert badge
     const reportsHtml = renderToString(
       React.createElement(mod.ReportsView, {
         releases: [],
         projects: [testProj],
         items: testItems,
-        initialTab: 'projects',
+        initialTab: 'cronograma',
         onBackToGantt: () => {},
       })
     );
 
     assert.ok(
       reportsHtml.includes('Nivel de Alerta'),
-      'ReportsView Tab 2 must render Nivel de Alerta column header'
+      'ReportsView must render Nivel de Alerta column header'
     );
     assert.ok(
-      reportsHtml.includes(`data-testid="report-project-alert-badge-P1"`),
-      'ReportsView Tab 2 must render project alert badge in project summary table'
-    );
-    assert.ok(
-      reportsHtml.includes('* API Gateway Rutas seguras JWT y OAuth2') &&
-        reportsHtml.includes('* Integración Redsys Conector TPV virtual con firma HMAC-SHA256'),
-      'ReportsView Tab 2 must render subtasks formatted with bullet points'
+      reportsHtml.includes(`data-testid="cronograma-project-alert-badge-P1"`),
+      'ReportsView must render project alert badge in cronograma table'
     );
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
@@ -8386,7 +8381,7 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.strictEqual(mod.APP_VERSION, '1.11.13', 'APP_VERSION must be 1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.11.14', 'APP_VERSION must be 1.9.2');
 
     // 1. Verify description format: <descripción del proyecto si existe>\n\n* <nombre> <desc>
     const pWithDesc = {
@@ -8453,22 +8448,8 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
     assert.ok(tab1Html.includes('data-testid="reports-alert-filter-menu"'), 'Tab 1 must render alert menu');
     assert.ok(tab1Html.includes('data-testid="cronograma-project-alert-badge-P1"'), 'Tab 1 must render project alert badge in cronograma table');
 
-    // 3. Verify ReportsView renders unified filters in Tab 2 (Resumen Proyectos)
+    // 3. Verify ReportsView renders unified filters in Tab 2 (Catálogo Releases)
     const tab2Html = renderToString(
-      React.createElement(mod.ReportsView, {
-        releases,
-        projects,
-        items: allItems,
-        initialTab: 'projects',
-        onBackToGantt: () => {},
-      })
-    );
-    assert.ok(tab2Html.includes('data-testid="reports-platform-filter"'), 'Tab 2 must render reports-platform-filter');
-    assert.ok(tab2Html.includes('data-testid="reports-alert-filter"'), 'Tab 2 must render reports-alert-filter');
-    assert.ok(tab2Html.includes('data-testid="report-project-alert-badge-P1"'), 'Tab 2 must render project alert badge');
-
-    // 4. Verify ReportsView renders unified filters in Tab 3 (Catálogo Releases)
-    const tab3Html = renderToString(
       React.createElement(mod.ReportsView, {
         releases,
         projects,
@@ -8477,16 +8458,16 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
         onBackToGantt: () => {},
       })
     );
-    assert.ok(tab3Html.includes('data-testid="reports-platform-filter"'), 'Tab 3 must render reports-platform-filter');
-    assert.ok(tab3Html.includes('data-testid="reports-alert-filter"'), 'Tab 3 must render reports-alert-filter');
-    assert.ok(tab3Html.includes('T_26.03.1'), 'Tab 3 must render release code');
+    assert.ok(tab2Html.includes('data-testid="reports-platform-filter"'), 'Tab 2 must render reports-platform-filter');
+    assert.ok(tab2Html.includes('data-testid="reports-alert-filter"'), 'Tab 2 must render reports-alert-filter');
+    assert.ok(tab2Html.includes('T_26.03.1'), 'Tab 2 must render release code');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
 });
 
-// TEST 75: v1.11.13 Project locking, accidental move guard & unlock prompt modal
-test('Test 75: v1.11.13 project locking, cascade/dependency protection, plan history badge, and unlock alert modal', async () => {
+// TEST 75: v1.11.14 Project locking, accidental move guard & unlock prompt modal
+test('Test 75: v1.11.14 project locking, cascade/dependency protection, plan history badge, and unlock alert modal', async () => {
   const fs = await import('node:fs/promises');
   const path = await import('node:path');
   const { fileURLToPath } = await import('node:url');
@@ -8497,7 +8478,7 @@ test('Test 75: v1.11.13 project locking, cascade/dependency protection, plan his
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
-  assert.strictEqual(pkg.version, '1.11.13', 'package.json version must equal 1.9.2');
+  assert.strictEqual(pkg.version, '1.11.14', 'package.json version must equal 1.9.2');
 
   const tmpFile = path.resolve(__dirname, `tmp_test75_bundle_${Date.now()}.mjs`);
   try {
@@ -8559,9 +8540,9 @@ test('Test 75: v1.11.13 project locking, cascade/dependency protection, plan his
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // 1. Version & release notes verification
-    assert.strictEqual(mod.APP_VERSION, '1.11.13', 'APP_VERSION must equal 1.9.2');
-    assert.strictEqual(mod.RELEASE_NOTES[0].version, '1.11.13', 'Latest release note must be 1.9.2');
-    assert.strictEqual(mod.RELEASE_NOTES[0].isLatest, true, 'v1.11.13 release note must be marked isLatest');
+    assert.strictEqual(mod.APP_VERSION, '1.11.14', 'APP_VERSION must equal 1.9.2');
+    assert.strictEqual(mod.RELEASE_NOTES[0].version, '1.11.14', 'Latest release note must be 1.9.2');
+    assert.strictEqual(mod.RELEASE_NOTES[0].isLatest, true, 'v1.11.14 release note must be marked isLatest');
 
     // 2. sanitizeProject, getLockedProjectForItem, describeProjectStateChanges
     const lockedProj = mod.sanitizeProject({
@@ -8758,7 +8739,7 @@ test('Test 75: v1.11.13 project locking, cascade/dependency protection, plan his
   }
 });
 
-test('Test 76: v1.11.13 automatic Free Slack calculation given successor tasks across engine, table badge, inspector sidebar and task modal', async () => {
+test('Test 76: v1.11.14 automatic Free Slack calculation given successor tasks across engine, table badge, inspector sidebar and task modal', async () => {
   // 1. Engine calculation: FS dependency with multiple successors
   const testItems = [
     {
@@ -11079,25 +11060,20 @@ test('Test 92: ReportsView configurable visibility, resizable columns, and inlin
       'Cronograma tab must render inline text, date, number, checkbox, and selector editors'
     );
 
-    // 2. Tab 2: Resumen Proyectos
+    // 2. Tab 2 (Resumen Proyectos) is eliminated; verify it does not render and defaults to Planificación
     const projHtml = renderToString(
       React.createElement(mod.ReportsView, { ...sharedProps, initialTab: 'projects' })
     );
     assert.ok(
-      projHtml.includes('data-testid="report-col-resizer-projects-projectName"') &&
-        projHtml.includes('data-testid="report-col-toggle-projects-alertLevel"'),
-      'Projects tab must render column toggles and resize handles'
+      !projHtml.includes('data-testid="reports-tab-projects"'),
+      'Projects tab must not be present in reports navigation'
     );
     assert.ok(
-      projHtml.includes('data-testid="report-proj-name-p1"') &&
-        projHtml.includes('data-testid="report-proj-platform-p1"') &&
-        projHtml.includes('data-testid="report-project-alert-badge-P1"') &&
-        projHtml.includes('data-testid="report-proj-release-p1"') &&
-        projHtml.includes('data-testid="report-proj-desc-p1"'),
-      'Projects tab must render inline editable text & selector controls'
+      projHtml.includes('1. Informe Planificación'),
+      'initialTab projects falls back to Informe Planificación'
     );
 
-    // 3. Tab 3: Catálogo Releases
+    // 3. Tab 2: Catálogo Releases
     const relHtml = renderToString(
       React.createElement(mod.ReportsView, { ...sharedProps, initialTab: 'releases' })
     );
@@ -11477,6 +11453,7 @@ test('Test 96: Team (Equipo) column in Reports 1 and 2 and Excel export', async 
             PROJECT_SUMMARY_HEADER,
             generateCronogramaCompletoRows,
             generateProjectSummaryRows,
+            collectProjectTeams,
           } from './src/utils/excelExportEngine.ts';
           export {
             React,
@@ -11486,6 +11463,7 @@ test('Test 96: Team (Equipo) column in Reports 1 and 2 and Excel export', async 
             PROJECT_SUMMARY_HEADER,
             generateCronogramaCompletoRows,
             generateProjectSummaryRows,
+            collectProjectTeams,
           };
         `,
         resolveDir: process.cwd(),
@@ -11576,16 +11554,8 @@ test('Test 96: Team (Equipo) column in Reports 1 and 2 and Excel export', async 
       'Cronograma tab must render Equipo column toggle, resizer, and inline editable team cell'
     );
 
-    const projHtml = renderToString(
-      React.createElement(mod.ReportsView, { ...sharedProps, initialTab: 'projects' })
-    );
-    assert.ok(
-      projHtml.includes('data-testid="report-col-toggle-projects-team"') &&
-        projHtml.includes('data-testid="report-col-resizer-projects-team"') &&
-        projHtml.includes('data-testid="report-proj-team-P1"') &&
-        projHtml.includes('Core Mobile, QA'),
-      'Resumen Proyectos tab must render Equipo column toggle, resizer, and aggregated project teams'
-    );
+    const teamAgg = mod.collectProjectTeams(items);
+    assert.equal(teamAgg, 'Core Mobile, QA', 'collectProjectTeams aggregates unique project teams');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -11693,16 +11663,16 @@ test('Test 98: Selecting task, project, or release in ReportsView opens RightSid
       'Cronograma tab must mark selectable report rows and highlight selected task'
     );
 
-    const projHtml = renderToString(
+    const projCronoHtml = renderToString(
       React.createElement(mod.ReportsView, {
         ...sharedProps,
-        initialTab: 'projects',
+        initialTab: 'cronograma',
         selectedEntity: { type: 'project', id: 'p1', name: 'Proyecto Alpha' },
       })
     );
     assert.ok(
-      projHtml.includes('data-report-row="p1"') && projHtml.includes('data-selected-report-row="true"'),
-      'Resumen Proyectos tab must mark selectable project rows and highlight selected project'
+      projCronoHtml.includes('data-report-row="proj-p1"') && projCronoHtml.includes('data-selected-report-row="true"'),
+      'Informe Planificación must highlight selected project row'
     );
 
     const relHtml = renderToString(
@@ -12172,16 +12142,6 @@ test('Test 102: Unique IDs (P1, T1, P1T1), colored task ID badge in GanttWorkspa
       'ReportsView Cronograma Completo must render ID column with unique IDs (P1, P1T1)'
     );
 
-    const projHtml = renderToString(
-      React.createElement(mod.ReportsView, { ...sharedReportProps, initialTab: 'projects' })
-    );
-    assert.ok(
-      projHtml.includes('data-testid="report-col-id-header"') &&
-        projHtml.includes('data-testid="report-proj-id-P1"') &&
-        projHtml.includes('>P1</td>'),
-      'ReportsView Resumen Proyectos must render ID column with project IDs (P1)'
-    );
-
     const relHtml = renderToString(
       React.createElement(mod.ReportsView, { ...sharedReportProps, initialTab: 'releases' })
     );
@@ -12299,6 +12259,207 @@ test('Test 103: Cronograma Completo consolidates multiple dependencies into 1 ro
     assert.ok(html.includes('Release SDK ARQ (FS)'), 'Renders badge for predecessor 1');
     assert.ok(html.includes('Actualizar Lib (SS)'), 'Renders badge for predecessor 2');
     assert.ok(!html.includes('└─ Dependencia'), 'No sub-rows labeled └─ Dependencia exist');
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
+test('Test 104: Rename to Informe Planificación, remove Resumen Proyectos tab, and compact filter bar layout', async () => {
+  const esbuild = await import('esbuild');
+  const fs = await import('node:fs/promises');
+  const { pathToFileURL } = await import('node:url');
+  const tmpFile = path.resolve(process.cwd(), `tests/tmp_test104_bundle_${Date.now()}.mjs`);
+  try {
+    await esbuild.build({
+      stdin: {
+        contents: `
+          import React from 'react';
+          import { renderToString } from 'react-dom/server';
+          import { ReportsView } from './src/components/ReportsView.tsx';
+          import { exportFullGanttToWorkbook } from './src/utils/excelExportEngine.ts';
+          export { React, renderToString, ReportsView, exportFullGanttToWorkbook };
+        `,
+        resolveDir: process.cwd(),
+        sourcefile: 'test104-entry.tsx',
+        loader: 'tsx',
+      },
+      bundle: true,
+      format: 'esm',
+      outfile: tmpFile,
+      platform: 'node',
+      external: ['react', 'react-dom', 'lucide-react', 'xlsx'],
+    });
+
+    const mod = await import(pathToFileURL(tmpFile).href);
+    const releases = [{ id: 'rel-1', code: 'T_27.3.1', name: 'Release 27.3', milestones: [] }];
+    const projects = [{ id: 'p1', name: 'Proyecto Demo', releaseId: 'rel-1', alertLevel: 1 }];
+    const items = [
+      {
+        id: 't1',
+        projectId: 'p1',
+        name: 'Tarea Test',
+        startDate: '2026-03-01',
+        endDate: '2026-03-05',
+        duration: 5,
+        type: 'task',
+        dependencies: [],
+      },
+    ];
+
+    const html = mod.renderToString(
+      mod.React.createElement(mod.ReportsView, {
+        releases,
+        projects,
+        items,
+        initialTab: 'cronograma',
+      })
+    );
+
+    // Tab 1 renamed to Informe Planificación
+    assert.ok(html.includes('1. Informe Planificación'), 'Tab 1 button must be labeled 1. Informe Planificación');
+    // Tab Resumen Proyectos removed
+    assert.ok(!html.includes('data-testid="reports-tab-projects"'), 'Resumen Proyectos tab button must be removed');
+    assert.ok(!html.includes('2. Resumen Proyectos'), '2. Resumen Proyectos label must not appear');
+    // Tab 2 is Catálogo Releases
+    assert.ok(html.includes('2. Catálogo Releases'), 'Tab 2 button must be labeled 2. Catálogo Releases');
+
+    // Excel export sheets
+    const wb = mod.exportFullGanttToWorkbook(releases, projects, items);
+    assert.ok(wb.SheetNames.includes('Informe Planificación'), 'Workbook must include "Informe Planificación"');
+    assert.ok(wb.SheetNames.includes('Catálogo Releases'), 'Workbook must include "Catálogo Releases"');
+    assert.ok(!wb.SheetNames.includes('Resumen Proyectos'), 'Workbook must NOT include "Resumen Proyectos"');
+    assert.ok(!wb.SheetNames.includes('Cronograma Completo'), 'Workbook must NOT include "Cronograma Completo"');
+
+    // Filter bar compact width and adjacent controls
+    const rvSrc = await fs.readFile(path.resolve(__dirname, '../src/components/ReportsView.tsx'), 'utf8');
+    assert.ok(rvSrc.includes('w-56 sm:w-64'), 'Search input width must be reduced (w-56 sm:w-64)');
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
+test('Test 105: Format selector (presets), saving custom presets, switching views, and localStorage persistence', async () => {
+  const esbuild = await import('esbuild');
+  const fs = await import('node:fs/promises');
+  const { pathToFileURL } = await import('node:url');
+  const tmpFile = path.resolve(process.cwd(), `tests/tmp_test105_bundle_${Date.now()}.mjs`);
+  try {
+    await esbuild.build({
+      stdin: {
+        contents: `
+          import React from 'react';
+          import { renderToString } from 'react-dom/server';
+          import {
+            ReportsView,
+            DEFAULT_COLUMN_PRESETS,
+            REPORT_COLUMN_PRESETS_KEY,
+            REPORT_ACTIVE_PRESET_KEY,
+            createColumnPreset,
+            computeHiddenColsFromPreset,
+          } from './src/components/ReportsView.tsx';
+          export {
+            React,
+            renderToString,
+            ReportsView,
+            DEFAULT_COLUMN_PRESETS,
+            REPORT_COLUMN_PRESETS_KEY,
+            REPORT_ACTIVE_PRESET_KEY,
+            createColumnPreset,
+            computeHiddenColsFromPreset,
+          };
+        `,
+        resolveDir: process.cwd(),
+        sourcefile: 'test105-entry.tsx',
+        loader: 'tsx',
+      },
+      bundle: true,
+      format: 'esm',
+      outfile: tmpFile,
+      platform: 'node',
+      external: ['react', 'react-dom', 'lucide-react', 'xlsx'],
+    });
+
+    const mod = await import(pathToFileURL(tmpFile).href);
+
+    // 1. Storage keys verification
+    assert.equal(
+      mod.REPORT_COLUMN_PRESETS_KEY,
+      'gantt_report_column_presets_v1',
+      'Presets storage key must match gantt_report_column_presets_v1'
+    );
+    assert.equal(
+      mod.REPORT_ACTIVE_PRESET_KEY,
+      'gantt_report_active_preset_v1',
+      'Active preset storage key must match gantt_report_active_preset_v1'
+    );
+
+    // 2. Default presets structure
+    const defaultPresets = mod.DEFAULT_COLUMN_PRESETS;
+    const allPreset = defaultPresets.find((p) => p.id === 'preset-all');
+    const execPreset = defaultPresets.find((p) => p.id === 'preset-executive');
+    const trackPreset = defaultPresets.find((p) => p.id === 'preset-tracking');
+
+    assert.ok(allPreset && allPreset.name.includes('Formato Completo'), 'Must have preset-all');
+    assert.ok(execPreset && execPreset.name.includes('Resumen Ejecutivo'), 'Must have preset-executive');
+    assert.ok(trackPreset && trackPreset.name.includes('Seguimiento y Dependencias'), 'Must have preset-tracking');
+
+    // 3. Preset computation helpers
+    const hiddenExec = mod.computeHiddenColsFromPreset('cronograma', execPreset);
+    assert.ok(!hiddenExec.name && !hiddenExec.wbsCode, 'Executive preset must keep name and wbsCode visible');
+    assert.ok(hiddenExec.team, 'Executive preset must hide team column');
+    assert.ok(hiddenExec.slack, 'Executive preset must hide slack column');
+
+    const custom = mod.createColumnPreset('Vista Sprint Review', 'cronograma', ['wbsCode', 'name', 'progress']);
+    assert.equal(custom.name, 'Vista Sprint Review');
+    assert.equal(custom.tab, 'cronograma');
+    assert.equal(custom.isCustom, true);
+    assert.deepEqual(custom.visibleColKeys, ['wbsCode', 'name', 'progress']);
+
+    const hiddenCustom = mod.computeHiddenColsFromPreset('cronograma', custom);
+    assert.ok(!hiddenCustom.wbsCode && !hiddenCustom.name && !hiddenCustom.progress, 'Custom preset keeps selected columns');
+    assert.ok(hiddenCustom.startDate && hiddenCustom.endDate && hiddenCustom.duration, 'Custom preset hides non-selected columns');
+
+    // 4. UI rendering in ReportsView
+    const releases = [{ id: 'rel-1', code: 'T_27.3.1', name: 'Release 27.3', milestones: [] }];
+    const projects = [{ id: 'p1', name: 'Proyecto Demo', releaseId: 'rel-1', alertLevel: 1 }];
+    const items = [
+      {
+        id: 't1',
+        projectId: 'p1',
+        name: 'Tarea Test',
+        startDate: '2026-03-01',
+        endDate: '2026-03-05',
+        duration: 5,
+        type: 'task',
+        dependencies: [],
+      },
+    ];
+
+    const html = mod.renderToString(
+      mod.React.createElement(mod.ReportsView, {
+        releases,
+        projects,
+        items,
+        initialTab: 'cronograma',
+        initialShowFormatMenu: true,
+      })
+    );
+
+    // Format button
+    assert.ok(html.includes('data-testid="reports-format-btn"'), 'Must render format selector button');
+    assert.ok(html.includes('Formato: Completo'), 'Default format display name must be Formato: Completo');
+
+    // Format menu
+    assert.ok(html.includes('data-testid="reports-format-menu"'), 'Must render format dropdown menu');
+    assert.ok(html.includes('Formatos predeterminados'), 'Must display Formatos predeterminados section');
+    assert.ok(html.includes('data-testid="reports-preset-option-preset-all"'), 'Must list preset-all option');
+    assert.ok(html.includes('data-testid="reports-preset-option-preset-executive"'), 'Must list preset-executive option');
+    assert.ok(html.includes('data-testid="reports-preset-option-preset-tracking"'), 'Must list preset-tracking option');
+
+    // Save format controls
+    assert.ok(html.includes('+ Guardar formato actual'), 'Must display + Guardar formato actual label');
+    assert.ok(html.includes('data-testid="reports-preset-name-input"'), 'Must render preset name input field');
+    assert.ok(html.includes('data-testid="reports-preset-save-btn"'), 'Must render preset save button');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
