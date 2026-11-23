@@ -10,10 +10,20 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.11.13',
+    date: '23 Nov 2026',
+    title: 'Unificar fila única por tarea en informe Cronograma Completo',
+    isLatest: true,
+    features: [
+      'Consolida tareas con múltiples dependencias en 1 sola fila en Cronograma Completo y Excel',
+      'Agrupa dependencias con badges en la misma celda de la tabla',
+      'Elimina subfilas redundantes manteniendo paridad 1:1 con la vista Cronograma',
+    ],
+  },
+  {
     version: '1.11.12',
     date: '23 Nov 2026',
     title: 'ID único para proyectos y tareas (P1, T1, P1T1), badge coloreado en tabla y columna ID en Informes',
-    isLatest: true,
     features: [
       'Añadido taskIndex estable y displayId único (P1, T1, P1T1) en motor y creación de tareas',
       'Etiqueta coloreada con el ID de cada tarea en la tabla del cronograma con el mismo estilo que los proyectos',

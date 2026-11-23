@@ -1782,10 +1782,17 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                                 return (
                                   <td key={col.key} className="px-3 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 bg-amber-50/20 dark:bg-amber-950/10 font-sans text-xs overflow-hidden">
                                     {row.dependency !== '—' ? (
-                                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[3px] bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 border border-amber-300/60 dark:border-amber-700/60 font-medium max-w-full">
-                                        <Link2 className="w-3 h-3 text-amber-700 dark:text-amber-400 shrink-0" />
-                                        <span className="font-semibold truncate">{row.dependency}</span>
-                                      </span>
+                                      <div className="flex flex-wrap items-center gap-1.5 max-w-full">
+                                        {row.dependency.split(', ').map((depStr, idx) => (
+                                          <span
+                                            key={idx}
+                                            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[3px] bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 border border-amber-300/60 dark:border-amber-700/60 font-medium max-w-full"
+                                          >
+                                            <Link2 className="w-3 h-3 text-amber-700 dark:text-amber-400 shrink-0" />
+                                            <span className="font-semibold truncate">{depStr}</span>
+                                          </span>
+                                        ))}
+                                      </div>
                                     ) : (
                                       <span className="text-slate-400 font-mono">—</span>
                                     )}

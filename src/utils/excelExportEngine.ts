@@ -147,8 +147,8 @@ export function collectProjectTeams(items: ComputedGanttItem[]): string {
 
 /**
  * Generates structured rows for the full hierarchical schedule (Sheet 1).
- * When an element has multiple dependencies, each dependency is listed in its own
- * distinct row displaying the predecessor element's name instead of raw codes.
+ * Each task/item produces exactly 1 row. When an element has multiple dependencies,
+ * they are grouped in the dependency cell displaying predecessor names.
  */
 export function generateCronogramaCompletoRows(
   releases: Release[],
@@ -241,74 +241,43 @@ export function generateCronogramaCompletoRows(
               : `Alerta: ${violations[0].milestoneCode} (+${violations[0].daysLate}d)`;
 
           const deps = item.dependencies || [];
-          if (deps.length === 0) {
-            rows.push({
-              rowId: `${item.id}-0`,
-              itemId: item.id,
-              level: isMilestone ? 'HITO' : 'TAREA',
-              hierarchyLabel: levelLabel,
-              displayId: item.displayId || (item.projectId ? `P${pg.projectIndex}T${item.taskIndex || item.wbs}` : `T${item.taskIndex || item.wbs}`),
-              wbsCode,
-              name: item.name,
-              releaseCode: effectiveReleaseCode,
-              releaseId: effectiveReleaseId,
-              projectName: pg.project.name,
-              projectId: pg.project.id,
-              platform: normalizePlatform(item.platform) || platformLabel,
-              team: item.assignee?.trim() || '—',
-              alertLevel: item.alertLevel ?? pg.project.alertLevel ?? 0,
-              type: typeLabel,
-              startDate: item.startDate,
-              endDate: item.endDate,
-              duration: item.duration,
-              slack: item.slack || 0,
-              progress: `${item.progress || 0}%`,
-              dependency: '—',
-              dependencyPredecessorName: '—',
-              isCritical,
-              isExternal,
-              compliance: complianceLabel,
-              notes: item.notes?.trim() || '—',
-              isDepRow: false,
-            });
-          } else {
-            // Emits one row per dependency, showing the predecessor element's name
-            deps.forEach((depId, dIdx) => {
-              const depName = resolveDependencyName(depId, items, item);
-              const targetItem = items.find(
-                (it) => it.id === depId || String(it.wbs ?? '') === depId
-              );
-              rows.push({
-                rowId: `${item.id}-${dIdx}`,
-                itemId: item.id,
-                level: isMilestone ? 'HITO' : 'TAREA',
-                hierarchyLabel: dIdx === 0 ? levelLabel : `${levelLabel} (Dep. ${dIdx + 1})`,
-                displayId: item.displayId || (item.projectId ? `P${pg.projectIndex}T${item.taskIndex || item.wbs}` : `T${item.taskIndex || item.wbs}`),
-                wbsCode,
-                name: item.name,
-                releaseCode: effectiveReleaseCode,
-                releaseId: effectiveReleaseId,
-                projectName: pg.project.name,
-                projectId: pg.project.id,
-                platform: normalizePlatform(item.platform) || platformLabel,
-                team: item.assignee?.trim() || '—',
-                alertLevel: item.alertLevel ?? pg.project.alertLevel ?? 0,
-                type: typeLabel,
-                startDate: item.startDate,
-                endDate: item.endDate,
-                duration: item.duration,
-                slack: item.slack || 0,
-                progress: `${item.progress || 0}%`,
-                dependency: depName,
-                dependencyPredecessorName: targetItem ? targetItem.name : depId,
-                isCritical,
-                isExternal,
-                compliance: complianceLabel,
-                notes: item.notes?.trim() || '—',
-                isDepRow: dIdx > 0,
-              });
-            });
-          }
+          const depNames = deps.map((depId) => resolveDependencyName(depId, items, item));
+          const depTargetNames = deps.map((depId) => {
+            const targetItem = items.find(
+              (it) => it.id === depId || String(it.wbs ?? '') === depId
+            );
+            return targetItem ? targetItem.name : depId;
+          });
+
+          rows.push({
+            rowId: `${item.id}-0`,
+            itemId: item.id,
+            level: isMilestone ? 'HITO' : 'TAREA',
+            hierarchyLabel: levelLabel,
+            displayId: item.displayId || (item.projectId ? `P${pg.projectIndex}T${item.taskIndex || item.wbs}` : `T${item.taskIndex || item.wbs}`),
+            wbsCode,
+            name: item.name,
+            releaseCode: effectiveReleaseCode,
+            releaseId: effectiveReleaseId,
+            projectName: pg.project.name,
+            projectId: pg.project.id,
+            platform: normalizePlatform(item.platform) || platformLabel,
+            team: item.assignee?.trim() || '—',
+            alertLevel: item.alertLevel ?? pg.project.alertLevel ?? 0,
+            type: typeLabel,
+            startDate: item.startDate,
+            endDate: item.endDate,
+            duration: item.duration,
+            slack: item.slack || 0,
+            progress: `${item.progress || 0}%`,
+            dependency: depNames.length > 0 ? depNames.join(', ') : '—',
+            dependencyPredecessorName: depTargetNames.length > 0 ? depTargetNames.join(', ') : '—',
+            isCritical,
+            isExternal,
+            compliance: complianceLabel,
+            notes: item.notes?.trim() || '—',
+            isDepRow: false,
+          });
         }
       }
     }
@@ -353,74 +322,47 @@ export function generateCronogramaCompletoRows(
         const isExternal = Boolean(item.isExternal);
 
         const deps = item.dependencies || [];
-        if (deps.length === 0) {
-          rows.push({
-            rowId: `${item.id}-0`,
-            level: isMilestone ? 'HITO' : 'TAREA',
-            hierarchyLabel: levelLabel,
-            displayId: item.displayId || (item.projectId ? `P${pg.projectIndex}T${item.taskIndex || item.wbs}` : `T${item.taskIndex || item.wbs}`),
-            wbsCode,
-            name: item.name,
-            releaseCode: '—',
-            projectName: pg.project.name,
-            projectId: pg.project.id,
-            platform: normalizePlatform(item.platform) || platformLabel,
-            team: item.assignee?.trim() || '—',
-            alertLevel: item.alertLevel ?? pg.project.alertLevel ?? 0,
-            type: typeLabel,
-            startDate: item.startDate,
-            endDate: item.endDate,
-            duration: item.duration,
-            slack: item.slack || 0,
-            progress: `${item.progress || 0}%`,
-            dependency: '—',
-            dependencyPredecessorName: '—',
-            isCritical,
-            isExternal,
-            compliance: 'Conforme',
-            notes: item.notes?.trim() || '—',
-            isDepRow: false,
-          });
-        } else {
-          deps.forEach((depId, dIdx) => {
-            const depName = resolveDependencyName(depId, items, item);
-            const targetItem = items.find(
-              (it) => it.id === depId || String(it.wbs ?? '') === depId
-            );
-            rows.push({
-              rowId: `${item.id}-${dIdx}`,
-              level: isMilestone ? 'HITO' : 'TAREA',
-              hierarchyLabel: dIdx === 0 ? levelLabel : `${levelLabel} (Dep. ${dIdx + 1})`,
-              displayId: item.displayId || (item.projectId ? `P${pg.projectIndex}T${item.taskIndex || item.wbs}` : `T${item.taskIndex || item.wbs}`),
-              wbsCode,
-              name: item.name,
-              releaseCode: '—',
-              projectName: pg.project.name,
-              projectId: pg.project.id,
-              platform: normalizePlatform(item.platform) || platformLabel,
-              team: item.assignee?.trim() || '—',
-              alertLevel: item.alertLevel ?? pg.project.alertLevel ?? 0,
-              type: typeLabel,
-              startDate: item.startDate,
-              endDate: item.endDate,
-              duration: item.duration,
-              slack:
-                item.slack > 0
-                  ? item.slack
-                  : typeof (item as any).freeSlack === 'number'
-                  ? (item as any).freeSlack
-                  : item.slack || 0,
-              progress: `${item.progress || 0}%`,
-              dependency: depName,
-              dependencyPredecessorName: targetItem ? targetItem.name : depId,
-              isCritical,
-              isExternal,
-              compliance: 'Conforme',
-              notes: item.notes?.trim() || '—',
-              isDepRow: dIdx > 0,
-            });
-          });
-        }
+        const depNames = deps.map((depId) => resolveDependencyName(depId, items, item));
+        const depTargetNames = deps.map((depId) => {
+          const targetItem = items.find(
+            (it) => it.id === depId || String(it.wbs ?? '') === depId
+          );
+          return targetItem ? targetItem.name : depId;
+        });
+
+        rows.push({
+          rowId: `${item.id}-0`,
+          itemId: item.id,
+          level: isMilestone ? 'HITO' : 'TAREA',
+          hierarchyLabel: levelLabel,
+          displayId: item.displayId || (item.projectId ? `P${pg.projectIndex}T${item.taskIndex || item.wbs}` : `T${item.taskIndex || item.wbs}`),
+          wbsCode,
+          name: item.name,
+          releaseCode: '—',
+          projectName: pg.project.name,
+          projectId: pg.project.id,
+          platform: normalizePlatform(item.platform) || platformLabel,
+          team: item.assignee?.trim() || '—',
+          alertLevel: item.alertLevel ?? pg.project.alertLevel ?? 0,
+          type: typeLabel,
+          startDate: item.startDate,
+          endDate: item.endDate,
+          duration: item.duration,
+          slack:
+            item.slack > 0
+              ? item.slack
+              : typeof (item as any).freeSlack === 'number'
+              ? (item as any).freeSlack
+              : item.slack || 0,
+          progress: `${item.progress || 0}%`,
+          dependency: depNames.length > 0 ? depNames.join(', ') : '—',
+          dependencyPredecessorName: depTargetNames.length > 0 ? depTargetNames.join(', ') : '—',
+          isCritical,
+          isExternal,
+          compliance: 'Conforme',
+          notes: item.notes?.trim() || '—',
+          isDepRow: false,
+        });
       }
     }
   }
