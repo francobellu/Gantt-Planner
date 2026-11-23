@@ -10,10 +10,18 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.11.7',
+    date: '23 Nov 2026',
+    title: 'Abrir RightSidePanel con detalles al seleccionar filas en Informes',
+    isLatest: true,
+    features: [
+      'Al seleccionar una tarea, proyecto o release en cualquiera de las 3 pestañas de Informes se abre el panel derecho en la pestaña Detalles mostrando el elemento seleccionado y resaltando la fila',
+    ],
+  },
+  {
     version: '1.11.6',
     date: '23 Nov 2026',
     title: 'Ocultar automáticamente el RightSidePanel al clicar fuera',
-    isLatest: true,
     features: [
       'El panel lateral derecho se oculta al hacer clic en áreas de la pantalla que no requieren su visibilidad, manteniéndose abierto al interactuar con el propio panel, botones de toggle/conflictos, filas/barras seleccionables y diálogos',
     ],

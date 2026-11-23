@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import {
   ComputedGanttItem,
+  FocusEntity,
   GanttItem,
   GanttProject,
   Release,
@@ -189,6 +190,8 @@ interface ReportsViewProps {
   onBackToGantt: () => void;
   initialTab?: ReportTab;
   initialShowColumnsMenu?: boolean;
+  selectedEntity?: FocusEntity | null;
+  onSelectEntity?: (entity: FocusEntity) => void;
   onUpdateItem?: (item: GanttItem, autoCascade: boolean) => void;
   onUpdateProject?: (project: GanttProject) => void;
   onUpdateRelease?: (release: Release) => void;
@@ -201,6 +204,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   onBackToGantt,
   initialTab = 'cronograma',
   initialShowColumnsMenu = false,
+  selectedEntity = null,
+  onSelectEntity,
   onUpdateItem,
   onUpdateProject,
   onUpdateRelease,
@@ -1166,10 +1171,32 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                       ? 'bg-white dark:bg-[#0C0C09]'
                       : 'bg-[#FAFAF8] dark:bg-zinc-900/30';
 
+                    const isSelectedRow = Boolean(
+                      (isRelease && linkedRelease && selectedEntity?.type === 'release' && selectedEntity.id === linkedRelease.id) ||
+                        (isProject && linkedProject && selectedEntity?.type === 'project' && selectedEntity.id === linkedProject.id) ||
+                        (!isRelease && !isProject && linkedItem && selectedEntity?.type === 'task' && selectedEntity.id === linkedItem.id)
+                    );
+
                     return (
                       <tr
                         key={row.rowId}
-                        className={`${rowBgClass} hover:bg-indigo-50/70 dark:hover:bg-indigo-950/40 transition-colors`}
+                        data-report-row={row.rowId}
+                        data-selected-report-row={isSelectedRow ? 'true' : undefined}
+                        onClick={() => {
+                          if (!onSelectEntity) return;
+                          if (isRelease && linkedRelease) {
+                            onSelectEntity({ type: 'release', id: linkedRelease.id, name: linkedRelease.name || linkedRelease.code });
+                          } else if (isProject && linkedProject) {
+                            onSelectEntity({ type: 'project', id: linkedProject.id, name: linkedProject.name });
+                          } else if (linkedItem) {
+                            onSelectEntity({ type: 'task', id: linkedItem.id, name: linkedItem.name });
+                          }
+                        }}
+                        className={`${rowBgClass} ${
+                          isSelectedRow
+                            ? 'ring-2 ring-inset ring-indigo-500 bg-indigo-50/80 dark:bg-indigo-950/50'
+                            : 'hover:bg-indigo-50/70 dark:hover:bg-indigo-950/40'
+                        } cursor-pointer transition-colors`}
                       >
                         {/* Excel Row Index */}
                         <td className="px-2.5 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 text-center text-[10px] text-[#6B6B66] dark:text-zinc-500 bg-[#ECECE8]/40 dark:bg-zinc-900/50 select-none">
@@ -1691,10 +1718,24 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     const linkedProj = row.projectId
                       ? projectById.get(row.projectId)
                       : projects.find((p) => p.name === row.projectName);
+                    const isSelectedProj = Boolean(
+                      linkedProj && selectedEntity?.type === 'project' && selectedEntity.id === linkedProj.id
+                    );
                     return (
                       <tr
                         key={row.projectId || row.code}
-                        className="bg-white dark:bg-[#0C0C09] hover:bg-indigo-50/50 dark:hover:bg-indigo-950/30 transition-colors"
+                        data-report-row={row.projectId || row.code}
+                        data-selected-report-row={isSelectedProj ? 'true' : undefined}
+                        onClick={() => {
+                          if (linkedProj && onSelectEntity) {
+                            onSelectEntity({ type: 'project', id: linkedProj.id, name: linkedProj.name });
+                          }
+                        }}
+                        className={`${
+                          isSelectedProj
+                            ? 'ring-2 ring-inset ring-indigo-500 bg-indigo-50/80 dark:bg-indigo-950/50'
+                            : 'bg-white dark:bg-[#0C0C09] hover:bg-indigo-50/50 dark:hover:bg-indigo-950/30'
+                        } cursor-pointer transition-colors`}
                       >
                         <td className="px-2.5 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 text-center text-[10px] text-[#6B6B66] bg-[#ECECE8]/40 dark:bg-zinc-900 select-none">
                           {idx + 1}
@@ -1937,10 +1978,24 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     const linkedRel = row.releaseId
                       ? releaseById.get(row.releaseId)
                       : releases.find((r) => r.code === row.code);
+                    const isSelectedRel = Boolean(
+                      linkedRel && selectedEntity?.type === 'release' && selectedEntity.id === linkedRel.id
+                    );
                     return (
                       <tr
                         key={row.releaseId || row.code}
-                        className="bg-white dark:bg-[#0C0C09] hover:bg-amber-50/40 dark:hover:bg-amber-950/20 transition-colors"
+                        data-report-row={row.releaseId || row.code}
+                        data-selected-report-row={isSelectedRel ? 'true' : undefined}
+                        onClick={() => {
+                          if (linkedRel && onSelectEntity) {
+                            onSelectEntity({ type: 'release', id: linkedRel.id, name: linkedRel.name || linkedRel.code });
+                          }
+                        }}
+                        className={`${
+                          isSelectedRel
+                            ? 'ring-2 ring-inset ring-indigo-500 bg-amber-50/70 dark:bg-amber-950/40'
+                            : 'bg-white dark:bg-[#0C0C09] hover:bg-amber-50/40 dark:hover:bg-amber-950/20'
+                        } cursor-pointer transition-colors`}
                       >
                         <td className="px-2.5 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 text-center text-[10px] text-[#6B6B66] bg-[#ECECE8]/40 dark:bg-zinc-900 select-none">
                           {idx + 1}

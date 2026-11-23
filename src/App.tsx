@@ -380,6 +380,7 @@ export function App({
       '[data-timeline-milestone]',
       '[data-project-summary-bar]',
       '[data-release-summary-bar]',
+      '[data-report-row]',
       '[role="dialog"]',
     ].join(', ');
     const handleOutsideMouseDown = (e: MouseEvent) => {
@@ -3141,6 +3142,12 @@ export function App({
             releases={releases}
             projects={effectiveProjects}
             items={computedItems}
+            selectedEntity={selectedEntity}
+            onSelectEntity={(entity) => {
+              setSelectedEntity(entity);
+              setShowCommitsSidebar(true);
+              setRightSidebarTab('details');
+            }}
             onBackToGantt={() => setCurrentView('gantt')}
             onUpdateItem={handleUpdateInline}
             onUpdateProject={handleUpdateProject}
