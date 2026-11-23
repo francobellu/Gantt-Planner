@@ -266,6 +266,8 @@ interface ReportsViewProps {
   initialTab?: ReportTab;
   initialShowColumnsMenu?: boolean;
   initialShowFormatMenu?: boolean;
+  initialCustomPresets?: ReportColumnPreset[];
+  initialActivePresetId?: string;
   selectedEntity?: FocusEntity | null;
   onSelectEntity?: (entity: FocusEntity) => void;
   onUpdateItem?: (item: GanttItem, autoCascade: boolean) => void;
@@ -280,6 +282,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   initialTab = 'cronograma',
   initialShowColumnsMenu = false,
   initialShowFormatMenu = false,
+  initialCustomPresets,
+  initialActivePresetId,
   selectedEntity = null,
   onSelectEntity,
   onUpdateItem,
@@ -295,6 +299,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const [newPresetName, setNewPresetName] = useState<string>('');
 
   const [customPresets, setCustomPresets] = useState<ReportColumnPreset[]>(() => {
+    if (initialCustomPresets && Array.isArray(initialCustomPresets)) {
+      return initialCustomPresets;
+    }
     try {
       const saved = typeof localStorage !== 'undefined' ? localStorage.getItem(REPORT_COLUMN_PRESETS_KEY) : null;
       if (saved) {
@@ -307,44 +314,63 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     return [];
   });
 
-  const [activePresetId, setActivePresetId] = useState<string>(() => {
+  const [activePresetByTab, setActivePresetByTab] = useState<Record<ReportTab, string>>(() => {
+    const defaultMap: Record<ReportTab, string> = {
+      cronograma: 'preset-all',
+      projects: 'preset-all',
+      releases: 'preset-releases-all',
+    };
+    if (initialActivePresetId) {
+      defaultMap[initialTab === 'projects' ? 'cronograma' : initialTab] = initialActivePresetId;
+      return defaultMap;
+    }
     try {
       const saved = typeof localStorage !== 'undefined' ? localStorage.getItem(REPORT_ACTIVE_PRESET_KEY) : null;
-      if (saved) return saved;
+      if (saved) {
+        if (saved.startsWith('{')) {
+          const parsed = JSON.parse(saved);
+          return { ...defaultMap, ...parsed };
+        }
+        return { ...defaultMap, cronograma: saved };
+      }
     } catch {}
-    return 'preset-all';
+    return defaultMap;
   });
 
   const [hiddenColsByTab, setHiddenColsByTab] = useState<Record<ReportTab, Record<string, boolean>>>(() => {
     try {
-      const saved = typeof localStorage !== 'undefined' ? localStorage.getItem(REPORT_HIDDEN_COLS_KEY) : null;
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return {
-          cronograma: parsed.cronograma || {},
-          projects: parsed.projects || {},
-          releases: parsed.releases || {},
-        };
+      if (!initialActivePresetId) {
+        const saved = typeof localStorage !== 'undefined' ? localStorage.getItem(REPORT_HIDDEN_COLS_KEY) : null;
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          return {
+            cronograma: parsed.cronograma || {},
+            projects: parsed.projects || {},
+            releases: parsed.releases || {},
+          };
+        }
       }
-      const savedPresetId = typeof localStorage !== 'undefined' ? localStorage.getItem(REPORT_ACTIVE_PRESET_KEY) : null;
-      if (savedPresetId && savedPresetId !== 'preset-all' && savedPresetId !== 'custom') {
-        let custom: ReportColumnPreset[] = [];
-        try {
-          const savedCustom = localStorage.getItem(REPORT_COLUMN_PRESETS_KEY);
-          if (savedCustom) custom = JSON.parse(savedCustom);
-        } catch {}
-        const preset = [...DEFAULT_COLUMN_PRESETS, ...custom].find((p) => p.id === savedPresetId);
+      const targetPresetId = initialActivePresetId || (typeof localStorage !== 'undefined' ? localStorage.getItem(REPORT_ACTIVE_PRESET_KEY) : null);
+      if (targetPresetId && targetPresetId !== 'preset-all' && targetPresetId !== 'custom') {
+        let custom: ReportColumnPreset[] = initialCustomPresets || [];
+        if (custom.length === 0) {
+          try {
+            const savedCustom = localStorage.getItem(REPORT_COLUMN_PRESETS_KEY);
+            if (savedCustom) custom = JSON.parse(savedCustom);
+          } catch {}
+        }
+        const preset = [...DEFAULT_COLUMN_PRESETS, ...custom].find((p) => p.id === targetPresetId);
         if (preset) {
           const visibleSet = new Set(preset.visibleColKeys);
           const hiddenMap: Record<string, boolean> = {};
-          for (const col of COLUMNS_BY_TAB[preset.tab]) {
+          for (const col of (COLUMNS_BY_TAB[preset.tab] || [])) {
             if (!visibleSet.has(col.key)) {
               hiddenMap[col.key] = true;
             }
           }
           return {
             cronograma: preset.tab === 'cronograma' ? hiddenMap : {},
-            projects: {},
+            projects: preset.tab === 'projects' ? hiddenMap : {},
             releases: preset.tab === 'releases' ? hiddenMap : {},
           };
         }
@@ -462,6 +488,41 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const customPresetsForTab = customPresets.filter((p) => (p.tab || 'cronograma') === activeTab);
   const allPresetsForTab = [...defaultPresetsForTab, ...customPresetsForTab];
 
+  const currentVisibleColKeys = (COLUMNS_BY_TAB[activeTab] || [])
+    .filter((c) => isColVisible(activeTab, c.key))
+    .map((c) => c.key);
+
+  const activePresetId = useMemo(() => {
+    const preferredId = activePresetByTab[activeTab];
+    if (preferredId && preferredId !== 'custom') {
+      const found = allPresetsForTab.find((p) => p.id === preferredId);
+      if (
+        found &&
+        found.visibleColKeys.length === currentVisibleColKeys.length &&
+        currentVisibleColKeys.every((k) => found.visibleColKeys.includes(k))
+      ) {
+        return found.id;
+      }
+    }
+
+    const matched = allPresetsForTab.find((p) => {
+      if (p.visibleColKeys.length !== currentVisibleColKeys.length) return false;
+      const set = new Set(p.visibleColKeys);
+      return currentVisibleColKeys.every((k) => set.has(k));
+    });
+    if (matched) return matched.id;
+
+    const allCols = COLUMNS_BY_TAB[activeTab] || [];
+    if (allCols.length > 0 && currentVisibleColKeys.length === allCols.length) {
+      const defaultAll = defaultPresetsForTab.find(
+        (p) => p.id === 'preset-all' || p.id === 'preset-releases-all'
+      );
+      if (defaultAll) return defaultAll.id;
+    }
+
+    return 'custom';
+  }, [activeTab, activePresetByTab, allPresetsForTab, currentVisibleColKeys, defaultPresetsForTab]);
+
   const activePreset = allPresetsForTab.find((p) => p.id === activePresetId);
   let activePresetDisplayName = 'Personalizado';
   if (activePreset) {
@@ -470,18 +531,12 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     } else {
       activePresetDisplayName = activePreset.name.replace(/^Formato\s+/i, '');
     }
-  } else {
-    const allCols = COLUMNS_BY_TAB[activeTab];
-    const isAllVisible = allCols.every((c) => isColVisible(activeTab, c.key));
-    if (isAllVisible) {
-      activePresetDisplayName = 'Completo';
-    }
   }
 
   const applyPreset = (preset: ReportColumnPreset) => {
     const visibleSet = new Set(preset.visibleColKeys);
     const newHidden: Record<string, boolean> = {};
-    for (const col of COLUMNS_BY_TAB[preset.tab]) {
+    for (const col of COLUMNS_BY_TAB[preset.tab] || []) {
       if (!visibleSet.has(col.key)) {
         newHidden[col.key] = true;
       }
@@ -493,37 +548,60 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       } catch {}
       return next;
     });
-    setActivePresetId(preset.id);
-    try {
-      localStorage.setItem(REPORT_ACTIVE_PRESET_KEY, preset.id);
-    } catch {}
+    setActivePresetByTab((prev) => {
+      const next = { ...prev, [preset.tab]: preset.id };
+      try {
+        localStorage.setItem(REPORT_ACTIVE_PRESET_KEY, preset.id);
+      } catch {}
+      return next;
+    });
     setShowFormatMenu(false);
   };
 
   const handleSavePreset = () => {
     const trimmed = newPresetName.trim();
     if (!trimmed) return;
-    const currentVisible = COLUMNS_BY_TAB[activeTab]
+    const currentVisible = (COLUMNS_BY_TAB[activeTab] || [])
       .filter((c) => isColVisible(activeTab, c.key))
       .map((c) => c.key);
 
-    const newPreset: ReportColumnPreset = {
-      id: `preset-custom-${Date.now()}`,
-      name: trimmed,
-      tab: activeTab,
-      visibleColKeys: currentVisible,
-      isCustom: true,
-    };
+    const existingIndex = customPresets.findIndex(
+      (p) => (p.tab || 'cronograma') === activeTab && p.name.toLowerCase() === trimmed.toLowerCase()
+    );
 
-    const nextCustom = [...customPresets, newPreset];
+    let savedId: string;
+    let nextCustom: ReportColumnPreset[];
+
+    if (existingIndex >= 0) {
+      savedId = customPresets[existingIndex].id;
+      nextCustom = customPresets.map((p, idx) =>
+        idx === existingIndex ? { ...p, visibleColKeys: currentVisible } : p
+      );
+    } else {
+      savedId = `preset-custom-${Date.now()}`;
+      const newPreset: ReportColumnPreset = {
+        id: savedId,
+        name: trimmed,
+        tab: activeTab,
+        visibleColKeys: currentVisible,
+        isCustom: true,
+      };
+      nextCustom = [...customPresets, newPreset];
+    }
+
     setCustomPresets(nextCustom);
     try {
       localStorage.setItem(REPORT_COLUMN_PRESETS_KEY, JSON.stringify(nextCustom));
     } catch {}
-    setActivePresetId(newPreset.id);
-    try {
-      localStorage.setItem(REPORT_ACTIVE_PRESET_KEY, newPreset.id);
-    } catch {}
+
+    setActivePresetByTab((prev) => {
+      const next = { ...prev, [activeTab]: savedId };
+      try {
+        localStorage.setItem(REPORT_ACTIVE_PRESET_KEY, savedId);
+      } catch {}
+      return next;
+    });
+
     setNewPresetName('');
     setToastMessage(`Formato "${trimmed}" guardado correctamente.`);
     setTimeout(() => setToastMessage(null), 3000);
@@ -546,7 +624,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const toggleReportCol = (tab: ReportTab, key: string) => {
     setHiddenColsByTab((prev) => {
       const tabHidden = { ...(prev[tab] || {}) };
-      const allCols = COLUMNS_BY_TAB[tab];
+      const allCols = COLUMNS_BY_TAB[tab] || [];
       const currentlyHidden = Boolean(tabHidden[key]);
       if (!currentlyHidden) {
         const visibleCount = allCols.filter((c) => !tabHidden[c.key]).length;
@@ -571,10 +649,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         return currentVisible.every((k) => set.has(k));
       });
       const newPresetId = matched ? matched.id : 'custom';
-      setActivePresetId(newPresetId);
-      try {
-        localStorage.setItem(REPORT_ACTIVE_PRESET_KEY, newPresetId);
-      } catch {}
+      setActivePresetByTab((old) => {
+        const updated = { ...old, [tab]: newPresetId };
+        try {
+          localStorage.setItem(REPORT_ACTIVE_PRESET_KEY, newPresetId);
+        } catch {}
+        return updated;
+      });
 
       return next;
     });
@@ -589,7 +670,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       return next;
     });
     setColOrderByTab((prev) => {
-      const next = { ...prev, [tab]: COLUMNS_BY_TAB[tab].map((c) => c.key) };
+      const next = { ...prev, [tab]: (COLUMNS_BY_TAB[tab] || []).map((c) => c.key) };
       try {
         localStorage.setItem(REPORT_COL_ORDER_KEY, JSON.stringify(next));
       } catch {}
@@ -597,10 +678,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     });
     const defaultAllPreset = DEFAULT_COLUMN_PRESETS.find((p) => p.tab === tab && (p.id === 'preset-all' || p.id === 'preset-releases-all'));
     const allId = defaultAllPreset ? defaultAllPreset.id : 'preset-all';
-    setActivePresetId(allId);
-    try {
-      localStorage.setItem(REPORT_ACTIVE_PRESET_KEY, allId);
-    } catch {}
+    setActivePresetByTab((prev) => {
+      const next = { ...prev, [tab]: allId };
+      try {
+        localStorage.setItem(REPORT_ACTIVE_PRESET_KEY, allId);
+      } catch {}
+      return next;
+    });
   };
 
   const getOrderedColumns = (tab: ReportTab): ReportColumnDef[] => {
@@ -1398,7 +1482,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 setShowColumnsMenu(false);
               }}
               className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-[3px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[10px] font-semibold text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition cursor-pointer h-6.5"
-              title="Seleccionar formato de columnas"
+              title={`Formato actual: ${activePresetDisplayName}`}
             >
               <LayoutTemplate className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
               <span className="truncate max-w-[130px] sm:max-w-[180px]">

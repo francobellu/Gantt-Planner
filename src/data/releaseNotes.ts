@@ -10,10 +10,20 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.11.15',
+    date: '23 Nov 2026',
+    title: 'Sincronización por pestaña y actualización de presets de formato en Informes',
+    isLatest: true,
+    features: [
+      'Sincroniza el preset activo por pestaña evitando desajustes al alternar entre Cronograma y Releases',
+      'Actualiza presets personalizados existentes al guardar con el mismo nombre',
+      'Muestra tooltip con nombre completo del formato activo y añade verificación ampliada en suite de tests',
+    ],
+  },
+  {
     version: '1.11.14',
     date: '23 Nov 2026',
     title: 'Selector de formatos y presets de columnas en Informe Planificación',
-    isLatest: true,
     features: [
       'Añade selector de formatos predeterminados y personalizados para columnas visibles en Informe Planificación',
       'Permite guardar y nombrar presets de configuración de columnas con persistencia en localStorage',
