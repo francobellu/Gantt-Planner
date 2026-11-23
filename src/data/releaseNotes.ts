@@ -10,10 +10,20 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.11.0',
+    date: '23 Nov 2026',
+    title: 'Informes con columnas configurables, redimensionables y edición directa',
+    isLatest: true,
+    features: [
+      'Añade selector de columnas visibles por pestaña en ReportsView persistido en localStorage',
+      'Añade tiradores para redimensionar el ancho de cada columna en Cronograma Completo, Resumen Proyectos y Catálogo Releases',
+      'Permite editar directamente textos, fechas, duraciones, holgura, progreso, plataformas, niveles de alerta y releases desde las tablas de informes',
+    ],
+  },
+  {
     version: '1.10.23',
     date: '23 Nov 2026',
     title: 'Ghost apilado y movimiento sincronizado en arrastre múltiple',
-    isLatest: true,
     features: [
       'El ghost flotante muestra todas las tareas seleccionadas apiladas al arrastrar',
       'Las barras arrastradas en el cronograma siguen el cursor de forma inmediata sin retraso respecto a la tabla',

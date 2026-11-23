@@ -9,6 +9,7 @@ import { groupItemsByProject, groupItemsByReleaseAndProject, normalizePlatform }
 
 export interface CronogramaReportRow {
   rowId: string;
+  itemId?: string;
   level: 'RELEASE' | 'PROYECTO' | 'TAREA' | 'HITO';
   hierarchyLabel: string;
   wbsCode: string;
@@ -34,6 +35,7 @@ export interface CronogramaReportRow {
 }
 
 export interface ProjectSummaryReportRow {
+  projectId?: string;
   code: string;
   projectName: string;
   platform: string;
@@ -221,6 +223,7 @@ export function generateCronogramaCompletoRows(
           if (deps.length === 0) {
             rows.push({
               rowId: `${item.id}-0`,
+              itemId: item.id,
               level: isMilestone ? 'HITO' : 'TAREA',
               hierarchyLabel: levelLabel,
               wbsCode,
@@ -253,6 +256,7 @@ export function generateCronogramaCompletoRows(
               );
               rows.push({
                 rowId: `${item.id}-${dIdx}`,
+                itemId: item.id,
                 level: isMilestone ? 'HITO' : 'TAREA',
                 hierarchyLabel: dIdx === 0 ? levelLabel : `${levelLabel} (Dep. ${dIdx + 1})`,
                 wbsCode,
@@ -426,6 +430,7 @@ export function generateProjectSummaryRows(
     }
 
     rows.push({
+      projectId: pg.project.id,
       code: `P${pg.projectIndex}`,
       projectName: pg.project.name,
       platform: normalizePlatform(pg.project.platform) || 'iOS/Android',

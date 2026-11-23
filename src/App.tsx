@@ -3050,6 +3050,13 @@ export function App({
             projects={effectiveProjects}
             items={computedItems}
             onBackToGantt={() => setCurrentView('gantt')}
+            onUpdateItem={handleUpdateInline}
+            onUpdateProject={handleUpdateProject}
+            onUpdateRelease={(updatedRel) =>
+              setReleases((prev) =>
+                prev.map((r) => (r.id === updatedRel.id ? updatedRel : r))
+              )
+            }
           />
         ) : (
           <>
