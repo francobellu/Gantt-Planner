@@ -10,10 +10,18 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.11.11',
+    date: '23 Nov 2026',
+    title: 'Eliminado botón redundante Volver al Gantt en Informes',
+    isLatest: true,
+    features: [
+      'Eliminado el botón Volver al Gantt de la cabecera de Informes al existir ya el selector principal Cronograma | Informes en la barra superior',
+    ],
+  },
+  {
     version: '1.11.10',
     date: '23 Nov 2026',
     title: 'Columnas Nivel de Alerta y Notas en Cronograma Completo y reordenación drag-and-drop',
-    isLatest: true,
     features: [
       'Añadidas las columnas editables Nivel de Alerta y Notas / Descripción al informe Cronograma Completo y exportación Excel',
       'Soporte de reordenación de columnas mediante arrastrar y soltar encabezados en las 3 pestañas de Informes con persistencia en localStorage',

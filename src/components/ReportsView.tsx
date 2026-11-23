@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
-  ArrowLeft,
   FileSpreadsheet,
   Download,
   Search,
@@ -190,7 +189,7 @@ interface ReportsViewProps {
   releases: Release[];
   projects: GanttProject[];
   items: ComputedGanttItem[];
-  onBackToGantt: () => void;
+  onBackToGantt?: () => void;
   initialTab?: ReportTab;
   initialShowColumnsMenu?: boolean;
   selectedEntity?: FocusEntity | null;
@@ -204,7 +203,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   releases,
   projects,
   items,
-  onBackToGantt,
   initialTab = 'cronograma',
   initialShowColumnsMenu = false,
   selectedEntity = null,
@@ -737,17 +735,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       {/* Top Header & Navigation Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-[#F4F4F1] dark:bg-zinc-900 border-b border-[#0C0C09] dark:border-zinc-800 shrink-0">
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            data-testid="reports-back-btn"
-            onClick={onBackToGantt}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#E2E2DC] dark:hover:bg-zinc-700 text-xs font-semibold transition cursor-pointer shadow-none"
-            title="Volver a la vista del diagrama de Gantt"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Volver al Gantt</span>
-          </button>
-
           <div className="flex items-center gap-2">
             <div className="p-1.5 rounded-[3px] bg-emerald-700 text-white shrink-0">
               <FileSpreadsheet className="w-4 h-4" />
