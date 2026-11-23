@@ -1292,7 +1292,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                           <td className="px-3 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap font-sans text-xs text-[#0C0C09] dark:text-zinc-200 overflow-hidden">
                             <div className="flex items-center gap-1.5 min-w-0">
                               <span className="truncate">{row.projectName}</span>
-                              {isProject && row.alertLevel !== undefined && (
+                              {(isProject || (row.alertLevel !== undefined && row.alertLevel > 0)) && row.alertLevel !== undefined && (
                                 <span
                                   data-testid={`cronograma-project-alert-badge-${row.wbsCode}`}
                                   className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-mono font-bold border shrink-0 ${

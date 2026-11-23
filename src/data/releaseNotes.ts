@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.11.3',
+    date: '23 Nov 2026',
+    title: 'Nivel de alerta en tareas y selección desde tabla en panel de detalle',
+    isLatest: true,
+    features: [
+      'Soporte de alertLevel (0-3) en tareas e hitos desde el panel derecho, modal de tarea, tabla y cronograma completo',
+      'Clicar proyectos o tareas en la tabla selecciona el elemento y actualiza el panel de detalle derecho igual que desde el cronograma',
+    ],
+  },
+  {
     version: '1.11.2',
     date: '23 Nov 2026',
     title: 'Creación de tareas y proyectos sin release desde la barra inferior',
-    isLatest: true,
     features: [
       'El botón + Nuevo Proyecto de la barra inferior ahora inicia sin release seleccionada (opción Sin release) y crea proyectos fuera de releases',
       'El botón + Nueva Tarea de la barra inferior crea tareas directamente sin ninguna release asociada mediante handleCreateUnassignedTask',

@@ -570,6 +570,40 @@ export const TEAM_BADGE_STYLES: Record<
   },
 };
 
+const ALERT_LEVEL_CONFIG: Record<
+  ProjectAlertLevel,
+  { label: string; title: string; className: string; dotColor: string }
+> = {
+  0: {
+    label: 'Nivel 0',
+    title: 'Nivel de Alerta 0: Normal / Sin alerta',
+    className:
+      'bg-zinc-100 text-zinc-600 border-zinc-300 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700',
+    dotColor: 'bg-zinc-400',
+  },
+  1: {
+    label: 'Nivel 1',
+    title: 'Nivel de Alerta 1: Baja / Leve',
+    className:
+      'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800',
+    dotColor: 'bg-amber-500',
+  },
+  2: {
+    label: 'Nivel 2',
+    title: 'Nivel de Alerta 2: Media / Moderada',
+    className:
+      'bg-orange-50 text-orange-800 border-orange-300 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800',
+    dotColor: 'bg-orange-500',
+  },
+  3: {
+    label: 'Nivel 3',
+    title: 'Nivel de Alerta 3: Alta / Crítica',
+    className:
+      'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800',
+    dotColor: 'bg-rose-500',
+  },
+};
+
 export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   items,
   projects = [],
@@ -1139,6 +1173,26 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     setSelectedItemId(null);
     setSelectedDepLink(null);
     onSelectEntity?.(next);
+  };
+
+  const handleSelectTaskFromTable = (item: ComputedGanttItem, e: React.MouseEvent) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey) {
+      e.stopPropagation();
+      toggleMultiSelectItem(item.id, e.shiftKey);
+      return;
+    }
+    const targetEl = e.target as HTMLElement | null;
+    if (targetEl?.closest('button')) return;
+    const isFormControl = Boolean(targetEl?.closest('input, select, textarea, a'));
+    const isAlreadySelected = effectiveSelectedItemId === item.id;
+    if (isFormControl && isAlreadySelected) return;
+
+    setSelectedDepLink(null);
+    setSelectedDiagramProjectId(null);
+    setSelectedDiagramReleaseId(null);
+    const nextId = isAlreadySelected ? null : item.id;
+    setSelectedItemId(nextId);
+    onSelectEntity?.(nextId ? { type: 'task', id: nextId, name: item.name } : null);
   };
 
   const [inspectingProject, setInspectingProject] = useState<GanttProject | null>(() => {
@@ -2961,7 +3015,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
     if (tableAlertFilter !== 'all') {
       filtered = filtered.filter(
-        (g) => (g.project.alertLevel ?? 0) === tableAlertFilter
+        (g) =>
+          (g.project.alertLevel ?? 0) === tableAlertFilter ||
+          g.items.some((it) => (it.alertLevel ?? 0) === tableAlertFilter)
       );
     }
 
@@ -6311,6 +6367,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             ? group.project.name || 'Proyecto'
                             : group.project.name.slice(0, effectiveTruncateLimit) + '…';
 
+                        const isProjectSelected = effectiveSelectedProjectId === group.project.id;
                         const isProjectMultiSelected = multiSelectedProjectIds.has(group.project.id);
                         const isDraggingThisProject = draggingProjectId === group.project.id;
                         const isProjectReorderTargetBefore =
@@ -6323,6 +6380,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           <div
                             key={row.rowId}
                             data-project-group={group.project.id}
+                            data-selected-project-row={isProjectSelected ? 'true' : undefined}
                             data-project-locked={group.project.locked ? 'true' : 'false'}
                             data-multi-selected={isProjectMultiSelected ? 'true' : 'false'}
                             style={{ top: rowIndex * ROW_HEIGHT, height: ROW_HEIGHT, minWidth: tableMinWidth, ...rowShiftStyle }}
@@ -6343,7 +6401,13 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               if (e.metaKey || e.ctrlKey || e.shiftKey) {
                                 e.stopPropagation();
                                 toggleMultiSelectProject(group.project.id, e.shiftKey);
+                                return;
                               }
+                              const targetEl = e.target as HTMLElement | null;
+                              if (targetEl?.closest('button')) return;
+                              const isFormControl = Boolean(targetEl?.closest('input, select, textarea, a'));
+                              if (isFormControl && isProjectSelected) return;
+                              handleSelectProject(group.project);
                             }}
                             onDragOver={(e) =>
                               handleDragRowOver(e, `project:${group.project.id}`)
@@ -6365,6 +6429,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 ? 'border-b-2 border-b-indigo-600 dark:border-b-indigo-400 bg-indigo-50/60 dark:bg-indigo-950/40'
                                 : isProjectDragTarget
                                 ? 'ring-2 ring-inset ring-indigo-500 bg-indigo-100/70 dark:bg-indigo-950/60'
+                                : isProjectSelected
+                                ? 'ring-2 ring-inset ring-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/40'
                                 : isProjectMultiSelected
                                 ? 'ring-1 ring-inset ring-indigo-500 bg-indigo-50/90 dark:bg-indigo-950/50'
                                 : projTheme.groupRowBg
@@ -6423,7 +6489,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               <button
                                 type="button"
                                 data-testid={`project-id-badge-${group.project.id}`}
-                                onClick={() => setInspectingProject(group.project)}
+                                onClick={() =>
+                                  useRightSidebarInspector
+                                    ? handleSelectProject(group.project)
+                                    : setInspectingProject(group.project)
+                                }
                                 className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold text-white shrink-0 hover:opacity-85 transition cursor-pointer ${projTheme.badge}`}
                                 title={`Configuración de ${group.project.name} (Release, descripción, color)`}
                               >
@@ -6468,43 +6538,18 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
                               {(() => {
                                 const alertLevel = group.project.alertLevel ?? 0;
-                                const alertConfig = {
-                                  0: {
-                                    label: 'Nivel 0',
-                                    title: 'Nivel de Alerta 0: Normal / Sin alerta',
-                                    className:
-                                      'bg-zinc-100 text-zinc-600 border-zinc-300 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700',
-                                    dotColor: 'bg-zinc-400',
-                                  },
-                                  1: {
-                                    label: 'Nivel 1',
-                                    title: 'Nivel de Alerta 1: Baja / Leve',
-                                    className:
-                                      'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800',
-                                    dotColor: 'bg-amber-500',
-                                  },
-                                  2: {
-                                    label: 'Nivel 2',
-                                    title: 'Nivel de Alerta 2: Media / Moderada',
-                                    className:
-                                      'bg-orange-50 text-orange-800 border-orange-300 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800',
-                                    dotColor: 'bg-orange-500',
-                                  },
-                                  3: {
-                                    label: 'Nivel 3',
-                                    title: 'Nivel de Alerta 3: Alta / Crítica',
-                                    className:
-                                      'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800',
-                                    dotColor: 'bg-rose-500',
-                                  },
-                                }[alertLevel];
+                                const alertConfig = ALERT_LEVEL_CONFIG[alertLevel];
 
                                 return (
                                   <button
                                     type="button"
                                     data-testid={`project-alert-badge-${group.project.id}`}
                                     data-alert-level={alertLevel}
-                                    onClick={() => setInspectingProject(group.project)}
+                                    onClick={() =>
+                                      useRightSidebarInspector
+                                        ? handleSelectProject(group.project)
+                                        : setInspectingProject(group.project)
+                                    }
                                     className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold shrink-0 border cursor-pointer hover:opacity-85 transition ${alertConfig.className}`}
                                     title={`${alertConfig.title} (clic para configurar)`}
                                     aria-label={alertConfig.title}
@@ -6813,12 +6858,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           data-multi-selected={isMultiSelectedItem ? 'true' : 'false'}
                           draggable={true}
                           style={{ top: rowIndex * ROW_HEIGHT, height: ROW_HEIGHT, minWidth: tableMinWidth, ...rowShiftStyle }}
-                          onClick={(e) => {
-                            if (e.metaKey || e.ctrlKey || e.shiftKey) {
-                              e.stopPropagation();
-                              toggleMultiSelectItem(item.id, e.shiftKey);
-                            }
-                          }}
+                          onClick={(e) => handleSelectTaskFromTable(item, e)}
                           onMouseEnter={() => setHoveredId(item.id)}
                           onMouseLeave={() => setHoveredId(null)}
                           onMouseDown={(e) => handleRowPointerMouseDown(e, item.id, false)}
@@ -6940,6 +6980,31 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 }`}
                               />
                             )}
+                            {(item.alertLevel ?? 0) > 0 && (() => {
+                              const taskAlert = (item.alertLevel ?? 0) as ProjectAlertLevel;
+                              const alertCfg = ALERT_LEVEL_CONFIG[taskAlert];
+                              return (
+                                <button
+                                  type="button"
+                                  data-testid={`task-alert-badge-${item.id}`}
+                                  data-alert-level={taskAlert}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedDepLink(null);
+                                    setSelectedDiagramProjectId(null);
+                                    setSelectedDiagramReleaseId(null);
+                                    setSelectedItemId(item.id);
+                                    onSelectEntity?.({ type: 'task', id: item.id, name: item.name });
+                                  }}
+                                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold shrink-0 border cursor-pointer hover:opacity-85 transition ${alertCfg.className}`}
+                                  title={`${alertCfg.title} (clic para ver detalles)`}
+                                  aria-label={alertCfg.title}
+                                >
+                                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${alertCfg.dotColor}`} />
+                                  <span>{alertCfg.label}</span>
+                                </button>
+                              );
+                            })()}
                             {(() => {
                               const isTaskNameExpanded =
                                 focusedTaskInputId === item.id ||

@@ -174,6 +174,9 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
   const [taskColor, setTaskColor] = useState<TaskColor>('indigo');
   const [taskPlatform, setTaskPlatform] = useState<ProjectPlatform | ''>('');
   const [taskReleaseId, setTaskReleaseId] = useState('');
+  const [taskAlertLevel, setTaskAlertLevel] = useState<ProjectAlertLevel>(
+    () => selectedTask?.alertLevel ?? 0
+  );
   const [taskStart, setTaskStart] = useState('');
   const [taskEnd, setTaskEnd] = useState('');
   const [taskDuration, setTaskDuration] = useState(1);
@@ -194,6 +197,7 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
     setTaskColor(selectedTask.color || 'indigo');
     setTaskPlatform(selectedTask.platform || '');
     setTaskReleaseId(selectedTask.releaseId || '');
+    setTaskAlertLevel(selectedTask.alertLevel ?? 0);
     setTaskStart(selectedTask.startDate);
     setTaskEnd(selectedTask.endDate);
     setTaskDuration(selectedTask.type === 'milestone' ? 0 : Math.max(1, selectedTask.duration));
@@ -409,6 +413,7 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                 customColor: true,
                 platform: taskPlatform || undefined,
                 releaseId: taskReleaseId || undefined,
+                alertLevel: taskAlertLevel,
                 startDate: taskStart,
                 endDate: taskType === 'milestone' ? taskStart : taskEnd,
                 duration: taskType === 'milestone' ? 0 : Math.max(1, taskDuration),
@@ -445,6 +450,23 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                           {effPlatform}
                         </span>
                       )}
+                      {(selectedTask.alertLevel ?? 0) > 0 && (() => {
+                        const lvl = selectedTask.alertLevel ?? 0;
+                        return (
+                          <span
+                            data-testid={`sidebar-task-alert-badge-${selectedTask.id}`}
+                            className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-[2px] border ${
+                              lvl === 1
+                                ? 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
+                                : lvl === 2
+                                ? 'bg-orange-50 text-orange-800 border-orange-300 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800'
+                                : 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
+                            }`}
+                          >
+                            Nivel {lvl}
+                          </span>
+                        );
+                      })()}
                       {isLocked && (
                         <span className="px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 text-[9px] font-mono font-bold">
                           Bloqueado
@@ -569,8 +591,8 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                   </div>
                 </div>
 
-                {/* Platform & Release */}
-                <div className="grid grid-cols-2 gap-2">
+                {/* Platform, Release & Alert Level */}
+                <div className="grid grid-cols-3 gap-2">
                   <div>
                     <label className="block text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400 mb-1">
                       Plataforma
@@ -601,6 +623,27 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                           {r.code}
                         </option>
                       ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400 mb-1">
+                      Nivel Alerta
+                    </label>
+                    <select
+                      data-testid="sidebar-task-alert-select"
+                      value={taskAlertLevel}
+                      disabled={isLocked}
+                      onChange={(e) => {
+                        const nextAlert = Number(e.target.value) as ProjectAlertLevel;
+                        setTaskAlertLevel(nextAlert);
+                        onUpdateItem({ ...selectedTask, alertLevel: nextAlert }, false);
+                      }}
+                      className="w-full px-2 py-1.5 rounded-[4px] border border-[#E2E2DC] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs disabled:opacity-50"
+                    >
+                      <option value={0}>0 — Normal</option>
+                      <option value={1}>1 — Baja</option>
+                      <option value={2}>2 — Media</option>
+                      <option value={3}>3 — Alta</option>
                     </select>
                   </div>
                 </div>

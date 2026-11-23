@@ -20,6 +20,7 @@ import {
   DependencyType,
   GanttItem,
   GanttProject,
+  ProjectAlertLevel,
   ProjectPlatform,
   Release,
   TaskColor,
@@ -156,6 +157,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
   const [assignee, setAssignee] = useState(initialItem?.assignee || '');
   const [platform, setPlatform] = useState<ProjectPlatform | ''>(initialItem?.platform || '');
   const [releaseId, setReleaseId] = useState<string>(initialItem?.releaseId || '');
+  const [alertLevel, setAlertLevel] = useState<ProjectAlertLevel>(initialItem?.alertLevel ?? 0);
   const [notes, setNotes] = useState(initialItem?.notes || '');
   const [hidden, setHidden] = useState(Boolean(initialItem?.hidden));
   const [isExternal, setIsExternal] = useState(Boolean(initialItem?.isExternal));
@@ -177,6 +179,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
       setProjectId(initialItem.projectId || fallbackPid);
       setPlatform(initialItem.platform || '');
       setReleaseId(initialItem.releaseId || '');
+      setAlertLevel(initialItem.alertLevel ?? 0);
       setStartDate(initialItem.startDate);
       setEndDate(initialItem.endDate);
       setDuration(initialItem.type === 'milestone' ? 0 : Math.max(1, initialItem.duration));
@@ -213,6 +216,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
       setType(defaultType);
       setName('');
       setProjectId(targetPid);
+      setAlertLevel(0);
       setStartDate(suggestedStart);
       setDuration(isMilestone ? 0 : 4);
       setEndDate(
@@ -576,6 +580,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
       assignee: assignee.trim() || undefined,
       platform: platform || undefined,
       releaseId: effectiveReleaseId,
+      alertLevel,
       notes: notes.trim() || undefined,
       hidden: Boolean(hidden),
       isExternal: type === 'milestone' ? Boolean(isExternal) : false,
@@ -979,6 +984,24 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                   </select>
                 );
               })()}
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+                Nivel de Alerta
+              </label>
+              <select
+                data-testid="task-alert-select"
+                value={alertLevel}
+                onChange={(e) => setAlertLevel(Number(e.target.value) as ProjectAlertLevel)}
+                className="w-full px-2.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer"
+                title="Nivel de alerta de la tarea (0 = Normal, 1 = Baja, 2 = Media, 3 = Alta)"
+              >
+                <option value={0}>Nivel 0 — Normal</option>
+                <option value={1}>Nivel 1 — Baja</option>
+                <option value={2}>Nivel 2 — Media</option>
+                <option value={3}>Nivel 3 — Alta</option>
+              </select>
             </div>
           </div>
 

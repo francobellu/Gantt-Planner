@@ -338,6 +338,15 @@ export function normalizePlatform(
   return undefined;
 }
 
+export function normalizeAlertLevel(rawVal: unknown): ProjectAlertLevel | undefined {
+  if (rawVal === undefined || rawVal === null || rawVal === '') return undefined;
+  const parsedAlert = Number(rawVal);
+  if (parsedAlert === 0 || parsedAlert === 1 || parsedAlert === 2 || parsedAlert === 3) {
+    return parsedAlert as ProjectAlertLevel;
+  }
+  return undefined;
+}
+
 export function sanitizeProject(
   raw: Partial<GanttProject>,
   fallbackIndex = 0
@@ -353,13 +362,7 @@ export function sanitizeProject(
   const id = rawId || `proj-${fallbackIndex + 1}-${Date.now()}`;
   const platform = normalizePlatform(raw.platform as string | undefined);
 
-  let alertLevel: ProjectAlertLevel | undefined;
-  if (raw.alertLevel !== undefined && raw.alertLevel !== null) {
-    const parsedAlert = Number(raw.alertLevel);
-    if (parsedAlert === 0 || parsedAlert === 1 || parsedAlert === 2 || parsedAlert === 3) {
-      alertLevel = parsedAlert as ProjectAlertLevel;
-    }
-  }
+  const alertLevel = normalizeAlertLevel(raw.alertLevel);
 
   let projectIndex: number | undefined;
   if (
@@ -704,6 +707,9 @@ export function sanitizeGanttItem(
       raw.releaseId != null && String(raw.releaseId).trim()
         ? String(raw.releaseId).trim()
         : undefined,
+    ...(normalizeAlertLevel(raw.alertLevel) !== undefined
+      ? { alertLevel: normalizeAlertLevel(raw.alertLevel) }
+      : {}),
   };
 
   if (raw.projectId != null && String(raw.projectId).trim()) {
