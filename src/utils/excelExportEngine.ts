@@ -32,6 +32,7 @@ export interface CronogramaReportRow {
   isCritical: boolean;
   isExternal: boolean;
   compliance: string;
+  notes: string;
   isDepRow?: boolean;
 }
 
@@ -76,6 +77,7 @@ export const CRONOGRAMA_HEADER = [
   'Proyecto',
   'Plataforma',
   'Equipo',
+  'Nivel de Alerta',
   'Tipo',
   'Fecha Inicio',
   'Fecha Fin',
@@ -86,6 +88,7 @@ export const CRONOGRAMA_HEADER = [
   'Ruta Crítica',
   'Hito Externo',
   'Cumplimiento Release',
+  'Notas / Descripción',
 ];
 
 export const PROJECT_SUMMARY_HEADER = [
@@ -181,6 +184,7 @@ export function generateCronogramaCompletoRows(
         isCritical: false,
         isExternal: false,
         compliance: 'Conforme',
+        notes: '—',
       });
 
       for (const pg of rg.projectGroups) {
@@ -210,6 +214,7 @@ export function generateCronogramaCompletoRows(
           isCritical: false,
           isExternal: false,
           compliance: 'Conforme',
+          notes: pg.project.description?.trim() || '—',
         });
 
         for (const item of pg.items) {
@@ -259,6 +264,7 @@ export function generateCronogramaCompletoRows(
               isCritical,
               isExternal,
               compliance: complianceLabel,
+              notes: item.notes?.trim() || '—',
               isDepRow: false,
             });
           } else {
@@ -293,6 +299,7 @@ export function generateCronogramaCompletoRows(
                 isCritical,
                 isExternal,
                 compliance: complianceLabel,
+                notes: item.notes?.trim() || '—',
                 isDepRow: dIdx > 0,
               });
             });
@@ -328,6 +335,7 @@ export function generateCronogramaCompletoRows(
         isCritical: false,
         isExternal: false,
         compliance: 'Conforme',
+        notes: pg.project.description?.trim() || '—',
       });
 
       for (const item of pg.items) {
@@ -363,6 +371,7 @@ export function generateCronogramaCompletoRows(
             isCritical,
             isExternal,
             compliance: 'Conforme',
+            notes: item.notes?.trim() || '—',
             isDepRow: false,
           });
         } else {
@@ -399,6 +408,7 @@ export function generateCronogramaCompletoRows(
               isCritical,
               isExternal,
               compliance: 'Conforme',
+              notes: item.notes?.trim() || '—',
               isDepRow: dIdx > 0,
             });
           });
@@ -530,6 +540,7 @@ export function exportFullGanttToWorkbook(
       r.projectName,
       r.platform,
       r.team,
+      r.alertLevel !== undefined ? `Nivel ${r.alertLevel}` : '—',
       r.type,
       r.startDate,
       r.endDate,
@@ -540,6 +551,7 @@ export function exportFullGanttToWorkbook(
       r.isCritical ? 'SÍ' : 'NO',
       r.isExternal ? 'SÍ' : 'NO',
       r.compliance,
+      r.notes,
     ]),
   ];
   const wsHierarchy = XLSX.utils.aoa_to_sheet(cronoAoa);
@@ -551,6 +563,7 @@ export function exportFullGanttToWorkbook(
     { wch: 28 }, // Proyecto
     { wch: 18 }, // Plataforma
     { wch: 18 }, // Equipo
+    { wch: 14 }, // Nivel de Alerta
     { wch: 12 }, // Tipo
     { wch: 14 }, // Fecha Inicio
     { wch: 14 }, // Fecha Fin
@@ -561,6 +574,7 @@ export function exportFullGanttToWorkbook(
     { wch: 12 }, // Ruta Crítica
     { wch: 12 }, // Hito Externo
     { wch: 30 }, // Cumplimiento Release
+    { wch: 42 }, // Notas / Descripción
   ];
   XLSX.utils.book_append_sheet(wb, wsHierarchy, 'Cronograma Completo');
 

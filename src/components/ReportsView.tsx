@@ -62,6 +62,7 @@ const CRONO_COLUMNS: ReportColumnDef[] = [
   { key: 'projectName', label: 'Proyecto', defaultWidth: 185 },
   { key: 'platform', label: 'Plataforma', defaultWidth: 125 },
   { key: 'team', label: 'Equipo', defaultWidth: 150 },
+  { key: 'alertLevel', label: 'Nivel de Alerta', defaultWidth: 135 },
   { key: 'type', label: 'Tipo', defaultWidth: 105 },
   { key: 'startDate', label: 'Inicio', defaultWidth: 135 },
   { key: 'endDate', label: 'Fin', defaultWidth: 135 },
@@ -72,6 +73,7 @@ const CRONO_COLUMNS: ReportColumnDef[] = [
   { key: 'isCritical', label: 'Ruta Crítica', defaultWidth: 105, align: 'center' },
   { key: 'isExternal', label: 'Hito Ext.', defaultWidth: 95, align: 'center' },
   { key: 'compliance', label: 'Cumplimiento Release', defaultWidth: 170 },
+  { key: 'notes', label: 'Notas / Descripción', defaultWidth: 250 },
 ];
 
 const PROJECT_COLUMNS: ReportColumnDef[] = [
@@ -109,6 +111,7 @@ const COLUMNS_BY_TAB: Record<ReportTab, ReportColumnDef[]> = {
 
 const REPORT_HIDDEN_COLS_KEY = 'ganttflow_report_hidden_cols_v1';
 const REPORT_COL_WIDTHS_KEY = 'ganttflow_report_col_widths_v1';
+const REPORT_COL_ORDER_KEY = 'ganttflow_report_col_order_v1';
 
 interface EditableReportTextCellProps {
   value: string;
@@ -243,6 +246,35 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     } catch {}
     return { cronograma: {}, projects: {}, releases: {} };
   });
+
+  const [colOrderByTab, setColOrderByTab] = useState<Record<ReportTab, string[]>>(() => {
+    const defaults: Record<ReportTab, string[]> = {
+      cronograma: CRONO_COLUMNS.map((c) => c.key),
+      projects: PROJECT_COLUMNS.map((c) => c.key),
+      releases: RELEASE_COLUMNS.map((c) => c.key),
+    };
+    try {
+      const saved = typeof localStorage !== 'undefined' ? localStorage.getItem(REPORT_COL_ORDER_KEY) : null;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const mergeOrder = (tab: ReportTab): string[] => {
+          const base = Array.isArray(parsed[tab]) ? parsed[tab] : [];
+          const validKeys = new Set(defaults[tab]);
+          const kept = base.filter((k: string) => validKeys.has(k));
+          const missing = defaults[tab].filter((k) => !kept.includes(k));
+          return [...kept, ...missing];
+        };
+        return {
+          cronograma: mergeOrder('cronograma'),
+          projects: mergeOrder('projects'),
+          releases: mergeOrder('releases'),
+        };
+      }
+    } catch {}
+    return defaults;
+  });
+  const [draggingCol, setDraggingCol] = useState<{ tab: ReportTab; key: string } | null>(null);
+  const [dragOverColKey, setDragOverColKey] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPlatform, setSelectedPlatform] = useState<'all' | ProjectPlatform>('all');
   const [showPlatformFilterMenu, setShowPlatformFilterMenu] = useState<boolean>(false);
@@ -326,6 +358,49 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       } catch {}
       return next;
     });
+    setColOrderByTab((prev) => {
+      const next = { ...prev, [tab]: COLUMNS_BY_TAB[tab].map((c) => c.key) };
+      try {
+        localStorage.setItem(REPORT_COL_ORDER_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const getOrderedColumns = (tab: ReportTab): ReportColumnDef[] => {
+    const defs = COLUMNS_BY_TAB[tab];
+    const order = colOrderByTab[tab] || [];
+    const byKey = new Map(defs.map((c) => [c.key, c]));
+    const ordered: ReportColumnDef[] = [];
+    for (const k of order) {
+      const def = byKey.get(k);
+      if (def) {
+        ordered.push(def);
+        byKey.delete(k);
+      }
+    }
+    for (const rem of byKey.values()) {
+      ordered.push(rem);
+    }
+    return ordered;
+  };
+
+  const reorderReportCols = (tab: ReportTab, fromKey: string, toKey: string) => {
+    if (fromKey === toKey) return;
+    setColOrderByTab((prev) => {
+      const current = getOrderedColumns(tab).map((c) => c.key);
+      const fromIdx = current.indexOf(fromKey);
+      const toIdx = current.indexOf(toKey);
+      if (fromIdx === -1 || toIdx === -1) return prev;
+      const nextOrder = [...current];
+      const [moved] = nextOrder.splice(fromIdx, 1);
+      nextOrder.splice(toIdx, 0, moved);
+      const next = { ...prev, [tab]: nextOrder };
+      try {
+        localStorage.setItem(REPORT_COL_ORDER_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
   };
 
   const getColWidth = (tab: ReportTab, col: ReportColumnDef): number => {
@@ -389,17 +464,62 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         : col.align === 'center'
         ? 'text-center'
         : 'text-left';
+    const isDragOver = draggingCol?.tab === tab && dragOverColKey === col.key;
+    const isDragging = draggingCol?.tab === tab && draggingCol?.key === col.key;
     return (
       <th
         key={col.key}
         data-testid={`report-col-header-${tab}-${col.key}`}
+        data-col-key={col.key}
+        draggable={true}
+        onDragStart={(e) => {
+          const target = e.target as HTMLElement | null;
+          if (target?.closest('[data-testid^="report-col-resizer-"]')) {
+            e.preventDefault();
+            return;
+          }
+          setDraggingCol({ tab, key: col.key });
+          if (e.dataTransfer) {
+            e.dataTransfer.effectAllowed = 'move';
+            try {
+              e.dataTransfer.setData('text/plain', col.key);
+            } catch {}
+          }
+        }}
+        onDragOver={(e) => {
+          if (draggingCol && draggingCol.tab === tab && draggingCol.key !== col.key) {
+            e.preventDefault();
+            if (dragOverColKey !== col.key) setDragOverColKey(col.key);
+          }
+        }}
+        onDragLeave={() => {
+          if (dragOverColKey === col.key) setDragOverColKey(null);
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          if (draggingCol && draggingCol.tab === tab && draggingCol.key !== col.key) {
+            reorderReportCols(tab, draggingCol.key, col.key);
+          }
+          setDraggingCol(null);
+          setDragOverColKey(null);
+        }}
+        onDragEnd={() => {
+          setDraggingCol(null);
+          setDragOverColKey(null);
+        }}
         style={{ width, minWidth: width }}
-        className={`relative px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-700 whitespace-nowrap select-none ${alignClass} ${extraClass}`}
+        title="Arrastra el encabezado para reordenar esta columna"
+        className={`relative px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-700 whitespace-nowrap select-none cursor-grab active:cursor-grabbing transition-colors ${alignClass} ${extraClass} ${
+          isDragging ? 'opacity-50' : ''
+        } ${isDragOver ? 'border-l-2 border-l-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/40' : ''}`}
       >
         <span className="truncate block pr-2">{col.label}</span>
         <div
           data-testid={`report-col-resizer-${tab}-${col.key}`}
-          onMouseDown={(e) => startColResize(e, tab, col.key, width)}
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            startColResize(e, tab, col.key, width);
+          }}
           title="Arrastra para redimensionar esta columna"
           className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-indigo-500/60 active:bg-indigo-600 transition-colors z-10"
         />
@@ -463,6 +583,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         const matchesType = row.type.toLowerCase().includes(q);
         const matchesPlatform = row.platform.toLowerCase().includes(q);
         const matchesTeam = row.team.toLowerCase().includes(q);
+        const matchesNotes = row.notes.toLowerCase().includes(q);
         const matchesAlert =
           row.alertLevel !== undefined &&
           (`nivel ${row.alertLevel}`.includes(q) || String(row.alertLevel) === q);
@@ -475,6 +596,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           !matchesType &&
           !matchesPlatform &&
           !matchesTeam &&
+          !matchesNotes &&
           !matchesAlert
         ) {
           return false;
@@ -1073,7 +1195,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     Mostrar todas
                   </button>
                 </div>
-                {COLUMNS_BY_TAB[activeTab].map((col) => {
+                {getOrderedColumns(activeTab).map((col) => {
                   const visible = isColVisible(activeTab, col.key);
                   return (
                     <button
@@ -1129,7 +1251,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   <th className="px-2.5 py-2 border-r border-[#E2E2DC] dark:border-zinc-700 w-12 text-center bg-[#ECECE8] dark:bg-zinc-900 text-[#6B6B66] select-none">
                     #
                   </th>
-                  {CRONO_COLUMNS.map((col) =>
+                  {getOrderedColumns('cronograma').map((col) =>
                     renderResizableTh(
                       'cronograma',
                       col,
@@ -1203,485 +1325,563 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                           {idx + 1}
                         </td>
 
-                        {/* Jerarquía */}
-                        {isColVisible('cronograma', 'hierarchy') && (
-                          <td className="px-3 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap overflow-hidden">
-                            {isRelease ? (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] bg-slate-800 text-white dark:bg-zinc-100 dark:text-[#0C0C09] text-[10px] font-bold">
-                                <Rocket className="w-2.5 h-2.5" /> RELEASE
-                              </span>
-                            ) : isProject ? (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] bg-indigo-700 text-white text-[10px] font-bold">
-                                <FolderKanban className="w-2.5 h-2.5" /> PROYECTO
-                              </span>
-                            ) : isMilestone ? (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-400/40 text-[10px] font-semibold">
-                                ◆ HITO
-                              </span>
-                            ) : isDepSubRow ? (
-                              <span className="text-slate-400 dark:text-zinc-500 text-[10px] pl-4">
-                                └─ Dependencia
-                              </span>
-                            ) : (
-                              <span className="text-slate-600 dark:text-zinc-400 text-[10px]">
-                                TAREA
-                              </span>
-                            )}
-                          </td>
-                        )}
-
-                        {/* WBS Code */}
-                        {isColVisible('cronograma', 'wbsCode') && (
-                          <td className="px-3 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap font-bold text-[#0C0C09] dark:text-zinc-200 truncate">
-                            {row.wbsCode}
-                          </td>
-                        )}
-
-                        {/* Name (Editable text) */}
-                        {isColVisible('cronograma', 'name') && (
-                          <td className="px-2 py-1 border-r border-[#E2E2DC] dark:border-zinc-800 font-sans text-xs font-medium text-[#0C0C09] dark:text-zinc-100">
-                            {linkedItem && onUpdateItem && !isDepSubRow ? (
-                              <EditableReportTextCell
-                                testId={`report-crono-name-${linkedItem.id}`}
-                                value={linkedItem.name}
-                                onCommit={(next) =>
-                                  onUpdateItem({ ...linkedItem, name: next || linkedItem.name }, false)
-                                }
-                              />
-                            ) : linkedProject && onUpdateProject ? (
-                              <EditableReportTextCell
-                                testId={`report-crono-proj-name-${linkedProject.id}`}
-                                value={linkedProject.name}
-                                className="font-semibold"
-                                onCommit={(next) =>
-                                  onUpdateProject({ ...linkedProject, name: next || linkedProject.name })
-                                }
-                              />
-                            ) : linkedRelease && onUpdateRelease ? (
-                              <EditableReportTextCell
-                                testId={`report-crono-rel-name-${linkedRelease.id}`}
-                                value={linkedRelease.name}
-                                className="font-bold"
-                                onCommit={(next) =>
-                                  onUpdateRelease({ ...linkedRelease, name: next || linkedRelease.name })
-                                }
-                              />
-                            ) : (
-                              <span className="truncate block px-1.5">{row.name}</span>
-                            )}
-                          </td>
-                        )}
-
-                        {/* Release (Selector) */}
-                        {isColVisible('cronograma', 'releaseCode') && (
-                          <td className="px-2 py-1 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-[#6B6B66] dark:text-zinc-300">
-                            {linkedItem && onUpdateItem && !isDepSubRow ? (
-                              <select
-                                data-testid={`report-crono-release-${linkedItem.id}`}
-                                value={linkedItem.releaseId || ''}
-                                onChange={(e) =>
-                                  onUpdateItem(
-                                    { ...linkedItem, releaseId: e.target.value || undefined },
-                                    false
-                                  )
-                                }
-                                className="w-full bg-transparent px-1 py-0.5 rounded border border-transparent hover:border-slate-300 dark:hover:border-zinc-700 focus:border-indigo-500 text-[11px] outline-none cursor-pointer"
-                              >
-                                <option value="">Heredada</option>
-                                {releases.map((r) => (
-                                  <option key={r.id} value={r.id}>
-                                    {r.code}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : linkedProject && onUpdateProject ? (
-                              <select
-                                data-testid={`report-crono-proj-release-${linkedProject.id}`}
-                                value={linkedProject.releaseId || ''}
-                                onChange={(e) =>
-                                  onUpdateProject({
-                                    ...linkedProject,
-                                    releaseId: e.target.value || undefined,
-                                  })
-                                }
-                                className="w-full bg-transparent px-1 py-0.5 rounded border border-transparent hover:border-slate-300 dark:hover:border-zinc-700 focus:border-indigo-500 text-[11px] outline-none cursor-pointer"
-                              >
-                                <option value="">Sin asignar</option>
-                                {releases.map((r) => (
-                                  <option key={r.id} value={r.id}>
-                                    {r.code}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              <span className="px-1">{row.releaseCode}</span>
-                            )}
-                          </td>
-                        )}
-
-                        {/* Project */}
-                        {isColVisible('cronograma', 'projectName') && (
-                          <td className="px-3 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap font-sans text-xs text-[#0C0C09] dark:text-zinc-200 overflow-hidden">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="truncate">{row.projectName}</span>
-                              {(isProject || (row.alertLevel !== undefined && row.alertLevel > 0)) && row.alertLevel !== undefined && (
-                                <span
-                                  data-testid={`cronograma-project-alert-badge-${row.wbsCode}`}
-                                  className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-mono font-bold border shrink-0 ${
-                                    row.alertLevel === 1
-                                      ? 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
-                                      : row.alertLevel === 2
-                                      ? 'bg-orange-50 text-orange-800 border-orange-300 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800'
-                                      : row.alertLevel === 3
-                                      ? 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
-                                      : 'bg-zinc-100 text-zinc-600 border-zinc-300 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700'
-                                  }`}
-                                  title={`Nivel de alerta: ${row.alertLevel}`}
-                                >
-                                  <span
-                                    className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                                      row.alertLevel === 1
-                                        ? 'bg-amber-500'
-                                        : row.alertLevel === 2
-                                        ? 'bg-orange-500'
-                                        : row.alertLevel === 3
-                                        ? 'bg-rose-500'
-                                        : 'bg-zinc-400'
-                                    }`}
-                                  />
-                                  <span>{row.alertLevel}</span>
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                        )}
-
-                        {/* Platform (Selector) */}
-                        {isColVisible('cronograma', 'platform') && (
-                          <td className="px-2 py-1 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap">
-                            {linkedItem && onUpdateItem && !isDepSubRow ? (
-                              <select
-                                data-testid={`report-crono-platform-${linkedItem.id}`}
-                                value={linkedItem.platform || ''}
-                                onChange={(e) =>
-                                  onUpdateItem(
-                                    {
-                                      ...linkedItem,
-                                      platform: (e.target.value || undefined) as ProjectPlatform | undefined,
-                                    },
-                                    false
-                                  )
-                                }
-                                className="w-full bg-transparent px-1 py-0.5 rounded border border-transparent hover:border-slate-300 dark:hover:border-zinc-700 focus:border-indigo-500 text-[10px] font-bold outline-none cursor-pointer"
-                              >
-                                <option value="">Heredada ({row.platform})</option>
-                                <option value="iOS">iOS</option>
-                                <option value="Android">Android</option>
-                                <option value="iOS/Android">iOS/Android</option>
-                              </select>
-                            ) : linkedProject && onUpdateProject ? (
-                              <select
-                                data-testid={`report-crono-proj-platform-${linkedProject.id}`}
-                                value={normalizePlatform(linkedProject.platform) || 'iOS/Android'}
-                                onChange={(e) =>
-                                  onUpdateProject({
-                                    ...linkedProject,
-                                    platform: e.target.value as ProjectPlatform,
-                                  })
-                                }
-                                className="w-full bg-transparent px-1 py-0.5 rounded border border-transparent hover:border-slate-300 dark:hover:border-zinc-700 focus:border-indigo-500 text-[10px] font-bold outline-none cursor-pointer"
-                              >
-                                <option value="iOS">iOS</option>
-                                <option value="Android">Android</option>
-                                <option value="iOS/Android">iOS/Android</option>
-                              </select>
-                            ) : row.platform !== '—' ? (
-                              <span
-                                className={`px-1.5 py-0.5 rounded-[2px] text-[10px] font-bold ${
-                                  row.platform === 'iOS'
-                                    ? 'bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300'
-                                    : row.platform === 'Android'
-                                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
-                                    : 'bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300'
-                                }`}
-                              >
-                                {row.platform}
-                              </span>
-                            ) : (
-                              <span className="text-slate-400 px-1">—</span>
-                            )}
-                          </td>
-                        )}
-
-                        {/* Team / Equipo */}
-                        {isColVisible('cronograma', 'team') && (
-                          <td className="px-2 py-1 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap">
-                            {linkedItem && onUpdateItem && !isDepSubRow ? (
-                              <EditableReportTextCell
-                                testId={`report-crono-team-${linkedItem.id}`}
-                                value={linkedItem.assignee || ''}
-                                placeholder="Sin equipo"
-                                onCommit={(val) =>
-                                  onUpdateItem(
-                                    { ...linkedItem, assignee: val.trim() || undefined },
-                                    false
-                                  )
-                                }
-                              />
-                            ) : (
-                              <span
-                                data-testid={`report-crono-team-text-${row.rowId}`}
-                                className="px-1.5 text-[11px] text-slate-600 dark:text-zinc-300 truncate block"
-                                title={row.team}
-                              >
-                                {row.team}
-                              </span>
-                            )}
-                          </td>
-                        )}
-
-                        {/* Type (Selector) */}
-                        {isColVisible('cronograma', 'type') && (
-                          <td className="px-2 py-1 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-[#6B6B66] dark:text-zinc-400">
-                            {linkedItem && onUpdateItem && !isDepSubRow ? (
-                              <select
-                                data-testid={`report-crono-type-${linkedItem.id}`}
-                                value={linkedItem.type}
-                                onChange={(e) => {
-                                  const nextType = e.target.value as 'task' | 'milestone';
-                                  onUpdateItem(
-                                    {
-                                      ...linkedItem,
-                                      type: nextType,
-                                      duration: nextType === 'milestone' ? 0 : Math.max(1, linkedItem.duration || 1),
-                                      endDate:
-                                        nextType === 'milestone'
-                                          ? linkedItem.startDate
-                                          : calculateEndDateFromDuration(
-                                              linkedItem.startDate,
-                                              Math.max(1, linkedItem.duration || 1),
-                                              'task'
-                                            ),
-                                    },
-                                    false
-                                  );
-                                }}
-                                className="w-full bg-transparent px-1 py-0.5 rounded border border-transparent hover:border-slate-300 dark:hover:border-zinc-700 focus:border-indigo-500 text-[11px] outline-none cursor-pointer"
-                              >
-                                <option value="task">Tarea</option>
-                                <option value="milestone">Hito</option>
-                              </select>
-                            ) : (
-                              <span className="px-1">{row.type}</span>
-                            )}
-                          </td>
-                        )}
-
-                        {/* Start Date */}
-                        {isColVisible('cronograma', 'startDate') && (
-                          <td className="px-2 py-1 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-[#0C0C09] dark:text-zinc-300">
-                            {linkedItem && onUpdateItem && !isDepSubRow ? (
-                              <input
-                                type="date"
-                                data-testid={`report-crono-start-${linkedItem.id}`}
-                                value={linkedItem.startDate}
-                                onChange={(e) => {
-                                  const nextStart = e.target.value;
-                                  if (!nextStart) return;
-                                  const nextEnd =
-                                    linkedItem.type === 'milestone'
-                                      ? nextStart
-                                      : calculateEndDateFromDuration(
-                                          nextStart,
-                                          Math.max(1, linkedItem.duration || 1),
-                                          'task'
-                                        );
-                                  onUpdateItem(
-                                    { ...linkedItem, startDate: nextStart, endDate: nextEnd },
-                                    true
-                                  );
-                                }}
-                                className="w-full bg-transparent px-1 py-0.5 rounded border border-transparent hover:border-slate-300 dark:hover:border-zinc-700 focus:border-indigo-500 text-[11px] outline-none"
-                              />
-                            ) : (
-                              <span className="px-1">{row.startDate}</span>
-                            )}
-                          </td>
-                        )}
-
-                        {/* End Date */}
-                        {isColVisible('cronograma', 'endDate') && (
-                          <td className="px-2 py-1 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-[#0C0C09] dark:text-zinc-300">
-                            {linkedItem && onUpdateItem && !isDepSubRow && linkedItem.type === 'task' ? (
-                              <input
-                                type="date"
-                                data-testid={`report-crono-end-${linkedItem.id}`}
-                                value={linkedItem.endDate}
-                                min={linkedItem.startDate}
-                                onChange={(e) => {
-                                  const nextEnd = e.target.value;
-                                  if (!nextEnd || nextEnd < linkedItem.startDate) return;
-                                  const nextDur = Math.max(
-                                    1,
-                                    calculateDurationFromDates(linkedItem.startDate, nextEnd, 'task')
-                                  );
-                                  onUpdateItem(
-                                    { ...linkedItem, endDate: nextEnd, duration: nextDur },
-                                    true
-                                  );
-                                }}
-                                className="w-full bg-transparent px-1 py-0.5 rounded border border-transparent hover:border-slate-300 dark:hover:border-zinc-700 focus:border-indigo-500 text-[11px] outline-none"
-                              />
-                            ) : (
-                              <span className="px-1">{row.endDate}</span>
-                            )}
-                          </td>
-                        )}
-
-                        {/* Duration */}
-                        {isColVisible('cronograma', 'duration') && (
-                          <td className="px-2 py-1 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-right font-bold">
-                            {linkedItem && onUpdateItem && !isDepSubRow && linkedItem.type === 'task' ? (
-                              <input
-                                type="number"
-                                min={1}
-                                data-testid={`report-crono-duration-${linkedItem.id}`}
-                                value={linkedItem.duration}
-                                onChange={(e) => {
-                                  const nextDur = Math.max(1, parseInt(e.target.value, 10) || 1);
-                                  const nextEnd = calculateEndDateFromDuration(
-                                    linkedItem.startDate,
-                                    nextDur,
-                                    'task'
-                                  );
-                                  onUpdateItem(
-                                    { ...linkedItem, duration: nextDur, endDate: nextEnd },
-                                    true
-                                  );
-                                }}
-                                className="w-14 text-right bg-transparent px-1 py-0.5 rounded border border-transparent hover:border-slate-300 dark:hover:border-zinc-700 focus:border-indigo-500 text-[11px] font-bold outline-none"
-                              />
-                            ) : (
-                              <span>{row.duration} d</span>
-                            )}
-                          </td>
-                        )}
-
-                        {/* Slack */}
-                        {isColVisible('cronograma', 'slack') && (
-                          <td className="px-2 py-1 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-right text-slate-500">
-                            {linkedItem && onUpdateItem && !isDepSubRow && linkedItem.type === 'task' ? (
-                              <input
-                                type="number"
-                                min={0}
-                                data-testid={`report-crono-slack-${linkedItem.id}`}
-                                value={linkedItem.slack || 0}
-                                onChange={(e) => {
-                                  const nextSlack = Math.max(0, parseInt(e.target.value, 10) || 0);
-                                  onUpdateItem({ ...linkedItem, slack: nextSlack }, false);
-                                }}
-                                className="w-12 text-right bg-transparent px-1 py-0.5 rounded border border-transparent hover:border-slate-300 dark:hover:border-zinc-700 focus:border-indigo-500 text-[11px] outline-none"
-                              />
-                            ) : (
-                              <span>{row.slack} d</span>
-                            )}
-                          </td>
-                        )}
-
-                        {/* Progress */}
-                        {isColVisible('cronograma', 'progress') && (
-                          <td className="px-2 py-1 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-center">
-                            {linkedItem && onUpdateItem && !isDepSubRow && linkedItem.type === 'task' ? (
-                              <input
-                                type="number"
-                                min={0}
-                                max={100}
-                                step={5}
-                                data-testid={`report-crono-progress-${linkedItem.id}`}
-                                value={linkedItem.progress ?? 0}
-                                onChange={(e) => {
-                                  const nextProg = Math.max(
-                                    0,
-                                    Math.min(100, parseInt(e.target.value, 10) || 0)
-                                  );
-                                  onUpdateItem({ ...linkedItem, progress: nextProg }, false);
-                                }}
-                                className="w-12 text-center bg-slate-100 dark:bg-zinc-800 px-1 py-0.5 rounded-[2px] border border-transparent hover:border-slate-300 dark:hover:border-zinc-700 focus:border-indigo-500 text-[10px] font-bold outline-none"
-                              />
-                            ) : (
-                              <span className="px-1.5 py-0.5 rounded-[2px] bg-slate-100 dark:bg-zinc-800 text-[10px] font-bold">
-                                {row.progress}
-                              </span>
-                            )}
-                          </td>
-                        )}
-
-                        {/* Dependencia Predecesora con Nombre del Elemento */}
-                        {isColVisible('cronograma', 'dependency') && (
-                          <td className="px-3 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 bg-amber-50/20 dark:bg-amber-950/10 font-sans text-xs overflow-hidden">
-                            {row.dependency !== '—' ? (
-                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[3px] bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 border border-amber-300/60 dark:border-amber-700/60 font-medium max-w-full">
-                                <Link2 className="w-3 h-3 text-amber-700 dark:text-amber-400 shrink-0" />
-                                <span className="font-semibold truncate">{row.dependency}</span>
-                              </span>
-                            ) : (
-                              <span className="text-slate-400 font-mono">—</span>
-                            )}
-                          </td>
-                        )}
-
-                        {/* Ruta Crítica */}
-                        {isColVisible('cronograma', 'isCritical') && (
-                          <td className="px-3 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-center">
-                            {row.isCritical ? (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 font-bold text-[10px]">
-                                <Flame className="w-3 h-3 text-rose-600" /> SÍ
-                              </span>
-                            ) : (
-                              <span className="text-slate-400">NO</span>
-                            )}
-                          </td>
-                        )}
-
-                        {/* Hito Externo (Checkbox toggle) */}
-                        {isColVisible('cronograma', 'isExternal') && (
-                          <td className="px-3 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-center">
-                            {linkedItem && onUpdateItem && !isDepSubRow ? (
-                              <input
-                                type="checkbox"
-                                data-testid={`report-crono-external-${linkedItem.id}`}
-                                checked={Boolean(linkedItem.isExternal)}
-                                onChange={(e) =>
-                                  onUpdateItem({ ...linkedItem, isExternal: e.target.checked }, false)
-                                }
-                                title="Marcar como hito/tarea externa"
-                                className="w-3.5 h-3.5 accent-amber-600 cursor-pointer align-middle"
-                              />
-                            ) : row.isExternal ? (
-                              <span className="px-1.5 py-0.5 rounded-[2px] bg-amber-100 text-amber-800 text-[10px] font-bold">
-                                SÍ
-                              </span>
-                            ) : (
-                              <span className="text-slate-400">NO</span>
-                            )}
-                          </td>
-                        )}
-
-                        {/* Cumplimiento Release */}
-                        {isColVisible('cronograma', 'compliance') && (
-                          <td className="px-3 py-1.5 whitespace-nowrap overflow-hidden">
-                            {row.compliance === 'Conforme' ? (
-                              <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-semibold text-[10px]">
-                                <CheckCircle2 className="w-3 h-3 shrink-0" /> Conforme
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-[10px] font-bold border border-amber-300 dark:border-amber-800">
-                                <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
-                                <span className="truncate">{row.compliance}</span>
-                              </span>
-                            )}
-                          </td>
-                        )}
+                        {getOrderedColumns('cronograma')
+                          .filter((c) => isColVisible('cronograma', c.key))
+                          .map((col) => {
+                            switch (col.key) {
+                              case 'hierarchy':
+                                return (
+                                  <td key={col.key} className="px-3 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap overflow-hidden">
+                                    {isRelease ? (
+                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] bg-slate-800 text-white dark:bg-zinc-100 dark:text-[#0C0C09] text-[10px] font-bold">
+                                        <Rocket className="w-2.5 h-2.5" /> RELEASE
+                                      </span>
+                                    ) : isProject ? (
+                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] bg-indigo-700 text-white text-[10px] font-bold">
+                                        <FolderKanban className="w-2.5 h-2.5" /> PROYECTO
+                                      </span>
+                                    ) : isMilestone ? (
+                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-400/40 text-[10px] font-semibold">
+                                        ◆ HITO
+                                      </span>
+                                    ) : isDepSubRow ? (
+                                      <span className="text-slate-400 dark:text-zinc-500 text-[10px] pl-4">
+                                        └─ Dependencia
+                                      </span>
+                                    ) : (
+                                      <span className="text-slate-600 dark:text-zinc-400 text-[10px]">
+                                        TAREA
+                                      </span>
+                                    )}
+                                  </td>
+                                );
+                              case 'wbsCode':
+                                return (
+                                  <td key={col.key} className="px-3 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap font-bold text-[#0C0C09] dark:text-zinc-200 truncate">
+                                    {row.wbsCode}
+                                  </td>
+                                );
+                              case 'name':
+                                return (
+                                  <td key={col.key} className="px-2 py-1 border-r border-[#E2E2DC] dark:border-zinc-800 font-sans text-xs font-medium text-[#0C0C09] dark:text-zinc-100">
+                                    {linkedItem && onUpdateItem && !isDepSubRow ? (
+                                      <EditableReportTextCell
+                                        testId={`report-crono-name-${linkedItem.id}`}
+                                        value={linkedItem.name}
+                                        onCommit={(next) =>
+                                          onUpdateItem({ ...linkedItem, name: next || linkedItem.name }, false)
+                                        }
+                                      />
+                                    ) : linkedProject && onUpdateProject ? (
+                                      <EditableReportTextCell
+                                        testId={`report-crono-proj-name-${linkedProject.id}`}
+                                        value={linkedProject.name}
+                                        className="font-semibold"
+                                        onCommit={(next) =>
+                                          onUpdateProject({ ...linkedProject, name: next || linkedProject.name })
+                                        }
+                                      />
+                                    ) : linkedRelease && onUpdateRelease ? (
+                                      <EditableReportTextCell
+                                        testId={`report-crono-rel-name-${linkedRelease.id}`}
+                                        value={linkedRelease.name}
+                                        className="font-bold"
+                                        onCommit={(next) =>
+                                          onUpdateRelease({ ...linkedRelease, name: next || linkedRelease.name })
+                                        }
+                                      />
+                                    ) : (
+                                      <span className="truncate block px-1.5">{row.name}</span>
+                                    )}
+                                  </td>
+                                );
+                              case 'releaseCode':
+                                return (
+                                  <td key={col.key} className="px-2 py-1 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-[#6B6B66] dark:text-zinc-300">
+                                    {linkedItem && onUpdateItem && !isDepSubRow ? (
+                                      <select
+                                        data-testid={`report-crono-release-${linkedItem.id}`}
+                                        value={linkedItem.releaseId || ''}
+                                        onChange={(e) =>
+                                          onUpdateItem(
+                                            { ...linkedItem, releaseId: e.target.value || undefined },
+                                            false
+                                          )
+                                        }
+                                        className="w-full bg-transparent px-1 py-0.5 rounded border border-transparent hover:border-slate-300 dark:hover:border-zinc-700 focus:border-indigo-500 text-[11px] outline-none cursor-pointer"
+                                      >
+                                        <option value="">Heredada</option>
+                                        {releases.map((r) => (
+                                          <option key={r.id} value={r.id}>
+                                            {r.code}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    ) : linkedProject && onUpdateProject ? (
+                                      <select
+                                        data-testid={`report-crono-proj-release-${linkedProject.id}`}
+                                        value={linkedProject.releaseId || ''}
+                                        onChange={(e) =>
+                                          onUpdateProject({
+                                            ...linkedProject,
+                                            releaseId: e.target.value || undefined,
+                                          })
+                                        }
+                                        className="w-full bg-transparent px-1 py-0.5 rounded border border-transparent hover:border-slate-300 dark:hover:border-zinc-700 focus:border-indigo-500 text-[11px] outline-none cursor-pointer"
+                                      >
+                                        <option value="">Sin asignar</option>
+                                        {releases.map((r) => (
+                                          <option key={r.id} value={r.id}>
+                                            {r.code}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    ) : (
+                                      <span className="px-1">{row.releaseCode}</span>
+                                    )}
+                                  </td>
+                                );
+                              case 'projectName':
+                                return (
+                                  <td key={col.key} className="px-3 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap font-sans text-xs text-[#0C0C09] dark:text-zinc-200 overflow-hidden">
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      <span className="truncate">{row.projectName}</span>
+                                      {(isProject || (row.alertLevel !== undefined && row.alertLevel > 0)) && row.alertLevel !== undefined && (
+                                        <span
+                                          data-testid={`cronograma-project-alert-badge-${row.wbsCode}`}
+                                          className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-mono font-bold border shrink-0 ${
+                                            row.alertLevel === 1
+                                              ? 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
+                                              : row.alertLevel === 2
+                                              ? 'bg-orange-50 text-orange-800 border-orange-300 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800'
+                                              : row.alertLevel === 3
+                                              ? 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
+                                              : 'bg-zinc-100 text-zinc-600 border-zinc-300 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700'
+                                          }`}
+                                          title={`Nivel de alerta: ${row.alertLevel}`}
+                                        >
+                                          <span
+                                            className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                              row.alertLevel === 1
+                                                ? 'bg-amber-500'
+                                                : row.alertLevel === 2
+                                                ? 'bg-orange-500'
+                                                : row.alertLevel === 3
+                                                ? 'bg-rose-500'
+                                                : 'bg-zinc-400'
+                                            }`}
+                                          />
+                                          <span>{row.alertLevel}</span>
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                );
+                              case 'platform':
+                                return (
+                                  <td key={col.key} className="px-2 py-1 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap">
+                                    {linkedItem && onUpdateItem && !isDepSubRow ? (
+                                      <select
+                                        data-testid={`report-crono-platform-${linkedItem.id}`}
+                                        value={linkedItem.platform || ''}
+                                        onChange={(e) =>
+                                          onUpdateItem(
+                                            {
+                                              ...linkedItem,
+                                              platform: (e.target.value || undefined) as ProjectPlatform | undefined,
+                                            },
+                                            false
+                                          )
+                                        }
+                                        className="w-full bg-transparent px-1 py-0.5 rounded border border-transparent hover:border-slate-300 dark:hover:border-zinc-700 focus:border-indigo-500 text-[10px] font-bold outline-none cursor-pointer"
+                                      >
+                                        <option value="">Heredada ({row.platform})</option>
+                                        <option value="iOS">iOS</option>
+                                        <option value="Android">Android</option>
+                                        <option value="iOS/Android">iOS/Android</option>
+                                      </select>
+                                    ) : linkedProject && onUpdateProject ? (
+                                      <select
+                                        data-testid={`report-crono-proj-platform-${linkedProject.id}`}
+                                        value={normalizePlatform(linkedProject.platform) || 'iOS/Android'}
+                                        onChange={(e) =>
+                                          onUpdateProject({
+                                            ...linkedProject,
+                                            platform: e.target.value as ProjectPlatform,
+                                          })
+                                        }
+                                        className="w-full bg-transparent px-1 py-0.5 rounded border border-transparent hover:border-slate-300 dark:hover:border-zinc-700 focus:border-indigo-500 text-[10px] font-bold outline-none cursor-pointer"
+                                      >
+                                        <option value="iOS">iOS</option>
+                                        <option value="Android">Android</option>
+                                        <option value="iOS/Android">iOS/Android</option>
+                                      </select>
+                                    ) : row.platform !== '—' ? (
+                                      <span
+                                        className={`px-1.5 py-0.5 rounded-[2px] text-[10px] font-bold ${
+                                          row.platform === 'iOS'
+                                            ? 'bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300'
+                                            : row.platform === 'Android'
+                                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                            : 'bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300'
+                                        }`}
+                                      >
+                                        {row.platform}
+                                      </span>
+                                    ) : (
+                                      <span className="text-slate-400 px-1">—</span>
+                                    )}
+                                  </td>
+                                );
+                              case 'team':
+                                return (
+                                  <td key={col.key} className="px-2 py-1 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap">
+                                    {linkedItem && onUpdateItem && !isDepSubRow ? (
+                                      <EditableReportTextCell
+                                        testId={`report-crono-team-${linkedItem.id}`}
+                                        value={linkedItem.assignee || ''}
+                                        placeholder="Sin equipo"
+                                        onCommit={(val) =>
+                                          onUpdateItem(
+                                            { ...linkedItem, assignee: val.trim() || undefined },
+                                            false
+                                          )
+                                        }
+                                      />
+                                    ) : (
+                                      <span
+                                        data-testid={`report-crono-team-text-${row.rowId}`}
+                                        className="px-1.5 text-[11px] text-slate-600 dark:text-zinc-300 truncate block"
+                                        title={row.team}
+                                      >
+                                        {row.team}
+                                      </span>
+                                    )}
+                                  </td>
+                                );
+                              case 'alertLevel': {
+                                const alertVal = row.alertLevel ?? 0;
+                                const alertSelectClass =
+                                  alertVal === 1
+                                    ? 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
+                                    : alertVal === 2
+                                    ? 'bg-orange-50 text-orange-800 border-orange-300 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800'
+                                    : alertVal === 3
+                                    ? 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
+                                    : 'bg-zinc-100 text-zinc-600 border-zinc-300 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700';
+                                return (
+                                  <td key={col.key} className="px-2 py-1 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap">
+                                    {linkedItem && onUpdateItem && !isDepSubRow ? (
+                                      <select
+                                        data-testid={`report-crono-alert-${linkedItem.id}`}
+                                        value={linkedItem.alertLevel ?? 0}
+                                        onChange={(e) =>
+                                          onUpdateItem(
+                                            {
+                                              ...linkedItem,
+                                              alertLevel: Number(e.target.value) as ProjectAlertLevel,
+                                            },
+                                            false
+                                          )
+                                        }
+                                        className={`w-full px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border outline-none cursor-pointer ${alertSelectClass}`}
+                                      >
+                                        <option value={0}>Nivel 0</option>
+                                        <option value={1}>Nivel 1</option>
+                                        <option value={2}>Nivel 2</option>
+                                        <option value={3}>Nivel 3</option>
+                                      </select>
+                                    ) : linkedProject && onUpdateProject ? (
+                                      <select
+                                        data-testid={`report-crono-proj-alert-${linkedProject.id}`}
+                                        value={linkedProject.alertLevel ?? 0}
+                                        onChange={(e) =>
+                                          onUpdateProject({
+                                            ...linkedProject,
+                                            alertLevel: Number(e.target.value) as ProjectAlertLevel,
+                                          })
+                                        }
+                                        className={`w-full px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border outline-none cursor-pointer ${alertSelectClass}`}
+                                      >
+                                        <option value={0}>Nivel 0</option>
+                                        <option value={1}>Nivel 1</option>
+                                        <option value={2}>Nivel 2</option>
+                                        <option value={3}>Nivel 3</option>
+                                      </select>
+                                    ) : (
+                                      <span className="text-slate-400 px-1">—</span>
+                                    )}
+                                  </td>
+                                );
+                              }
+                              case 'type':
+                                return (
+                                  <td key={col.key} className="px-2 py-1 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-[#6B6B66] dark:text-zinc-400">
+                                    {linkedItem && onUpdateItem && !isDepSubRow ? (
+                                      <select
+                                        data-testid={`report-crono-type-${linkedItem.id}`}
+                                        value={linkedItem.type}
+                                        onChange={(e) => {
+                                          const nextType = e.target.value as 'task' | 'milestone';
+                                          onUpdateItem(
+                                            {
+                                              ...linkedItem,
+                                              type: nextType,
+                                              duration: nextType === 'milestone' ? 0 : Math.max(1, linkedItem.duration || 1),
+                                              endDate:
+                                                nextType === 'milestone'
+                                                  ? linkedItem.startDate
+                                                  : calculateEndDateFromDuration(
+                                                      linkedItem.startDate,
+                                                      Math.max(1, linkedItem.duration || 1),
+                                                      'task'
+                                                    ),
+                                            },
+                                            false
+                                          );
+                                        }}
+                                        className="w-full bg-transparent px-1 py-0.5 rounded border border-transparent hover:border-slate-300 dark:hover:border-zinc-700 focus:border-indigo-500 text-[11px] outline-none cursor-pointer"
+                                      >
+                                        <option value="task">Tarea</option>
+                                        <option value="milestone">Hito</option>
+                                      </select>
+                                    ) : (
+                                      <span className="px-1">{row.type}</span>
+                                    )}
+                                  </td>
+                                );
+                              case 'startDate':
+                                return (
+                                  <td key={col.key} className="px-2 py-1 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-[#0C0C09] dark:text-zinc-300">
+                                    {linkedItem && onUpdateItem && !isDepSubRow ? (
+                                      <input
+                                        type="date"
+                                        data-testid={`report-crono-start-${linkedItem.id}`}
+                                        value={linkedItem.startDate}
+                                        onChange={(e) => {
+                                          const nextStart = e.target.value;
+                                          if (!nextStart) return;
+                                          const nextEnd =
+                                            linkedItem.type === 'milestone'
+                                              ? nextStart
+                                              : calculateEndDateFromDuration(
+                                                  nextStart,
+                                                  Math.max(1, linkedItem.duration || 1),
+                                                  'task'
+                                                );
+                                          onUpdateItem(
+                                            { ...linkedItem, startDate: nextStart, endDate: nextEnd },
+                                            true
+                                          );
+                                        }}
+                                        className="w-full bg-transparent px-1 py-0.5 rounded border border-transparent hover:border-slate-300 dark:hover:border-zinc-700 focus:border-indigo-500 text-[11px] outline-none"
+                                      />
+                                    ) : (
+                                      <span className="px-1">{row.startDate}</span>
+                                    )}
+                                  </td>
+                                );
+                              case 'endDate':
+                                return (
+                                  <td key={col.key} className="px-2 py-1 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-[#0C0C09] dark:text-zinc-300">
+                                    {linkedItem && onUpdateItem && !isDepSubRow && linkedItem.type === 'task' ? (
+                                      <input
+                                        type="date"
+                                        data-testid={`report-crono-end-${linkedItem.id}`}
+                                        value={linkedItem.endDate}
+                                        min={linkedItem.startDate}
+                                        onChange={(e) => {
+                                          const nextEnd = e.target.value;
+                                          if (!nextEnd || nextEnd < linkedItem.startDate) return;
+                                          const nextDur = Math.max(
+                                            1,
+                                            calculateDurationFromDates(linkedItem.startDate, nextEnd, 'task')
+                                          );
+                                          onUpdateItem(
+                                            { ...linkedItem, endDate: nextEnd, duration: nextDur },
+                                            true
+                                          );
+                                        }}
+                                        className="w-full bg-transparent px-1 py-0.5 rounded border border-transparent hover:border-slate-300 dark:hover:border-zinc-700 focus:border-indigo-500 text-[11px] outline-none"
+                                      />
+                                    ) : (
+                                      <span className="px-1">{row.endDate}</span>
+                                    )}
+                                  </td>
+                                );
+                              case 'duration':
+                                return (
+                                  <td key={col.key} className="px-2 py-1 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-right font-bold">
+                                    {linkedItem && onUpdateItem && !isDepSubRow && linkedItem.type === 'task' ? (
+                                      <input
+                                        type="number"
+                                        min={1}
+                                        data-testid={`report-crono-duration-${linkedItem.id}`}
+                                        value={linkedItem.duration}
+                                        onChange={(e) => {
+                                          const nextDur = Math.max(1, parseInt(e.target.value, 10) || 1);
+                                          const nextEnd = calculateEndDateFromDuration(
+                                            linkedItem.startDate,
+                                            nextDur,
+                                            'task'
+                                          );
+                                          onUpdateItem(
+                                            { ...linkedItem, duration: nextDur, endDate: nextEnd },
+                                            true
+                                          );
+                                        }}
+                                        className="w-14 text-right bg-transparent px-1 py-0.5 rounded border border-transparent hover:border-slate-300 dark:hover:border-zinc-700 focus:border-indigo-500 text-[11px] font-bold outline-none"
+                                      />
+                                    ) : (
+                                      <span>{row.duration} d</span>
+                                    )}
+                                  </td>
+                                );
+                              case 'slack':
+                                return (
+                                  <td key={col.key} className="px-2 py-1 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-right text-slate-500">
+                                    {linkedItem && onUpdateItem && !isDepSubRow && linkedItem.type === 'task' ? (
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        data-testid={`report-crono-slack-${linkedItem.id}`}
+                                        value={linkedItem.slack || 0}
+                                        onChange={(e) => {
+                                          const nextSlack = Math.max(0, parseInt(e.target.value, 10) || 0);
+                                          onUpdateItem({ ...linkedItem, slack: nextSlack }, false);
+                                        }}
+                                        className="w-12 text-right bg-transparent px-1 py-0.5 rounded border border-transparent hover:border-slate-300 dark:hover:border-zinc-700 focus:border-indigo-500 text-[11px] outline-none"
+                                      />
+                                    ) : (
+                                      <span>{row.slack} d</span>
+                                    )}
+                                  </td>
+                                );
+                              case 'progress':
+                                return (
+                                  <td key={col.key} className="px-2 py-1 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-center">
+                                    {linkedItem && onUpdateItem && !isDepSubRow && linkedItem.type === 'task' ? (
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        max={100}
+                                        step={5}
+                                        data-testid={`report-crono-progress-${linkedItem.id}`}
+                                        value={linkedItem.progress ?? 0}
+                                        onChange={(e) => {
+                                          const nextProg = Math.max(
+                                            0,
+                                            Math.min(100, parseInt(e.target.value, 10) || 0)
+                                          );
+                                          onUpdateItem({ ...linkedItem, progress: nextProg }, false);
+                                        }}
+                                        className="w-12 text-center bg-slate-100 dark:bg-zinc-800 px-1 py-0.5 rounded-[2px] border border-transparent hover:border-slate-300 dark:hover:border-zinc-700 focus:border-indigo-500 text-[10px] font-bold outline-none"
+                                      />
+                                    ) : (
+                                      <span className="px-1.5 py-0.5 rounded-[2px] bg-slate-100 dark:bg-zinc-800 text-[10px] font-bold">
+                                        {row.progress}
+                                      </span>
+                                    )}
+                                  </td>
+                                );
+                              case 'dependency':
+                                return (
+                                  <td key={col.key} className="px-3 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 bg-amber-50/20 dark:bg-amber-950/10 font-sans text-xs overflow-hidden">
+                                    {row.dependency !== '—' ? (
+                                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[3px] bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 border border-amber-300/60 dark:border-amber-700/60 font-medium max-w-full">
+                                        <Link2 className="w-3 h-3 text-amber-700 dark:text-amber-400 shrink-0" />
+                                        <span className="font-semibold truncate">{row.dependency}</span>
+                                      </span>
+                                    ) : (
+                                      <span className="text-slate-400 font-mono">—</span>
+                                    )}
+                                  </td>
+                                );
+                              case 'isCritical':
+                                return (
+                                  <td key={col.key} className="px-3 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-center">
+                                    {row.isCritical ? (
+                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 font-bold text-[10px]">
+                                        <Flame className="w-3 h-3 text-rose-600" /> SÍ
+                                      </span>
+                                    ) : (
+                                      <span className="text-slate-400">NO</span>
+                                    )}
+                                  </td>
+                                );
+                              case 'isExternal':
+                                return (
+                                  <td key={col.key} className="px-3 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-center">
+                                    {linkedItem && onUpdateItem && !isDepSubRow ? (
+                                      <input
+                                        type="checkbox"
+                                        data-testid={`report-crono-external-${linkedItem.id}`}
+                                        checked={Boolean(linkedItem.isExternal)}
+                                        onChange={(e) =>
+                                          onUpdateItem({ ...linkedItem, isExternal: e.target.checked }, false)
+                                        }
+                                        title="Marcar como hito/tarea externa"
+                                        className="w-3.5 h-3.5 accent-amber-600 cursor-pointer align-middle"
+                                      />
+                                    ) : row.isExternal ? (
+                                      <span className="px-1.5 py-0.5 rounded-[2px] bg-amber-100 text-amber-800 text-[10px] font-bold">
+                                        SÍ
+                                      </span>
+                                    ) : (
+                                      <span className="text-slate-400">NO</span>
+                                    )}
+                                  </td>
+                                );
+                              case 'compliance':
+                                return (
+                                  <td key={col.key} className="px-3 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap overflow-hidden">
+                                    {row.compliance === 'Conforme' ? (
+                                      <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-semibold text-[10px]">
+                                        <CheckCircle2 className="w-3 h-3 shrink-0" /> Conforme
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-[10px] font-bold border border-amber-300 dark:border-amber-800">
+                                        <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
+                                        <span className="truncate">{row.compliance}</span>
+                                      </span>
+                                    )}
+                                  </td>
+                                );
+                              case 'notes':
+                                return (
+                                  <td key={col.key} className="px-2 py-1.5 font-sans text-xs text-[#6B6B66] dark:text-zinc-400 whitespace-pre-line leading-relaxed">
+                                    {linkedItem && onUpdateItem && !isDepSubRow ? (
+                                      <EditableReportTextCell
+                                        testId={`report-crono-notes-${linkedItem.id}`}
+                                        value={linkedItem.notes || ''}
+                                        placeholder="Añadir notas..."
+                                        multiline
+                                        onCommit={(next) =>
+                                          onUpdateItem(
+                                            { ...linkedItem, notes: next.trim() || undefined },
+                                            false
+                                          )
+                                        }
+                                      />
+                                    ) : linkedProject && onUpdateProject ? (
+                                      <EditableReportTextCell
+                                        testId={`report-crono-proj-desc-${linkedProject.id}`}
+                                        value={linkedProject.description || ''}
+                                        placeholder="Añadir descripción..."
+                                        multiline
+                                        onCommit={(next) =>
+                                          onUpdateProject({ ...linkedProject, description: next })
+                                        }
+                                      />
+                                    ) : (
+                                      <span className="px-1">{row.notes || '—'}</span>
+                                    )}
+                                  </td>
+                                );
+                              default:
+                                return null;
+                            }
+                          })}
                       </tr>
                     );
                   })
@@ -1700,7 +1900,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   <th className="px-2.5 py-2 border-r border-[#E2E2DC] dark:border-zinc-700 w-12 text-center bg-[#ECECE8] dark:bg-zinc-900 text-[#6B6B66] select-none">
                     #
                   </th>
-                  {PROJECT_COLUMNS.map((col) => renderResizableTh('projects', col))}
+                  {getOrderedColumns('projects').map((col) => renderResizableTh('projects', col))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E2E2DC] dark:divide-zinc-800 font-mono text-[11px]">
@@ -1740,208 +1940,229 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                         <td className="px-2.5 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 text-center text-[10px] text-[#6B6B66] bg-[#ECECE8]/40 dark:bg-zinc-900 select-none">
                           {idx + 1}
                         </td>
-                        {isColVisible('projects', 'code') && (
-                          <td className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 font-bold text-[#0C0C09] dark:text-zinc-100 truncate">
-                            {row.code}
-                          </td>
-                        )}
-                        {isColVisible('projects', 'projectName') && (
-                          <td className="px-2 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 font-sans text-xs font-bold text-[#0C0C09] dark:text-zinc-100">
-                            {linkedProj && onUpdateProject ? (
-                              <EditableReportTextCell
-                                testId={`report-proj-name-${linkedProj.id}`}
-                                value={linkedProj.name}
-                                className="font-bold"
-                                onCommit={(next) =>
-                                  onUpdateProject({ ...linkedProj, name: next || linkedProj.name })
-                                }
-                              />
-                            ) : (
-                              <span className="truncate block px-1">{row.projectName}</span>
-                            )}
-                          </td>
-                        )}
-                        {isColVisible('projects', 'platform') && (
-                          <td className="px-2 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap">
-                            {linkedProj && onUpdateProject ? (
-                              <select
-                                data-testid={`report-proj-platform-${linkedProj.id}`}
-                                value={normalizePlatform(linkedProj.platform) || 'iOS/Android'}
-                                onChange={(e) =>
-                                  onUpdateProject({
-                                    ...linkedProj,
-                                    platform: e.target.value as ProjectPlatform,
-                                  })
-                                }
-                                className="w-full px-1.5 py-0.5 rounded-[2px] border border-transparent hover:border-slate-300 dark:hover:border-zinc-700 focus:border-indigo-500 text-[10px] font-bold bg-transparent outline-none cursor-pointer"
-                              >
-                                <option value="iOS">iOS</option>
-                                <option value="Android">Android</option>
-                                <option value="iOS/Android">iOS/Android</option>
-                              </select>
-                            ) : (
-                              <span
-                                className={`px-2 py-0.5 rounded-[2px] text-[10px] font-bold ${
-                                  row.platform === 'iOS'
-                                    ? 'bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300'
-                                    : row.platform === 'Android'
-                                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
-                                    : 'bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300'
-                                }`}
-                              >
-                                {row.platform}
-                              </span>
-                            )}
-                          </td>
-                        )}
-                        {isColVisible('projects', 'team') && (
-                          <td className="px-2.5 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 text-[11px] text-slate-700 dark:text-zinc-300 whitespace-nowrap">
-                            <span
-                              data-testid={`report-proj-team-${row.code}`}
-                              className="truncate block max-w-full"
-                              title={row.team}
-                            >
-                              {row.team}
-                            </span>
-                          </td>
-                        )}
-                        {isColVisible('projects', 'alertLevel') && (
-                          <td className="px-2 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap">
-                            {linkedProj && onUpdateProject ? (
-                              <select
-                                data-testid={`report-project-alert-badge-${row.code}`}
-                                value={linkedProj.alertLevel ?? 0}
-                                onChange={(e) =>
-                                  onUpdateProject({
-                                    ...linkedProj,
-                                    alertLevel: Number(e.target.value) as ProjectAlertLevel,
-                                  })
-                                }
-                                className={`w-full px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border outline-none cursor-pointer ${
-                                  row.alertLevel === 1
-                                    ? 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
-                                    : row.alertLevel === 2
-                                    ? 'bg-orange-50 text-orange-800 border-orange-300 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800'
-                                    : row.alertLevel === 3
-                                    ? 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
-                                    : 'bg-zinc-100 text-zinc-600 border-zinc-300 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700'
-                                }`}
-                              >
-                                <option value={0}>Nivel 0</option>
-                                <option value={1}>Nivel 1</option>
-                                <option value={2}>Nivel 2</option>
-                                <option value={3}>Nivel 3</option>
-                              </select>
-                            ) : (
-                              <span
-                                data-testid={`report-project-alert-badge-${row.code}`}
-                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border ${
-                                  row.alertLevel === 1
-                                    ? 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
-                                    : row.alertLevel === 2
-                                    ? 'bg-orange-50 text-orange-800 border-orange-300 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800'
-                                    : row.alertLevel === 3
-                                    ? 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
-                                    : 'bg-zinc-100 text-zinc-600 border-zinc-300 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700'
-                                }`}
-                              >
-                                <span
-                                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                                    row.alertLevel === 1
-                                      ? 'bg-amber-500'
-                                      : row.alertLevel === 2
-                                      ? 'bg-orange-500'
-                                      : row.alertLevel === 3
-                                      ? 'bg-rose-500'
-                                      : 'bg-zinc-400'
-                                  }`}
-                                />
-                                <span>Nivel {row.alertLevel}</span>
-                              </span>
-                            )}
-                          </td>
-                        )}
-                        {isColVisible('projects', 'releaseCode') && (
-                          <td className="px-2 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-[#0C0C09] dark:text-zinc-300">
-                            {linkedProj && onUpdateProject ? (
-                              <select
-                                data-testid={`report-proj-release-${linkedProj.id}`}
-                                value={linkedProj.releaseId || ''}
-                                onChange={(e) =>
-                                  onUpdateProject({
-                                    ...linkedProj,
-                                    releaseId: e.target.value || undefined,
-                                  })
-                                }
-                                className="w-full bg-transparent px-1 py-0.5 rounded border border-transparent hover:border-slate-300 dark:hover:border-zinc-700 focus:border-indigo-500 text-[11px] outline-none cursor-pointer"
-                              >
-                                <option value="">Sin asignar</option>
-                                {releases.map((r) => (
-                                  <option key={r.id} value={r.id}>
-                                    {r.code}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              <span className="px-1">{row.releaseCode}</span>
-                            )}
-                          </td>
-                        )}
-                        {isColVisible('projects', 'startDate') && (
-                          <td className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap">
-                            {row.startDate}
-                          </td>
-                        )}
-                        {isColVisible('projects', 'endDate') && (
-                          <td className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap">
-                            {row.endDate}
-                          </td>
-                        )}
-                        {isColVisible('projects', 'duration') && (
-                          <td className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-right font-bold">
-                            {row.duration} d
-                          </td>
-                        )}
-                        {isColVisible('projects', 'progress') && (
-                          <td className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-center">
-                            <div className="flex items-center justify-center gap-1.5">
-                              <div className="w-12 h-1.5 bg-[#E2E2DC] dark:bg-zinc-800 rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-emerald-600"
-                                  style={{ width: `${Math.min(100, Math.max(0, row.progress))}%` }}
-                                />
-                              </div>
-                              <span>{row.progress}%</span>
-                            </div>
-                          </td>
-                        )}
-                        {isColVisible('projects', 'tasksCount') && (
-                          <td className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-right">
-                            {row.tasksCount}
-                          </td>
-                        )}
-                        {isColVisible('projects', 'milestonesCount') && (
-                          <td className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-right font-semibold text-amber-600 dark:text-amber-400">
-                            {row.milestonesCount}
-                          </td>
-                        )}
-                        {isColVisible('projects', 'description') && (
-                          <td className="px-2 py-1.5 font-sans text-xs text-[#6B6B66] dark:text-zinc-400 whitespace-pre-line leading-relaxed">
-                            {linkedProj && onUpdateProject ? (
-                              <EditableReportTextCell
-                                testId={`report-proj-desc-${linkedProj.id}`}
-                                value={row.description || linkedProj.description || ''}
-                                placeholder="Añadir descripción del proyecto..."
-                                multiline
-                                onCommit={(next) =>
-                                  onUpdateProject({ ...linkedProj, description: next })
-                                }
-                              />
-                            ) : (
-                              row.description || '—'
-                            )}
-                          </td>
-                        )}
+                        {getOrderedColumns('projects')
+                          .filter((c) => isColVisible('projects', c.key))
+                          .map((col) => {
+                            switch (col.key) {
+                              case 'code':
+                                return (
+                                  <td key={col.key} className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 font-bold text-[#0C0C09] dark:text-zinc-100 truncate">
+                                    {row.code}
+                                  </td>
+                                );
+                              case 'projectName':
+                                return (
+                                  <td key={col.key} className="px-2 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 font-sans text-xs font-bold text-[#0C0C09] dark:text-zinc-100">
+                                    {linkedProj && onUpdateProject ? (
+                                      <EditableReportTextCell
+                                        testId={`report-proj-name-${linkedProj.id}`}
+                                        value={linkedProj.name}
+                                        className="font-bold"
+                                        onCommit={(next) =>
+                                          onUpdateProject({ ...linkedProj, name: next || linkedProj.name })
+                                        }
+                                      />
+                                    ) : (
+                                      <span className="truncate block px-1">{row.projectName}</span>
+                                    )}
+                                  </td>
+                                );
+                              case 'platform':
+                                return (
+                                  <td key={col.key} className="px-2 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap">
+                                    {linkedProj && onUpdateProject ? (
+                                      <select
+                                        data-testid={`report-proj-platform-${linkedProj.id}`}
+                                        value={normalizePlatform(linkedProj.platform) || 'iOS/Android'}
+                                        onChange={(e) =>
+                                          onUpdateProject({
+                                            ...linkedProj,
+                                            platform: e.target.value as ProjectPlatform,
+                                          })
+                                        }
+                                        className="w-full px-1.5 py-0.5 rounded-[2px] border border-transparent hover:border-slate-300 dark:hover:border-zinc-700 focus:border-indigo-500 text-[10px] font-bold bg-transparent outline-none cursor-pointer"
+                                      >
+                                        <option value="iOS">iOS</option>
+                                        <option value="Android">Android</option>
+                                        <option value="iOS/Android">iOS/Android</option>
+                                      </select>
+                                    ) : (
+                                      <span
+                                        className={`px-2 py-0.5 rounded-[2px] text-[10px] font-bold ${
+                                          row.platform === 'iOS'
+                                            ? 'bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300'
+                                            : row.platform === 'Android'
+                                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                            : 'bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300'
+                                        }`}
+                                      >
+                                        {row.platform}
+                                      </span>
+                                    )}
+                                  </td>
+                                );
+                              case 'team':
+                                return (
+                                  <td key={col.key} className="px-2.5 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 text-[11px] text-slate-700 dark:text-zinc-300 whitespace-nowrap">
+                                    <span
+                                      data-testid={`report-proj-team-${row.code}`}
+                                      className="truncate block max-w-full"
+                                      title={row.team}
+                                    >
+                                      {row.team}
+                                    </span>
+                                  </td>
+                                );
+                              case 'alertLevel':
+                                return (
+                                  <td key={col.key} className="px-2 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap">
+                                    {linkedProj && onUpdateProject ? (
+                                      <select
+                                        data-testid={`report-project-alert-badge-${row.code}`}
+                                        value={linkedProj.alertLevel ?? 0}
+                                        onChange={(e) =>
+                                          onUpdateProject({
+                                            ...linkedProj,
+                                            alertLevel: Number(e.target.value) as ProjectAlertLevel,
+                                          })
+                                        }
+                                        className={`w-full px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border outline-none cursor-pointer ${
+                                          row.alertLevel === 1
+                                            ? 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
+                                            : row.alertLevel === 2
+                                            ? 'bg-orange-50 text-orange-800 border-orange-300 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800'
+                                            : row.alertLevel === 3
+                                            ? 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
+                                            : 'bg-zinc-100 text-zinc-600 border-zinc-300 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700'
+                                        }`}
+                                      >
+                                        <option value={0}>Nivel 0</option>
+                                        <option value={1}>Nivel 1</option>
+                                        <option value={2}>Nivel 2</option>
+                                        <option value={3}>Nivel 3</option>
+                                      </select>
+                                    ) : (
+                                      <span
+                                        data-testid={`report-project-alert-badge-${row.code}`}
+                                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border ${
+                                          row.alertLevel === 1
+                                            ? 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
+                                            : row.alertLevel === 2
+                                            ? 'bg-orange-50 text-orange-800 border-orange-300 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800'
+                                            : row.alertLevel === 3
+                                            ? 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
+                                            : 'bg-zinc-100 text-zinc-600 border-zinc-300 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700'
+                                        }`}
+                                      >
+                                        <span
+                                          className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                            row.alertLevel === 1
+                                              ? 'bg-amber-500'
+                                              : row.alertLevel === 2
+                                              ? 'bg-orange-500'
+                                              : row.alertLevel === 3
+                                              ? 'bg-rose-500'
+                                              : 'bg-zinc-400'
+                                          }`}
+                                        />
+                                        <span>{`Nivel ${row.alertLevel}`}</span>
+                                      </span>
+                                    )}
+                                  </td>
+                                );
+                              case 'releaseCode':
+                                return (
+                                  <td key={col.key} className="px-2 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-[#0C0C09] dark:text-zinc-300">
+                                    {linkedProj && onUpdateProject ? (
+                                      <select
+                                        data-testid={`report-proj-release-${linkedProj.id}`}
+                                        value={linkedProj.releaseId || ''}
+                                        onChange={(e) =>
+                                          onUpdateProject({
+                                            ...linkedProj,
+                                            releaseId: e.target.value || undefined,
+                                          })
+                                        }
+                                        className="w-full bg-transparent px-1 py-0.5 rounded border border-transparent hover:border-slate-300 dark:hover:border-zinc-700 focus:border-indigo-500 text-[11px] outline-none cursor-pointer"
+                                      >
+                                        <option value="">Sin asignar</option>
+                                        {releases.map((r) => (
+                                          <option key={r.id} value={r.id}>
+                                            {r.code}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    ) : (
+                                      <span className="px-1">{row.releaseCode}</span>
+                                    )}
+                                  </td>
+                                );
+                              case 'startDate':
+                                return (
+                                  <td key={col.key} className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap">
+                                    {row.startDate}
+                                  </td>
+                                );
+                              case 'endDate':
+                                return (
+                                  <td key={col.key} className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap">
+                                    {row.endDate}
+                                  </td>
+                                );
+                              case 'duration':
+                                return (
+                                  <td key={col.key} className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-right font-bold">
+                                    {row.duration} d
+                                  </td>
+                                );
+                              case 'progress':
+                                return (
+                                  <td key={col.key} className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-center">
+                                    <div className="flex items-center justify-center gap-1.5">
+                                      <div className="w-12 h-1.5 bg-[#E2E2DC] dark:bg-zinc-800 rounded-full overflow-hidden">
+                                        <div
+                                          className="h-full bg-emerald-600"
+                                          style={{ width: `${Math.min(100, Math.max(0, row.progress))}%` }}
+                                        />
+                                      </div>
+                                      <span>{row.progress}%</span>
+                                    </div>
+                                  </td>
+                                );
+                              case 'tasksCount':
+                                return (
+                                  <td key={col.key} className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-right">
+                                    {row.tasksCount}
+                                  </td>
+                                );
+                              case 'milestonesCount':
+                                return (
+                                  <td key={col.key} className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-right font-semibold text-amber-600 dark:text-amber-400">
+                                    {row.milestonesCount}
+                                  </td>
+                                );
+                              case 'description':
+                                return (
+                                  <td key={col.key} className="px-2 py-1.5 font-sans text-xs text-[#6B6B66] dark:text-zinc-400 whitespace-pre-line leading-relaxed">
+                                    {linkedProj && onUpdateProject ? (
+                                      <EditableReportTextCell
+                                        testId={`report-proj-desc-${linkedProj.id}`}
+                                        value={row.description || linkedProj.description || ''}
+                                        placeholder="Añadir descripción del proyecto..."
+                                        multiline
+                                        onCommit={(next) =>
+                                          onUpdateProject({ ...linkedProj, description: next })
+                                        }
+                                      />
+                                    ) : (
+                                      row.description || '—'
+                                    )}
+                                  </td>
+                                );
+                              default:
+                                return null;
+                            }
+                          })}
                       </tr>
                     );
                   })
@@ -1960,7 +2181,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   <th className="px-2.5 py-2 border-r border-[#E2E2DC] dark:border-zinc-700 w-12 text-center bg-[#ECECE8] dark:bg-zinc-900 text-[#6B6B66] select-none">
                     #
                   </th>
-                  {RELEASE_COLUMNS.map((col) => renderResizableTh('releases', col))}
+                  {getOrderedColumns('releases').map((col) => renderResizableTh('releases', col))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E2E2DC] dark:divide-zinc-800 font-mono text-[11px]">
@@ -2000,78 +2221,94 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                         <td className="px-2.5 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 text-center text-[10px] text-[#6B6B66] bg-[#ECECE8]/40 dark:bg-zinc-900 select-none">
                           {idx + 1}
                         </td>
-                        {isColVisible('releases', 'code') && (
-                          <td className="px-2 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 font-bold text-amber-700 dark:text-amber-400 whitespace-nowrap">
-                            {linkedRel && onUpdateRelease ? (
-                              <EditableReportTextCell
-                                testId={`report-rel-code-${linkedRel.id}`}
-                                value={linkedRel.code}
-                                className="font-bold text-amber-700 dark:text-amber-400"
-                                onCommit={(next) =>
-                                  onUpdateRelease({ ...linkedRel, code: next || linkedRel.code })
-                                }
-                              />
-                            ) : (
-                              row.code
-                            )}
-                          </td>
-                        )}
-                        {isColVisible('releases', 'name') && (
-                          <td className="px-2 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 font-sans text-xs font-bold text-[#0C0C09] dark:text-zinc-100">
-                            {linkedRel && onUpdateRelease ? (
-                              <EditableReportTextCell
-                                testId={`report-rel-name-${linkedRel.id}`}
-                                value={linkedRel.name}
-                                className="font-bold"
-                                onCommit={(next) =>
-                                  onUpdateRelease({ ...linkedRel, name: next || linkedRel.name })
-                                }
-                              />
-                            ) : (
-                              row.name
-                            )}
-                          </td>
-                        )}
-                        {isColVisible('releases', 'month') && (
-                          <td className="px-2 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-[#6B6B66] dark:text-zinc-300">
-                            {linkedRel && onUpdateRelease ? (
-                              <EditableReportTextCell
-                                testId={`report-rel-month-${linkedRel.id}`}
-                                value={linkedRel.month || ''}
-                                onCommit={(next) =>
-                                  onUpdateRelease({ ...linkedRel, month: next || linkedRel.month })
-                                }
-                              />
-                            ) : (
-                              row.month
-                            )}
-                          </td>
-                        )}
-                        {isColVisible('releases', 'startDate') && (
-                          <td className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap">
-                            {row.startDate}
-                          </td>
-                        )}
-                        {isColVisible('releases', 'endDate') && (
-                          <td className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap">
-                            {row.endDate}
-                          </td>
-                        )}
-                        {isColVisible('releases', 'duration') && (
-                          <td className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-right font-bold">
-                            {row.duration} d
-                          </td>
-                        )}
-                        {isColVisible('releases', 'assignedProjects') && (
-                          <td className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 font-sans text-xs text-[#0C0C09] dark:text-zinc-200 truncate">
-                            {row.assignedProjects}
-                          </td>
-                        )}
-                        {isColVisible('releases', 'keyMilestones') && (
-                          <td className="px-3 py-2 font-mono text-[10px] text-[#6B6B66] dark:text-zinc-400 truncate">
-                            {row.keyMilestones}
-                          </td>
-                        )}
+                        {getOrderedColumns('releases')
+                          .filter((c) => isColVisible('releases', c.key))
+                          .map((col) => {
+                            switch (col.key) {
+                              case 'code':
+                                return (
+                                  <td key={col.key} className="px-2 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 font-bold text-amber-700 dark:text-amber-400 whitespace-nowrap">
+                                    {linkedRel && onUpdateRelease ? (
+                                      <EditableReportTextCell
+                                        testId={`report-rel-code-${linkedRel.id}`}
+                                        value={linkedRel.code}
+                                        className="font-bold text-amber-700 dark:text-amber-400"
+                                        onCommit={(next) =>
+                                          onUpdateRelease({ ...linkedRel, code: next || linkedRel.code })
+                                        }
+                                      />
+                                    ) : (
+                                      row.code
+                                    )}
+                                  </td>
+                                );
+                              case 'name':
+                                return (
+                                  <td key={col.key} className="px-2 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 font-sans text-xs font-bold text-[#0C0C09] dark:text-zinc-100">
+                                    {linkedRel && onUpdateRelease ? (
+                                      <EditableReportTextCell
+                                        testId={`report-rel-name-${linkedRel.id}`}
+                                        value={linkedRel.name}
+                                        className="font-bold"
+                                        onCommit={(next) =>
+                                          onUpdateRelease({ ...linkedRel, name: next || linkedRel.name })
+                                        }
+                                      />
+                                    ) : (
+                                      row.name
+                                    )}
+                                  </td>
+                                );
+                              case 'month':
+                                return (
+                                  <td key={col.key} className="px-2 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-[#6B6B66] dark:text-zinc-300">
+                                    {linkedRel && onUpdateRelease ? (
+                                      <EditableReportTextCell
+                                        testId={`report-rel-month-${linkedRel.id}`}
+                                        value={linkedRel.month || ''}
+                                        onCommit={(next) =>
+                                          onUpdateRelease({ ...linkedRel, month: next || linkedRel.month })
+                                        }
+                                      />
+                                    ) : (
+                                      row.month
+                                    )}
+                                  </td>
+                                );
+                              case 'startDate':
+                                return (
+                                  <td key={col.key} className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap">
+                                    {row.startDate}
+                                  </td>
+                                );
+                              case 'endDate':
+                                return (
+                                  <td key={col.key} className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap">
+                                    {row.endDate}
+                                  </td>
+                                );
+                              case 'duration':
+                                return (
+                                  <td key={col.key} className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap text-right font-bold">
+                                    {row.duration} d
+                                  </td>
+                                );
+                              case 'assignedProjects':
+                                return (
+                                  <td key={col.key} className="px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-800 font-sans text-xs text-[#0C0C09] dark:text-zinc-200 truncate">
+                                    {row.assignedProjects}
+                                  </td>
+                                );
+                              case 'keyMilestones':
+                                return (
+                                  <td key={col.key} className="px-3 py-2 font-mono text-[10px] text-[#6B6B66] dark:text-zinc-400 truncate">
+                                    {row.keyMilestones}
+                                  </td>
+                                );
+                              default:
+                                return null;
+                            }
+                          })}
                       </tr>
                     );
                   })
