@@ -10,10 +10,18 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.11.20',
+    date: '24 Nov 2026',
+    title: 'Corregir z-index de barra de herramientas del Cronograma sobre cabecera WBS',
+    isLatest: true,
+    features: [
+      'Subido z-index de cronograma-toolbar de z-30 a z-40 para evitar que el botón de columnas y cabecera WBS se superpongan a los menús desplegables de filtro',
+    ],
+  },
+  {
     version: '1.11.19',
     date: '24 Nov 2026',
     title: 'Añadir checkboxes de Subtareas y Predecesoras en barra de filtros del Cronograma',
-    isLatest: true,
     features: [
       'Añadido checkbox Subtareas (desactivado por defecto) para controlar la visibilidad de subtareas no coincidentes de proyectos filtrados',
       'Añadido checkbox Predecesoras (excluido por defecto) para incluir opcionalmente el texto y código de las tareas predecesoras en la búsqueda',

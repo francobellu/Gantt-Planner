@@ -5444,7 +5444,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       <div
         ref={cronogramaToolbarRef}
         data-testid="cronograma-toolbar"
-        className="sticky top-12 z-30 h-10 px-3 bg-[#F4F4F1] dark:bg-zinc-900 border-b border-[#0C0C09] dark:border-zinc-800 flex items-center justify-between shrink-0 select-none gap-2 shadow-xs"
+        className="sticky top-12 z-40 h-10 px-3 bg-[#F4F4F1] dark:bg-zinc-900 border-b border-[#0C0C09] dark:border-zinc-800 flex items-center justify-between shrink-0 select-none gap-2 shadow-xs"
       >
         {/* Left Side: WBS Toggle & Table Search / Platform Filter */}
         <div className="flex items-center gap-2 min-w-0 flex-1">
