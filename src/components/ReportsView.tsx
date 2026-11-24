@@ -22,6 +22,7 @@ import {
   Plus,
   Trash2,
   Pencil,
+  Bookmark,
 } from 'lucide-react';
 import {
   ComputedGanttItem,
@@ -205,6 +206,78 @@ export function computeHiddenColsFromPreset(
   return hidden;
 }
 
+export const REPORT_SAVED_FILTERS_KEY = 'gantt_report_saved_filters_v1';
+export const REPORT_ACTIVE_FILTER_KEY = 'gantt_report_active_filter_v1';
+
+export interface ReportSavedFilter {
+  id: string;
+  name: string;
+  searchQuery: string;
+  selectedType: ReportRowTypeFilter;
+  selectedPlatform: 'all' | ProjectPlatform;
+  selectedAlert: 'all' | ProjectAlertLevel;
+  selectedRelease: string;
+  formatPresetId?: string;
+  visibleColKeys?: string[];
+  colOrder?: string[];
+  formatLabel?: string;
+}
+
+export function createSavedFilter(params: {
+  name: string;
+  searchQuery?: string;
+  selectedType?: ReportRowTypeFilter;
+  selectedPlatform?: 'all' | ProjectPlatform;
+  selectedAlert?: 'all' | ProjectAlertLevel;
+  selectedRelease?: string;
+  formatPresetId?: string;
+  visibleColKeys?: string[];
+  colOrder?: string[];
+  formatLabel?: string;
+}): ReportSavedFilter {
+  return {
+    id: `filter-custom-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    name: params.name.trim(),
+    searchQuery: params.searchQuery ?? '',
+    selectedType: params.selectedType ?? 'all',
+    selectedPlatform: params.selectedPlatform ?? 'all',
+    selectedAlert: params.selectedAlert ?? 'all',
+    selectedRelease: params.selectedRelease ?? 'all',
+    formatPresetId: params.formatPresetId,
+    visibleColKeys: params.visibleColKeys ? [...params.visibleColKeys] : undefined,
+    colOrder: params.colOrder ? [...params.colOrder] : undefined,
+    formatLabel: params.formatLabel,
+  };
+}
+
+export function formatSavedFilterSummary(f: ReportSavedFilter): string {
+  const parts: string[] = [];
+  if (f.selectedType && f.selectedType !== 'all') {
+    const label =
+      f.selectedType === 'RELEASE'
+        ? 'Release'
+        : f.selectedType === 'PROYECTO'
+        ? 'Proyecto'
+        : f.selectedType === 'TAREA'
+        ? 'Tarea'
+        : 'Hito';
+    parts.push(label);
+  }
+  if (f.selectedPlatform && f.selectedPlatform !== 'all') {
+    parts.push(f.selectedPlatform);
+  }
+  if (f.selectedAlert !== 'all' && f.selectedAlert !== undefined) {
+    parts.push(`Nivel ${f.selectedAlert}`);
+  }
+  if (f.selectedRelease && f.selectedRelease !== 'all') {
+    parts.push(f.selectedRelease);
+  }
+  if (f.searchQuery && f.searchQuery.trim()) {
+    parts.push(`"${f.searchQuery.trim()}"`);
+  }
+  return parts.length > 0 ? parts.join(' · ') : 'Sin filtros de fila';
+}
+
 interface EditableReportTextCellProps {
   value: string;
   onCommit: (nextValue: string) => void;
@@ -286,8 +359,11 @@ interface ReportsViewProps {
   initialTab?: ReportTab;
   initialShowColumnsMenu?: boolean;
   initialShowFormatMenu?: boolean;
+  initialShowSavedFiltersMenu?: boolean;
   initialCustomPresets?: ReportColumnPreset[];
   initialActivePresetId?: string;
+  initialSavedFilters?: ReportSavedFilter[];
+  initialActiveSavedFilterId?: string;
   initialTypeFilter?: ReportRowTypeFilter;
   selectedEntity?: FocusEntity | null;
   onSelectEntity?: (entity: FocusEntity) => void;
@@ -303,8 +379,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   initialTab = 'cronograma',
   initialShowColumnsMenu = false,
   initialShowFormatMenu = false,
+  initialShowSavedFiltersMenu = false,
   initialCustomPresets,
   initialActivePresetId,
+  initialSavedFilters,
+  initialActiveSavedFilterId,
   initialTypeFilter = 'all',
   selectedEntity = null,
   onSelectEntity,
@@ -319,6 +398,43 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const [showFormatMenu, setShowFormatMenu] = useState<boolean>(initialShowFormatMenu);
   const formatMenuRef = useRef<HTMLDivElement>(null);
   const [newPresetName, setNewPresetName] = useState<string>('');
+
+  const [showSavedFiltersMenu, setShowSavedFiltersMenu] = useState<boolean>(initialShowSavedFiltersMenu);
+  const savedFiltersMenuRef = useRef<HTMLDivElement>(null);
+  const [newFilterName, setNewFilterName] = useState<string>('');
+  const [newFilterFormatChoice, setNewFilterFormatChoice] = useState<string>('__current__');
+
+  const [savedFilters, setSavedFilters] = useState<ReportSavedFilter[]>(() => {
+    if (initialSavedFilters && Array.isArray(initialSavedFilters)) {
+      return initialSavedFilters;
+    }
+    try {
+      const saved = typeof localStorage !== 'undefined' ? localStorage.getItem(REPORT_SAVED_FILTERS_KEY) : null;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
+      }
+    } catch {}
+    return [];
+  });
+
+  const [activeSavedFilterId, setActiveSavedFilterId] = useState<string | null>(() => {
+    if (initialActiveSavedFilterId) return initialActiveSavedFilterId;
+    try {
+      return typeof localStorage !== 'undefined' ? localStorage.getItem(REPORT_ACTIVE_FILTER_KEY) : null;
+    } catch {}
+    return null;
+  });
+
+  const [editingFilterId, setEditingFilterId] = useState<string | null>(null);
+  const [editingFilterName, setEditingFilterName] = useState<string>('');
+  const [editingFilterFormatChoice, setEditingFilterFormatChoice] = useState<string>('__keep__');
+
+  const initialMatchedSavedFilter = initialActiveSavedFilterId
+    ? savedFilters.find((f) => f.id === initialActiveSavedFilterId)
+    : undefined;
 
   const [presetNameOverrides, setPresetNameOverrides] = useState<Record<string, string>>(() => {
     try {
@@ -377,6 +493,25 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
   const [hiddenColsByTab, setHiddenColsByTab] = useState<Record<ReportTab, Record<string, boolean>>>(() => {
     try {
+      if (initialMatchedSavedFilter && initialMatchedSavedFilter.formatPresetId !== '__none__') {
+        const linkedPresetId = initialMatchedSavedFilter.formatPresetId;
+        const cronoPresets = [...DEFAULT_COLUMN_PRESETS, ...(initialCustomPresets || [])];
+        const linkedPreset =
+          linkedPresetId && linkedPresetId !== '__current__'
+            ? cronoPresets.find((p) => p.id === linkedPresetId)
+            : undefined;
+        const keys = linkedPreset ? linkedPreset.visibleColKeys : initialMatchedSavedFilter.visibleColKeys;
+        if (keys && keys.length > 0) {
+          const visibleSet = new Set(keys);
+          const hiddenMap: Record<string, boolean> = {};
+          for (const col of COLUMNS_BY_TAB.cronograma) {
+            if (!visibleSet.has(col.key)) {
+              hiddenMap[col.key] = true;
+            }
+          }
+          return { cronograma: hiddenMap, projects: {}, releases: {} };
+        }
+      }
       if (!initialActivePresetId) {
         const saved = typeof localStorage !== 'undefined' ? localStorage.getItem(REPORT_HIDDEN_COLS_KEY) : null;
         if (saved) {
@@ -439,6 +574,27 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       releases: RELEASE_COLUMNS.map((c) => c.key),
     };
     try {
+      if (initialMatchedSavedFilter && initialMatchedSavedFilter.formatPresetId !== '__none__') {
+        const linkedPresetId = initialMatchedSavedFilter.formatPresetId;
+        const cronoPresets = [...DEFAULT_COLUMN_PRESETS, ...(initialCustomPresets || [])];
+        const linkedPreset =
+          linkedPresetId && linkedPresetId !== '__current__'
+            ? cronoPresets.find((p) => p.id === linkedPresetId)
+            : undefined;
+        const orderKeys = linkedPreset?.colOrder || initialMatchedSavedFilter.colOrder;
+        if (orderKeys && orderKeys.length > 0) {
+          return {
+            ...defaults,
+            cronograma: computeColOrderFromPreset('cronograma', {
+              id: 'init',
+              name: 'init',
+              tab: 'cronograma',
+              visibleColKeys: linkedPreset ? linkedPreset.visibleColKeys : (initialMatchedSavedFilter.visibleColKeys || []),
+              colOrder: orderKeys,
+            }),
+          };
+        }
+      }
       if (!initialActivePresetId) {
         const saved = typeof localStorage !== 'undefined' ? localStorage.getItem(REPORT_COL_ORDER_KEY) : null;
         if (saved) {
@@ -479,20 +635,28 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   });
   const [draggingCol, setDraggingCol] = useState<{ tab: ReportTab; key: string } | null>(null);
   const [dragOverColKey, setDragOverColKey] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedType, setSelectedType] = useState<ReportRowTypeFilter>(initialTypeFilter);
+  const [searchQuery, setSearchQuery] = useState(initialMatchedSavedFilter?.searchQuery ?? '');
+  const [selectedType, setSelectedType] = useState<ReportRowTypeFilter>(
+    initialTypeFilter !== 'all' ? initialTypeFilter : (initialMatchedSavedFilter?.selectedType ?? 'all')
+  );
   const [showTypeFilterMenu, setShowTypeFilterMenu] = useState<boolean>(false);
   const typeFilterMenuRef = useRef<HTMLDivElement>(null);
 
-  const [selectedPlatform, setSelectedPlatform] = useState<'all' | ProjectPlatform>('all');
+  const [selectedPlatform, setSelectedPlatform] = useState<'all' | ProjectPlatform>(
+    initialMatchedSavedFilter?.selectedPlatform ?? 'all'
+  );
   const [showPlatformFilterMenu, setShowPlatformFilterMenu] = useState<boolean>(false);
   const platformFilterMenuRef = useRef<HTMLDivElement>(null);
 
-  const [selectedAlert, setSelectedAlert] = useState<'all' | ProjectAlertLevel>('all');
+  const [selectedAlert, setSelectedAlert] = useState<'all' | ProjectAlertLevel>(
+    initialMatchedSavedFilter?.selectedAlert ?? 'all'
+  );
   const [showAlertFilterMenu, setShowAlertFilterMenu] = useState<boolean>(false);
   const alertFilterMenuRef = useRef<HTMLDivElement>(null);
 
-  const [selectedRelease, setSelectedRelease] = useState<string>('all');
+  const [selectedRelease, setSelectedRelease] = useState<string>(
+    initialMatchedSavedFilter?.selectedRelease ?? 'all'
+  );
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -527,6 +691,12 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       ) {
         setShowFormatMenu(false);
       }
+      if (
+        savedFiltersMenuRef.current &&
+        !savedFiltersMenuRef.current.contains(e.target as Node)
+      ) {
+        setShowSavedFiltersMenu(false);
+      }
     };
     document.addEventListener('pointerdown', handleOutsideClick);
     return () => {
@@ -542,6 +712,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         setShowAlertFilterMenu(false);
         setShowColumnsMenu(false);
         setShowFormatMenu(false);
+        setShowSavedFiltersMenu(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -770,6 +941,265 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       applyPreset(fallbackPreset);
     }
     setToastMessage('Formato personalizado eliminado.');
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const cronoPresetsList = [
+    ...DEFAULT_COLUMN_PRESETS.filter((p) => p.tab === 'cronograma'),
+    ...customPresets.filter((p) => (p.tab || 'cronograma') === 'cronograma'),
+  ];
+
+  const activeSavedFilter = useMemo(() => {
+    if (!activeSavedFilterId) return undefined;
+    const found = savedFilters.find((f) => f.id === activeSavedFilterId);
+    if (!found) return undefined;
+    const criteriaMatch =
+      found.searchQuery === searchQuery &&
+      found.selectedType === selectedType &&
+      found.selectedPlatform === selectedPlatform &&
+      found.selectedAlert === selectedAlert &&
+      found.selectedRelease === selectedRelease;
+    return criteriaMatch ? found : undefined;
+  }, [activeSavedFilterId, savedFilters, searchQuery, selectedType, selectedPlatform, selectedAlert, selectedRelease]);
+
+  const applyCustomColumnSnapshot = (tab: ReportTab, visibleColKeys: string[], colOrder?: string[]) => {
+    const visibleSet = new Set(visibleColKeys);
+    const newHidden: Record<string, boolean> = {};
+    for (const col of COLUMNS_BY_TAB[tab] || []) {
+      if (!visibleSet.has(col.key)) {
+        newHidden[col.key] = true;
+      }
+    }
+    setHiddenColsByTab((prev) => {
+      const next = { ...prev, [tab]: newHidden };
+      try {
+        localStorage.setItem(REPORT_HIDDEN_COLS_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+    if (colOrder && colOrder.length > 0) {
+      const mergedOrder = computeColOrderFromPreset(tab, {
+        id: 'snapshot',
+        name: 'snapshot',
+        tab,
+        visibleColKeys,
+        colOrder,
+      });
+      setColOrderByTab((prev) => {
+        const next = { ...prev, [tab]: mergedOrder };
+        try {
+          localStorage.setItem(REPORT_COL_ORDER_KEY, JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+    }
+    setActivePresetByTab((prev) => {
+      const next = { ...prev, [tab]: 'custom' };
+      try {
+        localStorage.setItem(REPORT_ACTIVE_PRESET_KEY, 'custom');
+      } catch {}
+      return next;
+    });
+  };
+
+  const getSavedFilterFormatLabel = (filter: ReportSavedFilter): string => {
+    if (filter.formatPresetId === '__none__') return 'Sin formato fijo';
+    if (filter.formatPresetId && filter.formatPresetId !== '__current__') {
+      const linked = cronoPresetsList.find((p) => p.id === filter.formatPresetId);
+      if (linked) {
+        return getPresetDisplayName(linked).replace(/^Formato\s+/i, '');
+      }
+    }
+    if (filter.formatLabel) return filter.formatLabel;
+    if (filter.visibleColKeys && filter.visibleColKeys.length > 0) {
+      return `${filter.visibleColKeys.length} cols`;
+    }
+    return 'Formato actual';
+  };
+
+  const applySavedFilter = (filter: ReportSavedFilter) => {
+    setSearchQuery(filter.searchQuery ?? '');
+    setSelectedType(filter.selectedType ?? 'all');
+    setSelectedPlatform(filter.selectedPlatform ?? 'all');
+    setSelectedAlert(filter.selectedAlert ?? 'all');
+    setSelectedRelease(filter.selectedRelease ?? 'all');
+
+    if (filter.formatPresetId && filter.formatPresetId !== '__none__' && filter.formatPresetId !== '__current__') {
+      const matchedPreset = cronoPresetsList.find((p) => p.id === filter.formatPresetId);
+      if (matchedPreset) {
+        applyPreset(matchedPreset);
+      } else if (filter.visibleColKeys && filter.visibleColKeys.length > 0) {
+        applyCustomColumnSnapshot('cronograma', filter.visibleColKeys, filter.colOrder);
+      }
+    } else if (filter.formatPresetId !== '__none__' && filter.visibleColKeys && filter.visibleColKeys.length > 0) {
+      applyCustomColumnSnapshot('cronograma', filter.visibleColKeys, filter.colOrder);
+    }
+
+    setActiveSavedFilterId(filter.id);
+    try {
+      localStorage.setItem(REPORT_ACTIVE_FILTER_KEY, filter.id);
+    } catch {}
+    setShowSavedFiltersMenu(false);
+  };
+
+  const resolveFormatFieldsFromChoice = (
+    choice: string,
+    existingFilter?: ReportSavedFilter
+  ): Pick<ReportSavedFilter, 'formatPresetId' | 'visibleColKeys' | 'colOrder' | 'formatLabel'> => {
+    if (choice === '__keep__' && existingFilter) {
+      return {
+        formatPresetId: existingFilter.formatPresetId,
+        visibleColKeys: existingFilter.visibleColKeys,
+        colOrder: existingFilter.colOrder,
+        formatLabel: existingFilter.formatLabel,
+      };
+    }
+    if (choice === '__none__') {
+      return {
+        formatPresetId: '__none__',
+        visibleColKeys: undefined,
+        colOrder: undefined,
+        formatLabel: 'Sin formato fijo',
+      };
+    }
+    if (choice === '__current__') {
+      const cronoOrdered = getOrderedColumns('cronograma');
+      const currentOrder = cronoOrdered.map((c) => c.key);
+      const currentVisible = cronoOrdered
+        .filter((c) => isColVisible('cronograma', c.key))
+        .map((c) => c.key);
+      return {
+        formatPresetId: '__current__',
+        visibleColKeys: currentVisible,
+        colOrder: currentOrder,
+        formatLabel: `${currentVisible.length} cols`,
+      };
+    }
+    const chosen = cronoPresetsList.find((p) => p.id === choice);
+    if (chosen) {
+      return {
+        formatPresetId: chosen.id,
+        visibleColKeys: [...chosen.visibleColKeys],
+        colOrder: chosen.colOrder ? [...chosen.colOrder] : undefined,
+        formatLabel: getPresetDisplayName(chosen).replace(/^Formato\s+/i, ''),
+      };
+    }
+    return {
+      formatPresetId: '__none__',
+      visibleColKeys: undefined,
+      colOrder: undefined,
+      formatLabel: 'Sin formato fijo',
+    };
+  };
+
+  const handleSaveFilter = () => {
+    const trimmed = newFilterName.trim();
+    if (!trimmed) return;
+
+    const formatFields = resolveFormatFieldsFromChoice(newFilterFormatChoice);
+    const existingIdx = savedFilters.findIndex(
+      (f) => f.name.toLowerCase() === trimmed.toLowerCase()
+    );
+    let savedId: string;
+    let nextFilters: ReportSavedFilter[];
+
+    if (existingIdx >= 0) {
+      savedId = savedFilters[existingIdx].id;
+      nextFilters = savedFilters.map((f, idx) =>
+        idx === existingIdx
+          ? {
+              ...f,
+              name: trimmed,
+              searchQuery,
+              selectedType,
+              selectedPlatform,
+              selectedAlert,
+              selectedRelease,
+              ...formatFields,
+            }
+          : f
+      );
+    } else {
+      const created = createSavedFilter({
+        name: trimmed,
+        searchQuery,
+        selectedType,
+        selectedPlatform,
+        selectedAlert,
+        selectedRelease,
+        ...formatFields,
+      });
+      savedId = created.id;
+      nextFilters = [...savedFilters, created];
+    }
+
+    setSavedFilters(nextFilters);
+    try {
+      localStorage.setItem(REPORT_SAVED_FILTERS_KEY, JSON.stringify(nextFilters));
+    } catch {}
+
+    setActiveSavedFilterId(savedId);
+    try {
+      localStorage.setItem(REPORT_ACTIVE_FILTER_KEY, savedId);
+    } catch {}
+
+    setNewFilterName('');
+    setToastMessage(`Filtro "${trimmed}" guardado correctamente.`);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const startRenameSavedFilter = (filter: ReportSavedFilter, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingFilterId(filter.id);
+    setEditingFilterName(filter.name);
+    setEditingFilterFormatChoice('__keep__');
+  };
+
+  const handleSaveFilterRename = (filterId: string) => {
+    const trimmed = editingFilterName.trim();
+    if (trimmed) {
+      const target = savedFilters.find((f) => f.id === filterId);
+      const formatFields = resolveFormatFieldsFromChoice(editingFilterFormatChoice, target);
+      const nextFilters = savedFilters.map((f) =>
+        f.id === filterId
+          ? {
+              ...f,
+              name: trimmed,
+              ...formatFields,
+            }
+          : f
+      );
+      setSavedFilters(nextFilters);
+      try {
+        localStorage.setItem(REPORT_SAVED_FILTERS_KEY, JSON.stringify(nextFilters));
+      } catch {}
+      setToastMessage(`Filtro actualizado a "${trimmed}".`);
+      setTimeout(() => setToastMessage(null), 3000);
+    }
+    setEditingFilterId(null);
+    setEditingFilterName('');
+    setEditingFilterFormatChoice('__keep__');
+  };
+
+  const handleCancelFilterRename = () => {
+    setEditingFilterId(null);
+    setEditingFilterName('');
+    setEditingFilterFormatChoice('__keep__');
+  };
+
+  const handleDeleteSavedFilter = (filterId: string) => {
+    const nextFilters = savedFilters.filter((f) => f.id !== filterId);
+    setSavedFilters(nextFilters);
+    try {
+      localStorage.setItem(REPORT_SAVED_FILTERS_KEY, JSON.stringify(nextFilters));
+    } catch {}
+    if (activeSavedFilterId === filterId) {
+      setActiveSavedFilterId(null);
+      try {
+        localStorage.removeItem(REPORT_ACTIVE_FILTER_KEY);
+      } catch {}
+    }
+    setToastMessage('Filtro guardado eliminado.');
     setTimeout(() => setToastMessage(null), 3000);
   };
 
@@ -1682,6 +2112,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 setSelectedPlatform('all');
                 setSelectedAlert('all');
                 setSelectedRelease('all');
+                setActiveSavedFilterId(null);
+                try {
+                  localStorage.removeItem(REPORT_ACTIVE_FILTER_KEY);
+                } catch {}
               }}
               className="px-2 py-0.5 text-[11px] text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09] dark:hover:text-white underline cursor-pointer"
             >
@@ -1690,8 +2124,267 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           )}
         </div>
 
-        {/* Right side: Formats & Columns Configurators */}
+        {/* Right side: Saved Filters, Formats & Columns Configurators */}
         <div className="flex items-center gap-2 shrink-0">
+          {/* Saved Filters with Column Format (Informe Planificación) */}
+          {activeTab === 'cronograma' && (
+            <div className="relative shrink-0" ref={savedFiltersMenuRef}>
+              <button
+                type="button"
+                data-testid="reports-saved-filters-btn"
+                onClick={() => {
+                  setShowSavedFiltersMenu((prev) => {
+                    const next = !prev;
+                    if (next) {
+                      setNewFilterFormatChoice(activePresetId !== 'custom' ? activePresetId : '__current__');
+                    }
+                    return next;
+                  });
+                  setShowFormatMenu(false);
+                  setShowColumnsMenu(false);
+                }}
+                className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-[3px] border text-[10px] font-semibold transition cursor-pointer h-6.5 ${
+                  activeSavedFilter
+                    ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                    : 'border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700'
+                }`}
+                title={
+                  activeSavedFilter
+                    ? `Filtro activo: ${activeSavedFilter.name}`
+                    : 'Guardar y aplicar filtros con formato de columnas'
+                }
+              >
+                <Bookmark className="w-3 h-3 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                <span className="truncate max-w-[140px] sm:max-w-[180px]">
+                  {activeSavedFilter ? `Filtro: ${activeSavedFilter.name}` : 'Filtros guardados'}
+                </span>
+                {savedFilters.length > 0 && !activeSavedFilter && (
+                  <span className="px-1 py-0.1 rounded bg-zinc-100 dark:bg-zinc-700 text-[9px] font-mono">
+                    {savedFilters.length}
+                  </span>
+                )}
+                <ChevronDown className="w-3 h-3 text-zinc-500 shrink-0" />
+              </button>
+
+              {showSavedFiltersMenu && (
+                <div
+                  data-testid="reports-saved-filters-menu"
+                  className="absolute right-0 top-full mt-1 w-80 max-h-[26rem] overflow-y-auto bg-white dark:bg-zinc-900 border border-[#0C0C09] dark:border-zinc-700 rounded-[4px] shadow-2xl z-50 p-2 flex flex-col gap-1.5"
+                >
+                  <div className="px-1.5 py-1 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between">
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+                      Filtros guardados
+                    </span>
+                    <span className="text-[9px] font-mono text-zinc-400">
+                      Filtro + Formato
+                    </span>
+                  </div>
+
+                  {savedFilters.length === 0 ? (
+                    <p
+                      data-testid="reports-saved-filters-empty"
+                      className="px-2 py-2 text-[11px] text-zinc-500 dark:text-zinc-400 italic"
+                    >
+                      No hay filtros guardados. Configura tus filtros y formato de columnas y guárdalos abajo.
+                    </p>
+                  ) : (
+                    <div className="flex flex-col gap-1">
+                      {savedFilters.map((filter) => {
+                        const isActive = activeSavedFilter?.id === filter.id;
+                        const isEditing = editingFilterId === filter.id;
+
+                        if (isEditing) {
+                          return (
+                            <div
+                              key={filter.id}
+                              className="flex flex-col gap-1.5 p-2 bg-zinc-50 dark:bg-zinc-800 rounded border border-indigo-400"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="text"
+                                  data-testid={`reports-saved-filter-rename-input-${filter.id}`}
+                                  autoFocus
+                                  value={editingFilterName}
+                                  onChange={(e) => setEditingFilterName(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      handleSaveFilterRename(filter.id);
+                                    } else if (e.key === 'Escape') {
+                                      e.preventDefault();
+                                      handleCancelFilterRename();
+                                    }
+                                  }}
+                                  className="flex-1 px-1.5 py-0.5 text-xs rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  data-testid={`reports-saved-filter-rename-save-${filter.id}`}
+                                  onClick={() => handleSaveFilterRename(filter.id)}
+                                  className="p-1 text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 cursor-pointer"
+                                  title="Guardar cambios"
+                                >
+                                  <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                </button>
+                                <button
+                                  type="button"
+                                  data-testid={`reports-saved-filter-rename-cancel-${filter.id}`}
+                                  onClick={handleCancelFilterRename}
+                                  className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer"
+                                  title="Cancelar"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] font-mono text-zinc-500 shrink-0">Formato:</span>
+                                <select
+                                  data-testid={`reports-saved-filter-edit-format-${filter.id}`}
+                                  value={editingFilterFormatChoice}
+                                  onChange={(e) => setEditingFilterFormatChoice(e.target.value)}
+                                  className="flex-1 px-1.5 py-0.5 text-[10px] rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 outline-none cursor-pointer"
+                                >
+                                  <option value="__keep__">Mantener ({getSavedFilterFormatLabel(filter)})</option>
+                                  <option value="__current__">
+                                    Actualizar a columnas actuales ({currentVisibleColKeysInOrder.length} cols)
+                                  </option>
+                                  {cronoPresetsList.map((p) => (
+                                    <option key={p.id} value={p.id}>
+                                      {getPresetDisplayName(p)} ({p.visibleColKeys.length} cols)
+                                    </option>
+                                  ))}
+                                  <option value="__none__">Sin formato fijo</option>
+                                </select>
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div
+                            key={filter.id}
+                            className={`flex items-start justify-between px-2 py-1.5 rounded-[3px] text-xs transition group ${
+                              isActive
+                                ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                                : 'text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                            }`}
+                          >
+                            <button
+                              type="button"
+                              data-testid={`reports-saved-filter-option-${filter.id}`}
+                              data-active-filter={isActive ? 'true' : 'false'}
+                              onClick={() => applySavedFilter(filter)}
+                              className="flex items-start gap-2 flex-1 min-w-0 text-left cursor-pointer"
+                            >
+                              <span
+                                className={`mt-0.5 w-3.5 h-3.5 rounded-[2px] border flex items-center justify-center shrink-0 ${
+                                  isActive
+                                    ? 'bg-indigo-600 border-indigo-600 text-white'
+                                    : 'border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900'
+                                }`}
+                              >
+                                {isActive && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                              </span>
+                              <div className="flex flex-col min-w-0">
+                                <span className={`truncate ${isActive ? 'font-semibold' : 'font-medium'}`}>
+                                  {filter.name}
+                                </span>
+                                <span className="text-[10px] text-zinc-500 dark:text-zinc-400 truncate">
+                                  {formatSavedFilterSummary(filter)}
+                                </span>
+                                <span className="text-[9px] font-mono text-emerald-700 dark:text-emerald-400 truncate">
+                                  Formato: {getSavedFilterFormatLabel(filter)}
+                                </span>
+                              </div>
+                            </button>
+
+                            <div className="flex items-center gap-0.5 shrink-0 ml-1">
+                              <button
+                                type="button"
+                                data-testid={`reports-saved-filter-rename-btn-${filter.id}`}
+                                onClick={(e) => startRenameSavedFilter(filter, e)}
+                                className="p-1 text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded cursor-pointer transition opacity-70 group-hover:opacity-100"
+                                title="Renombrar filtro o cambiar su formato"
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                data-testid={`reports-saved-filter-delete-${filter.id}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteSavedFilter(filter.id);
+                                }}
+                                className="p-1 text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 rounded cursor-pointer transition"
+                                title="Eliminar este filtro"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Save current filter + format section */}
+                  <div className="pt-2 mt-1 border-t border-slate-200 dark:border-zinc-800 flex flex-col gap-1.5 px-1">
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+                      + Guardar filtro actual
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-mono text-zinc-500 shrink-0">Formato:</span>
+                      <select
+                        data-testid="reports-saved-filter-format-select"
+                        value={newFilterFormatChoice}
+                        onChange={(e) => setNewFilterFormatChoice(e.target.value)}
+                        className="flex-1 px-1.5 py-1 text-[10px] rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 outline-none cursor-pointer truncate"
+                      >
+                        <option value="__current__">
+                          Columnas y orden actuales ({currentVisibleColKeysInOrder.length} cols)
+                        </option>
+                        {cronoPresetsList.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {getPresetDisplayName(p)} ({p.visibleColKeys.length} cols)
+                          </option>
+                        ))}
+                        <option value="__none__">Sin formato fijo (solo filtros)</option>
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        data-testid="reports-saved-filter-name-input"
+                        placeholder="Nombre del filtro..."
+                        value={newFilterName}
+                        onChange={(e) => setNewFilterName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleSaveFilter();
+                          }
+                        }}
+                        className="flex-1 px-2 py-1 text-xs rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 outline-none focus:border-indigo-500"
+                      />
+                      <button
+                        type="button"
+                        data-testid="reports-saved-filter-save-btn"
+                        onClick={handleSaveFilter}
+                        disabled={!newFilterName.trim()}
+                        className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition shrink-0"
+                        title="Guardar filtro y formato de columnas"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>Guardar</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Format Selector Dropdown */}
           <div className="relative shrink-0" ref={formatMenuRef}>
             <button
@@ -1700,6 +2393,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               onClick={() => {
                 setShowFormatMenu((prev) => !prev);
                 setShowColumnsMenu(false);
+                setShowSavedFiltersMenu(false);
               }}
               className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-[3px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[10px] font-semibold text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition cursor-pointer h-6.5"
               title={`Formato actual: ${activePresetDisplayName}`}
@@ -1982,6 +2676,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               onClick={() => {
                 setShowColumnsMenu((prev) => !prev);
                 setShowFormatMenu(false);
+                setShowSavedFiltersMenu(false);
               }}
               className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-[3px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[10px] font-semibold text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition cursor-pointer h-6.5"
               title="Configurar columnas visibles de esta tabla"

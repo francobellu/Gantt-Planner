@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.11.18',
+    date: '24 Nov 2026',
+    title: 'Añadir filtros guardados con formato de columnas específico en Informe Planificación',
+    isLatest: true,
+    features: [
+      'Permitido guardar filtros combinados con formato y orden de columnas específico',
+      'Añadido renombrado, edición de formato vinculado y eliminación de filtros guardados en Informe Planificación',
+    ],
+  },
+  {
     version: '1.11.17',
     date: '23 Nov 2026',
     title: 'Simplificar formatos con orden de columnas, añadir filtro por tipo y ajustar selector Plat.',
-    isLatest: true,
     features: [
       'Eliminados presets predeterminados dejando solo Completo',
       'Guardado y restaurado del orden de columnas por formato',
