@@ -987,7 +987,97 @@ export function autoScheduleConflicts(
   };
 }
 
-export type DependencyMutationError = 'self' | 'duplicate' | 'cycle' | 'not_found';
+export type DependencyMutationError = 'self' | 'duplicate' | 'cycle' | 'not_found' | 'would_shift';
+
+export type DependencyPortSide = 'start' | 'end';
+
+/**
+ * Maps a visual drag/connect gesture from a predecessor port (start/end)
+ * to a successor port (start/end) into the corresponding Gantt dependency type.
+ * - end -> start: FS (Finish-to-Start)
+ * - end -> end:   FF (Finish-to-Finish)
+ * - start -> start: SS (Start-to-Start)
+ * - start -> end:   SF (Start-to-Finish)
+ */
+export function resolveDependencyTypeFromPorts(
+  sourcePort: DependencyPortSide,
+  targetPort: DependencyPortSide
+): DependencyType {
+  if (sourcePort === 'end' && targetPort === 'start') return 'FS';
+  if (sourcePort === 'end' && targetPort === 'end') return 'FF';
+  if (sourcePort === 'start' && targetPort === 'start') return 'SS';
+  return 'SF';
+}
+
+/**
+ * Validates whether adding a dependency (predId -> succId, depType) can be created
+ * visually on the timeline WITHOUT shifting the successor's current dates or creating
+ * a cycle/duplicate. When blocked by `would_shift`, also checks whether connecting to
+ * the opposite port on the successor (same source port) would be valid without shifting.
+ */
+export function canCreateNonDisplacingDependency(
+  items: GanttItem[],
+  predId: string,
+  succId: string,
+  depType: DependencyType = 'FS'
+): {
+  allowed: boolean;
+  reason?: DependencyMutationError;
+  requiredStartDate?: string;
+  suggestedAlternative?: DependencyType;
+} {
+  const cleanPredId = (predId || '').trim();
+  const cleanSuccId = (succId || '').trim();
+  if (!cleanPredId || !cleanSuccId) {
+    return { allowed: false, reason: 'not_found' };
+  }
+  if (cleanPredId === cleanSuccId) {
+    return { allowed: false, reason: 'self' };
+  }
+  const pred = items.find((it) => it.id === cleanPredId);
+  const succ = items.find((it) => it.id === cleanSuccId);
+  if (!pred || !succ) {
+    return { allowed: false, reason: 'not_found' };
+  }
+  if ((succ.dependencies || []).includes(cleanPredId)) {
+    return { allowed: false, reason: 'duplicate' };
+  }
+  if (wouldCreateCycle(items, cleanSuccId, cleanPredId)) {
+    return { allowed: false, reason: 'cycle' };
+  }
+
+  const checkType = (candidateType: DependencyType): Date | null => {
+    const candidateSucc: GanttItem = {
+      ...succ,
+      dependencies: [cleanPredId],
+      dependencyTypes: { [cleanPredId]: candidateType },
+    };
+    return getEarliestStartFromPredecessors(candidateSucc, new Map([[cleanPredId, pred]]));
+  };
+
+  const succStart = parseDateSafe(succ.startDate);
+  const requiredStart = checkType(depType);
+  if (requiredStart && succStart < requiredStart) {
+    const altMap: Record<DependencyType, DependencyType> = {
+      FS: 'FF',
+      FF: 'FS',
+      SS: 'SF',
+      SF: 'SS',
+    };
+    const altType = altMap[depType];
+    const altReq = checkType(altType);
+    const suggestedAlternative =
+      !altReq || succStart >= altReq ? altType : undefined;
+    return {
+      allowed: false,
+      reason: 'would_shift',
+      requiredStartDate: formatDateISO(requiredStart),
+      suggestedAlternative,
+    };
+  }
+
+  return { allowed: true };
+}
 
 /**
  * Adds a dependency link (predId -> succId) with cycle detection and optional date cascading.

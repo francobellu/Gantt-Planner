@@ -4520,7 +4520,7 @@ test('Help page, version control v1.2.0, release selection on project creation, 
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version control consistency
-  assert.equal(pkg.version, '1.11.22', 'package.json version must be 1.9.2');
+  assert.equal(pkg.version, '1.11.23', 'package.json version must be 1.9.2');
   assert.ok(pkg.scripts['version:patch'], 'package.json must contain version:patch script');
   assert.ok(pkg.scripts['version:minor'], 'package.json must contain version:minor script');
   assert.ok(pkg.scripts['release:patch'], 'package.json must contain release:patch script');
@@ -5301,10 +5301,10 @@ test('Task name positioning, configurable row separators, 37 char truncation, v1
     const htmlWithoutWeekendShading = renderToString(mod.renderWorkspaceWithWeekendShading(false));
     assert.ok(!htmlWithoutWeekendShading.includes('bg-[#E5E5DF]'), 'Canvas and header must NOT render weekend shading when showWeekendShading is false (clean uniform background)');
 
-    // 9. App Header displays v1.11.22 badge, row-separators-btn, and weekend-shading-btn
+    // 9. App Header displays v1.11.23 badge, row-separators-btn, and weekend-shading-btn
     const appHtml = renderToString(mod.renderAppHeader());
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'Header must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.11.22'), 'Header badge must display v1.11.22');
+    assert.ok(appHtml.includes('v1.11.23'), 'Header badge must display v1.11.23');
     assert.ok(appHtml.includes('data-testid="header-toggle-row-separators-btn"'), 'Header must contain header-toggle-row-separators-btn');
     assert.ok(appHtml.includes('data-testid="header-toggle-weekend-shading-btn"'), 'Header must contain header-toggle-weekend-shading-btn');
 
@@ -5334,7 +5334,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version Bump Verification
-  assert.equal(pkg.version, '1.11.22', 'package.json version must equal 1.9.2');
+  assert.equal(pkg.version, '1.11.23', 'package.json version must equal 1.9.2');
 
   // Verify scripts/bump-version.mjs works properly
   const bumpScript = await fs.readFile(path.resolve(__dirname, '../scripts/bump-version.mjs'), 'utf8');
@@ -5508,7 +5508,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // A. APP_VERSION equals 1.9.2
-    assert.equal(mod.APP_VERSION, '1.11.22', 'APP_VERSION must be 1.9.2');
+    assert.equal(mod.APP_VERSION, '1.11.23', 'APP_VERSION must be 1.9.2');
 
     // A2. Excel Export Unit Test
     const sampleReleases = [
@@ -5585,7 +5585,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     assert.ok(appHtml.includes('data-testid="table-platform-filter"'), 'App must contain unified table-platform-filter');
     assert.ok(!appHtml.includes('data-testid="header-toggle-focus-mode-btn"'), 'Redundant header-toggle-focus-mode-btn must be removed');
     assert.ok(appHtml.includes('data-testid="header-reports-btn"'), 'App header must contain header-reports-btn');
-    assert.ok(appHtml.includes('v1.11.22'), 'App header must display version v1.11.22');
+    assert.ok(appHtml.includes('v1.11.23'), 'App header must display version v1.11.23');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6035,8 +6035,8 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
-  // 1. Version Bump Verification v1.11.22
-  assert.equal(pkg.version, '1.11.22', 'package.json version must equal 1.9.2');
+  // 1. Version Bump Verification v1.11.23
+  assert.equal(pkg.version, '1.11.23', 'package.json version must equal 1.9.2');
 
   // 2. SSR Bundle verification for TaskFormModal, App Header, and sanitizeGanttItem
   const tmpFile = path.resolve(__dirname, `tmp_test59_bundle_${Date.now()}.mjs`);
@@ -6134,7 +6134,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.equal(mod.APP_VERSION, '1.11.22', 'mod.APP_VERSION must equal 1.9.2');
+    assert.equal(mod.APP_VERSION, '1.11.23', 'mod.APP_VERSION must equal 1.9.2');
 
     // sanitizeGanttItem preserves platform
     const sanitizedIos = mod.sanitizeGanttItem({
@@ -6179,7 +6179,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     assert.ok(appHtml.includes('data-testid="header-more-menu-btn"'), 'App header must render header-more-menu-btn');
     assert.ok(appHtml.includes('data-testid="header-more-menu-dropdown"'), 'App must render header-more-menu-dropdown');
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'More menu must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.11.22'), 'Version badge must display v1.11.22');
+    assert.ok(appHtml.includes('v1.11.23'), 'Version badge must display v1.11.23');
     assert.ok(appHtml.includes('data-testid="force-reload-btn"'), 'More menu must contain force-reload-btn');
 
     // 7. Verify secondary buttons are rendered inside the menu
@@ -6201,7 +6201,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
       hiddenReleaseCount: 0,
     }));
     assert.ok(settingsHtml.includes('data-testid="settings-version-badge"'), 'SettingsModal must contain settings-version-badge');
-    assert.ok(settingsHtml.includes('1.11.22') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.9.2');
+    assert.ok(settingsHtml.includes('1.11.23') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.9.2');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6355,14 +6355,14 @@ test('Test 61: Version button, compiled release notes modal and changelog across
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
 
     // 1. Check RELEASE_NOTES compiled data
-    assert.strictEqual(mod.APP_VERSION, '1.11.22');
+    assert.strictEqual(mod.APP_VERSION, '1.11.23');
     assert.ok(Array.isArray(mod.RELEASE_NOTES), 'RELEASE_NOTES must be an array');
     assert.ok(mod.RELEASE_NOTES.length >= 10, 'RELEASE_NOTES must have at least 10 releases');
 
     const latest = mod.RELEASE_NOTES[0];
-    assert.strictEqual(latest.version, '1.11.22', 'First release note must be 1.9.2');
+    assert.strictEqual(latest.version, '1.11.23', 'First release note must be 1.9.2');
     assert.strictEqual(latest.isLatest, true, 'First release note must be isLatest: true');
-    assert.ok(latest.features.length > 0, 'v1.11.22 must contain features');
+    assert.ok(latest.features.length > 0, 'v1.11.23 must contain features');
 
     // 2. Render App and verify version button exists in dropdown menu and is NOT duplicated in top header
     const appHtml = renderToString(React.createElement(mod.App));
@@ -6375,8 +6375,8 @@ test('Test 61: Version button, compiled release notes modal and changelog across
       'App dropdown must contain data-testid="app-version-badge"'
     );
     assert.ok(
-      appHtml.includes('<button') && appHtml.includes('data-testid="app-version-badge"') && appHtml.includes('v1.11.22'),
-      'app-version-badge in tools dropdown must be an interactive button showing v1.11.22'
+      appHtml.includes('<button') && appHtml.includes('data-testid="app-version-badge"') && appHtml.includes('v1.11.23'),
+      'app-version-badge in tools dropdown must be an interactive button showing v1.11.23'
     );
 
     // 3. Render ReleaseNotesModal
@@ -8193,7 +8193,7 @@ test('Test 73: v1.9.0 project alert level (0-3), workspace toolbar alert filter,
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.strictEqual(mod.APP_VERSION, '1.11.22', 'APP_VERSION must be 1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.11.23', 'APP_VERSION must be 1.9.2');
 
     // 1. Check sanitizeProject and describeProjectStateChanges for alertLevel
     const pSanitized0 = mod.sanitizeProject({ id: 'p-1', name: 'Proj 1', alertLevel: 0 });
@@ -8382,7 +8382,7 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.strictEqual(mod.APP_VERSION, '1.11.22', 'APP_VERSION must be 1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.11.23', 'APP_VERSION must be 1.9.2');
 
     // 1. Verify description format: <descripción del proyecto si existe>\n\n* <nombre> <desc>
     const pWithDesc = {
@@ -8467,8 +8467,8 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
   }
 });
 
-// TEST 75: v1.11.22 Project locking, accidental move guard & unlock prompt modal
-test('Test 75: v1.11.22 project locking, cascade/dependency protection, plan history badge, and unlock alert modal', async () => {
+// TEST 75: v1.11.23 Project locking, accidental move guard & unlock prompt modal
+test('Test 75: v1.11.23 project locking, cascade/dependency protection, plan history badge, and unlock alert modal', async () => {
   const fs = await import('node:fs/promises');
   const path = await import('node:path');
   const { fileURLToPath } = await import('node:url');
@@ -8479,7 +8479,7 @@ test('Test 75: v1.11.22 project locking, cascade/dependency protection, plan his
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
-  assert.strictEqual(pkg.version, '1.11.22', 'package.json version must equal 1.9.2');
+  assert.strictEqual(pkg.version, '1.11.23', 'package.json version must equal 1.9.2');
 
   const tmpFile = path.resolve(__dirname, `tmp_test75_bundle_${Date.now()}.mjs`);
   try {
@@ -8541,9 +8541,9 @@ test('Test 75: v1.11.22 project locking, cascade/dependency protection, plan his
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // 1. Version & release notes verification
-    assert.strictEqual(mod.APP_VERSION, '1.11.22', 'APP_VERSION must equal 1.9.2');
-    assert.strictEqual(mod.RELEASE_NOTES[0].version, '1.11.22', 'Latest release note must be 1.9.2');
-    assert.strictEqual(mod.RELEASE_NOTES[0].isLatest, true, 'v1.11.22 release note must be marked isLatest');
+    assert.strictEqual(mod.APP_VERSION, '1.11.23', 'APP_VERSION must equal 1.9.2');
+    assert.strictEqual(mod.RELEASE_NOTES[0].version, '1.11.23', 'Latest release note must be 1.9.2');
+    assert.strictEqual(mod.RELEASE_NOTES[0].isLatest, true, 'v1.11.23 release note must be marked isLatest');
 
     // 2. sanitizeProject, getLockedProjectForItem, describeProjectStateChanges
     const lockedProj = mod.sanitizeProject({
@@ -8740,7 +8740,7 @@ test('Test 75: v1.11.22 project locking, cascade/dependency protection, plan his
   }
 });
 
-test('Test 76: v1.11.22 automatic Free Slack calculation given successor tasks across engine, table badge, inspector sidebar and task modal', async () => {
+test('Test 76: v1.11.23 automatic Free Slack calculation given successor tasks across engine, table badge, inspector sidebar and task modal', async () => {
   // 1. Engine calculation: FS dependency with multiple successors
   const testItems = [
     {
@@ -13362,6 +13362,136 @@ test('Test 109: Proposal 3 (Rail + Dual Band) visual hierarchy on expanded proje
     assert.ok(
       !flatHtml.includes('data-testid="project-tree-rail-t-1"'),
       'Flat mode (groupByProject=false) must not render project tree rails'
+    );
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
+test('Test 110: Port-based dependency type resolution (FS/FF/SS/SF) and non-displacing validation on timeline bars', async () => {
+  const esbuild = await import('esbuild');
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const { pathToFileURL } = await import('node:url');
+  const tmpFile = path.resolve(__dirname, `./tmp_test110_bundle_${Date.now()}.mjs`);
+
+  try {
+    await esbuild.build({
+      entryPoints: [path.resolve(__dirname, '../src/utils/ganttEngine.ts')],
+      bundle: true,
+      format: 'esm',
+      outfile: tmpFile,
+      platform: 'node',
+    });
+
+    const mod = await import(pathToFileURL(tmpFile).href);
+
+    // 1. Port mapping covers all 4 dependency types
+    assert.equal(mod.resolveDependencyTypeFromPorts('end', 'start'), 'FS');
+    assert.equal(mod.resolveDependencyTypeFromPorts('end', 'end'), 'FF');
+    assert.equal(mod.resolveDependencyTypeFromPorts('start', 'start'), 'SS');
+    assert.equal(mod.resolveDependencyTypeFromPorts('start', 'end'), 'SF');
+
+    const items = [
+      {
+        id: 'a',
+        name: 'Tarea A',
+        type: 'task',
+        startDate: '2026-10-01',
+        endDate: '2026-10-10',
+        duration: 10,
+        slack: 0,
+        dependencies: [],
+        progress: 0,
+        color: 'indigo',
+      },
+      {
+        id: 'b-after',
+        name: 'Tarea B después',
+        type: 'task',
+        startDate: '2026-10-11',
+        endDate: '2026-10-15',
+        duration: 5,
+        slack: 0,
+        dependencies: [],
+        progress: 0,
+        color: 'blue',
+      },
+      {
+        id: 'b-overlap',
+        name: 'Tarea B solapada',
+        type: 'task',
+        startDate: '2026-10-05',
+        endDate: '2026-10-15',
+        duration: 11,
+        slack: 0,
+        dependencies: [],
+        progress: 0,
+        color: 'emerald',
+      },
+      {
+        id: 'b-before',
+        name: 'Tarea B anterior',
+        type: 'task',
+        startDate: '2026-09-20',
+        endDate: '2026-09-28',
+        duration: 9,
+        slack: 0,
+        dependencies: [],
+        progress: 0,
+        color: 'amber',
+      },
+      {
+        id: 'm-same-end',
+        name: 'Hito fin A',
+        type: 'milestone',
+        startDate: '2026-10-10',
+        endDate: '2026-10-10',
+        duration: 0,
+        slack: 0,
+        dependencies: [],
+        progress: 0,
+        color: 'rose',
+      },
+    ];
+
+    // 2. FS allowed when B starts after A ends; blocked with FF suggestion when B overlaps and ends >= A
+    assert.equal(mod.canCreateNonDisplacingDependency(items, 'a', 'b-after', 'FS').allowed, true);
+    const overlapFs = mod.canCreateNonDisplacingDependency(items, 'a', 'b-overlap', 'FS');
+    assert.equal(overlapFs.allowed, false);
+    assert.equal(overlapFs.reason, 'would_shift');
+    assert.equal(overlapFs.suggestedAlternative, 'FF');
+
+    // 3. FF allowed for overlapping B (ends 10-15 >= 10-10), blocked for earlier B (ends 09-28 < 10-10)
+    assert.equal(mod.canCreateNonDisplacingDependency(items, 'a', 'b-overlap', 'FF').allowed, true);
+    const earlyFf = mod.canCreateNonDisplacingDependency(items, 'a', 'b-before', 'FF');
+    assert.equal(earlyFf.allowed, false);
+    assert.equal(earlyFf.reason, 'would_shift');
+
+    // 4. SS allowed when B starts >= A starts, blocked when B starts earlier
+    assert.equal(mod.canCreateNonDisplacingDependency(items, 'a', 'b-overlap', 'SS').allowed, true);
+    assert.equal(mod.canCreateNonDisplacingDependency(items, 'a', 'b-before', 'SS').allowed, false);
+
+    // 5. SF allowed when target ends >= source starts (b-overlap starts 10-05, a ends 10-10 >= 10-05)
+    assert.equal(mod.canCreateNonDisplacingDependency(items, 'b-overlap', 'a', 'SF').allowed, true);
+    assert.equal(mod.canCreateNonDisplacingDependency(items, 'a', 'b-before', 'SF').allowed, false);
+
+    // 6. Milestone on A.endDate allows FF but blocks FS (suggesting FF)
+    assert.equal(mod.canCreateNonDisplacingDependency(items, 'a', 'm-same-end', 'FF').allowed, true);
+    const msFs = mod.canCreateNonDisplacingDependency(items, 'a', 'm-same-end', 'FS');
+    assert.equal(msFs.allowed, false);
+    assert.equal(msFs.suggestedAlternative, 'FF');
+
+    // 7. Workspace wires port resolution & non-displacing guard on diagram creation
+    const wsSrc = await fs.readFile(
+      path.resolve(__dirname, '../src/components/GanttWorkspace.tsx'),
+      'utf8'
+    );
+    assert.ok(
+      wsSrc.includes('resolveDependencyTypeFromPorts') &&
+        wsSrc.includes('canCreateNonDisplacingDependency') &&
+        wsSrc.includes('requireNonDisplacing: true'),
+      'GanttWorkspace must resolve dependency type from ports and enforce non-displacing validation on timeline creation'
     );
   } finally {
     await fs.unlink(tmpFile).catch(() => {});

@@ -79,12 +79,14 @@ import {
   addDependencyLink,
   calculateDurationFromDates,
   calculateEndDateFromDuration,
+  canCreateNonDisplacingDependency,
   clampDayWidth,
   collectTimelineAnchorDates,
   computeFitToProjectScale,
   computeTimelineBounds,
   computeWheelZoomDayWidth,
   createRoundedOrthogonalPath,
+  DependencyPortSide,
   filterGroupsBySelectedProjects,
   formatDateDisplay,
   formatDateISO,
@@ -93,6 +95,7 @@ import {
   getItemEffectiveColor,
   getLockedProjectForItem,
   getRelatedFocusEntityIds,
+  resolveDependencyTypeFromPorts,
   getTeamColor,
   groupItemsByProject,
   groupItemsByReleaseAndProject,
@@ -1299,6 +1302,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   const [connectModeSource, setConnectModeSource] = useState<{
     itemId: string;
     role: 'pred' | 'succ';
+    port?: DependencyPortSide;
   } | null>(initialConnectModeSource || null);
   const [reconnectMode, setReconnectMode] = useState<{
     oldPredId: string;
@@ -1318,6 +1322,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     cursorX: number;
     cursorY: number;
     hoveredTargetId: string | null;
+    hoveredTargetPort: DependencyPortSide | null;
   } | null>(null);
   const [depFeedback, setDepFeedback] = useState<{
     message: string;
@@ -4127,17 +4132,59 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   const commitAddDependency = (
     predId: string,
     succId: string,
-    depType: DependencyType = 'FS'
+    depType: DependencyType = 'FS',
+    options?: { requireNonDisplacing?: boolean }
   ): boolean => {
     if (!guardItemUnlocked(succId, 'crear dependencia en proyecto bloqueado')) {
       return false;
     }
+    const requireNonDisplacing = Boolean(options?.requireNonDisplacing);
+    if (requireNonDisplacing) {
+      const validation = canCreateNonDisplacingDependency(
+        items,
+        predId,
+        succId,
+        depType
+      );
+      if (!validation.allowed) {
+        if (validation.reason === 'would_shift') {
+          const succItem = enrichedItemById.get(succId);
+          const succLabel = succItem
+            ? `#${succItem.wbsCode || succItem.wbs} ${succItem.name}`
+            : 'la tarea destino';
+          const altHint = validation.suggestedAlternative
+            ? ` Prueba conectar al punto ${
+                validation.suggestedAlternative === 'FF' ||
+                validation.suggestedAlternative === 'SF'
+                  ? 'final'
+                  : 'inicial'
+              } para crear ${validation.suggestedAlternative}.`
+            : '';
+          showDepToast(
+            `No se puede crear ${depType}: desplazaría las fechas de ${succLabel}.${altHint}`,
+            'error'
+          );
+        } else if (validation.reason === 'cycle') {
+          showDepToast(
+            'No se puede conectar: generaría una dependencia circular (ciclo).',
+            'error'
+          );
+        } else if (validation.reason === 'self') {
+          showDepToast('Una tarea no puede depender de sí misma.', 'error');
+        } else if (validation.reason === 'duplicate') {
+          showDepToast('Esta dependencia ya existe entre ambas tareas.', 'info');
+        }
+        return false;
+      }
+    }
+
+    const effectiveCascade = requireNonDisplacing ? false : autoCascade;
     const res = addDependencyLink(
       items,
       predId,
       succId,
       depType,
-      autoCascade,
+      effectiveCascade,
       projectsRef.current
     );
     if (!res.added) {
@@ -4167,10 +4214,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       );
       const updatedSucc = nonCascaded.items.find((it) => it.id === succId);
       if (updatedSucc) {
-        onUpdateItem(updatedSucc, autoCascade);
+        onUpdateItem(updatedSucc, effectiveCascade);
       }
     }
-    showDepToast('Dependencia creada en el diagrama', 'success');
+    showDepToast(`Dependencia ${depType} creada en el diagrama`, 'success');
     return true;
   };
 
@@ -4357,11 +4404,23 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         setConnectModeSource(null);
         return;
       }
-      const predId =
-        connectModeSource.role === 'pred' ? connectModeSource.itemId : itemId;
-      const succId =
-        connectModeSource.role === 'pred' ? itemId : connectModeSource.itemId;
-      commitAddDependency(predId, succId, 'FS');
+      const sourcePort: DependencyPortSide =
+        connectModeSource.port || (connectModeSource.role === 'succ' ? 'start' : 'end');
+      const targetCoords = itemRowMap.get(itemId);
+      const canvasRect = canvasRef.current?.getBoundingClientRect();
+      let targetPort: DependencyPortSide = 'start';
+      if (targetCoords && canvasRect) {
+        const clickX = e.clientX - canvasRect.left;
+        const midX =
+          targetCoords.item.type === 'milestone'
+            ? targetCoords.startX
+            : (targetCoords.startX + targetCoords.endX) / 2;
+        targetPort = clickX > midX ? 'end' : 'start';
+      }
+      const depType = resolveDependencyTypeFromPorts(sourcePort, targetPort);
+      commitAddDependency(connectModeSource.itemId, itemId, depType, {
+        requireNonDisplacing: true,
+      });
       setConnectModeSource(null);
       return;
     }
@@ -4529,12 +4588,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     e.preventDefault();
 
     if (
-      (config.mode === 'create' &&
-        config.originPort === 'in' &&
-        !guardItemUnlocked(config.fixedItemId, 'crear dependencia en proyecto bloqueado')) ||
-      ((config.mode === 'move-source' || config.mode === 'move-target') &&
-        config.oldSuccId &&
-        !guardItemUnlocked(config.oldSuccId, 'mover dependencia de proyecto bloqueado'))
+      (config.mode === 'move-source' || config.mode === 'move-target') &&
+      config.oldSuccId &&
+      !guardItemUnlocked(config.oldSuccId, 'mover dependencia de proyecto bloqueado')
     ) {
       return;
     }
@@ -4542,11 +4598,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     const fixedCoords = itemRowMap.get(config.fixedItemId);
     if (!fixedCoords) return;
 
-    const isFixedPredecessor =
-      (config.mode === 'create' && config.originPort === 'out') ||
+    const anchorOnEnd =
+      (config.mode === 'create' && config.originPort !== 'in') ||
       config.mode === 'move-target';
 
-    const anchorX = isFixedPredecessor
+    const anchorX = anchorOnEnd
       ? fixedCoords.item.type === 'milestone'
         ? fixedCoords.startX + 11
         : fixedCoords.endX
@@ -4563,6 +4619,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     const startClientY = e.clientY;
     let hasMoved = false;
     let latestTargetId: string | null = null;
+    let latestTargetPort: DependencyPortSide | null = null;
 
     setDepDragState({
       mode: config.mode,
@@ -4576,13 +4633,28 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       cursorX: initX,
       cursorY: initY,
       hoveredTargetId: null,
+      hoveredTargetPort: null,
     });
 
-    const resolveTargetItemFromPoint = (
+    const resolveTargetPortForItem = (
+      itemId: string,
+      canvasX: number
+    ): DependencyPortSide => {
+      const coords = itemRowMap.get(itemId);
+      if (!coords) return 'start';
+      const midX =
+        coords.item.type === 'milestone'
+          ? coords.startX
+          : (coords.startX + coords.endX) / 2;
+      return canvasX > midX ? 'end' : 'start';
+    };
+
+    const resolveTargetFromPoint = (
       clientX: number,
       clientY: number,
+      canvasX: number,
       canvasY: number
-    ): string | null => {
+    ): { itemId: string; port: DependencyPortSide } | null => {
       if (typeof document !== 'undefined' && document.elementsFromPoint) {
         const els = document.elementsFromPoint(clientX, clientY);
         for (const el of els) {
@@ -4592,10 +4664,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             '[data-dep-port-in], [data-dep-port-out]'
           ) as HTMLElement | null;
           if (portEl) {
-            const pid =
-              portEl.getAttribute('data-dep-port-in') ||
-              portEl.getAttribute('data-dep-port-out');
-            if (pid && pid !== config.fixedItemId) return pid;
+            const inId = portEl.getAttribute('data-dep-port-in');
+            const outId = portEl.getAttribute('data-dep-port-out');
+            const pid = inId || outId;
+            if (pid && pid !== config.fixedItemId) {
+              return { itemId: pid, port: inId ? 'start' : 'end' };
+            }
           }
           const barEl = htmlEl.closest(
             '[data-timeline-task], [data-timeline-milestone]'
@@ -4604,12 +4678,22 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             const bid =
               barEl.getAttribute('data-timeline-task') ||
               barEl.getAttribute('data-timeline-milestone');
-            if (bid && bid !== config.fixedItemId) return bid;
+            if (bid && bid !== config.fixedItemId) {
+              return {
+                itemId: bid,
+                port: resolveTargetPortForItem(bid, canvasX),
+              };
+            }
           }
           const rowEl = htmlEl.closest('[data-task-row]') as HTMLElement | null;
           if (rowEl) {
             const rid = rowEl.getAttribute('data-task-row');
-            if (rid && rid !== config.fixedItemId) return rid;
+            if (rid && rid !== config.fixedItemId) {
+              return {
+                itemId: rid,
+                port: resolveTargetPortForItem(rid, canvasX),
+              };
+            }
           }
         }
       }
@@ -4618,7 +4702,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       if (rowIndex >= 0 && rowIndex < displayRows.length) {
         const row = displayRows[rowIndex];
         if (row.kind === 'item' && row.item.id !== config.fixedItemId) {
-          return row.item.id;
+          return {
+            itemId: row.item.id,
+            port: resolveTargetPortForItem(row.item.id, canvasX),
+          };
         }
       }
       return null;
@@ -4635,12 +4722,14 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       const rect = canvasRef.current?.getBoundingClientRect();
       const curX = rect ? moveEvent.clientX - rect.left : initX;
       const curY = rect ? moveEvent.clientY - rect.top : initY;
-      const targetId = resolveTargetItemFromPoint(
+      const targetMatch = resolveTargetFromPoint(
         moveEvent.clientX,
         moveEvent.clientY,
+        curX,
         curY
       );
-      latestTargetId = targetId;
+      latestTargetId = targetMatch?.itemId || null;
+      latestTargetPort = targetMatch?.port || null;
 
       setDepDragState((prev) =>
         prev
@@ -4648,7 +4737,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               ...prev,
               cursorX: curX,
               cursorY: curY,
-              hoveredTargetId: targetId,
+              hoveredTargetId: latestTargetId,
+              hoveredTargetPort: latestTargetPort,
             }
           : null
       );
@@ -4662,29 +4752,35 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       if (!hasMoved) {
         // Click without dragging: toggle click-to-connect or click-to-reconnect mode
         if (config.mode === 'create') {
+          const clickedPort: DependencyPortSide =
+            config.originPort === 'in' ? 'start' : 'end';
           if (
             connectModeSource &&
             connectModeSource.itemId !== config.fixedItemId
           ) {
-            const predId =
-              connectModeSource.role === 'pred'
-                ? connectModeSource.itemId
-                : config.fixedItemId;
-            const succId =
-              connectModeSource.role === 'pred'
-                ? config.fixedItemId
-                : connectModeSource.itemId;
-            commitAddDependency(predId, succId, 'FS');
+            const sourcePort: DependencyPortSide =
+              connectModeSource.port ||
+              (connectModeSource.role === 'succ' ? 'start' : 'end');
+            const resolvedDepType = resolveDependencyTypeFromPorts(
+              sourcePort,
+              clickedPort
+            );
+            commitAddDependency(
+              connectModeSource.itemId,
+              config.fixedItemId,
+              resolvedDepType,
+              { requireNonDisplacing: true }
+            );
             setConnectModeSource(null);
           } else {
-            const nextRole: 'pred' | 'succ' =
-              config.originPort === 'in' ? 'succ' : 'pred';
             setReconnectMode(null);
             setSelectedDepLink(null);
             setConnectModeSource((prev) =>
-              prev && prev.itemId === config.fixedItemId && prev.role === nextRole
+              prev &&
+              prev.itemId === config.fixedItemId &&
+              prev.port === clickedPort
                 ? null
-                : { itemId: config.fixedItemId, role: nextRole }
+                : { itemId: config.fixedItemId, role: 'pred', port: clickedPort }
             );
           }
         } else if (
@@ -4709,11 +4805,19 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
       if (latestTargetId && latestTargetId !== config.fixedItemId) {
         if (config.mode === 'create') {
-          const predId =
-            config.originPort === 'in' ? latestTargetId : config.fixedItemId;
-          const succId =
-            config.originPort === 'in' ? config.fixedItemId : latestTargetId;
-          commitAddDependency(predId, succId, config.depType || 'FS');
+          const sourcePort: DependencyPortSide =
+            config.originPort === 'in' ? 'start' : 'end';
+          const targetPort: DependencyPortSide = latestTargetPort || 'start';
+          const resolvedDepType = resolveDependencyTypeFromPorts(
+            sourcePort,
+            targetPort
+          );
+          commitAddDependency(
+            config.fixedItemId,
+            latestTargetId,
+            resolvedDepType,
+            { requireNonDisplacing: true }
+          );
         } else if (
           config.mode === 'move-source' &&
           config.oldPredId &&
@@ -5054,8 +5158,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   const depDragPreview = useMemo(() => {
     if (!depDragState) return null;
     const isFixedPred =
-      (depDragState.mode === 'create' && depDragState.originPort === 'out') ||
-      depDragState.mode === 'move-target';
+      depDragState.mode === 'create' || depDragState.mode === 'move-target';
 
     let x1 = depDragState.startX;
     let y1 = depDragState.startY;
@@ -5070,9 +5173,13 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     }
 
     let isValidTarget = true;
+    const sourcePort: DependencyPortSide =
+      depDragState.originPort === 'in' ? 'start' : 'end';
     let statusLabel =
       depDragState.mode === 'create'
-        ? 'Arrastra hacia una tarea destino...'
+        ? sourcePort === 'start'
+          ? 'Arrastra al Inicio (SS) o Fin (SF) de la tarea destino...'
+          : 'Arrastra al Inicio (FS) o Fin (FF) de la tarea destino...'
         : 'Arrastra hacia otra tarea para reconectar...';
 
     if (depDragState.hoveredTargetId) {
@@ -5081,7 +5188,19 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       const fixedItem = enrichedItemById.get(depDragState.fixedItemId);
 
       if (targetCoords) {
-        if (isFixedPred) {
+        if (depDragState.mode === 'create') {
+          const targetPort: DependencyPortSide =
+            depDragState.hoveredTargetPort || 'start';
+          x2 =
+            targetPort === 'end'
+              ? targetCoords.item.type === 'milestone'
+                ? targetCoords.startX + 11
+                : targetCoords.endX
+              : targetCoords.item.type === 'milestone'
+              ? targetCoords.startX - 11
+              : targetCoords.startX;
+          y2 = targetCoords.centerY;
+        } else if (isFixedPred) {
           x2 =
             targetCoords.item.type === 'milestone'
               ? targetCoords.startX - 11
@@ -5097,29 +5216,37 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       }
 
       if (depDragState.mode === 'create') {
-        const candidatePred = isFixedPred
-          ? depDragState.fixedItemId
-          : depDragState.hoveredTargetId;
-        const candidateSucc = isFixedPred
-          ? depDragState.hoveredTargetId
-          : depDragState.fixedItemId;
-        const check = addDependencyLink(
+        const candidatePred = depDragState.fixedItemId;
+        const candidateSucc = depDragState.hoveredTargetId;
+        const targetPort: DependencyPortSide =
+          depDragState.hoveredTargetPort || 'start';
+        const resolvedDepType = resolveDependencyTypeFromPorts(
+          sourcePort,
+          targetPort
+        );
+        const validation = canCreateNonDisplacingDependency(
           items,
           candidatePred,
           candidateSucc,
-          depDragState.depType,
-          false
+          resolvedDepType
         );
-        isValidTarget = check.added;
-        if (check.added) {
-          const pItem = enrichedItemById.get(candidatePred);
-          const sItem = enrichedItemById.get(candidateSucc);
-          statusLabel = `Conectar #${pItem?.wbsCode || pItem?.wbs} → #${
-            sItem?.wbsCode || sItem?.wbs
-          } (${depDragState.depType})`;
-        } else if (check.error === 'cycle') {
+        isValidTarget = validation.allowed;
+        const pItem = enrichedItemById.get(candidatePred);
+        const sItem = enrichedItemById.get(candidateSucc);
+        const pLabel = `#${pItem?.wbsCode || pItem?.wbs}`;
+        const sLabel = `#${sItem?.wbsCode || sItem?.wbs}`;
+        if (validation.allowed) {
+          statusLabel = `Conectar ${pLabel} → ${sLabel} (${resolvedDepType})`;
+        } else if (validation.reason === 'would_shift') {
+          const alt = validation.suggestedAlternative;
+          statusLabel = alt
+            ? `${resolvedDepType} bloqueado: movería ${sLabel} (usa punto ${
+                alt === 'FF' || alt === 'SF' ? 'final' : 'inicial'
+              } para ${alt})`
+            : `${resolvedDepType} bloqueado: movería ${sLabel}`;
+        } else if (validation.reason === 'cycle') {
           statusLabel = 'Ciclo no permitido';
-        } else if (check.error === 'duplicate') {
+        } else if (validation.reason === 'duplicate') {
           statusLabel = 'Dependencia ya existente';
         }
       } else if (depDragState.oldPredId && depDragState.oldSuccId) {
@@ -9027,7 +9154,22 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                 const isHovered = hoveredId === item.id;
                 const isSelected = selectedItemId === item.id;
                 const isDepDropTarget = depDragState?.hoveredTargetId === item.id;
+                const isStartDropTarget =
+                  isDepDropTarget &&
+                  (depDragState?.mode !== 'create' ||
+                    (depDragState?.hoveredTargetPort || 'start') === 'start');
+                const isEndDropTarget =
+                  isDepDropTarget &&
+                  depDragState?.mode === 'create' &&
+                  depDragState?.hoveredTargetPort === 'end';
+                const isDepDropValid = Boolean(depDragPreview?.isValidTarget);
                 const isConnectSource = connectModeSource?.itemId === item.id;
+                const isStartConnectSource =
+                  isConnectSource &&
+                  (connectModeSource?.port === 'start' ||
+                    (!connectModeSource?.port && connectModeSource?.role === 'succ'));
+                const isEndConnectSource =
+                  isConnectSource && !isStartConnectSource;
                 const isDimmed =
                   (hoveredId !== null ||
                     selectedItemId !== null ||
@@ -9139,7 +9281,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             isDraggingThis ? 'z-40' : ''
                           }`}
                         >
-                        {/* Left Input Dependency Connector Port (Sucesora) */}
+                        {/* Left Start Dependency Connector Port (Inicio: SS / SF desde origen, FS / SS como destino) */}
                         <button
                           type="button"
                           data-dep-port-in={item.id}
@@ -9152,19 +9294,23 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             })
                           }
                           onClick={(e) => e.stopPropagation()}
-                          title="Puerto de entrada: arrastra o haz clic para conectar una predecesora a este hito"
+                          title="Punto de Inicio (S): arrastra para crear SS/SF o suelta aquí para FS/SS sin mover fechas"
                           className={`absolute -left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-slate-900 bg-indigo-500 hover:bg-indigo-600 hover:scale-125 shadow-sm transition-all cursor-crosshair z-30 ${
                             showPortHandles
                               ? 'opacity-100 scale-105'
                               : 'opacity-0 group-hover:opacity-100'
                           } ${
-                            isDepDropTarget
+                            isStartDropTarget
+                              ? isDepDropValid
+                                ? 'ring-2 ring-emerald-400 bg-emerald-500 scale-125 opacity-100'
+                                : 'ring-2 ring-rose-400 bg-rose-500 scale-125 opacity-100'
+                              : isStartConnectSource
                               ? 'ring-2 ring-emerald-400 bg-emerald-500 scale-125 opacity-100'
                               : ''
                           }`}
                         />
 
-                        {/* Right Output Dependency Connector Port (Predecesora) */}
+                        {/* Right End Dependency Connector Port (Fin: FS / FF desde origen, FF / SF como destino) */}
                         <button
                           type="button"
                           data-dep-port-out={item.id}
@@ -9177,13 +9323,17 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             })
                           }
                           onClick={(e) => e.stopPropagation()}
-                          title="Puerto de salida: arrastra hacia otra tarea/hito o haz clic para crear dependencia"
+                          title="Punto de Fin (F): arrastra para crear FS/FF o suelta aquí para FF/SF sin mover fechas"
                           className={`absolute left-[22px] top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-slate-900 bg-indigo-600 hover:bg-indigo-500 hover:scale-125 shadow-sm transition-all cursor-crosshair z-30 ${
                             showPortHandles
                               ? 'opacity-100 scale-105'
                               : 'opacity-0 group-hover:opacity-100'
                           } ${
-                            isConnectSource
+                            isEndDropTarget
+                              ? isDepDropValid
+                                ? 'ring-2 ring-emerald-400 bg-emerald-500 scale-125 opacity-100'
+                                : 'ring-2 ring-rose-400 bg-rose-500 scale-125 opacity-100'
+                              : isEndConnectSource
                               ? 'ring-2 ring-emerald-400 bg-emerald-500 scale-125 opacity-100'
                               : ''
                           }`}
@@ -9265,7 +9415,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             </span>
                           </div>
 
-                          {/* Left Input Dependency Connector Port (Sucesora) */}
+                          {/* Left Start Dependency Connector Port (Inicio: SS / SF desde origen, FS / SS como destino) */}
                           <button
                             type="button"
                             data-dep-port-in={item.id}
@@ -9278,13 +9428,17 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               })
                             }
                             onClick={(e) => e.stopPropagation()}
-                            title="Puerto de entrada: arrastra o haz clic para conectar una predecesora a esta tarea"
+                            title="Punto de Inicio (S): arrastra para crear SS/SF o suelta aquí para FS/SS sin mover fechas"
                             className={`absolute -left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-slate-900 bg-indigo-500 hover:bg-indigo-600 hover:scale-125 shadow-sm transition-all cursor-crosshair z-30 ${
                               showPortHandles
                                 ? 'opacity-100 scale-105'
                                 : 'opacity-0 group-hover:opacity-100'
                             } ${
-                              isDepDropTarget
+                              isStartDropTarget
+                                ? isDepDropValid
+                                  ? 'ring-2 ring-emerald-400 bg-emerald-500 scale-125 opacity-100'
+                                  : 'ring-2 ring-rose-400 bg-rose-500 scale-125 opacity-100'
+                                : isStartConnectSource
                                 ? 'ring-2 ring-emerald-400 bg-emerald-500 scale-125 opacity-100'
                                 : ''
                             }`}
@@ -9429,7 +9583,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             );
                           })()}
 
-                          {/* Right Output Dependency Connector Port (Predecesora) */}
+                          {/* Right End Dependency Connector Port (Fin: FS / FF desde origen, FF / SF como destino) */}
                           <button
                             type="button"
                             data-dep-port-out={item.id}
@@ -9442,13 +9596,17 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               })
                             }
                             onClick={(e) => e.stopPropagation()}
-                            title="Puerto de salida: arrastra hacia otra tarea/hito o haz clic para crear dependencia"
+                            title="Punto de Fin (F): arrastra para crear FS/FF o suelta aquí para FF/SF sin mover fechas"
                             className={`absolute -right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-slate-900 bg-indigo-600 hover:bg-indigo-500 hover:scale-125 shadow-sm transition-all cursor-crosshair z-30 ${
                               showPortHandles
                                 ? 'opacity-100 scale-105'
                                 : 'opacity-0 group-hover:opacity-100'
                             } ${
-                              isConnectSource
+                              isEndDropTarget
+                                ? isDepDropValid
+                                  ? 'ring-2 ring-emerald-400 bg-emerald-500 scale-125 opacity-100'
+                                  : 'ring-2 ring-rose-400 bg-rose-500 scale-125 opacity-100'
+                                : isEndConnectSource
                                 ? 'ring-2 ring-emerald-400 bg-emerald-500 scale-125 opacity-100'
                                 : ''
                             }`}
@@ -9506,14 +9664,21 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             <GitBranch className="w-4 h-4 shrink-0" />
             {connectModeSource ? (
               <span>
-                Modo conexión activo desde{' '}
+                Modo conexión desde{' '}
                 <strong>
                   #
                   {enrichedItemById.get(connectModeSource.itemId)?.wbsCode ||
                     enrichedItemById.get(connectModeSource.itemId)?.wbs}{' '}
-                  {enrichedItemById.get(connectModeSource.itemId)?.name}
+                  {enrichedItemById.get(connectModeSource.itemId)?.name}{' '}
+                  (
+                  {(connectModeSource.port ||
+                    (connectModeSource.role === 'succ' ? 'start' : 'end')) ===
+                  'start'
+                    ? 'Inicio'
+                    : 'Fin'}
+                  )
                 </strong>{' '}
-                — Haz clic en otra tarea o hito del diagrama para crear la dependencia
+                — Haz clic en el punto Inicio o Fin de la tarea destino (solo sin mover fechas)
               </span>
             ) : (
               <span>

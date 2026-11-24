@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.11.23',
+    date: '24 Nov 2026',
+    title: 'Dependencias visuales por puerto (FS/FF/SS/SF) sin desplazar fechas',
+    isLatest: true,
+    features: [
+      'Mapeado automático de puerto origen/destino en barras del cronograma a FS, FF, SS o SF',
+      'Bloqueo preventivo con aviso y sugerencia cuando la dependencia implicaría mover fechas de la tarea destino',
+    ],
+  },
+  {
     version: '1.11.22',
     date: '24 Nov 2026',
     title: 'Jerarquía Rail + Banda Dual y animación fluida al colapsar proyectos',
-    isLatest: true,
     features: [
       'Aplicada Propuesta 3 (rail de árbol izquierdo, tinte dual WBS+Cronograma y cierre inferior del grupo por color de proyecto)',
       'Actualizada animación de colapsar/expandir a acordeón fluido de 280ms sincronizado en WBS y Cronograma',
