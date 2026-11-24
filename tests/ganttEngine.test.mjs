@@ -4520,7 +4520,7 @@ test('Help page, version control v1.2.0, release selection on project creation, 
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version control consistency
-  assert.equal(pkg.version, '1.11.23', 'package.json version must be 1.9.2');
+  assert.equal(pkg.version, '1.11.24', 'package.json version must be 1.9.2');
   assert.ok(pkg.scripts['version:patch'], 'package.json must contain version:patch script');
   assert.ok(pkg.scripts['version:minor'], 'package.json must contain version:minor script');
   assert.ok(pkg.scripts['release:patch'], 'package.json must contain release:patch script');
@@ -5301,10 +5301,10 @@ test('Task name positioning, configurable row separators, 37 char truncation, v1
     const htmlWithoutWeekendShading = renderToString(mod.renderWorkspaceWithWeekendShading(false));
     assert.ok(!htmlWithoutWeekendShading.includes('bg-[#E5E5DF]'), 'Canvas and header must NOT render weekend shading when showWeekendShading is false (clean uniform background)');
 
-    // 9. App Header displays v1.11.23 badge, row-separators-btn, and weekend-shading-btn
+    // 9. App Header displays v1.11.24 badge, row-separators-btn, and weekend-shading-btn
     const appHtml = renderToString(mod.renderAppHeader());
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'Header must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.11.23'), 'Header badge must display v1.11.23');
+    assert.ok(appHtml.includes('v1.11.24'), 'Header badge must display v1.11.24');
     assert.ok(appHtml.includes('data-testid="header-toggle-row-separators-btn"'), 'Header must contain header-toggle-row-separators-btn');
     assert.ok(appHtml.includes('data-testid="header-toggle-weekend-shading-btn"'), 'Header must contain header-toggle-weekend-shading-btn');
 
@@ -5334,7 +5334,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version Bump Verification
-  assert.equal(pkg.version, '1.11.23', 'package.json version must equal 1.9.2');
+  assert.equal(pkg.version, '1.11.24', 'package.json version must equal 1.9.2');
 
   // Verify scripts/bump-version.mjs works properly
   const bumpScript = await fs.readFile(path.resolve(__dirname, '../scripts/bump-version.mjs'), 'utf8');
@@ -5508,7 +5508,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // A. APP_VERSION equals 1.9.2
-    assert.equal(mod.APP_VERSION, '1.11.23', 'APP_VERSION must be 1.9.2');
+    assert.equal(mod.APP_VERSION, '1.11.24', 'APP_VERSION must be 1.9.2');
 
     // A2. Excel Export Unit Test
     const sampleReleases = [
@@ -5585,7 +5585,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     assert.ok(appHtml.includes('data-testid="table-platform-filter"'), 'App must contain unified table-platform-filter');
     assert.ok(!appHtml.includes('data-testid="header-toggle-focus-mode-btn"'), 'Redundant header-toggle-focus-mode-btn must be removed');
     assert.ok(appHtml.includes('data-testid="header-reports-btn"'), 'App header must contain header-reports-btn');
-    assert.ok(appHtml.includes('v1.11.23'), 'App header must display version v1.11.23');
+    assert.ok(appHtml.includes('v1.11.24'), 'App header must display version v1.11.24');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6035,8 +6035,8 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
-  // 1. Version Bump Verification v1.11.23
-  assert.equal(pkg.version, '1.11.23', 'package.json version must equal 1.9.2');
+  // 1. Version Bump Verification v1.11.24
+  assert.equal(pkg.version, '1.11.24', 'package.json version must equal 1.9.2');
 
   // 2. SSR Bundle verification for TaskFormModal, App Header, and sanitizeGanttItem
   const tmpFile = path.resolve(__dirname, `tmp_test59_bundle_${Date.now()}.mjs`);
@@ -6134,7 +6134,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.equal(mod.APP_VERSION, '1.11.23', 'mod.APP_VERSION must equal 1.9.2');
+    assert.equal(mod.APP_VERSION, '1.11.24', 'mod.APP_VERSION must equal 1.9.2');
 
     // sanitizeGanttItem preserves platform
     const sanitizedIos = mod.sanitizeGanttItem({
@@ -6179,7 +6179,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     assert.ok(appHtml.includes('data-testid="header-more-menu-btn"'), 'App header must render header-more-menu-btn');
     assert.ok(appHtml.includes('data-testid="header-more-menu-dropdown"'), 'App must render header-more-menu-dropdown');
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'More menu must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.11.23'), 'Version badge must display v1.11.23');
+    assert.ok(appHtml.includes('v1.11.24'), 'Version badge must display v1.11.24');
     assert.ok(appHtml.includes('data-testid="force-reload-btn"'), 'More menu must contain force-reload-btn');
 
     // 7. Verify secondary buttons are rendered inside the menu
@@ -6201,7 +6201,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
       hiddenReleaseCount: 0,
     }));
     assert.ok(settingsHtml.includes('data-testid="settings-version-badge"'), 'SettingsModal must contain settings-version-badge');
-    assert.ok(settingsHtml.includes('1.11.23') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.9.2');
+    assert.ok(settingsHtml.includes('1.11.24') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.9.2');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6355,14 +6355,14 @@ test('Test 61: Version button, compiled release notes modal and changelog across
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
 
     // 1. Check RELEASE_NOTES compiled data
-    assert.strictEqual(mod.APP_VERSION, '1.11.23');
+    assert.strictEqual(mod.APP_VERSION, '1.11.24');
     assert.ok(Array.isArray(mod.RELEASE_NOTES), 'RELEASE_NOTES must be an array');
     assert.ok(mod.RELEASE_NOTES.length >= 10, 'RELEASE_NOTES must have at least 10 releases');
 
     const latest = mod.RELEASE_NOTES[0];
-    assert.strictEqual(latest.version, '1.11.23', 'First release note must be 1.9.2');
+    assert.strictEqual(latest.version, '1.11.24', 'First release note must be 1.9.2');
     assert.strictEqual(latest.isLatest, true, 'First release note must be isLatest: true');
-    assert.ok(latest.features.length > 0, 'v1.11.23 must contain features');
+    assert.ok(latest.features.length > 0, 'v1.11.24 must contain features');
 
     // 2. Render App and verify version button exists in dropdown menu and is NOT duplicated in top header
     const appHtml = renderToString(React.createElement(mod.App));
@@ -6375,8 +6375,8 @@ test('Test 61: Version button, compiled release notes modal and changelog across
       'App dropdown must contain data-testid="app-version-badge"'
     );
     assert.ok(
-      appHtml.includes('<button') && appHtml.includes('data-testid="app-version-badge"') && appHtml.includes('v1.11.23'),
-      'app-version-badge in tools dropdown must be an interactive button showing v1.11.23'
+      appHtml.includes('<button') && appHtml.includes('data-testid="app-version-badge"') && appHtml.includes('v1.11.24'),
+      'app-version-badge in tools dropdown must be an interactive button showing v1.11.24'
     );
 
     // 3. Render ReleaseNotesModal
@@ -8193,7 +8193,7 @@ test('Test 73: v1.9.0 project alert level (0-3), workspace toolbar alert filter,
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.strictEqual(mod.APP_VERSION, '1.11.23', 'APP_VERSION must be 1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.11.24', 'APP_VERSION must be 1.9.2');
 
     // 1. Check sanitizeProject and describeProjectStateChanges for alertLevel
     const pSanitized0 = mod.sanitizeProject({ id: 'p-1', name: 'Proj 1', alertLevel: 0 });
@@ -8382,7 +8382,7 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.strictEqual(mod.APP_VERSION, '1.11.23', 'APP_VERSION must be 1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.11.24', 'APP_VERSION must be 1.9.2');
 
     // 1. Verify description format: <descripción del proyecto si existe>\n\n* <nombre> <desc>
     const pWithDesc = {
@@ -8467,8 +8467,8 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
   }
 });
 
-// TEST 75: v1.11.23 Project locking, accidental move guard & unlock prompt modal
-test('Test 75: v1.11.23 project locking, cascade/dependency protection, plan history badge, and unlock alert modal', async () => {
+// TEST 75: v1.11.24 Project locking, accidental move guard & unlock prompt modal
+test('Test 75: v1.11.24 project locking, cascade/dependency protection, plan history badge, and unlock alert modal', async () => {
   const fs = await import('node:fs/promises');
   const path = await import('node:path');
   const { fileURLToPath } = await import('node:url');
@@ -8479,7 +8479,7 @@ test('Test 75: v1.11.23 project locking, cascade/dependency protection, plan his
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
-  assert.strictEqual(pkg.version, '1.11.23', 'package.json version must equal 1.9.2');
+  assert.strictEqual(pkg.version, '1.11.24', 'package.json version must equal 1.9.2');
 
   const tmpFile = path.resolve(__dirname, `tmp_test75_bundle_${Date.now()}.mjs`);
   try {
@@ -8541,9 +8541,9 @@ test('Test 75: v1.11.23 project locking, cascade/dependency protection, plan his
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // 1. Version & release notes verification
-    assert.strictEqual(mod.APP_VERSION, '1.11.23', 'APP_VERSION must equal 1.9.2');
-    assert.strictEqual(mod.RELEASE_NOTES[0].version, '1.11.23', 'Latest release note must be 1.9.2');
-    assert.strictEqual(mod.RELEASE_NOTES[0].isLatest, true, 'v1.11.23 release note must be marked isLatest');
+    assert.strictEqual(mod.APP_VERSION, '1.11.24', 'APP_VERSION must equal 1.9.2');
+    assert.strictEqual(mod.RELEASE_NOTES[0].version, '1.11.24', 'Latest release note must be 1.9.2');
+    assert.strictEqual(mod.RELEASE_NOTES[0].isLatest, true, 'v1.11.24 release note must be marked isLatest');
 
     // 2. sanitizeProject, getLockedProjectForItem, describeProjectStateChanges
     const lockedProj = mod.sanitizeProject({
@@ -8740,7 +8740,7 @@ test('Test 75: v1.11.23 project locking, cascade/dependency protection, plan his
   }
 });
 
-test('Test 76: v1.11.23 automatic Free Slack calculation given successor tasks across engine, table badge, inspector sidebar and task modal', async () => {
+test('Test 76: v1.11.24 automatic Free Slack calculation given successor tasks across engine, table badge, inspector sidebar and task modal', async () => {
   // 1. Engine calculation: FS dependency with multiple successors
   const testItems = [
     {
@@ -13492,6 +13492,179 @@ test('Test 110: Port-based dependency type resolution (FS/FF/SS/SF) and non-disp
         wsSrc.includes('canCreateNonDisplacingDependency') &&
         wsSrc.includes('requireNonDisplacing: true'),
       'GanttWorkspace must resolve dependency type from ports and enforce non-displacing validation on timeline creation'
+    );
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
+test('Test 111: External milestones independent of projects/releases, default external creation, RightSidePanel checkbox, and TaskFormModal removed from App', async () => {
+  const esbuild = await import('esbuild');
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const { pathToFileURL } = await import('node:url');
+  const tmpFile = path.resolve(__dirname, `./tmp_test111_bundle_${Date.now()}.mjs`);
+
+  try {
+    await esbuild.build({
+      stdin: {
+        contents: `
+          export { default as React } from 'react';
+          export { renderToString } from 'react-dom/server';
+          export {
+            EXTERNAL_MILESTONES_GROUP_ID,
+            sanitizeGanttItem,
+            computeGanttMetrics,
+            groupItemsByProject,
+            groupItemsByReleaseAndProject,
+          } from './src/utils/ganttEngine';
+          export { RightSidePanel } from './src/components/RightSidePanel';
+          export { GanttWorkspace } from './src/components/GanttWorkspace';
+        `,
+        resolveDir: path.resolve(__dirname, '..'),
+        sourcefile: 'test111-entry.tsx',
+        loader: 'tsx',
+      },
+      bundle: true,
+      format: 'esm',
+      outfile: tmpFile,
+      platform: 'node',
+      external: ['react', 'react-dom', 'lucide-react', 'xlsx'],
+    });
+
+    const mod = await import(pathToFileURL(tmpFile).href);
+
+    // 1. sanitizeGanttItem strips projectId and releaseId on external milestones
+    const extMilestone = mod.sanitizeGanttItem({
+      id: 'm-ext-1',
+      name: 'Deadline Apple Xcode 27',
+      type: 'milestone',
+      isExternal: true,
+      projectId: 'proj-1',
+      releaseId: 'rel-1',
+      startDate: '2026-12-01',
+      duration: 0,
+    });
+    assert.equal(extMilestone.isExternal, true);
+    assert.equal(extMilestone.projectId, undefined, 'External milestone must NOT have a projectId');
+    assert.equal(extMilestone.releaseId, undefined, 'External milestone must NOT have a releaseId');
+
+    const regularTask = mod.sanitizeGanttItem({
+      id: 't-1',
+      name: 'Tarea normal',
+      type: 'task',
+      projectId: 'proj-1',
+      releaseId: 'rel-1',
+      startDate: '2026-11-01',
+      duration: 5,
+    });
+
+    const projects = [
+      { id: 'proj-1', projectIndex: 1, name: 'Proyecto 1', color: 'indigo', releaseId: 'rel-1' },
+    ];
+    const releases = [
+      { id: 'rel-1', code: 'T_27.3.1', name: 'Release 27.3', month: 'MARZO', year: 2027, color: 'emerald', milestones: [], projectIds: ['proj-1'] },
+    ];
+    const computed = mod.computeGanttMetrics([extMilestone, regularTask]);
+
+    // 2. groupItemsByProject isolates external milestones in EXTERNAL_MILESTONES_GROUP_ID; groupItemsByReleaseAndProject excludes them from releases
+    const projGroups = mod.groupItemsByProject(computed, projects);
+    assert.equal(projGroups[0].project.id, mod.EXTERNAL_MILESTONES_GROUP_ID);
+    assert.equal(projGroups[0].items.length, 1);
+    assert.equal(projGroups[0].items[0].projectId, undefined);
+    assert.equal(projGroups[1].project.id, 'proj-1');
+    assert.equal(projGroups[1].items.length, 1);
+
+    const relGroups = mod.groupItemsByReleaseAndProject(computed, projects, releases);
+    assert.equal(relGroups.length, 1, 'External milestones must not create a SIN RELEASE group');
+    assert.equal(relGroups[0].milestonesCount, 0, 'External milestones must not be counted inside release');
+
+    // 3. RightSidePanel renders sidebar-milestone-is-external-checkbox for milestones and disables project/release
+    const panelBaseProps = {
+      activeTab: 'details',
+      onChangeTab: () => {},
+      onClose: () => {},
+      onSelectEntity: () => {},
+      items: computed,
+      projects,
+      releases,
+      onEditTask: () => {},
+      onUpdateItem: () => {},
+      onDeleteTask: () => {},
+      onUpdateProject: () => {},
+      onToggleProjectLock: () => {},
+      isFocusMode: false,
+      focusEntity: null,
+      onSetFocusEntity: () => {},
+      onExitFocusMode: () => {},
+      hiddenReleaseIds: [],
+      onToggleHideRelease: () => {},
+      onOpenReleasesModal: () => {},
+      commits: [],
+      pendingChanges: [],
+      activeBaselineCommitId: null,
+      onToggleBaselineCommit: () => {},
+      onCreateCommit: () => {},
+      onRestoreCommit: () => {},
+      conflictItems: [],
+      onNavigateToConflictItem: () => {},
+      onResolveAllConflicts: () => {},
+    };
+
+    const extPanelHtml = mod.renderToString(
+      mod.React.createElement(mod.RightSidePanel, {
+        ...panelBaseProps,
+        selectedEntity: { type: 'task', id: 'm-ext-1', name: extMilestone.name },
+      })
+    );
+    assert.ok(
+      extPanelHtml.includes('data-testid="sidebar-milestone-is-external-checkbox"'),
+      'RightSidePanel must render external milestone checkbox'
+    );
+    assert.ok(
+      extPanelHtml.includes('Sin proyecto (Externo)') && extPanelHtml.includes('Sin release (Externo)'),
+      'External milestone must disable project and release selectors'
+    );
+
+    const taskPanelHtml = mod.renderToString(
+      mod.React.createElement(mod.RightSidePanel, {
+        ...panelBaseProps,
+        selectedEntity: { type: 'task', id: 't-1', name: regularTask.name },
+      })
+    );
+    assert.ok(
+      !taskPanelHtml.includes('sidebar-milestone-is-external-checkbox'),
+      'Regular tasks must not show external milestone checkbox'
+    );
+
+    // 4. GanttWorkspace renders Hitos Externos section and + Nuevo Hito button
+    const wsHtml = mod.renderToString(
+      mod.React.createElement(mod.GanttWorkspace, {
+        items: computed,
+        projects,
+        releases,
+        groupByProject: true,
+        groupingMode: 'release',
+        zoom: 'month',
+        showCriticalPath: false,
+        showCpmFloat: false,
+        autoCascade: false,
+        onUpdateItem: () => {},
+        onEditModal: () => {},
+        onDeleteItem: () => {},
+        onQuickAdd: () => {},
+      })
+    );
+    assert.ok(wsHtml.includes('Hitos Externos'), 'GanttWorkspace must render Hitos Externos section');
+    assert.ok(wsHtml.includes('◆ EXT'), 'GanttWorkspace must render ◆ EXT badge for external milestones section');
+    assert.ok(wsHtml.includes('data-quick-add-milestone-btn="true"'), 'GanttWorkspace must render + Nuevo Hito quick button');
+
+    // 5. App.tsx no longer imports or mounts TaskFormModal and defaults new milestones to external
+    const appSrc = await fs.readFile(path.resolve(__dirname, '../src/App.tsx'), 'utf8');
+    assert.ok(!appSrc.includes('TaskFormModal'), 'App.tsx must no longer import or mount TaskFormModal');
+    assert.ok(
+      appSrc.includes("type: 'milestone'") && appSrc.includes('isExternal: true'),
+      'App.tsx must create milestones as external by default'
     );
   } finally {
     await fs.unlink(tmpFile).catch(() => {});

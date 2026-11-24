@@ -77,6 +77,7 @@ import {
 } from '../types/gantt';
 import {
   addDependencyLink,
+  buildExternalMilestonesGroup,
   calculateDurationFromDates,
   calculateEndDateFromDuration,
   canCreateNonDisplacingDependency,
@@ -87,6 +88,7 @@ import {
   computeWheelZoomDayWidth,
   createRoundedOrthogonalPath,
   DependencyPortSide,
+  EXTERNAL_MILESTONES_GROUP_ID,
   filterGroupsBySelectedProjects,
   formatDateDisplay,
   formatDateISO,
@@ -3259,8 +3261,41 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         return [];
       }
       const allowedProjIds = new Set(visibleProjects.map((p) => p.id));
+      const externalMilestones = effectiveItems.filter(
+        (it) => it.type === 'milestone' && Boolean(it.isExternal)
+      );
+      const externalGroup = buildExternalMilestonesGroup(externalMilestones);
+      if (externalGroup) {
+        const matchingExternalItems = externalGroup.items.filter((item) => {
+          if (focusRelatedSets && !focusRelatedSets.itemIds.has(item.id)) return false;
+          return itemMatchesFilter(item, externalGroup.project, 0);
+        });
+        if (matchingExternalItems.length > 0) {
+          rows.push({
+            kind: 'project',
+            rowId: `proj-${externalGroup.project.id}`,
+            group: externalGroup,
+          });
+          for (const item of matchingExternalItems) {
+            rows.push({
+              kind: 'item',
+              rowId: item.id,
+              item,
+              group: externalGroup,
+            });
+          }
+          rows.push({
+            kind: 'add-task',
+            rowId: `add-task-${externalGroup.project.id}`,
+            group: externalGroup,
+          });
+        }
+      }
       const visibleItems = effectiveItems.filter(
-        (it) => it.projectId && allowedProjIds.has(it.projectId)
+        (it) =>
+          !(it.type === 'milestone' && Boolean(it.isExternal)) &&
+          it.projectId &&
+          allowedProjIds.has(it.projectId)
       );
       const releaseGroups = groupItemsByReleaseAndProject(
         visibleItems,
@@ -6915,9 +6950,15 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                     : setInspectingProject(group.project)
                                 }
                                 className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold text-white shrink-0 hover:opacity-85 transition cursor-pointer ${projTheme.badge}`}
-                                title={`Configuración de ${group.project.name} (Release, descripción, color)`}
+                                title={
+                                  group.project.id === EXTERNAL_MILESTONES_GROUP_ID
+                                    ? 'Hitos externos independientes de proyectos y releases'
+                                    : `Configuración de ${group.project.name} (Release, descripción, color)`
+                                }
                               >
-                                {`P${group.projectIndex}`}
+                                {group.project.id === EXTERNAL_MILESTONES_GROUP_ID
+                                  ? '◆ EXT'
+                                  : `P${group.projectIndex}`}
                               </button>
 
                               {(() => {
@@ -7242,17 +7283,27 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               <button
                                 type="button"
                                 data-testid={`project-footer-add-task-btn-${group.project.id}`}
-                                onClick={() => guardedCreateTaskDirect(group.project.id)}
+                                onClick={() =>
+                                  group.project.id === EXTERNAL_MILESTONES_GROUP_ID
+                                    ? onQuickAdd('milestone')
+                                    : guardedCreateTaskDirect(group.project.id)
+                                }
                                 style={{ color: projAccent.hex }}
                                 className="px-2 py-1 text-[11px] font-semibold rounded hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer flex items-center gap-1"
                                 title={
-                                  targetRel
+                                  group.project.id === EXTERNAL_MILESTONES_GROUP_ID
+                                    ? 'Crear nuevo hito externo independiente'
+                                    : targetRel
                                     ? `Crear nueva tarea en ${group.project.name} (Release ${targetRel.code})`
                                     : `Crear nueva tarea al final de ${group.project.name}`
                                 }
                               >
                                 <Plus className="w-3.5 h-3.5" />
-                                <span>Nueva Tarea</span>
+                                <span>
+                                  {group.project.id === EXTERNAL_MILESTONES_GROUP_ID
+                                    ? 'Nuevo Hito Externo'
+                                    : 'Nueva Tarea'}
+                                </span>
                               </button>
                             </div>
                           </div>
@@ -7927,6 +7978,19 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       >
                         <Plus className="w-3.5 h-3.5" />
                         <span>Nueva Tarea</span>
+                      </button>
+
+                      <div className="w-px h-4 bg-slate-200 dark:bg-zinc-800" />
+
+                      <button
+                        type="button"
+                        data-quick-add-milestone-btn="true"
+                        onClick={() => onQuickAdd('milestone')}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/50 transition cursor-pointer"
+                        title="Crear nuevo hito externo (independiente de proyectos y releases)"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Nuevo Hito</span>
                       </button>
 
                       <div className="w-px h-4 bg-slate-200 dark:bg-zinc-800" />

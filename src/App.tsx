@@ -113,7 +113,6 @@ import {
   upsertScenarioInList,
 } from './utils/ganttEngine';
 import { GanttWorkspace } from './components/GanttWorkspace';
-import { TaskFormModal } from './components/TaskFormModal';
 import { PlanHistoryPage } from './components/PlanHistoryPage';
 import { HelpPage } from './components/HelpPage';
 import { ReleasesModal } from './components/ReleasesModal';
@@ -1143,14 +1142,6 @@ export function App({
     };
   }, [showMetricsDrawer, handleUndo, handleRedo, isFocusMode, createProjectModalOpen]);
 
-  // Modal state
-  const [modalOpen, setModalOpen] = useState<boolean>(false);
-  const [editingItem, setEditingItem] = useState<ComputedGanttItem | null>(null);
-  const [defaultModalType, setDefaultModalType] = useState<TaskType>('task');
-  const [defaultModalProjectId, setDefaultModalProjectId] = useState<string | undefined>(
-    undefined
-  );
-
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDraggingFile, setIsDraggingFile] = useState<boolean>(false);
@@ -1397,51 +1388,6 @@ export function App({
     return res.itemIds.length;
   }, [isFocusMode, focusEntity, computedItems, effectiveProjects]);
 
-  const handleSaveFromModal = (savedItem: GanttItem, cascade: boolean) => {
-    const cleanItem = sanitizeGanttItem({
-      ...savedItem,
-      projectId: savedItem.projectId || effectiveProjects[0]?.id,
-    });
-    const prevItem = items.find((it) => it.id === cleanItem.id);
-    const exists = Boolean(prevItem);
-    const lockedSourceProj = prevItem
-      ? getLockedProjectForItem(prevItem, effectiveProjects)
-      : undefined;
-    const lockedTargetProj = getLockedProjectForItem(cleanItem, effectiveProjects);
-    const blockedProj = lockedSourceProj || lockedTargetProj;
-    if (blockedProj) {
-      setAppLockedAlert({
-        project: blockedProj,
-        attemptedAction: exists
-          ? `guardar cambios en «${cleanItem.name}»`
-          : `crear «${cleanItem.name}» en proyecto bloqueado`,
-      });
-      return;
-    }
-
-    const nextRaw = exists
-      ? items.map((it) => (it.id === cleanItem.id ? cleanItem : it))
-      : [...items, cleanItem];
-    const next = cascade ? cascadeDependencies(nextRaw, effectiveProjects) : nextRaw;
-    setItems(next);
-    const isM = cleanItem.type === 'milestone';
-    const actionType: PlanHistoryActionType = exists ? 'edit_item' : 'create_item';
-    const actionLabel = exists ? 'Edición' : 'Creación';
-    const itemDiffs = describeItemStateChanges(
-      prevItem,
-      cleanItem,
-      effectiveProjects,
-      next,
-      releases
-    );
-    const diffSummary = formatFieldDiffsInline(itemDiffs);
-    const baseDesc = exists
-      ? `Editar ${isM ? 'hito' : 'tarea'} '${cleanItem.name}'`
-      : `Crear ${isM ? 'hito' : 'tarea'} '${cleanItem.name}'`;
-    const desc = diffSummary ? `${baseDesc} (${diffSummary})` : baseDesc;
-    recordPlanChange(actionType, actionLabel, desc, next, effectiveProjects);
-  };
-
   const handleUpdateInline = (updatedItem: GanttItem, cascade: boolean) => {
     const cleanItem = sanitizeGanttItem(updatedItem);
     const prevItem = items.find((it) => it.id === cleanItem.id);
@@ -1654,17 +1600,53 @@ export function App({
   };
 
   const handleOpenCreateModal = (type: TaskType, projectId?: string) => {
-    setEditingItem(null);
-    setDefaultModalType(type);
-    setDefaultModalProjectId(
+    if (type === 'milestone') {
+      const todayISO = formatDateISO(new Date());
+      const newMilestone: GanttItem = sanitizeGanttItem({
+        id: `m-${Date.now()}`,
+        name: 'Nuevo Hito Externo',
+        type: 'milestone',
+        isExternal: true,
+        startDate: todayISO,
+        endDate: todayISO,
+        duration: 0,
+        progress: 0,
+        dependencies: [],
+        slack: 0,
+        color: 'amber',
+      });
+      const nextItems = [...items, newMilestone];
+      setItems(nextItems);
+      setSelectedEntity({ type: 'task', id: newMilestone.id, name: newMilestone.name });
+      setShowCommitsSidebar(true);
+      setRightSidebarTab('details');
+      showToast('Nuevo hito externo creado');
+      recordPlanChange(
+        'create_item',
+        'Nuevo Hito Externo',
+        `Crear hito externo '${newMilestone.name}'`,
+        nextItems,
+        effectiveProjects
+      );
+      return;
+    }
+
+    const resolvedProjectId =
       projectId ||
-        (selectedProjectIds.length === 1
-          ? selectedProjectIds[0]
-          : selectedProjectId !== 'all'
-          ? selectedProjectId
-          : projects[0]?.id)
-    );
-    setModalOpen(true);
+      (selectedProjectIds.length === 1
+        ? selectedProjectIds[0]
+        : selectedProjectId !== 'all'
+        ? selectedProjectId
+        : effectiveProjects[0]?.id);
+    if (resolvedProjectId) {
+      handleCreateTaskDirect(resolvedProjectId);
+      setShowCommitsSidebar(true);
+      setRightSidebarTab('details');
+    } else {
+      handleCreateUnassignedTask();
+      setShowCommitsSidebar(true);
+      setRightSidebarTab('details');
+    }
   };
 
   const handleOpenEditModal = (item: ComputedGanttItem) => {
@@ -3571,21 +3553,6 @@ export function App({
         </div>
       )}
 
-
-      {/* Task / Milestone Modal Editor */}
-      <TaskFormModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onSave={handleSaveFromModal}
-        initialItem={editingItem}
-        defaultType={defaultModalType}
-        defaultProjectId={defaultModalProjectId}
-        projects={effectiveProjects}
-        onCreateProject={handleCreateProject}
-        allItems={computedItems}
-        releases={releases}
-        workCalendar={workCalendar}
-      />
 
       {/* Releases Management Modal Hub */}
       <ReleasesModal

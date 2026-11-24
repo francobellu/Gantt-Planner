@@ -733,6 +733,7 @@ export function sanitizeGanttItem(
     url: raw.url != null ? String(raw.url) : undefined,
   });
 
+  const isExternalMilestone = type === 'milestone' && Boolean(raw.isExternal);
   const result: GanttItem = {
     id,
     name: resolvedName,
@@ -752,12 +753,13 @@ export function sanitizeGanttItem(
     assignee: raw.assignee != null ? String(raw.assignee).trim() : undefined,
     notes: raw.notes != null ? String(raw.notes).trim() : undefined,
     hidden: Boolean(raw.hidden),
-    ...(raw.isExternal ? { isExternal: true } : {}),
+    ...(isExternalMilestone ? { isExternal: true } : {}),
     platform: normalizePlatform(raw.platform as string | undefined),
-    releaseId:
-      raw.releaseId != null && String(raw.releaseId).trim()
-        ? String(raw.releaseId).trim()
-        : undefined,
+    releaseId: isExternalMilestone
+      ? undefined
+      : raw.releaseId != null && String(raw.releaseId).trim()
+      ? String(raw.releaseId).trim()
+      : undefined,
     ...(normalizeAlertLevel(raw.alertLevel) !== undefined
       ? { alertLevel: normalizeAlertLevel(raw.alertLevel) }
       : {}),
@@ -767,7 +769,7 @@ export function sanitizeGanttItem(
     ...(resolvedUrl ? { url: resolvedUrl } : {}),
   };
 
-  if (raw.projectId != null && String(raw.projectId).trim()) {
+  if (!isExternalMilestone && raw.projectId != null && String(raw.projectId).trim()) {
     result.projectId = String(raw.projectId).trim();
   }
 
@@ -1485,10 +1487,82 @@ export function computeGanttMetrics(items: GanttItem[]): ComputedGanttItem[] {
  * Groups computed Gantt items by project, computing rolled-up summary dates,
  * durations, progress percentages, slack totals, and hierarchical WBS codes (e.g. 1.1, 1.2, 2.1).
  */
+export const EXTERNAL_MILESTONES_GROUP_ID = '__external_milestones__';
+
+export function buildExternalMilestonesGroup(
+  externalMilestones: ComputedGanttItem[]
+): ComputedProjectGroup | null {
+  if (!externalMilestones || externalMilestones.length === 0) return null;
+  const enrichedItems: ComputedGanttItem[] = externalMilestones.map((it, idx) => ({
+    ...it,
+    projectId: undefined,
+    releaseId: undefined,
+    isExternal: true,
+    taskIndex: idx + 1,
+    wbsCode: `EXT.${idx + 1}`,
+    displayId: `EXT${idx + 1}`,
+  }));
+
+  let minStart = parseDateSafe(enrichedItems[0].startDate);
+  let maxEnd = parseDateSafe(enrichedItems[0].endDate);
+  let maxSlackEnd = parseDateSafe(enrichedItems[0].slackEndDate || enrichedItems[0].endDate);
+  let criticalCount = 0;
+  let milestoneProgressSum = 0;
+  let hasConflict = false;
+
+  for (const it of enrichedItems) {
+    const s = parseDateSafe(it.startDate);
+    const e = parseDateSafe(it.endDate);
+    const se = parseDateSafe(it.slackEndDate || it.endDate);
+    if (s < minStart) minStart = s;
+    if (e > maxEnd) maxEnd = e;
+    if (se > maxSlackEnd) maxSlackEnd = se;
+    milestoneProgressSum += it.progress || 0;
+    if (it.isCritical) criticalCount++;
+    if (it.hasConflict) hasConflict = true;
+  }
+
+  const startDate = formatDateISO(minStart);
+  const endDate = formatDateISO(maxEnd);
+  const slackEndDate = formatDateISO(maxSlackEnd);
+  const rawSpanDays = differenceInCalendarDays(maxEnd, minStart);
+  const duration = rawSpanDays === 0 ? 0 : Math.max(1, rawSpanDays + 1);
+  const progress = Math.round(milestoneProgressSum / enrichedItems.length);
+
+  return {
+    project: {
+      id: EXTERNAL_MILESTONES_GROUP_ID,
+      name: 'Hitos Externos',
+      color: 'amber',
+      collapsed: false,
+    },
+    projectIndex: 0,
+    items: enrichedItems,
+    startDate,
+    endDate,
+    slackEndDate,
+    duration,
+    progress,
+    tasksCount: 0,
+    milestonesCount: enrichedItems.length,
+    criticalCount,
+    totalSlack: 0,
+    totalFreeSlack: 0,
+    hasConflict,
+  };
+}
+
 export function groupItemsByProject(
   items: ComputedGanttItem[],
   projects: GanttProject[] = []
 ): ComputedProjectGroup[] {
+  const externalMilestones = items.filter(
+    (it) => it.type === 'milestone' && Boolean(it.isExternal)
+  );
+  const regularItems = items.filter(
+    (it) => !(it.type === 'milestone' && Boolean(it.isExternal))
+  );
+
   const effectiveProjects: GanttProject[] = (projects || []).map((p, i) =>
     sanitizeProject(p, i)
   );
@@ -1498,9 +1572,9 @@ export function groupItemsByProject(
     projectMap.set(p.id, p);
   }
 
-  // Ensure any orphan projectId referenced by items has a project entry,
+  // Ensure any orphan projectId referenced by regular items has a project entry,
   // or create a default project if no projects were provided
-  for (const item of items) {
+  for (const item of regularItems) {
     if (item.projectId && !projectMap.has(item.projectId)) {
       const extraProj = sanitizeProject(
         { id: item.projectId, name: `Proyecto ${effectiveProjects.length + 1}` },
@@ -1520,7 +1594,7 @@ export function groupItemsByProject(
     }
   }
 
-  if (effectiveProjects.length === 0) {
+  if (effectiveProjects.length === 0 && regularItems.length > 0) {
     const defProj: GanttProject = {
       id: 'proj-default',
       name: 'Proyecto General',
@@ -1531,19 +1605,21 @@ export function groupItemsByProject(
     projectMap.set(defProj.id, defProj);
   }
 
-  const fallbackProjectId = effectiveProjects[0].id;
+  const fallbackProjectId = effectiveProjects[0]?.id;
 
   const bucketMap = new Map<string, ComputedGanttItem[]>();
   for (const p of effectiveProjects) {
     bucketMap.set(p.id, []);
   }
 
-  for (const item of items) {
+  for (const item of regularItems) {
     const targetPid =
       item.projectId && bucketMap.has(item.projectId)
         ? item.projectId
         : fallbackProjectId;
-    bucketMap.get(targetPid)!.push(item);
+    if (targetPid) {
+      bucketMap.get(targetPid)!.push(item);
+    }
   }
 
   const usedIndices = new Set<number>();
@@ -1570,7 +1646,7 @@ export function groupItemsByProject(
   const isFallbackOnly = projects.length === 0;
   const knownProjectIds = new Set(projects.map((p) => p.id));
 
-  return effectiveProjects.map((project, pIdx) => {
+  const regularGroups: ComputedProjectGroup[] = effectiveProjects.map((project, pIdx) => {
     const projectIndex = project.projectIndex || pIdx + 1;
     const rawGroupItems = bucketMap.get(project.id) || [];
 
@@ -1688,6 +1764,9 @@ export function groupItemsByProject(
       hasConflict,
     };
   });
+
+  const externalGroup = buildExternalMilestonesGroup(externalMilestones);
+  return externalGroup ? [externalGroup, ...regularGroups] : regularGroups;
 }
 
 /**
@@ -1698,7 +1777,9 @@ export function groupItemsByReleaseAndProject(
   projects: GanttProject[] = [],
   releases: Release[] = []
 ): ComputedReleaseGroup[] {
-  const projectGroups = groupItemsByProject(items, projects);
+  const projectGroups = groupItemsByProject(items, projects).filter(
+    (pg) => pg.project.id !== EXTERNAL_MILESTONES_GROUP_ID
+  );
   const releaseMap = new Map<string, Release>();
   for (const r of releases) {
     releaseMap.set(r.id, r);

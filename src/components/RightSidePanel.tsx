@@ -170,7 +170,8 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
 
   // Unified inline edit state for the selected task/milestone
   const [taskName, setTaskName] = useState(() => selectedTask?.name || '');
-  const [taskType, setTaskType] = useState<TaskType>('task');
+  const [taskType, setTaskType] = useState<TaskType>(() => selectedTask?.type || 'task');
+  const [taskIsExternal, setTaskIsExternal] = useState(() => Boolean(selectedTask?.isExternal));
   const [taskProjectId, setTaskProjectId] = useState('');
   const [taskAssignee, setTaskAssignee] = useState('');
   const [taskColor, setTaskColor] = useState<TaskColor>('indigo');
@@ -200,11 +201,13 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
     if (!selectedTask) return;
     setTaskName(selectedTask.name);
     setTaskType(selectedTask.type);
-    setTaskProjectId(selectedTask.projectId || projects[0]?.id || '');
+    const isExt = selectedTask.type === 'milestone' && Boolean(selectedTask.isExternal);
+    setTaskIsExternal(isExt);
+    setTaskProjectId(isExt ? '' : selectedTask.projectId || projects[0]?.id || '');
     setTaskAssignee(selectedTask.assignee || '');
     setTaskColor(selectedTask.color || 'indigo');
     setTaskPlatform(selectedTask.platform || '');
-    setTaskReleaseId(selectedTask.releaseId || '');
+    setTaskReleaseId(isExt ? '' : selectedTask.releaseId || '');
     setTaskAlertLevel(selectedTask.alertLevel ?? 0);
     setTaskStart(selectedTask.startDate);
     setTaskEnd(selectedTask.endDate);
@@ -411,16 +414,20 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
             const handleSaveTaskEdits = (e: React.FormEvent) => {
               e.preventDefault();
               const trimmed = taskName.trim() || selectedTask.name;
+              const effectiveIsExternal = taskType === 'milestone' && taskIsExternal;
               const updated: GanttItem = {
                 ...selectedTask,
                 name: trimmed,
                 type: taskType,
-                projectId: taskProjectId || selectedTask.projectId,
+                isExternal: effectiveIsExternal,
+                projectId: effectiveIsExternal
+                  ? undefined
+                  : taskProjectId || selectedTask.projectId || projects[0]?.id,
                 assignee: taskAssignee.trim() || undefined,
                 color: taskColor,
                 customColor: true,
                 platform: taskPlatform || undefined,
-                releaseId: taskReleaseId || undefined,
+                releaseId: effectiveIsExternal ? undefined : taskReleaseId || undefined,
                 alertLevel: taskAlertLevel,
                 startDate: taskStart,
                 endDate: taskType === 'milestone' ? taskStart : taskEnd,
@@ -549,6 +556,7 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                       Tipo
                     </label>
                     <select
+                      data-testid="sidebar-task-type-select"
                       value={taskType}
                       onChange={(e) => {
                         const nt = e.target.value as TaskType;
@@ -556,10 +564,17 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                         if (nt === 'milestone') {
                           setTaskDuration(0);
                           setTaskEnd(taskStart);
+                          setTaskIsExternal(true);
+                          setTaskProjectId('');
+                          setTaskReleaseId('');
                         } else {
                           const nd = Math.max(1, taskDuration || 3);
                           setTaskDuration(nd);
                           setTaskEnd(calculateEndDateFromDuration(taskStart, nd, 'task', workCalendar));
+                          setTaskIsExternal(false);
+                          if (!taskProjectId) {
+                            setTaskProjectId(selectedTask.projectId || projects[0]?.id || '');
+                          }
                         }
                       }}
                       className="w-full px-2 py-1.5 rounded-[4px] border border-[#E2E2DC] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs"
@@ -573,18 +588,54 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                       Proyecto
                     </label>
                     <select
-                      value={taskProjectId}
+                      data-testid="sidebar-task-project-select"
+                      value={taskType === 'milestone' && taskIsExternal ? '' : taskProjectId}
+                      disabled={taskType === 'milestone' && taskIsExternal}
                       onChange={(e) => setTaskProjectId(e.target.value)}
-                      className="w-full px-2 py-1.5 rounded-[4px] border border-[#E2E2DC] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs"
+                      className="w-full px-2 py-1.5 rounded-[4px] border border-[#E2E2DC] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs disabled:opacity-55 disabled:cursor-not-allowed"
                     >
-                      {projects.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
-                      ))}
+                      {taskType === 'milestone' && taskIsExternal ? (
+                        <option value="">Sin proyecto (Externo)</option>
+                      ) : (
+                        projects.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))
+                      )}
                     </select>
                   </div>
                 </div>
+
+                {/* External Milestone Toggle (only for milestones) */}
+                {taskType === 'milestone' && (
+                  <label className="flex items-start gap-2 text-xs text-slate-600 dark:text-slate-400 cursor-pointer p-2 rounded-[4px] bg-amber-500/5 dark:bg-amber-500/10 border border-amber-500/25">
+                    <input
+                      type="checkbox"
+                      data-testid="sidebar-milestone-is-external-checkbox"
+                      checked={taskIsExternal}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setTaskIsExternal(checked);
+                        if (checked) {
+                          setTaskProjectId('');
+                          setTaskReleaseId('');
+                        } else if (!taskProjectId) {
+                          setTaskProjectId(selectedTask.projectId || projects[0]?.id || '');
+                        }
+                      }}
+                      className="mt-0.5 rounded border-amber-400 text-amber-600 focus:ring-0 cursor-pointer"
+                    />
+                    <div className="flex flex-col">
+                      <span className="font-semibold text-[#0C0C09] dark:text-zinc-200 leading-tight">
+                        Hito externo (sin proyecto ni release)
+                      </span>
+                      <span className="text-[10.5px] text-[#6B6B66] dark:text-zinc-400 mt-0.5 leading-snug">
+                        Independiente de proyectos y no sujeto a los plazos de ninguna release.
+                      </span>
+                    </div>
+                  </label>
+                )}
 
                 {/* Team & Color */}
                 <div>
@@ -649,11 +700,14 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                       Release
                     </label>
                     <select
-                      value={taskReleaseId}
+                      value={taskType === 'milestone' && taskIsExternal ? '' : taskReleaseId}
+                      disabled={taskType === 'milestone' && taskIsExternal}
                       onChange={(e) => setTaskReleaseId(e.target.value)}
-                      className="w-full px-2 py-1.5 rounded-[4px] border border-[#E2E2DC] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs"
+                      className="w-full px-2 py-1.5 rounded-[4px] border border-[#E2E2DC] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs disabled:opacity-55 disabled:cursor-not-allowed"
                     >
-                      <option value="">Heredar</option>
+                      <option value="">
+                        {taskType === 'milestone' && taskIsExternal ? 'Sin release (Externo)' : 'Heredar'}
+                      </option>
                       {releases.map((r) => (
                         <option key={r.id} value={r.id}>
                           {r.code}

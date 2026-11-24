@@ -10,10 +10,20 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.11.24',
+    date: '24 Nov 2026',
+    title: 'Hitos externos independientes por defecto, checkbox en panel derecho y retirada de TaskFormModal',
+    isLatest: true,
+    features: [
+      'Retirado TaskFormModal de App.tsx creando tareas e hitos directamente en el panel derecho',
+      'Los hitos nuevos nacen externos por defecto sin proyecto ni release y se agrupan en sección independiente Hitos Externos',
+      'Añadido checkbox Hito externo en RightSidePanel y botón rápido + Nuevo Hito',
+    ],
+  },
+  {
     version: '1.11.23',
     date: '24 Nov 2026',
     title: 'Dependencias visuales por puerto (FS/FF/SS/SF) sin desplazar fechas',
-    isLatest: true,
     features: [
       'Mapeado automático de puerto origen/destino en barras del cronograma a FS, FF, SS o SF',
       'Bloqueo preventivo con aviso y sugerencia cuando la dependencia implicaría mover fechas de la tarea destino',
