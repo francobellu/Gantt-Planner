@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.11.22',
+    date: '24 Nov 2026',
+    title: 'Jerarquía Rail + Banda Dual y animación fluida al colapsar proyectos',
+    isLatest: true,
+    features: [
+      'Aplicada Propuesta 3 (rail de árbol izquierdo, tinte dual WBS+Cronograma y cierre inferior del grupo por color de proyecto)',
+      'Actualizada animación de colapsar/expandir a acordeón fluido de 280ms sincronizado en WBS y Cronograma',
+    ],
+  },
+  {
     version: '1.11.21',
     date: '24 Nov 2026',
     title: 'Generar URL automática para elementos DIGI, HDEV y HUAT',
-    isLatest: true,
     features: [
       'Añadido campo url autogenerado para elementos cuyo nombre comienza por DIGI-, HDEV- o HUAT- apuntando a https://hdev.bancsabadell.com/browse/<ID>',
       'Mostrado enlace clicable en detalles del RightSidePanel y opción Abrir enlace en menú contextual derecho',

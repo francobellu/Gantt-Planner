@@ -543,6 +543,26 @@ const COLOR_STYLES: Record<
   },
 };
 
+const PROJECT_ACCENT_COLORS: Record<TaskColor, { hex: string; rgb: string }> = {
+  indigo: { hex: '#4F46E5', rgb: '79, 70, 229' },
+  blue: { hex: '#2563EB', rgb: '37, 99, 235' },
+  emerald: { hex: '#16A34A', rgb: '22, 163, 74' },
+  amber: { hex: '#D97706', rgb: '217, 119, 6' },
+  rose: { hex: '#DC2626', rgb: '220, 38, 38' },
+  violet: { hex: '#7C3AED', rgb: '124, 58, 237' },
+  cyan: { hex: '#0891B2', rgb: '8, 145, 178' },
+  teal: { hex: '#0D9488', rgb: '13, 148, 136' },
+  orange: { hex: '#EA580C', rgb: '234, 88, 12' },
+  pink: { hex: '#DB2777', rgb: '219, 39, 119' },
+  slate: { hex: '#475569', rgb: '71, 85, 105' },
+  sky: { hex: '#0284C7', rgb: '2, 132, 199' },
+  lime: { hex: '#65A30D', rgb: '101, 163, 13' },
+};
+
+function getProjectAccent(color?: TaskColor): { hex: string; rgb: string } {
+  return PROJECT_ACCENT_COLORS[color || 'indigo'] || PROJECT_ACCENT_COLORS.indigo;
+}
+
 export const TEAM_BADGE_STYLES: Record<
   TaskColor,
   {
@@ -863,7 +883,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         return next;
       });
       expandAnimTimersRef.current.delete(parentKey);
-    }, 460);
+    }, 290);
     expandAnimTimersRef.current.set(parentKey, timer);
   };
 
@@ -897,7 +917,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         return next;
       });
       collapseAnimTimersRef.current.delete(parentKey);
-    }, 460);
+    }, 290);
     collapseAnimTimersRef.current.set(parentKey, timer);
   };
 
@@ -6420,7 +6440,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         style={{ height: displayRows.length * ROW_HEIGHT, minWidth: tableMinWidth }}
                         className={`relative ${
                           isCollapseAnimating
-                            ? 'transition-[height] duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)]'
+                            ? 'transition-[height] duration-[280ms] ease-[cubic-bezier(0.22,1,0.36,1)]'
                             : ''
                         }`}
                       >
@@ -6432,7 +6452,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       const rowShiftClass = isAnyRowOrProjectDragging
                         ? 'transition-transform duration-200 ease-out'
                         : isCollapseAnimating
-                        ? 'transition-[top] duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)]'
+                        ? 'transition-[top] duration-[280ms] ease-[cubic-bezier(0.22,1,0.36,1)]'
                         : '';
 
                       const rowExpandClass = isRowCollapsing(row)
@@ -6630,6 +6650,14 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         const isProjectReorderTargetAfter =
                           dragOverProject?.id === group.project.id &&
                           dragOverProject.position === 'after';
+                        const projAccent = getProjectAccent(group.project.color);
+                        const hasProjectStateBg =
+                          isDraggingThisProject ||
+                          isProjectReorderTargetBefore ||
+                          isProjectReorderTargetAfter ||
+                          isProjectDragTarget ||
+                          isProjectSelected ||
+                          isProjectMultiSelected;
                         return (
                           <div
                             key={row.rowId}
@@ -6637,7 +6665,17 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             data-selected-project-row={isProjectSelected ? 'true' : undefined}
                             data-project-locked={group.project.locked ? 'true' : 'false'}
                             data-multi-selected={isProjectMultiSelected ? 'true' : 'false'}
-                            style={{ top: rowIndex * ROW_HEIGHT, height: ROW_HEIGHT, minWidth: tableMinWidth, ...rowShiftStyle }}
+                            data-project-accent-rail={group.project.id}
+                            style={{
+                              top: rowIndex * ROW_HEIGHT,
+                              height: ROW_HEIGHT,
+                              minWidth: tableMinWidth,
+                              boxShadow: `inset 4px 0 0 ${projAccent.hex}`,
+                              ...(hasProjectStateBg
+                                ? {}
+                                : { backgroundColor: `rgba(${projAccent.rgb}, 0.09)` }),
+                              ...rowShiftStyle,
+                            }}
                             onMouseDown={(e) =>
                               handleProjectRowPointerMouseDown(e, group.project.id, false)
                             }
@@ -6728,13 +6766,14 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               <button
                                 type="button"
                                 onClick={() => handleToggleProjectCollapse(group.project.id, isCollapsed)}
-                                className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 shrink-0"
+                                className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 shrink-0 transition-colors"
+                                style={{ color: projAccent.hex }}
                                 title={
                                   isCollapsed ? 'Expandir proyecto' : 'Colapsar proyecto'
                                 }
                               >
                                 <ChevronRight
-                                  className={`w-4 h-4 transition-transform duration-200 ease-out ${
+                                  className={`w-4 h-4 transition-transform duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
                                     isCollapsed ? 'rotate-0' : 'rotate-90'
                                   }`}
                                 />
@@ -6974,23 +7013,50 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       if (row.kind === 'empty-project') {
                         const { group } = row;
                         const targetRel = releases?.find((r) => r.id === group.project.releaseId);
+                        const projAccent = getProjectAccent(group.project.color);
                         return (
                           <div
                             key={row.rowId}
                             data-empty-project-row={group.project.id}
-                            style={{ top: rowIndex * ROW_HEIGHT, height: ROW_HEIGHT, minWidth: tableMinWidth, ...rowShiftStyle }}
-                            className={`absolute left-0 right-0 flex items-center justify-start px-3 text-xs bg-indigo-50/20 dark:bg-zinc-900/40 ${rowShiftClass} ${rowExpandClass} ${
+                            data-project-child-band={group.project.id}
+                            style={{
+                              top: rowIndex * ROW_HEIGHT,
+                              height: ROW_HEIGHT,
+                              minWidth: tableMinWidth,
+                              boxShadow: `inset 3px 0 0 rgba(${projAccent.rgb}, 0.65)`,
+                              backgroundColor: `rgba(${projAccent.rgb}, 0.045)`,
+                              ...(showRowSeparators
+                                ? { borderBottom: `2px solid rgba(${projAccent.rgb}, 0.55)` }
+                                : {}),
+                              ...rowShiftStyle,
+                            }}
+                            className={`absolute left-0 right-0 flex items-center justify-start px-3 text-xs ${rowShiftClass} ${rowExpandClass} ${
                               showRowSeparators
                                 ? 'border-b border-[#E2E2DC] dark:border-zinc-800/60'
                                 : 'border-b-0'
-                            } pl-10`}
+                            }`}
                           >
-                            <div className="flex items-center gap-2 pr-3">
+                            <div className="h-full flex items-center gap-1.5 pl-2 pr-3">
+                              <div
+                                data-testid={`project-tree-rail-footer-${group.project.id}`}
+                                aria-hidden="true"
+                                className="relative self-stretch w-5 shrink-0"
+                              >
+                                <span
+                                  className="absolute top-0 h-1/2 left-2 w-[2px]"
+                                  style={{ backgroundColor: `rgba(${projAccent.rgb}, 0.45)` }}
+                                />
+                                <span
+                                  className="absolute top-1/2 left-2 w-2.5 h-[2px]"
+                                  style={{ backgroundColor: `rgba(${projAccent.rgb}, 0.45)` }}
+                                />
+                              </div>
                               <button
                                 type="button"
                                 data-testid={`project-empty-add-task-btn-${group.project.id}`}
                                 onClick={() => guardedCreateTaskDirect(group.project.id)}
-                                className="px-2 py-1 text-[11px] font-semibold rounded text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:bg-indigo-50/80 dark:hover:bg-indigo-950/50 transition cursor-pointer flex items-center gap-1"
+                                style={{ color: projAccent.hex }}
+                                className="px-2 py-1 text-[11px] font-semibold rounded hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer flex items-center gap-1"
                                 title={
                                   targetRel
                                     ? `Crear nueva tarea en ${group.project.name} (Release ${targetRel.code})`
@@ -7008,23 +7074,50 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       if (row.kind === 'add-task') {
                         const { group } = row;
                         const targetRel = releases?.find((r) => r.id === group.project.releaseId);
+                        const projAccent = getProjectAccent(group.project.color);
                         return (
                           <div
                             key={row.rowId}
                             data-add-task-row={group.project.id}
-                            style={{ top: rowIndex * ROW_HEIGHT, height: ROW_HEIGHT, minWidth: tableMinWidth, ...rowShiftStyle }}
-                            className={`absolute left-0 right-0 flex items-center justify-start px-3 text-xs bg-slate-50/60 dark:bg-zinc-900/30 ${rowShiftClass} ${rowExpandClass} ${
+                            data-project-child-band={group.project.id}
+                            style={{
+                              top: rowIndex * ROW_HEIGHT,
+                              height: ROW_HEIGHT,
+                              minWidth: tableMinWidth,
+                              boxShadow: `inset 3px 0 0 rgba(${projAccent.rgb}, 0.65)`,
+                              backgroundColor: `rgba(${projAccent.rgb}, 0.045)`,
+                              ...(showRowSeparators
+                                ? { borderBottom: `2px solid rgba(${projAccent.rgb}, 0.55)` }
+                                : {}),
+                              ...rowShiftStyle,
+                            }}
+                            className={`absolute left-0 right-0 flex items-center justify-start px-3 text-xs ${rowShiftClass} ${rowExpandClass} ${
                               showRowSeparators
                                 ? 'border-b border-[#E2E2DC] dark:border-zinc-800/60'
                                 : 'border-b-0'
-                            } pl-10`}
+                            }`}
                           >
-                            <div className="flex items-center gap-2 pr-3 shrink-0">
+                            <div className="h-full flex items-center gap-1.5 pl-2 pr-3 shrink-0">
+                              <div
+                                data-testid={`project-tree-rail-footer-${group.project.id}`}
+                                aria-hidden="true"
+                                className="relative self-stretch w-5 shrink-0"
+                              >
+                                <span
+                                  className="absolute top-0 h-1/2 left-2 w-[2px]"
+                                  style={{ backgroundColor: `rgba(${projAccent.rgb}, 0.45)` }}
+                                />
+                                <span
+                                  className="absolute top-1/2 left-2 w-2.5 h-[2px]"
+                                  style={{ backgroundColor: `rgba(${projAccent.rgb}, 0.45)` }}
+                                />
+                              </div>
                               <button
                                 type="button"
                                 data-testid={`project-footer-add-task-btn-${group.project.id}`}
                                 onClick={() => guardedCreateTaskDirect(group.project.id)}
-                                className="px-2 py-1 text-[11px] font-semibold rounded text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:bg-indigo-50/80 dark:hover:bg-indigo-950/50 transition cursor-pointer flex items-center gap-1"
+                                style={{ color: projAccent.hex }}
+                                className="px-2 py-1 text-[11px] font-semibold rounded hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer flex items-center gap-1"
                                 title={
                                   targetRel
                                     ? `Crear nueva tarea en ${group.project.name} (Release ${targetRel.code})`
@@ -7103,6 +7196,26 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
                       const isRowSelected = effectiveSelectedItemId === item.id;
                       const isMultiSelectedItem = effectiveMultiItemIds.has(item.id);
+                      const projAccent = getProjectAccent(group.project.color);
+                      const nextDisplayRow = displayRows[rowIndex + 1];
+                      const isLastRowInProject =
+                        groupByProject &&
+                        !(
+                          nextDisplayRow &&
+                          (nextDisplayRow.kind === 'item' ||
+                            nextDisplayRow.kind === 'add-task' ||
+                            nextDisplayRow.kind === 'empty-project') &&
+                          nextDisplayRow.group.project.id === group.project.id
+                        );
+                      const hasItemStateBg =
+                        isDropBefore ||
+                        isDropAfter ||
+                        isBeingDragged ||
+                        isRowSelected ||
+                        isMultiSelectedItem ||
+                        item.hidden ||
+                        isHovered ||
+                        isCrit;
 
                       return (
                         <div
@@ -7110,8 +7223,25 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           data-task-row={item.id}
                           data-selected-task-row={isRowSelected ? 'true' : undefined}
                           data-multi-selected={isMultiSelectedItem ? 'true' : 'false'}
+                          data-project-child-band={groupByProject ? group.project.id : undefined}
                           draggable={true}
-                          style={{ top: rowIndex * ROW_HEIGHT, height: ROW_HEIGHT, minWidth: tableMinWidth, ...rowShiftStyle }}
+                          style={{
+                            top: rowIndex * ROW_HEIGHT,
+                            height: ROW_HEIGHT,
+                            minWidth: tableMinWidth,
+                            ...(groupByProject
+                              ? {
+                                  boxShadow: `inset 3px 0 0 rgba(${projAccent.rgb}, 0.65)`,
+                                  ...(!hasItemStateBg
+                                    ? { backgroundColor: `rgba(${projAccent.rgb}, 0.045)` }
+                                    : {}),
+                                  ...(isLastRowInProject && showRowSeparators && !isDropAfter
+                                    ? { borderBottom: `2px solid rgba(${projAccent.rgb}, 0.55)` }
+                                    : {}),
+                                }
+                              : {}),
+                            ...rowShiftStyle,
+                          }}
                           onClick={(e) => handleSelectTaskFromTable(item, e)}
                           onMouseEnter={() => setHoveredId(item.id)}
                           onMouseLeave={() => setHoveredId(null)}
@@ -7164,7 +7294,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           {/* WBS + Reorder Controls + Name */}
                           <div
                             style={{ width: nameColumnWidth }}
-                            className={`flex items-center gap-1.5 pr-2 shrink-0 ${
+                            className={`h-full flex items-center gap-1.5 pr-2 shrink-0 ${
                               groupByProject ? 'pl-2' : ''
                             } ${
                               focusedTaskInputId === item.id || hoveredNameId === item.id
@@ -7172,6 +7302,24 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 : 'overflow-hidden'
                             }`}
                           >
+                            {groupByProject && (
+                              <div
+                                data-testid={`project-tree-rail-${item.id}`}
+                                aria-hidden="true"
+                                className="relative self-stretch w-5 shrink-0"
+                              >
+                                <span
+                                  className={`absolute top-0 ${
+                                    isLastRowInProject ? 'h-1/2' : 'bottom-0'
+                                  } left-2 w-[2px]`}
+                                  style={{ backgroundColor: `rgba(${projAccent.rgb}, 0.45)` }}
+                                />
+                                <span
+                                  className="absolute top-1/2 left-2 w-2.5 h-[2px]"
+                                  style={{ backgroundColor: `rgba(${projAccent.rgb}, 0.45)` }}
+                                />
+                              </div>
+                            )}
                             {/* Multi-select checkbox for task/milestone (only visible when selected via Ctrl/Cmd+Click) */}
                             {isMultiSelectedItem && (
                               <button
@@ -8107,7 +8255,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               )}
 
               {/* Horizontal Row Guides */}
-              {displayRows.map((row) => {
+              {displayRows.map((row, rowBgIndex) => {
+                const rowBgExpandClass = isRowCollapsing(row)
+                  ? 'animate-gantt-row-collapse'
+                  : isRowJustExpanded(row)
+                  ? 'animate-gantt-row-expand'
+                  : '';
                 if (row.kind === 'release') {
                   return (
                     <div
@@ -8122,43 +8275,89 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   );
                 }
                 if (row.kind === 'project') {
+                  const projAccent = getProjectAccent(row.group.project.color);
                   return (
                     <div
                       key={`row-bg-${row.rowId}`}
-                      style={{ height: ROW_HEIGHT }}
-                      className={`${
+                      data-timeline-project-band={row.group.project.id}
+                      style={{
+                        height: ROW_HEIGHT,
+                        backgroundColor: `rgba(${projAccent.rgb}, 0.09)`,
+                      }}
+                      className={`${rowBgExpandClass} ${
                         showRowSeparators
-                          ? 'border-b border-[#0C0C09] dark:border-zinc-800'
+                          ? 'border-b border-[#0C0C09]/25 dark:border-zinc-800'
                           : 'border-b-0'
-                      } bg-[#F4F4F1] dark:bg-zinc-900`}
-                    />
-                  );
-                }
-                if (row.kind === 'empty-project' || row.kind === 'add-task' || row.kind === 'add-project') {
-                  return (
-                    <div
-                      key={`row-bg-${row.rowId}`}
-                      style={{ height: ROW_HEIGHT }}
-                      className={`${
-                        showRowSeparators
-                          ? 'border-b border-[#E2E2DC] dark:border-zinc-800/60'
-                          : 'border-b-0'
-                      } ${
-                        row.kind === 'add-task'
-                          ? 'bg-slate-50/40 dark:bg-zinc-900/15'
-                          : 'bg-indigo-50/15 dark:bg-zinc-900/20'
                       }`}
                     />
                   );
                 }
+                if (row.kind === 'empty-project' || row.kind === 'add-task') {
+                  const projAccent = getProjectAccent(row.group.project.color);
+                  return (
+                    <div
+                      key={`row-bg-${row.rowId}`}
+                      data-timeline-project-band={row.group.project.id}
+                      style={{
+                        height: ROW_HEIGHT,
+                        backgroundColor: `rgba(${projAccent.rgb}, 0.045)`,
+                        ...(showRowSeparators
+                          ? { borderBottom: `2px solid rgba(${projAccent.rgb}, 0.55)` }
+                          : {}),
+                      }}
+                      className={`${rowBgExpandClass} ${
+                        showRowSeparators
+                          ? 'border-b border-[#E2E2DC] dark:border-zinc-800/60'
+                          : 'border-b-0'
+                      }`}
+                    />
+                  );
+                }
+                if (row.kind === 'add-project') {
+                  return (
+                    <div
+                      key={`row-bg-${row.rowId}`}
+                      style={{ height: ROW_HEIGHT }}
+                      className={`${rowBgExpandClass} ${
+                        showRowSeparators
+                          ? 'border-b border-[#E2E2DC] dark:border-zinc-800/60'
+                          : 'border-b-0'
+                      } bg-indigo-50/15 dark:bg-zinc-900/20`}
+                    />
+                  );
+                }
                 const isHovered = hoveredId === row.item.id;
+                const projAccent = getProjectAccent(row.group.project.color);
+                const nextBgRow = displayRows[rowBgIndex + 1];
+                const isLastBgRowInProject =
+                  groupByProject &&
+                  !(
+                    nextBgRow &&
+                    (nextBgRow.kind === 'item' ||
+                      nextBgRow.kind === 'add-task' ||
+                      nextBgRow.kind === 'empty-project') &&
+                    nextBgRow.group.project.id === row.group.project.id
+                  );
                 return (
                   <div
                     key={`row-bg-${row.rowId}`}
-                    style={{ height: ROW_HEIGHT }}
+                    data-timeline-project-band={groupByProject ? row.group.project.id : undefined}
+                    style={{
+                      height: ROW_HEIGHT,
+                      ...(groupByProject
+                        ? {
+                            ...(!isHovered
+                              ? { backgroundColor: `rgba(${projAccent.rgb}, 0.045)` }
+                              : {}),
+                            ...(isLastBgRowInProject && showRowSeparators
+                              ? { borderBottom: `2px solid rgba(${projAccent.rgb}, 0.55)` }
+                              : {}),
+                          }
+                        : {}),
+                    }}
                     onMouseEnter={() => setHoveredId(row.item.id)}
                     onMouseLeave={() => setHoveredId(null)}
-                    className={`${
+                    className={`${rowBgExpandClass} ${
                       showRowSeparators
                         ? 'border-b border-[#E2E2DC] dark:border-zinc-800/70'
                         : 'border-b-0'
@@ -8483,7 +8682,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                 const timelineRowShiftClass = isAnyRowOrProjectDragging
                   ? 'transition-transform duration-200 ease-out'
                   : isCollapseAnimating
-                  ? 'transition-[top] duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)]'
+                  ? 'transition-[top] duration-[280ms] ease-[cubic-bezier(0.22,1,0.36,1)]'
                   : '';
                 const timelineRowExpandClass = isRowCollapsing(row)
                   ? 'animate-gantt-timeline-collapse'
@@ -8915,7 +9114,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         : isAnyRowOrProjectDragging
                         ? 'transition-[transform,opacity] duration-200 ease-out'
                         : isCollapseAnimating
-                        ? 'transition-[top,opacity] duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)]'
+                        ? 'transition-[top,opacity] duration-[280ms] ease-[cubic-bezier(0.22,1,0.36,1)]'
                         : 'transition-opacity'
                     } ${timelineRowExpandClass} ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
                   >
