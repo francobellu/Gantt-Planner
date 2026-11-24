@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.11.19',
+    date: '24 Nov 2026',
+    title: 'Añadir checkboxes de Subtareas y Predecesoras en barra de filtros del Cronograma',
+    isLatest: true,
+    features: [
+      'Añadido checkbox Subtareas (desactivado por defecto) para controlar la visibilidad de subtareas no coincidentes de proyectos filtrados',
+      'Añadido checkbox Predecesoras (excluido por defecto) para incluir opcionalmente el texto y código de las tareas predecesoras en la búsqueda',
+    ],
+  },
+  {
     version: '1.11.18',
     date: '24 Nov 2026',
     title: 'Añadir filtros guardados con formato de columnas específico en Informe Planificación',
-    isLatest: true,
     features: [
       'Permitido guardar filtros combinados con formato y orden de columnas específico',
       'Añadido renombrado, edición de formato vinculado y eliminación de filtros guardados en Informe Planificación',

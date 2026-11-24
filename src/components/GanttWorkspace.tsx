@@ -144,6 +144,33 @@ function computePolylineMidpoint(pts: OrthogonalPoint[]): OrthogonalPoint {
   return pts[pts.length - 1];
 }
 
+export interface GanttSearchFieldsConfig {
+  name: boolean;
+  description: boolean;
+  assignee: boolean;
+  platform: boolean;
+  predecessors: boolean;
+  displayId: boolean;
+}
+
+export const DEFAULT_GANTT_SEARCH_FIELDS: GanttSearchFieldsConfig = {
+  name: true,
+  description: false,
+  assignee: false,
+  platform: false,
+  predecessors: false,
+  displayId: false,
+};
+
+const SEARCH_FIELD_LABELS: Record<keyof GanttSearchFieldsConfig, string> = {
+  name: 'Nombre',
+  description: 'Descripción / Notas',
+  assignee: 'Equipo / Responsable',
+  platform: 'Plataforma',
+  predecessors: 'Predecesoras',
+  displayId: 'ID / Código',
+};
+
 interface GanttWorkspaceProps {
   items: ComputedGanttItem[];
   projects?: GanttProject[];
@@ -269,6 +296,11 @@ interface GanttWorkspaceProps {
   onChangeSelectedPlatform?: (platform: 'all' | ProjectPlatform) => void;
   truncateCharLimit?: number;
   onChangeTruncateCharLimit?: (limit: number) => void;
+  initialSearchQuery?: string;
+  initialAlertFilter?: 'all' | ProjectAlertLevel;
+  initialShowSubtasksOnFilter?: boolean;
+  initialSearchFields?: Partial<GanttSearchFieldsConfig>;
+  initialShowSearchFieldsMenu?: boolean;
 }
 
 
@@ -691,14 +723,37 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   onChangeSelectedPlatform,
   truncateCharLimit,
   onChangeTruncateCharLimit,
+  initialSearchQuery = '',
+  initialAlertFilter = 'all',
+  initialShowSubtasksOnFilter = false,
+  initialSearchFields,
+  initialShowSearchFieldsMenu = false,
 }) => {
   const [focusedProjectInputId, setFocusedProjectInputId] = useState<string | null>(null);
-  const [tableSearchQuery, setTableSearchQuery] = useState<string>('');
+  const [tableSearchQuery, setTableSearchQuery] = useState<string>(initialSearchQuery);
+  const [showSubtasksOnFilter, setShowSubtasksOnFilter] = useState<boolean>(initialShowSubtasksOnFilter);
+  const [searchFields, setSearchFields] = useState<GanttSearchFieldsConfig>(() => ({
+    ...DEFAULT_GANTT_SEARCH_FIELDS,
+    ...(initialSearchFields || {}),
+  }));
+  const [showSearchFieldsMenu, setShowSearchFieldsMenu] = useState<boolean>(initialShowSearchFieldsMenu);
+  const searchFieldsMenuRef = useRef<HTMLDivElement>(null);
+
+  const toggleSearchField = (key: keyof GanttSearchFieldsConfig) => {
+    setSearchFields((prev) => {
+      if (prev[key]) {
+        const activeCount = (Object.keys(prev) as (keyof GanttSearchFieldsConfig)[]).filter((k) => prev[k]).length;
+        if (activeCount <= 1) return prev; // Keep at least 1 searchable field active
+      }
+      return { ...prev, [key]: !prev[key] };
+    });
+  };
+
   const [tablePlatformFilter, setTablePlatformFilter] = useState<'all' | ProjectPlatform>('all');
   const [showPlatformFilterMenu, setShowPlatformFilterMenu] = useState<boolean>(false);
   const platformFilterMenuRef = useRef<HTMLDivElement>(null);
 
-  const [tableAlertFilter, setTableAlertFilter] = useState<'all' | ProjectAlertLevel>('all');
+  const [tableAlertFilter, setTableAlertFilter] = useState<'all' | ProjectAlertLevel>(initialAlertFilter);
   const [showAlertFilterMenu, setShowAlertFilterMenu] = useState<boolean>(false);
   const alertFilterMenuRef = useRef<HTMLDivElement>(null);
 
@@ -1603,6 +1658,29 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [showAlertFilterMenu]);
+
+  useEffect(() => {
+    if (!showSearchFieldsMenu) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (
+        searchFieldsMenuRef.current &&
+        !searchFieldsMenuRef.current.contains(e.target as Node)
+      ) {
+        setShowSearchFieldsMenu(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowSearchFieldsMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showSearchFieldsMenu]);
 
   // Configurable text truncation limit (controlled via prop or local fallback)
   const [internalTruncateLimit, setInternalTruncateLimit] = useState<number>(() => {
@@ -2966,6 +3044,63 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     };
   }, [isFocusMode, focusEntity, effectiveItems, projects]);
 
+  const matchesPredecessorText = (it: ComputedGanttItem, q: string): boolean => {
+    const deps = it.dependencies || [];
+    if (deps.length === 0) return false;
+    return deps.some((depId) => {
+      if (depId.toLowerCase().includes(q)) return true;
+      const pred = enrichedItemById.get(depId);
+      if (!pred) return false;
+      const depType = it.dependencyTypes?.[depId] || 'FS';
+      const predDisplayId = pred.displayId || '';
+      const predWbs = pred.wbsCode || String(pred.wbs ?? '');
+      return (
+        pred.name.toLowerCase().includes(q) ||
+        predDisplayId.toLowerCase().includes(q) ||
+        predWbs.toLowerCase().includes(q) ||
+        depType.toLowerCase().includes(q)
+      );
+    });
+  };
+
+  const doesProjectMatchQuery = (
+    proj: GanttProject,
+    projectIndex: number | undefined,
+    q: string
+  ): boolean => {
+    if (searchFields.name && proj.name.toLowerCase().includes(q)) return true;
+    if (searchFields.description && proj.description && proj.description.toLowerCase().includes(q)) {
+      return true;
+    }
+    if (searchFields.platform && proj.platform && proj.platform.toLowerCase().includes(q)) {
+      return true;
+    }
+    if (
+      searchFields.displayId &&
+      projectIndex !== undefined &&
+      (`p${projectIndex}`.includes(q) || String(projectIndex) === q)
+    ) {
+      return true;
+    }
+    return false;
+  };
+
+  const doesItemMatchQuery = (it: ComputedGanttItem, q: string): boolean => {
+    if (searchFields.name && it.name.toLowerCase().includes(q)) return true;
+    if (searchFields.description && it.notes && it.notes.toLowerCase().includes(q)) return true;
+    if (searchFields.assignee && it.assignee && it.assignee.toLowerCase().includes(q)) return true;
+    if (searchFields.platform && it.platform && it.platform.toLowerCase().includes(q)) return true;
+    if (searchFields.predecessors && matchesPredecessorText(it, q)) return true;
+    if (
+      searchFields.displayId &&
+      ((it.displayId && it.displayId.toLowerCase().includes(q)) ||
+        (it.wbsCode && it.wbsCode.toLowerCase().includes(q)))
+    ) {
+      return true;
+    }
+    return false;
+  };
+
   const visibleProjectGroups = useMemo(() => {
     let filtered = filterGroupsBySelectedProjects(
       allProjectGroups,
@@ -3015,18 +3150,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     const query = tableSearchQuery.trim().toLowerCase();
     if (query) {
       filtered = filtered.filter((g) => {
-        const projMatch =
-          g.project.name.toLowerCase().includes(query) ||
-          (g.project.description && g.project.description.toLowerCase().includes(query)) ||
-          (g.project.platform && g.project.platform.toLowerCase().includes(query));
-        if (projMatch) return true;
-        return g.items.some(
-          (it) =>
-            it.name.toLowerCase().includes(query) ||
-            (it.assignee && it.assignee.toLowerCase().includes(query)) ||
-            (it.notes && it.notes.toLowerCase().includes(query)) ||
-            (it.platform && it.platform.toLowerCase().includes(query))
-        );
+        if (doesProjectMatchQuery(g.project, g.projectIndex, query)) return true;
+        return g.items.some((it) => doesItemMatchQuery(it, query));
       });
     }
 
@@ -3044,6 +3169,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     tablePlatformFilter,
     tableAlertFilter,
     tableSearchQuery,
+    searchFields,
+    enrichedItemById,
     focusRelatedSets,
   ]);
 
@@ -3071,22 +3198,32 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         : 'all';
     const query = tableSearchQuery.trim().toLowerCase();
 
-    const itemMatchesFilter = (it: ComputedGanttItem, proj: GanttProject) => {
+    const itemMatchesFilter = (
+      it: ComputedGanttItem,
+      proj: GanttProject,
+      projectIndex?: number
+    ) => {
       if (effectivePlatform !== 'all') {
-        const plat = it.platform || proj.platform || 'Multiplataforma';
-        if (plat !== effectivePlatform) return false;
+        const targetPlat = normalizePlatform(effectivePlatform) || 'iOS/Android';
+        const plat = normalizePlatform(it.platform || proj.platform) || 'iOS/Android';
+        const projPlat = normalizePlatform(proj.platform) || 'iOS/Android';
+        if (plat !== targetPlat && !(showSubtasksOnFilter && projPlat === targetPlat)) {
+          return false;
+        }
+      }
+      if (tableAlertFilter !== 'all') {
+        const itemAlertMatches = (it.alertLevel ?? 0) === tableAlertFilter;
+        const projAlertMatches = (proj.alertLevel ?? 0) === tableAlertFilter;
+        if (!itemAlertMatches && !(showSubtasksOnFilter && projAlertMatches)) {
+          return false;
+        }
       }
       if (!query) return true;
-      const projMatches =
-        proj.name.toLowerCase().includes(query) ||
-        (proj.description && proj.description.toLowerCase().includes(query));
-      if (projMatches) return true;
-      return (
-        it.name.toLowerCase().includes(query) ||
-        (it.assignee && it.assignee.toLowerCase().includes(query)) ||
-        (it.notes && it.notes.toLowerCase().includes(query)) ||
-        (it.platform && it.platform.toLowerCase().includes(query))
-      );
+      if (doesItemMatchQuery(it, query)) return true;
+      if (showSubtasksOnFilter && doesProjectMatchQuery(proj, projectIndex, query)) {
+        return true;
+      }
+      return false;
     };
 
     if (groupingMode === 'release' && releases.length > 0) {
@@ -3134,7 +3271,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   if (focusRelatedSets && !focusRelatedSets.itemIds.has(item.id)) {
                     continue;
                   }
-                  if (!itemMatchesFilter(item, group.project)) {
+                  if (!itemMatchesFilter(item, group.project, group.projectIndex)) {
                     continue;
                   }
                   rows.push({
@@ -3180,7 +3317,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               if (focusRelatedSets && !focusRelatedSets.itemIds.has(item.id)) {
                 continue;
               }
-              if (!itemMatchesFilter(item, group.project)) {
+              if (!itemMatchesFilter(item, group.project, group.projectIndex)) {
                 continue;
               }
               rows.push({
@@ -3204,7 +3341,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
           if (focusRelatedSets && !focusRelatedSets.itemIds.has(item.id)) {
             continue;
           }
-          if (!itemMatchesFilter(item, group.project)) {
+          if (!itemMatchesFilter(item, group.project, group.projectIndex)) {
             continue;
           }
           rows.push({
@@ -3228,6 +3365,13 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     projects,
     hiddenReleaseIds,
     focusRelatedSets,
+    tableSearchQuery,
+    tablePlatformFilter,
+    selectedPlatform,
+    tableAlertFilter,
+    showSubtasksOnFilter,
+    searchFields,
+    enrichedItemById,
   ]);
 
   useLayoutEffect(() => {
@@ -5277,9 +5421,22 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   };
 
   const handleTimelineMouseLeave = () => {
-
     setCursorScrubber(null);
   };
+
+  const activeSearchFieldKeys = (
+    Object.keys(searchFields) as (keyof GanttSearchFieldsConfig)[]
+  ).filter((k) => searchFields[k]);
+  const searchFieldsBtnLabel =
+    activeSearchFieldKeys.length === 1
+      ? activeSearchFieldKeys[0] === 'description'
+        ? 'Desc.'
+        : activeSearchFieldKeys[0] === 'assignee'
+        ? 'Equipo'
+        : activeSearchFieldKeys[0] === 'displayId'
+        ? 'ID'
+        : SEARCH_FIELD_LABELS[activeSearchFieldKeys[0]]
+      : `${activeSearchFieldKeys.length} campos`;
 
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-white dark:bg-[#0C0C09] rounded-[8px] border border-[#0C0C09] dark:border-zinc-800 shadow-none">
@@ -5346,6 +5503,89 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   <X className="w-2.5 h-2.5" />
                 </button>
               )}
+            </div>
+
+            <div ref={searchFieldsMenuRef} className="relative flex items-center shrink-0">
+              <button
+                type="button"
+                data-testid="table-search-fields-btn"
+                onClick={() => setShowSearchFieldsMenu((prev) => !prev)}
+                className={`flex items-center gap-1 px-2 py-0.5 text-[10px] font-sans font-medium normal-case rounded-[3px] border outline-none cursor-pointer h-6.5 transition ${
+                  activeSearchFieldKeys.length === 1 && searchFields.name
+                    ? 'border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700/70'
+                    : 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                }`}
+                title="Seleccionar en qué campos del elemento buscar (por defecto solo Nombre)"
+              >
+                <SlidersHorizontal className="w-3 h-3 shrink-0" />
+                <span>{`En: ${searchFieldsBtnLabel}`}</span>
+                <ChevronDown className="w-3 h-3 text-zinc-500 shrink-0" />
+              </button>
+
+              <div
+                data-testid="table-search-fields-menu"
+                className={`absolute left-0 top-full mt-1 z-50 min-w-[200px] rounded-[4px] border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg py-1.5 px-1.5 ${
+                  showSearchFieldsMenu ? 'flex flex-col gap-0.5' : 'hidden'
+                }`}
+              >
+                <div className="flex items-center justify-between px-1.5 pb-1 mb-0.5 border-b border-zinc-200 dark:border-zinc-800">
+                  <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                    Buscar en campos
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      data-testid="table-search-fields-reset-btn"
+                      onClick={() => setSearchFields({ ...DEFAULT_GANTT_SEARCH_FIELDS })}
+                      className="text-[9px] font-sans font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                    >
+                      Solo Nombre
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="table-search-fields-all-btn"
+                      onClick={() =>
+                        setSearchFields({
+                          name: true,
+                          description: true,
+                          assignee: true,
+                          platform: true,
+                          predecessors: true,
+                          displayId: true,
+                        })
+                      }
+                      className="text-[9px] font-sans font-semibold text-zinc-500 dark:text-zinc-400 hover:underline cursor-pointer"
+                    >
+                      Todos
+                    </button>
+                  </div>
+                </div>
+
+                {(Object.keys(SEARCH_FIELD_LABELS) as (keyof GanttSearchFieldsConfig)[]).map((fieldKey) => {
+                  const isChecked = searchFields[fieldKey];
+                  const isOnlyActive = isChecked && activeSearchFieldKeys.length <= 1;
+                  return (
+                    <label
+                      key={fieldKey}
+                      className={`flex items-center gap-2 px-1.5 py-1 rounded-[3px] text-[10px] font-sans font-medium transition ${
+                        isOnlyActive
+                          ? 'text-zinc-500 dark:text-zinc-400 cursor-not-allowed'
+                          : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        data-testid={`table-search-field-checkbox-${fieldKey}`}
+                        checked={isChecked}
+                        disabled={isOnlyActive}
+                        onChange={() => toggleSearchField(fieldKey)}
+                        className="w-3 h-3 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 accent-indigo-600 cursor-pointer disabled:cursor-not-allowed"
+                      />
+                      <span>{SEARCH_FIELD_LABELS[fieldKey]}</span>
+                    </label>
+                  );
+                })}
+              </div>
             </div>
 
             <div ref={platformFilterMenuRef} className="relative flex items-center shrink-0">
@@ -5591,6 +5831,25 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               </div>
             </div>
 
+            <label
+              data-testid="table-show-subtasks-label"
+              className={`flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-sans font-medium normal-case rounded-[3px] border cursor-pointer h-6.5 transition shrink-0 select-none ${
+                showSubtasksOnFilter
+                  ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                  : 'border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700/70'
+              }`}
+              title="Al filtrar, mostrar también todas las subtareas de proyectos coincidentes aunque la subtarea no coincida directamente"
+            >
+              <input
+                type="checkbox"
+                data-testid="table-show-subtasks-checkbox"
+                checked={showSubtasksOnFilter}
+                onChange={(e) => setShowSubtasksOnFilter(e.target.checked)}
+                className="w-3 h-3 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer accent-indigo-600"
+              />
+              <span>Subtareas</span>
+            </label>
+
             {(tableSearchQuery || activePlatformFilter !== 'all' || tableAlertFilter !== 'all') && (
               <button
                 type="button"
@@ -5599,6 +5858,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   setTableSearchQuery('');
                   handleSelectPlatformFilter('all');
                   setTableAlertFilter('all');
+                  setShowSubtasksOnFilter(false);
+                  setSearchFields({ ...DEFAULT_GANTT_SEARCH_FIELDS });
                 }}
                 className="text-[9px] font-sans font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer shrink-0"
               >

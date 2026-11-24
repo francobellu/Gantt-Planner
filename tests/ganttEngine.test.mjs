@@ -4520,7 +4520,7 @@ test('Help page, version control v1.2.0, release selection on project creation, 
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version control consistency
-  assert.equal(pkg.version, '1.11.18', 'package.json version must be 1.9.2');
+  assert.equal(pkg.version, '1.11.19', 'package.json version must be 1.9.2');
   assert.ok(pkg.scripts['version:patch'], 'package.json must contain version:patch script');
   assert.ok(pkg.scripts['version:minor'], 'package.json must contain version:minor script');
   assert.ok(pkg.scripts['release:patch'], 'package.json must contain release:patch script');
@@ -5301,10 +5301,10 @@ test('Task name positioning, configurable row separators, 37 char truncation, v1
     const htmlWithoutWeekendShading = renderToString(mod.renderWorkspaceWithWeekendShading(false));
     assert.ok(!htmlWithoutWeekendShading.includes('bg-[#E5E5DF]'), 'Canvas and header must NOT render weekend shading when showWeekendShading is false (clean uniform background)');
 
-    // 9. App Header displays v1.11.18 badge, row-separators-btn, and weekend-shading-btn
+    // 9. App Header displays v1.11.19 badge, row-separators-btn, and weekend-shading-btn
     const appHtml = renderToString(mod.renderAppHeader());
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'Header must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.11.18'), 'Header badge must display v1.11.18');
+    assert.ok(appHtml.includes('v1.11.19'), 'Header badge must display v1.11.19');
     assert.ok(appHtml.includes('data-testid="header-toggle-row-separators-btn"'), 'Header must contain header-toggle-row-separators-btn');
     assert.ok(appHtml.includes('data-testid="header-toggle-weekend-shading-btn"'), 'Header must contain header-toggle-weekend-shading-btn');
 
@@ -5334,7 +5334,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version Bump Verification
-  assert.equal(pkg.version, '1.11.18', 'package.json version must equal 1.9.2');
+  assert.equal(pkg.version, '1.11.19', 'package.json version must equal 1.9.2');
 
   // Verify scripts/bump-version.mjs works properly
   const bumpScript = await fs.readFile(path.resolve(__dirname, '../scripts/bump-version.mjs'), 'utf8');
@@ -5508,7 +5508,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // A. APP_VERSION equals 1.9.2
-    assert.equal(mod.APP_VERSION, '1.11.18', 'APP_VERSION must be 1.9.2');
+    assert.equal(mod.APP_VERSION, '1.11.19', 'APP_VERSION must be 1.9.2');
 
     // A2. Excel Export Unit Test
     const sampleReleases = [
@@ -5585,7 +5585,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     assert.ok(appHtml.includes('data-testid="table-platform-filter"'), 'App must contain unified table-platform-filter');
     assert.ok(!appHtml.includes('data-testid="header-toggle-focus-mode-btn"'), 'Redundant header-toggle-focus-mode-btn must be removed');
     assert.ok(appHtml.includes('data-testid="header-reports-btn"'), 'App header must contain header-reports-btn');
-    assert.ok(appHtml.includes('v1.11.18'), 'App header must display version v1.11.18');
+    assert.ok(appHtml.includes('v1.11.19'), 'App header must display version v1.11.19');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6035,8 +6035,8 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
-  // 1. Version Bump Verification v1.11.18
-  assert.equal(pkg.version, '1.11.18', 'package.json version must equal 1.9.2');
+  // 1. Version Bump Verification v1.11.19
+  assert.equal(pkg.version, '1.11.19', 'package.json version must equal 1.9.2');
 
   // 2. SSR Bundle verification for TaskFormModal, App Header, and sanitizeGanttItem
   const tmpFile = path.resolve(__dirname, `tmp_test59_bundle_${Date.now()}.mjs`);
@@ -6134,7 +6134,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.equal(mod.APP_VERSION, '1.11.18', 'mod.APP_VERSION must equal 1.9.2');
+    assert.equal(mod.APP_VERSION, '1.11.19', 'mod.APP_VERSION must equal 1.9.2');
 
     // sanitizeGanttItem preserves platform
     const sanitizedIos = mod.sanitizeGanttItem({
@@ -6179,7 +6179,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     assert.ok(appHtml.includes('data-testid="header-more-menu-btn"'), 'App header must render header-more-menu-btn');
     assert.ok(appHtml.includes('data-testid="header-more-menu-dropdown"'), 'App must render header-more-menu-dropdown');
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'More menu must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.11.18'), 'Version badge must display v1.11.18');
+    assert.ok(appHtml.includes('v1.11.19'), 'Version badge must display v1.11.19');
     assert.ok(appHtml.includes('data-testid="force-reload-btn"'), 'More menu must contain force-reload-btn');
 
     // 7. Verify secondary buttons are rendered inside the menu
@@ -6201,7 +6201,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
       hiddenReleaseCount: 0,
     }));
     assert.ok(settingsHtml.includes('data-testid="settings-version-badge"'), 'SettingsModal must contain settings-version-badge');
-    assert.ok(settingsHtml.includes('1.11.18') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.9.2');
+    assert.ok(settingsHtml.includes('1.11.19') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.9.2');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6355,14 +6355,14 @@ test('Test 61: Version button, compiled release notes modal and changelog across
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
 
     // 1. Check RELEASE_NOTES compiled data
-    assert.strictEqual(mod.APP_VERSION, '1.11.18');
+    assert.strictEqual(mod.APP_VERSION, '1.11.19');
     assert.ok(Array.isArray(mod.RELEASE_NOTES), 'RELEASE_NOTES must be an array');
     assert.ok(mod.RELEASE_NOTES.length >= 10, 'RELEASE_NOTES must have at least 10 releases');
 
     const latest = mod.RELEASE_NOTES[0];
-    assert.strictEqual(latest.version, '1.11.18', 'First release note must be 1.9.2');
+    assert.strictEqual(latest.version, '1.11.19', 'First release note must be 1.9.2');
     assert.strictEqual(latest.isLatest, true, 'First release note must be isLatest: true');
-    assert.ok(latest.features.length > 0, 'v1.11.18 must contain features');
+    assert.ok(latest.features.length > 0, 'v1.11.19 must contain features');
 
     // 2. Render App and verify version button exists in dropdown menu and is NOT duplicated in top header
     const appHtml = renderToString(React.createElement(mod.App));
@@ -6375,8 +6375,8 @@ test('Test 61: Version button, compiled release notes modal and changelog across
       'App dropdown must contain data-testid="app-version-badge"'
     );
     assert.ok(
-      appHtml.includes('<button') && appHtml.includes('data-testid="app-version-badge"') && appHtml.includes('v1.11.18'),
-      'app-version-badge in tools dropdown must be an interactive button showing v1.11.18'
+      appHtml.includes('<button') && appHtml.includes('data-testid="app-version-badge"') && appHtml.includes('v1.11.19'),
+      'app-version-badge in tools dropdown must be an interactive button showing v1.11.19'
     );
 
     // 3. Render ReleaseNotesModal
@@ -8193,7 +8193,7 @@ test('Test 73: v1.9.0 project alert level (0-3), workspace toolbar alert filter,
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.strictEqual(mod.APP_VERSION, '1.11.18', 'APP_VERSION must be 1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.11.19', 'APP_VERSION must be 1.9.2');
 
     // 1. Check sanitizeProject and describeProjectStateChanges for alertLevel
     const pSanitized0 = mod.sanitizeProject({ id: 'p-1', name: 'Proj 1', alertLevel: 0 });
@@ -8382,7 +8382,7 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.strictEqual(mod.APP_VERSION, '1.11.18', 'APP_VERSION must be 1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.11.19', 'APP_VERSION must be 1.9.2');
 
     // 1. Verify description format: <descripción del proyecto si existe>\n\n* <nombre> <desc>
     const pWithDesc = {
@@ -8467,8 +8467,8 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
   }
 });
 
-// TEST 75: v1.11.18 Project locking, accidental move guard & unlock prompt modal
-test('Test 75: v1.11.18 project locking, cascade/dependency protection, plan history badge, and unlock alert modal', async () => {
+// TEST 75: v1.11.19 Project locking, accidental move guard & unlock prompt modal
+test('Test 75: v1.11.19 project locking, cascade/dependency protection, plan history badge, and unlock alert modal', async () => {
   const fs = await import('node:fs/promises');
   const path = await import('node:path');
   const { fileURLToPath } = await import('node:url');
@@ -8479,7 +8479,7 @@ test('Test 75: v1.11.18 project locking, cascade/dependency protection, plan his
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
-  assert.strictEqual(pkg.version, '1.11.18', 'package.json version must equal 1.9.2');
+  assert.strictEqual(pkg.version, '1.11.19', 'package.json version must equal 1.9.2');
 
   const tmpFile = path.resolve(__dirname, `tmp_test75_bundle_${Date.now()}.mjs`);
   try {
@@ -8541,9 +8541,9 @@ test('Test 75: v1.11.18 project locking, cascade/dependency protection, plan his
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // 1. Version & release notes verification
-    assert.strictEqual(mod.APP_VERSION, '1.11.18', 'APP_VERSION must equal 1.9.2');
-    assert.strictEqual(mod.RELEASE_NOTES[0].version, '1.11.18', 'Latest release note must be 1.9.2');
-    assert.strictEqual(mod.RELEASE_NOTES[0].isLatest, true, 'v1.11.18 release note must be marked isLatest');
+    assert.strictEqual(mod.APP_VERSION, '1.11.19', 'APP_VERSION must equal 1.9.2');
+    assert.strictEqual(mod.RELEASE_NOTES[0].version, '1.11.19', 'Latest release note must be 1.9.2');
+    assert.strictEqual(mod.RELEASE_NOTES[0].isLatest, true, 'v1.11.19 release note must be marked isLatest');
 
     // 2. sanitizeProject, getLockedProjectForItem, describeProjectStateChanges
     const lockedProj = mod.sanitizeProject({
@@ -8740,7 +8740,7 @@ test('Test 75: v1.11.18 project locking, cascade/dependency protection, plan his
   }
 });
 
-test('Test 76: v1.11.18 automatic Free Slack calculation given successor tasks across engine, table badge, inspector sidebar and task modal', async () => {
+test('Test 76: v1.11.19 automatic Free Slack calculation given successor tasks across engine, table badge, inspector sidebar and task modal', async () => {
   // 1. Engine calculation: FS dependency with multiple successors
   const testItems = [
     {
@@ -12758,6 +12758,245 @@ test('Test 106: Saved filters with specific column format (visibility & order), 
       })
     );
     assert.ok(!relHtml.includes('data-testid="reports-saved-filters-btn"'), 'Releases tab must not render cronograma saved filters button');
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
+// TEST 107: GanttWorkspace selectable search fields (default only name) and Subtareas checkbox (default false)
+test('Test 107: GanttWorkspace selectable search fields (default name only) and Subtareas checkbox', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const esbuild = await import('esbuild');
+  const { pathToFileURL } = await import('node:url');
+  const tmpFile = path.resolve(process.cwd(), `tests/tmp_test107_bundle_${Date.now()}.mjs`);
+  try {
+    await esbuild.build({
+      stdin: {
+        contents: `
+          import React from 'react';
+          import { renderToString } from 'react-dom/server';
+          import { GanttWorkspace, DEFAULT_GANTT_SEARCH_FIELDS } from './src/components/GanttWorkspace.tsx';
+          export { React, renderToString, GanttWorkspace, DEFAULT_GANTT_SEARCH_FIELDS };
+        `,
+        resolveDir: process.cwd(),
+        sourcefile: 'test107-entry.tsx',
+        loader: 'tsx',
+      },
+      bundle: true,
+      format: 'esm',
+      outfile: tmpFile,
+      platform: 'node',
+      external: ['react', 'react-dom', 'lucide-react', 'xlsx'],
+    });
+
+    const mod = await import(pathToFileURL(tmpFile).href);
+
+    // 0. Default search fields: only name = true
+    assert.deepEqual(mod.DEFAULT_GANTT_SEARCH_FIELDS, {
+      name: true,
+      description: false,
+      assignee: false,
+      platform: false,
+      predecessors: false,
+      displayId: false,
+    });
+
+    const releases = [{ id: 'rel-1', code: 'T_27.3.1', name: 'Release 27.3', month: 'MARZO', year: 2027, color: 'emerald', milestones: [], projectIds: [] }];
+    const projects = [
+      {
+        id: 'proj-xcode27',
+        projectIndex: 11,
+        name: 'HDEV-747747: Xcode 27',
+        description: 'Plan de entregas y tareas (acciones) por equipo',
+        releaseId: 'rel-1',
+        alertLevel: 3,
+        color: 'violet',
+      },
+      {
+        id: 'proj-other',
+        projectIndex: 12,
+        name: 'Otro Proyecto',
+        description: 'Seguimiento independiente',
+        releaseId: 'rel-1',
+        alertLevel: 0,
+        color: 'blue',
+      },
+    ];
+    const items = [
+      {
+        id: 'task-onetrust',
+        projectId: 'proj-xcode27',
+        releaseId: 'rel-1',
+        name: 'Release SDK ARQ OneTrust',
+        startDate: '2026-10-27',
+        endDate: '2026-11-27',
+        duration: 32,
+        slack: 0,
+        type: 'task',
+        alertLevel: 3,
+        dependencies: [],
+        wbs: 1,
+        taskIndex: 1,
+        isCritical: false,
+      },
+      {
+        id: 'task-fixing',
+        projectId: 'proj-xcode27',
+        releaseId: 'rel-1',
+        name: 'Fixing',
+        assignee: 'MC_TEAM',
+        notes: 'Deadline: 15/01/2027 — Equipo: Desarrollo',
+        startDate: '2026-12-24',
+        endDate: '2027-02-04',
+        duration: 43,
+        slack: 0,
+        type: 'task',
+        alertLevel: 0,
+        dependencies: [],
+        wbs: 2,
+        taskIndex: 6,
+        isCritical: false,
+      },
+      {
+        id: 'task-dependent',
+        projectId: 'proj-other',
+        releaseId: 'rel-1',
+        name: 'Post-Release QA',
+        notes: 'Validación final',
+        startDate: '2026-11-28',
+        endDate: '2026-12-05',
+        duration: 8,
+        slack: 0,
+        type: 'task',
+        alertLevel: 0,
+        dependencies: ['task-onetrust'],
+        dependencyTypes: { 'task-onetrust': 'FS' },
+        wbs: 3,
+        taskIndex: 1,
+        isCritical: false,
+      },
+    ];
+
+    const baseProps = {
+      items,
+      projects,
+      releases,
+      groupByProject: true,
+      zoom: 'month',
+      showCriticalPath: false,
+      showCpmFloat: false,
+      autoCascade: false,
+      onUpdateItem: () => {},
+      onEditModal: () => {},
+      onDeleteItem: () => {},
+    };
+
+    const isCheckboxChecked = (html, testId) =>
+      new RegExp(`<input[^>]*data-testid="${testId}"[^>]*checked=""`).test(html);
+
+    // 1. Default state: search fields selector shows "En: Nombre" and only "name" checkbox is checked; Subtareas is unchecked
+    const normalHtml = mod.renderToString(
+      mod.React.createElement(mod.GanttWorkspace, {
+        ...baseProps,
+        initialShowSearchFieldsMenu: true,
+      })
+    );
+    assert.ok(normalHtml.includes('data-testid="table-search-fields-btn"'), 'Must render search fields selector button');
+    assert.ok(normalHtml.includes('En: Nombre'), 'Default search fields button label must be En: Nombre');
+    assert.ok(normalHtml.includes('data-testid="table-search-fields-menu"'), 'Must render search fields menu');
+    assert.ok(isCheckboxChecked(normalHtml, 'table-search-field-checkbox-name'), 'Nombre checkbox must be checked by default');
+    assert.ok(!isCheckboxChecked(normalHtml, 'table-search-field-checkbox-description'), 'Descripción checkbox must be unchecked by default');
+    assert.ok(!isCheckboxChecked(normalHtml, 'table-search-field-checkbox-assignee'), 'Equipo checkbox must be unchecked by default');
+    assert.ok(!isCheckboxChecked(normalHtml, 'table-search-field-checkbox-platform'), 'Plataforma checkbox must be unchecked by default');
+    assert.ok(!isCheckboxChecked(normalHtml, 'table-search-field-checkbox-predecessors'), 'Predecesoras checkbox must be unchecked by default');
+    assert.ok(!isCheckboxChecked(normalHtml, 'table-search-field-checkbox-displayId'), 'ID checkbox must be unchecked by default');
+    assert.ok(normalHtml.includes('data-testid="table-show-subtasks-checkbox"'), 'Must render Subtareas checkbox');
+    assert.ok(!isCheckboxChecked(normalHtml, 'table-show-subtasks-checkbox'), 'Subtareas checkbox must be unchecked by default');
+    assert.ok(normalHtml.includes('Fixing'), 'Normal unfiltered view displays all tasks');
+
+    // 2. Search "one" with defaults (name only, Subtareas false): hides Fixing, hides Post-Release QA, shows OneTrust
+    const filteredDefaultHtml = mod.renderToString(
+      mod.React.createElement(mod.GanttWorkspace, {
+        ...baseProps,
+        initialSearchQuery: 'one',
+      })
+    );
+    assert.ok(filteredDefaultHtml.includes('HDEV-747747: Xcode 27'), 'Parent project renders for matching task');
+    assert.ok(filteredDefaultHtml.includes('Release SDK ARQ OneTrust'), 'Matching task OneTrust renders');
+    assert.ok(!filteredDefaultHtml.includes('Fixing'), 'Fixing must NOT render by default when filtering "one"');
+    assert.ok(!filteredDefaultHtml.includes('Post-Release QA'), 'Post-Release QA must NOT render when predecessors field is excluded');
+
+    // 3. Search "Desarrollo" (in notes only) with default (name only) vs description enabled
+    const notesExcludedHtml = mod.renderToString(
+      mod.React.createElement(mod.GanttWorkspace, {
+        ...baseProps,
+        initialSearchQuery: 'Desarrollo',
+      })
+    );
+    assert.ok(!notesExcludedHtml.includes('Fixing'), 'Notes field must be excluded from search by default');
+
+    const notesIncludedHtml = mod.renderToString(
+      mod.React.createElement(mod.GanttWorkspace, {
+        ...baseProps,
+        initialSearchQuery: 'Desarrollo',
+        initialSearchFields: { description: true },
+      })
+    );
+    assert.ok(notesIncludedHtml.includes('En: 2 campos'), 'Button label reflects 2 active search fields');
+    assert.ok(notesIncludedHtml.includes('Fixing'), 'Notes match renders Fixing when description field is enabled');
+
+    // 4. Search "one" with description enabled + Subtareas checked: project description "acciones" pulls in Fixing!
+    const subtasksDescHtml = mod.renderToString(
+      mod.React.createElement(mod.GanttWorkspace, {
+        ...baseProps,
+        initialSearchQuery: 'one',
+        initialSearchFields: { description: true },
+        initialShowSubtasksOnFilter: true,
+      })
+    );
+    assert.ok(isCheckboxChecked(subtasksDescHtml, 'table-show-subtasks-checkbox'), 'Subtareas checkbox reflects checked state');
+    assert.ok(subtasksDescHtml.includes('Fixing'), 'Fixing renders when project matches via description and Subtareas is checked');
+
+    // 5. Search "MC_TEAM" with assignee field enabled
+    const assigneeIncludedHtml = mod.renderToString(
+      mod.React.createElement(mod.GanttWorkspace, {
+        ...baseProps,
+        initialSearchQuery: 'MC_TEAM',
+        initialSearchFields: { name: false, assignee: true },
+      })
+    );
+    assert.ok(assigneeIncludedHtml.includes('Fixing'), 'Fixing renders when assignee search field is enabled');
+
+    // 6. Search "OneTrust" with predecessors field enabled: includes Post-Release QA
+    const predIncludedHtml = mod.renderToString(
+      mod.React.createElement(mod.GanttWorkspace, {
+        ...baseProps,
+        initialSearchQuery: 'OneTrust',
+        initialSearchFields: { predecessors: true },
+      })
+    );
+    assert.ok(predIncludedHtml.includes('Otro Proyecto'), 'Project with dependent task renders');
+    assert.ok(predIncludedHtml.includes('Post-Release QA'), 'Dependent task renders when predecessors field is enabled');
+
+    // 7. Alert filter Nivel 3 with Subtareas default false vs true
+    const alertDefaultHtml = mod.renderToString(
+      mod.React.createElement(mod.GanttWorkspace, {
+        ...baseProps,
+        initialAlertFilter: 3,
+      })
+    );
+    assert.ok(alertDefaultHtml.includes('Release SDK ARQ OneTrust'), 'Alert 3 task must render');
+    assert.ok(!alertDefaultHtml.includes('Fixing'), 'Alert 0 subtask must be hidden when filtering Alert 3 and Subtareas is false');
+
+    const alertSubtasksHtml = mod.renderToString(
+      mod.React.createElement(mod.GanttWorkspace, {
+        ...baseProps,
+        initialAlertFilter: 3,
+        initialShowSubtasksOnFilter: true,
+      })
+    );
+    assert.ok(alertSubtasksHtml.includes('Fixing'), 'Alert 0 subtask renders under Alert 3 parent project when Subtareas is checked');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
