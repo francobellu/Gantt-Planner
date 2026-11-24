@@ -23,6 +23,7 @@ import {
   Copy,
   Diamond,
   Edit3,
+  ExternalLink,
   Eye,
   EyeOff,
   FileText,
@@ -103,6 +104,7 @@ import {
   OrthogonalPoint,
   parseDateSafe,
   removeDependencyLink,
+  resolveElementUrl,
   sanitizeGanttItem,
   updateDependencyLinkType,
   wouldCreateCycle,
@@ -10574,6 +10576,25 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   <span className="text-[10px] font-mono text-slate-400 uppercase shrink-0">Proyecto</span>
                 </div>
 
+                {(() => {
+                  const projUrl = resolveElementUrl(targetProject);
+                  if (!projUrl) return null;
+                  return (
+                    <a
+                      href={projUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      data-testid={`context-open-url-project-${targetProject.id}`}
+                      onClick={() => setContextMenu(null)}
+                      className="w-full px-3 py-1.5 text-left hover:bg-indigo-50 dark:hover:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 flex items-center gap-2 cursor-pointer font-medium"
+                      title={projUrl}
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">Abrir enlace</span>
+                    </a>
+                  );
+                })()}
+
                 <button
                   type="button"
                   data-testid={`project-info-btn-${targetProject.id}`}
@@ -10746,6 +10767,25 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                   {targetItem.type === 'milestone' ? 'Hito' : 'Tarea'}
                 </span>
               </div>
+
+              {(() => {
+                const itemUrl = resolveElementUrl(targetItem);
+                if (!itemUrl) return null;
+                return (
+                  <a
+                    href={itemUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-testid={`context-open-url-task-${targetItem.id}`}
+                    onClick={() => setContextMenu(null)}
+                    className="w-full px-3 py-1.5 text-left hover:bg-indigo-50 dark:hover:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 flex items-center gap-2 cursor-pointer font-medium"
+                    title={itemUrl}
+                  >
+                    <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">Abrir enlace</span>
+                  </a>
+                );
+              })()}
 
               <button
                 type="button"

@@ -5,6 +5,7 @@ import {
   Crosshair,
   Diamond,
   Edit2,
+  ExternalLink,
   Eye,
   EyeOff,
   FolderKanban,
@@ -40,6 +41,7 @@ import {
   groupItemsByReleaseAndProject,
   HistoryEntityChange,
   normalizePlatform,
+  resolveElementUrl,
   wouldCreateCycle,
 } from '../utils/ganttEngine';
 import { getReleaseDateSpan } from '../utils/releaseEngine';
@@ -167,7 +169,7 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
     : null;
 
   // Unified inline edit state for the selected task/milestone
-  const [taskName, setTaskName] = useState('');
+  const [taskName, setTaskName] = useState(() => selectedTask?.name || '');
   const [taskType, setTaskType] = useState<TaskType>('task');
   const [taskProjectId, setTaskProjectId] = useState('');
   const [taskAssignee, setTaskAssignee] = useState('');
@@ -428,6 +430,7 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                 dependencies: taskDeps,
                 dependencyTypes: taskDepTypes,
                 notes: taskNotes.trim() || undefined,
+                url: resolveElementUrl({ name: trimmed, url: selectedTask.url }),
               };
               onUpdateItem(updated, autoCascade);
               if (!isLocked) {
@@ -514,6 +517,30 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                     className="w-full px-2.5 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-semibold text-[#0C0C09] dark:text-zinc-100 outline-none focus:ring-1 focus:ring-indigo-500"
                   />
                 </div>
+
+                {/* Auto-generated URL */}
+                {(() => {
+                  const effectiveUrl = resolveElementUrl({ name: taskName, url: selectedTask.url });
+                  if (!effectiveUrl) return null;
+                  return (
+                    <div data-testid={`sidebar-task-url-box-${selectedTask.id}`}>
+                      <label className="block text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400 mb-1">
+                        URL
+                      </label>
+                      <a
+                        href={effectiveUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        data-testid={`sidebar-task-url-link-${selectedTask.id}`}
+                        className="flex items-center justify-between gap-2 w-full px-2.5 py-1.5 rounded-[4px] border border-indigo-200 dark:border-indigo-800 bg-indigo-50/70 dark:bg-indigo-950/30 text-[11px] font-mono text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100/80 dark:hover:bg-indigo-950/60 hover:underline transition"
+                        title={effectiveUrl}
+                      >
+                        <span className="truncate">{effectiveUrl}</span>
+                        <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                      </a>
+                    </div>
+                  );
+                })()}
 
                 {/* Type & Project */}
                 <div className="grid grid-cols-2 gap-2">
@@ -967,7 +994,11 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                       const trimmed = projName.trim() || selectedProject.name;
                       setProjName(trimmed);
                       if (trimmed !== selectedProject.name) {
-                        onUpdateProject({ ...selectedProject, name: trimmed });
+                        onUpdateProject({
+                          ...selectedProject,
+                          name: trimmed,
+                          url: resolveElementUrl({ name: trimmed, url: selectedProject.url }),
+                        });
                       }
                     }}
                     onKeyDown={(e) => {
@@ -978,6 +1009,30 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                     className="w-full px-2.5 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-semibold text-[#0C0C09] dark:text-zinc-100"
                   />
                 </div>
+
+                {/* Auto-generated Project URL */}
+                {(() => {
+                  const effectiveProjUrl = resolveElementUrl({ name: projName, url: selectedProject.url });
+                  if (!effectiveProjUrl) return null;
+                  return (
+                    <div data-testid={`sidebar-project-url-box-${selectedProject.id}`}>
+                      <label className="block text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400 mb-1">
+                        URL
+                      </label>
+                      <a
+                        href={effectiveProjUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        data-testid={`sidebar-project-url-link-${selectedProject.id}`}
+                        className="flex items-center justify-between gap-2 w-full px-2.5 py-1.5 rounded-[4px] border border-indigo-200 dark:border-indigo-800 bg-indigo-50/70 dark:bg-indigo-950/30 text-[11px] font-mono text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100/80 dark:hover:bg-indigo-950/60 hover:underline transition"
+                        title={effectiveProjUrl}
+                      >
+                        <span className="truncate">{effectiveProjUrl}</span>
+                        <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                      </a>
+                    </div>
+                  );
+                })()}
 
                 {/* Project Color Swatches */}
                 <div>

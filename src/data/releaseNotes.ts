@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.11.21',
+    date: '24 Nov 2026',
+    title: 'Generar URL automática para elementos DIGI, HDEV y HUAT',
+    isLatest: true,
+    features: [
+      'Añadido campo url autogenerado para elementos cuyo nombre comienza por DIGI-, HDEV- o HUAT- apuntando a https://hdev.bancsabadell.com/browse/<ID>',
+      'Mostrado enlace clicable en detalles del RightSidePanel y opción Abrir enlace en menú contextual derecho',
+    ],
+  },
+  {
     version: '1.11.20',
     date: '24 Nov 2026',
     title: 'Corregir z-index de barra de herramientas del Cronograma sobre cabecera WBS',
-    isLatest: true,
     features: [
       'Subido z-index de cronograma-toolbar de z-30 a z-40 para evitar que el botón de columnas y cabecera WBS se superpongan a los menús desplegables de filtro',
     ],

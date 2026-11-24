@@ -1,4 +1,4 @@
-export const APP_VERSION = '1.11.20';
+export const APP_VERSION = '1.11.21';
 
 export const DEFAULT_TRUNCATE_CHAR_LIMIT = 37;
 export const TRUNCATE_LIMIT_STORAGE_KEY = 'ganttflow_truncate_char_limit';
@@ -71,6 +71,7 @@ export interface GanttProject {
   projectIndex?: number; // Unique, fixed project identifier number (e.g. 1 -> P1) that does not change on reorder
   alertLevel?: ProjectAlertLevel; // Alert level 0 (Normal), 1 (Baja), 2 (Media), 3 (Alta)
   locked?: boolean; // When true, project items and structure are locked in the schedule against accidental moves/edits
+  url?: string; // Auto-generated or linked Jira URL when name starts with DIGI-..., HDEV-..., or HUAT-...
 }
 
 export interface GanttItem {
@@ -95,6 +96,7 @@ export interface GanttItem {
   releaseId?: string; // Optional task-level release association (propagated from project or overridden; used by DIGI, SCR, etc.)
   alertLevel?: ProjectAlertLevel; // Alert level 0 (Normal), 1 (Baja), 2 (Media), 3 (Alta)
   taskIndex?: number; // Unique, fixed task identifier number within its project or standalone (e.g. 1 -> P1T1 or T1)
+  url?: string; // Auto-generated or linked Jira URL when name starts with DIGI-..., HDEV-..., or HUAT-...
 }
 
 export interface ComputedGanttItem extends GanttItem {

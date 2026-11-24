@@ -594,6 +594,39 @@ export function moveProject(
   return next;
 }
 
+export const JIRA_BROWSE_BASE_URL = 'https://hdev.bancsabadell.com/browse/';
+
+/**
+ * Generates an automatic Jira browse URL if the element name starts with
+ * DIGI-<digits>, HDEV-<digits>, or HUAT-<digits>.
+ */
+export function generateElementUrlFromName(name?: string | null): string | undefined {
+  if (!name) return undefined;
+  const match = String(name)
+    .trim()
+    .match(/^(DIGI-\d+|HDEV-\d+|HUAT-\d+)(?=$|[^0-9A-Za-z])/i);
+  if (!match) return undefined;
+  return `${JIRA_BROWSE_BASE_URL}${match[1].toUpperCase()}`;
+}
+
+/**
+ * Resolves the effective URL for a project or task, prioritizing the
+ * auto-generated Jira URL when its name begins with DIGI-/HDEV-/HUAT-.
+ */
+export function resolveElementUrl(element?: {
+  name?: string | null;
+  url?: string | null;
+} | null): string | undefined {
+  if (!element) return undefined;
+  const autoUrl = generateElementUrlFromName(element.name);
+  if (autoUrl) return autoUrl;
+  const rawUrl = element.url?.trim();
+  if (rawUrl && !rawUrl.startsWith(JIRA_BROWSE_BASE_URL)) {
+    return rawUrl;
+  }
+  return undefined;
+}
+
 /**
  * Normalizes a partial or computed Gantt item into a clean GanttItem with
  * consistent startDate, endDate, duration, slack, and deep-cloned dependencies.
@@ -689,14 +722,20 @@ export function sanitizeGanttItem(
         .filter((d) => d.length > 0 && d !== id)
     : [];
 
+  const resolvedName =
+    raw.name != null
+      ? String(raw.name)
+      : fallbackIndex >= 0
+      ? `Elemento ${fallbackIndex + 1}`
+      : 'Tarea';
+  const resolvedUrl = resolveElementUrl({
+    name: resolvedName,
+    url: raw.url != null ? String(raw.url) : undefined,
+  });
+
   const result: GanttItem = {
     id,
-    name:
-      raw.name != null
-        ? String(raw.name)
-        : fallbackIndex >= 0
-        ? `Elemento ${fallbackIndex + 1}`
-        : 'Tarea',
+    name: resolvedName,
     type,
     startDate,
     endDate,
@@ -725,6 +764,7 @@ export function sanitizeGanttItem(
     ...(typeof raw.taskIndex === 'number' && Number.isFinite(raw.taskIndex) && raw.taskIndex >= 1
       ? { taskIndex: Math.round(raw.taskIndex) }
       : {}),
+    ...(resolvedUrl ? { url: resolvedUrl } : {}),
   };
 
   if (raw.projectId != null && String(raw.projectId).trim()) {
