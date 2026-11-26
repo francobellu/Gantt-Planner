@@ -17,6 +17,7 @@ import {
   GanttImportResult,
   GanttItem,
   GanttProject,
+  PlanCommit,
   PlanHistoryActionType,
   PlanHistoryEntry,
   ProjectAlertLevel,
@@ -4873,6 +4874,64 @@ export function groupHistoryChangesByHierarchy(
   }
 
   return sortedReleases;
+}
+
+/**
+ * Toggles a commit ID inside the compared commits list, enforcing a strict maximum
+ * (default 2) so at most two commits can be compared simultaneously.
+ */
+export function toggleComparedCommitId(
+  currentIds: string[],
+  commitId: string,
+  maxSelected = 2
+): string[] {
+  if (currentIds.includes(commitId)) {
+    return currentIds.filter((id) => id !== commitId);
+  }
+  if (currentIds.length >= maxSelected) {
+    return currentIds;
+  }
+  return [...currentIds, commitId];
+}
+
+/**
+ * Computes the diff between two selected commits, automatically ordering them
+ * chronologically (older commit as base -> newer commit as target).
+ */
+export function compareTwoCommits(
+  commits: PlanCommit[],
+  comparedIds: string[],
+  releases?: Release[]
+): {
+  baseCommit: PlanCommit;
+  targetCommit: PlanCommit;
+  changes: HistoryEntityChange[];
+} | null {
+  if (!comparedIds || comparedIds.length !== 2) return null;
+  const idxA = commits.findIndex((c) => c.id === comparedIds[0]);
+  const idxB = commits.findIndex((c) => c.id === comparedIds[1]);
+  if (idxA === -1 || idxB === -1 || idxA === idxB) return null;
+
+  const commitA = commits[idxA];
+  const commitB = commits[idxB];
+
+  // Order chronologically: older commit is base, newer commit is target.
+  // If timestamps are equal, commits[] is newest-first so higher index is older.
+  const isAOlder =
+    commitA.timestamp !== commitB.timestamp
+      ? commitA.timestamp < commitB.timestamp
+      : idxA > idxB;
+
+  const baseCommit = isAOlder ? commitA : commitB;
+  const targetCommit = isAOlder ? commitB : commitA;
+
+  const changes = computeHistoryEntryDiff(
+    baseCommit.snapshot,
+    targetCommit.snapshot,
+    releases
+  );
+
+  return { baseCommit, targetCommit, changes };
 }
 
 

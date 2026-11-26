@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Check,
   ChevronDown,
@@ -10,8 +10,8 @@ import {
   RotateCcw,
   X,
 } from 'lucide-react';
-import { PlanCommit } from '../types/gantt';
-import { HistoryEntityChange } from '../utils/ganttEngine';
+import { PlanCommit, Release } from '../types/gantt';
+import { compareTwoCommits, HistoryEntityChange } from '../utils/ganttEngine';
 
 interface CommitHistorySidebarProps {
   embedded?: boolean;
@@ -19,6 +19,10 @@ interface CommitHistorySidebarProps {
   pendingChanges: HistoryEntityChange[];
   activeBaselineCommitId?: string | null;
   onToggleBaselineCommit?: (commitId: string | null) => void;
+  comparedCommitIds?: string[];
+  onToggleCompareCommit?: (commitId: string) => void;
+  onClearCompareCommits?: () => void;
+  releases?: Release[];
   onCreateCommit: (message: string) => void;
   onRestoreCommit?: (commit: PlanCommit) => void;
   onClose: () => void;
@@ -109,6 +113,10 @@ export const CommitHistorySidebar: React.FC<CommitHistorySidebarProps> = ({
   pendingChanges,
   activeBaselineCommitId = null,
   onToggleBaselineCommit,
+  comparedCommitIds,
+  onToggleCompareCommit,
+  onClearCompareCommits,
+  releases,
   onCreateCommit,
   onRestoreCommit,
   onClose,
@@ -118,6 +126,32 @@ export const CommitHistorySidebar: React.FC<CommitHistorySidebarProps> = ({
   const [expandedCommitIds, setExpandedCommitIds] = useState<Set<string>>(
     () => new Set(commits[0] ? [commits[0].id] : [])
   );
+
+  const selectedCompareIds = useMemo(() => {
+    if (comparedCommitIds) return comparedCommitIds.slice(0, 2);
+    return activeBaselineCommitId ? [activeBaselineCommitId] : [];
+  }, [comparedCommitIds, activeBaselineCommitId]);
+
+  const twoWayComparison = useMemo(
+    () => compareTwoCommits(commits, selectedCompareIds, releases),
+    [commits, selectedCompareIds, releases]
+  );
+
+  const canToggleCompare = Boolean(onToggleCompareCommit || onToggleBaselineCommit);
+  const handleToggleCompare = (commitId: string) => {
+    if (onToggleCompareCommit) {
+      onToggleCompareCommit(commitId);
+    } else if (onToggleBaselineCommit) {
+      onToggleBaselineCommit(activeBaselineCommitId === commitId ? null : commitId);
+    }
+  };
+  const handleClearCompare = () => {
+    if (onClearCompareCommits) {
+      onClearCompareCommits();
+    } else if (onToggleBaselineCommit) {
+      onToggleBaselineCommit(null);
+    }
+  };
 
   const toggleCommitExpanded = (id: string) => {
     setExpandedCommitIds((prev) => {
@@ -237,6 +271,81 @@ export const CommitHistorySidebar: React.FC<CommitHistorySidebarProps> = ({
           Historial de Commits
         </div>
 
+        {twoWayComparison && (
+          <div
+            data-testid="commit-two-way-comparison"
+            className="rounded-[4px] border border-indigo-400/60 dark:border-indigo-700 bg-indigo-50/60 dark:bg-indigo-950/30 p-2.5 space-y-2"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 space-y-1">
+                <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase font-bold text-indigo-700 dark:text-indigo-300">
+                  <GitCompare className="w-3.5 h-3.5 shrink-0" />
+                  <span>Comparación de 2 Commits</span>
+                </div>
+                <div className="text-[11px] text-[#0C0C09] dark:text-zinc-100 space-y-0.5">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="px-1 py-0.2 rounded bg-indigo-600 text-white font-mono text-[9px] font-bold shrink-0">
+                      A
+                    </span>
+                    <span className="truncate font-semibold" title={twoWayComparison.baseCommit.message}>
+                      {twoWayComparison.baseCommit.message}
+                    </span>
+                    <span className="text-[9.5px] font-mono text-[#6B6B66] dark:text-zinc-400 shrink-0">
+                      ({twoWayComparison.baseCommit.formattedDate})
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="px-1 py-0.2 rounded bg-emerald-600 text-white font-mono text-[9px] font-bold shrink-0">
+                      B
+                    </span>
+                    <span className="truncate font-semibold" title={twoWayComparison.targetCommit.message}>
+                      {twoWayComparison.targetCommit.message}
+                    </span>
+                    <span className="text-[9.5px] font-mono text-[#6B6B66] dark:text-zinc-400 shrink-0">
+                      ({twoWayComparison.targetCommit.formattedDate})
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                data-testid="commit-clear-comparison-btn"
+                onClick={handleClearCompare}
+                className="shrink-0 p-1 rounded-[3px] text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition cursor-pointer"
+                title="Cerrar comparación"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="pt-1.5 border-t border-indigo-200/80 dark:border-indigo-800/60">
+              <div className="text-[10px] font-mono text-indigo-800 dark:text-indigo-300 mb-1.5">
+                {twoWayComparison.changes.length}{' '}
+                {twoWayComparison.changes.length === 1 ? 'diferencia' : 'diferencias'} entre A y B
+              </div>
+              <EntityChangeList changes={twoWayComparison.changes} />
+            </div>
+          </div>
+        )}
+
+        {!twoWayComparison && selectedCompareIds.length === 1 && (
+          <div
+            data-testid="commit-single-baseline-hint"
+            className="rounded-[4px] border border-indigo-200 dark:border-indigo-900 bg-indigo-50/40 dark:bg-indigo-950/20 px-2.5 py-1.5 flex items-center justify-between gap-2 text-[10.5px] text-indigo-800 dark:text-indigo-300"
+          >
+            <span>
+              Línea base activa (1/2). Activa un 2.º commit para comparar ambos entre sí.
+            </span>
+            <button
+              type="button"
+              onClick={handleClearCompare}
+              className="font-mono font-bold underline shrink-0 cursor-pointer"
+            >
+              Limpiar
+            </button>
+          </div>
+        )}
+
         {commits.length === 0 ? (
           <div
             data-testid="commits-empty-state"
@@ -247,11 +356,24 @@ export const CommitHistorySidebar: React.FC<CommitHistorySidebarProps> = ({
         ) : (
           commits.map((commit) => {
             const isExpanded = expandedCommitIds.has(commit.id);
+            const isSelectedForCompare = selectedCompareIds.includes(commit.id);
+            const isMaxReached = selectedCompareIds.length >= 2 && !isSelectedForCompare;
+            const compareSlotBadge = twoWayComparison
+              ? twoWayComparison.baseCommit.id === commit.id
+                ? 'A'
+                : twoWayComparison.targetCommit.id === commit.id
+                ? 'B'
+                : null
+              : null;
             return (
               <div
                 key={commit.id}
                 data-testid={`commit-entry-${commit.id}`}
-                className="rounded-[4px] border border-[#E2E2DC] dark:border-zinc-800 bg-white dark:bg-zinc-950 overflow-hidden"
+                className={`rounded-[4px] border bg-white dark:bg-zinc-950 overflow-hidden ${
+                  isSelectedForCompare
+                    ? 'border-indigo-500 ring-1 ring-indigo-500/40'
+                    : 'border-[#E2E2DC] dark:border-zinc-800'
+                }`}
               >
                 <div className="p-2.5 flex items-start justify-between gap-2 hover:bg-[#FAFAF8] dark:hover:bg-zinc-900/60 transition">
                   <button
@@ -283,27 +405,37 @@ export const CommitHistorySidebar: React.FC<CommitHistorySidebarProps> = ({
                   </button>
 
                   <div className="flex items-center gap-0.5 shrink-0">
-                    {onToggleBaselineCommit && (
+                    {canToggleCompare && (
                       <button
                         type="button"
                         data-testid={`commit-baseline-toggle-${commit.id}`}
-                        onClick={() =>
-                          onToggleBaselineCommit(
-                            activeBaselineCommitId === commit.id ? null : commit.id
-                          )
-                        }
+                        disabled={isMaxReached}
+                        onClick={() => handleToggleCompare(commit.id)}
                         title={
-                          activeBaselineCommitId === commit.id
-                            ? 'Desactivar comparación con esta línea base'
-                            : 'Comparar cronograma actual contra este commit (Línea Base Visual)'
+                          isSelectedForCompare
+                            ? 'Desactivar este commit de la comparación'
+                            : isMaxReached
+                            ? 'Máximo 2 commits seleccionados para comparar — desactiva uno primero'
+                            : selectedCompareIds.length === 1
+                            ? 'Comparar contra el commit ya seleccionado (2/2)'
+                            : 'Comparar cronograma actual contra este commit (o selecciona 2 commits para compararlos entre sí)'
                         }
-                        className={`p-1 rounded-[3px] transition cursor-pointer ${
-                          activeBaselineCommitId === commit.id
-                            ? 'bg-indigo-600 text-white shadow-xs'
-                            : 'text-[#6B6B66] hover:text-indigo-700 dark:text-zinc-400 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/50'
+                        className={`px-1 py-1 rounded-[3px] transition flex items-center gap-0.5 ${
+                          isSelectedForCompare
+                            ? compareSlotBadge === 'B'
+                              ? 'bg-emerald-600 text-white shadow-xs cursor-pointer'
+                              : 'bg-indigo-600 text-white shadow-xs cursor-pointer'
+                            : isMaxReached
+                            ? 'text-[#6B6B66]/40 dark:text-zinc-600 cursor-not-allowed'
+                            : 'text-[#6B6B66] hover:text-indigo-700 dark:text-zinc-400 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 cursor-pointer'
                         }`}
                       >
                         <GitCompare className="w-3.5 h-3.5" />
+                        {compareSlotBadge && (
+                          <span className="text-[9px] font-mono font-bold leading-none">
+                            {compareSlotBadge}
+                          </span>
+                        )}
                       </button>
                     )}
                     {onRestoreCommit && (

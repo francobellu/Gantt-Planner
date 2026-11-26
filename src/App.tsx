@@ -110,6 +110,8 @@ import {
   sanitizeScenario,
   switchWorkspaceToScenario,
   switchWorkspaceToTemplate,
+  compareTwoCommits,
+  toggleComparedCommitId,
   upsertScenarioInList,
 } from './utils/ganttEngine';
 import { GanttWorkspace } from './components/GanttWorkspace';
@@ -390,9 +392,19 @@ export function App({
     document.addEventListener('mousedown', handleOutsideMouseDown);
     return () => document.removeEventListener('mousedown', handleOutsideMouseDown);
   }, [showCommitsSidebar]);
-  const [activeBaselineCommitId, setActiveBaselineCommitId] = useState<string | null>(
-    initialBaselineCommitId
+  const [comparedCommitIds, setComparedCommitIds] = useState<string[]>(() =>
+    initialBaselineCommitId ? [initialBaselineCommitId] : []
   );
+  const activeBaselineCommitId = comparedCommitIds[0] || null;
+  const setActiveBaselineCommitId = (commitId: string | null) => {
+    setComparedCommitIds(commitId ? [commitId] : []);
+  };
+  const handleToggleCompareCommit = (commitId: string) => {
+    setComparedCommitIds((prev) => toggleComparedCommitId(prev, commitId, 2));
+  };
+  const handleClearCompareCommits = () => {
+    setComparedCommitIds([]);
+  };
   const [workCalendar, setWorkCalendar] = useState<WorkCalendarConfig>(() => {
     if (initialWorkCalendar) return initialWorkCalendar;
     try {
@@ -822,16 +834,25 @@ export function App({
     [commits, activeBaselineCommitId]
   );
 
-  const baselineSnapshot = useMemo(
-    () =>
-      activeBaselineCommit
-        ? {
-            label: activeBaselineCommit.message,
-            items: activeBaselineCommit.snapshot.items,
-          }
-        : null,
-    [activeBaselineCommit]
+  const twoWayCommitComparison = useMemo(
+    () => compareTwoCommits(commits, comparedCommitIds, releases),
+    [commits, comparedCommitIds, releases]
   );
+
+  const baselineSnapshot = useMemo(() => {
+    if (twoWayCommitComparison) {
+      return {
+        label: `${twoWayCommitComparison.baseCommit.message} → ${twoWayCommitComparison.targetCommit.message}`,
+        items: twoWayCommitComparison.baseCommit.snapshot.items,
+      };
+    }
+    return activeBaselineCommit
+      ? {
+          label: activeBaselineCommit.message,
+          items: activeBaselineCommit.snapshot.items,
+        }
+      : null;
+  }, [activeBaselineCommit, twoWayCommitComparison]);
 
   const pendingCommitChanges = useMemo(
     () =>
@@ -3371,6 +3392,9 @@ export function App({
             pendingChanges={pendingCommitChanges}
             activeBaselineCommitId={activeBaselineCommitId}
             onToggleBaselineCommit={setActiveBaselineCommitId}
+            comparedCommitIds={comparedCommitIds}
+            onToggleCompareCommit={handleToggleCompareCommit}
+            onClearCompareCommits={handleClearCompareCommits}
             onCreateCommit={handleCreateCommit}
             onRestoreCommit={handleRestoreCommit}
             conflictItems={metrics.conflictItems}

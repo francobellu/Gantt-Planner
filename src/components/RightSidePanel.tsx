@@ -94,6 +94,9 @@ interface RightSidePanelProps {
   pendingChanges: HistoryEntityChange[];
   activeBaselineCommitId: string | null;
   onToggleBaselineCommit: (commitId: string | null) => void;
+  comparedCommitIds?: string[];
+  onToggleCompareCommit?: (commitId: string) => void;
+  onClearCompareCommits?: () => void;
   onCreateCommit: (message: string) => void;
   onRestoreCommit: (commit: PlanCommit) => void;
   // Conflicts props
@@ -148,6 +151,9 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
   pendingChanges,
   activeBaselineCommitId,
   onToggleBaselineCommit,
+  comparedCommitIds,
+  onToggleCompareCommit,
+  onClearCompareCommits,
   onCreateCommit,
   onRestoreCommit,
   conflictItems,
@@ -465,14 +471,14 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
       aria-label="Panel lateral derecho"
       className="w-80 sm:w-96 shrink-0 border-l border-[#0C0C09] dark:border-zinc-800 bg-white dark:bg-[#0C0C09] flex flex-col min-h-0 sticky top-12 h-[calc(100vh-3rem)] self-start overflow-hidden select-text z-40"
     >
-      {/* Top Switcher Tabs: Detalles vs Commits */}
+      {/* Top Switcher Tabs: Detalles | Cambios (Del elemento / Commits) | Conflictos */}
       <div className="px-2.5 py-2 border-b border-[#E2E2DC] dark:border-zinc-800 flex items-center justify-between gap-2 bg-[#FAFAF8] dark:bg-zinc-950 shrink-0">
         <div className="flex items-center gap-1 flex-1 min-w-0">
           <button
             type="button"
             data-testid="sidebar-tab-details"
             onClick={() => onChangeTab('details')}
-            className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-[4px] text-[11px] font-semibold transition cursor-pointer ${
+            className={`flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-[4px] text-xs font-semibold transition cursor-pointer ${
               activeTab === 'details'
                 ? 'bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09]'
                 : 'text-[#6B6B66] dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/10'
@@ -485,46 +491,35 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
           <button
             type="button"
             data-testid="sidebar-tab-changes"
-            onClick={() => onChangeTab('changes')}
-            className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-[4px] text-[11px] font-semibold transition cursor-pointer ${
-              activeTab === 'changes'
+            onClick={() => {
+              if (activeTab !== 'changes' && activeTab !== 'commits') {
+                onChangeTab('changes');
+              }
+            }}
+            className={`flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-[4px] text-xs font-semibold transition cursor-pointer ${
+              activeTab === 'changes' || activeTab === 'commits'
                 ? 'bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09]'
                 : 'text-[#6B6B66] dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/10'
             }`}
           >
             <History className="w-3.5 h-3.5 shrink-0" />
             <span>Cambios</span>
-            {selectedEntityChanges.count > 0 && (
-              <span className="px-1 py-0.2 rounded-full bg-indigo-500 text-white font-mono text-[9px] font-bold">
-                {selectedEntityChanges.count}
-              </span>
-            )}
-          </button>
-
-          <button
-            type="button"
-            data-testid="sidebar-tab-commits"
-            onClick={() => onChangeTab('commits')}
-            className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-[4px] text-[11px] font-semibold transition cursor-pointer ${
-              activeTab === 'commits'
-                ? 'bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09]'
-                : 'text-[#6B6B66] dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/10'
-            }`}
-          >
-            <GitCommitHorizontal className="w-3.5 h-3.5 shrink-0" />
-            <span>Commits</span>
-            {pendingChanges.length > 0 && (
+            {pendingChanges.length > 0 ? (
               <span className="px-1 py-0.2 rounded-full bg-amber-500 text-black font-mono text-[9px] font-bold">
                 {pendingChanges.length}
               </span>
-            )}
+            ) : selectedEntityChanges.count > 0 ? (
+              <span className="px-1 py-0.2 rounded-full bg-indigo-500 text-white font-mono text-[9px] font-bold">
+                {selectedEntityChanges.count}
+              </span>
+            ) : null}
           </button>
 
           <button
             type="button"
             data-testid="sidebar-tab-conflicts"
             onClick={() => onChangeTab('conflicts')}
-            className={`flex-1 flex items-center justify-center gap-1 px-1.5 py-1.5 rounded-[4px] text-[11px] font-semibold transition cursor-pointer ${
+            className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-[4px] text-xs font-semibold transition cursor-pointer ${
               activeTab === 'conflicts'
                 ? 'bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09]'
                 : 'text-[#6B6B66] dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/10'
@@ -555,6 +550,52 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
           <X className="w-4 h-4" />
         </button>
       </div>
+
+      {/* Sub-tabs inside Cambios: Del elemento | Commits */}
+      {(activeTab === 'changes' || activeTab === 'commits') && (
+        <div
+          data-testid="sidebar-changes-subtabs"
+          className="px-2.5 py-1.5 border-b border-[#E2E2DC] dark:border-zinc-800 bg-[#F4F4F1]/80 dark:bg-zinc-900/60 flex items-center gap-1 shrink-0"
+        >
+          <button
+            type="button"
+            data-testid="sidebar-changes-subtab-element"
+            onClick={() => onChangeTab('changes')}
+            className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1 rounded-[3px] text-[11px] font-semibold transition cursor-pointer ${
+              activeTab === 'changes'
+                ? 'bg-white dark:bg-zinc-800 text-[#0C0C09] dark:text-white border border-[#E2E2DC] dark:border-zinc-700 shadow-xs'
+                : 'text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09] dark:hover:text-zinc-200'
+            }`}
+          >
+            <History className="w-3 h-3 shrink-0" />
+            <span>Del elemento</span>
+            {selectedEntityChanges.count > 0 && (
+              <span className="px-1 py-0.2 rounded-full bg-indigo-500 text-white font-mono text-[9px] font-bold">
+                {selectedEntityChanges.count}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            data-testid="sidebar-tab-commits"
+            onClick={() => onChangeTab('commits')}
+            className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1 rounded-[3px] text-[11px] font-semibold transition cursor-pointer ${
+              activeTab === 'commits'
+                ? 'bg-white dark:bg-zinc-800 text-[#0C0C09] dark:text-white border border-[#E2E2DC] dark:border-zinc-700 shadow-xs'
+                : 'text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09] dark:hover:text-zinc-200'
+            }`}
+          >
+            <GitCommitHorizontal className="w-3 h-3 shrink-0" />
+            <span>Commits</span>
+            {pendingChanges.length > 0 && (
+              <span className="px-1 py-0.2 rounded-full bg-amber-500 text-black font-mono text-[9px] font-bold">
+                {pendingChanges.length}
+              </span>
+            )}
+          </button>
+        </div>
+      )}
 
       {/* Body */}
       {activeTab === 'conflicts' ? (
@@ -768,6 +809,10 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
             pendingChanges={pendingChanges}
             activeBaselineCommitId={activeBaselineCommitId}
             onToggleBaselineCommit={onToggleBaselineCommit}
+            comparedCommitIds={comparedCommitIds}
+            onToggleCompareCommit={onToggleCompareCommit}
+            onClearCompareCommits={onClearCompareCommits}
+            releases={releases}
             onCreateCommit={onCreateCommit}
             onRestoreCommit={onRestoreCommit}
             onClose={onClose}

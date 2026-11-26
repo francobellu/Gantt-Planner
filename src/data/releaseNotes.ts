@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.11.26',
+    date: '26 Nov 2026',
+    title: 'Comparación de hasta 2 commits y subpestañas en Cambios (Del elemento / Commits)',
+    isLatest: true,
+    features: [
+      'Permitida la activación de hasta 2 botones de comparación entre commits distintos mostrando el diff directo A -> B y deshabilitando un 3.º',
+      'Reorganizadas las pestañas del RightSidePanel en Detalles, Cambios (con subpestañas Del elemento y Commits) y Conflictos',
+    ],
+  },
+  {
     version: '1.11.25',
     date: '26 Nov 2026',
     title: 'Vista agrupada en Historial de Cambios y pestaña Cambios en panel derecho',
-    isLatest: true,
     features: [
       'Añadida vista Agrupado (Release -> Proyecto -> Tarea/Hito) en PlanHistoryPage con resumen neto por campo y cronología desplegable con restauración',
       'Añadida pestaña Cambios en RightSidePanel mostrando los cambios agrupados del elemento seleccionado y sus hijos',
