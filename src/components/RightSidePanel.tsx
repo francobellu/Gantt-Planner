@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   Check,
+  ChevronDown,
+  ChevronRight,
   Crosshair,
   Diamond,
   Edit2,
@@ -10,9 +12,11 @@ import {
   EyeOff,
   FolderKanban,
   GitCommitHorizontal,
+  History,
   Info,
   Lock,
   Rocket,
+  RotateCcw,
   Save,
   Trash2,
   Unlock,
@@ -25,6 +29,7 @@ import {
   GanttItem,
   GanttProject,
   PlanCommit,
+  PlanHistoryEntry,
   ProjectAlertLevel,
   ProjectPlatform,
   Release,
@@ -37,6 +42,8 @@ import {
   calculateEndDateFromDuration,
   formatDateDisplay,
   getTeamColor,
+  GroupedEntityHistorySummary,
+  groupHistoryChangesByHierarchy,
   groupItemsByProject,
   groupItemsByReleaseAndProject,
   HistoryEntityChange,
@@ -47,7 +54,7 @@ import {
 import { getReleaseDateSpan } from '../utils/releaseEngine';
 import { CommitHistorySidebar } from './CommitHistorySidebar';
 
-export type RightSidebarTab = 'details' | 'commits' | 'conflicts';
+export type RightSidebarTab = 'details' | 'changes' | 'commits' | 'conflicts';
 
 export interface ConflictItemSummary {
   id: string;
@@ -93,6 +100,10 @@ interface RightSidePanelProps {
   conflictItems: ConflictItemSummary[];
   onNavigateToConflictItem: (item: ConflictItemSummary) => void;
   onResolveAllConflicts: () => void;
+  // Step-by-step history props (for Cambios tab)
+  history?: PlanHistoryEntry[];
+  currentHistoryIndex?: number;
+  onRestoreHistorySnapshot?: (entry: PlanHistoryEntry, index: number) => void;
 }
 
 const COLOR_SWATCHES: { value: TaskColor; bg: string }[] = [
@@ -142,6 +153,9 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
   conflictItems,
   onNavigateToConflictItem,
   onResolveAllConflicts,
+  history,
+  currentHistoryIndex,
+  onRestoreHistorySnapshot,
 }) => {
   const selectedTask =
     selectedEntity?.type === 'task'
@@ -236,6 +250,215 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'es'));
   }, [items]);
 
+  const [expandedSidebarChangeKeys, setExpandedSidebarChangeKeys] = useState<Set<string>>(
+    () => new Set()
+  );
+
+  const toggleSidebarChangeKey = (key: string) => {
+    setExpandedSidebarChangeKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const groupedHistory = useMemo(
+    () =>
+      groupHistoryChangesByHierarchy(history || [], releases, {
+        currentItems: items,
+        currentProjects: projects,
+      }),
+    [history, releases, items, projects]
+  );
+
+  const selectedEntityChanges = useMemo(() => {
+    if (!selectedEntity) {
+      return { count: 0, taskSummary: null, projectNode: null, releaseNode: null };
+    }
+    if (selectedEntity.type === 'task') {
+      for (const rNode of groupedHistory) {
+        for (const pNode of rNode.projects) {
+          const found = pNode.itemChanges.find((it) => it.id === selectedEntity.id);
+          if (found) {
+            return {
+              count: found.events.length,
+              taskSummary: found,
+              projectNode: null,
+              releaseNode: null,
+            };
+          }
+        }
+      }
+      return { count: 0, taskSummary: null, projectNode: null, releaseNode: null };
+    }
+    if (selectedEntity.type === 'project') {
+      for (const rNode of groupedHistory) {
+        const found = rNode.projects.find((p) => p.projectId === selectedEntity.id);
+        if (found) {
+          return {
+            count: found.totalEventsCount,
+            taskSummary: null,
+            projectNode: found,
+            releaseNode: null,
+          };
+        }
+      }
+      return { count: 0, taskSummary: null, projectNode: null, releaseNode: null };
+    }
+    const foundRel = groupedHistory.find((r) => r.releaseId === selectedEntity.id) || null;
+    return {
+      count: foundRel ? foundRel.totalEventsCount : 0,
+      taskSummary: null,
+      projectNode: null,
+      releaseNode: foundRel,
+    };
+  }, [selectedEntity, groupedHistory]);
+
+  const renderSidebarEntityChangesCard = (
+    entity: GroupedEntityHistorySummary,
+    keyId: string,
+    defaultExpanded = false
+  ) => {
+    const isToggled = expandedSidebarChangeKeys.has(keyId);
+    const isExpanded = defaultExpanded ? !isToggled : isToggled;
+    return (
+      <div
+        key={keyId}
+        data-testid={`sidebar-changes-entity-${entity.id}`}
+        className="rounded-[4px] border border-[#E2E2DC] dark:border-zinc-800 bg-[#FAFAF8] dark:bg-zinc-950/60 p-2.5 space-y-2"
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span
+                className={`px-1.5 py-0.2 rounded-[2px] text-[9px] font-mono font-bold uppercase ${
+                  entity.entityType === 'project'
+                    ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300'
+                    : entity.isExternalMilestone
+                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                    : entity.entityType === 'milestone'
+                    ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
+                    : 'bg-zinc-200 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200'
+                }`}
+              >
+                {entity.entityType === 'project'
+                  ? 'Proyecto'
+                  : entity.isExternalMilestone
+                  ? 'Hito Ext.'
+                  : entity.entityType === 'milestone'
+                  ? 'Hito'
+                  : 'Tarea'}
+              </span>
+              <span className="text-[11px] font-bold text-[#0C0C09] dark:text-zinc-100 truncate">
+                {entity.name}
+              </span>
+            </div>
+            <div className="text-[10px] font-mono text-[#6B6B66] dark:text-zinc-400 mt-0.5">
+              {entity.events.length} {entity.events.length === 1 ? 'cambio' : 'cambios'} · Último:{' '}
+              {entity.lastFormattedDate}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            data-testid={`sidebar-changes-toggle-${entity.id}`}
+            onClick={() => toggleSidebarChangeKey(keyId)}
+            className="shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded-[3px] text-[10px] font-mono font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition cursor-pointer"
+          >
+            {isExpanded ? (
+              <ChevronDown className="w-3 h-3" />
+            ) : (
+              <ChevronRight className="w-3 h-3" />
+            )}
+            <span>{isExpanded ? 'Ocultar' : 'Detalle'}</span>
+          </button>
+        </div>
+
+        {/* Net summary */}
+        {entity.netChanges.length > 0 ? (
+          <div
+            data-testid={`sidebar-changes-net-${entity.id}`}
+            className="flex flex-wrap gap-1"
+          >
+            {entity.netChanges.map((chg, idx) => (
+              <span
+                key={`${chg.field}-${idx}`}
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[3px] text-[10px] font-mono bg-white dark:bg-zinc-900 border border-[#E2E2DC] dark:border-zinc-700"
+              >
+                <span className="text-[#6B6B66] dark:text-zinc-400">{chg.field}:</span>
+                <span className="line-through text-rose-600/80 dark:text-rose-400/80">
+                  {chg.before}
+                </span>
+                <span>→</span>
+                <span className="font-bold text-emerald-700 dark:text-emerald-400">
+                  {chg.after}
+                </span>
+              </span>
+            ))}
+          </div>
+        ) : (
+          <div className="text-[10px] font-mono text-[#6B6B66] dark:text-zinc-400 italic">
+            Sin cambio neto (valores restaurados al inicial).
+          </div>
+        )}
+
+        {/* Chronological steps */}
+        {isExpanded && (
+          <div
+            data-testid={`sidebar-changes-events-${entity.id}`}
+            className="pt-1.5 border-t border-[#E2E2DC] dark:border-zinc-800 space-y-1.5"
+          >
+            {entity.events.map((ev) => {
+              const entryObj = history?.[ev.entryIndex];
+              const isCurrent =
+                typeof currentHistoryIndex === 'number' && ev.entryIndex === currentHistoryIndex;
+              return (
+                <div
+                  key={`${ev.entryId}-${ev.entryIndex}`}
+                  className="p-2 rounded-[3px] bg-white dark:bg-zinc-900 border border-[#E2E2DC]/80 dark:border-zinc-800 space-y-1 text-[10.5px]"
+                >
+                  <div className="flex items-center justify-between gap-1.5">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="px-1 py-0.2 rounded-[2px] bg-[#F4F4F1] dark:bg-zinc-800 font-mono text-[9.5px] font-bold text-[#0C0C09] dark:text-zinc-200">
+                        {ev.actionLabel}
+                      </span>
+                      <span className="font-mono text-[9.5px] text-[#6B6B66] dark:text-zinc-400 truncate">
+                        {ev.formattedDate}
+                      </span>
+                    </div>
+                    {entryObj && onRestoreHistorySnapshot && !isCurrent && (
+                      <button
+                        type="button"
+                        onClick={() => onRestoreHistorySnapshot(entryObj, ev.entryIndex)}
+                        className="shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded-[2px] border border-[#E2E2DC] dark:border-zinc-700 text-[9.5px] font-mono text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 transition cursor-pointer"
+                        title="Restaurar el plan a este punto"
+                      >
+                        <RotateCcw className="w-2.5 h-2.5" />
+                        <span>Restaurar</span>
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    {ev.changes.map((c, ci) => (
+                      <div
+                        key={`${c.field}-${ci}`}
+                        className="font-mono text-[10px] text-[#0C0C09] dark:text-zinc-200"
+                      >
+                        <span className="text-[#6B6B66] dark:text-zinc-400">{c.field}:</span>{' '}
+                        {c.before} → <strong>{c.after}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <aside
       data-testid="right-side-panel"
@@ -249,7 +472,7 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
             type="button"
             data-testid="sidebar-tab-details"
             onClick={() => onChangeTab('details')}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-[4px] text-xs font-semibold transition cursor-pointer ${
+            className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-[4px] text-[11px] font-semibold transition cursor-pointer ${
               activeTab === 'details'
                 ? 'bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09]'
                 : 'text-[#6B6B66] dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/10'
@@ -261,9 +484,28 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
 
           <button
             type="button"
+            data-testid="sidebar-tab-changes"
+            onClick={() => onChangeTab('changes')}
+            className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-[4px] text-[11px] font-semibold transition cursor-pointer ${
+              activeTab === 'changes'
+                ? 'bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09]'
+                : 'text-[#6B6B66] dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/10'
+            }`}
+          >
+            <History className="w-3.5 h-3.5 shrink-0" />
+            <span>Cambios</span>
+            {selectedEntityChanges.count > 0 && (
+              <span className="px-1 py-0.2 rounded-full bg-indigo-500 text-white font-mono text-[9px] font-bold">
+                {selectedEntityChanges.count}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
             data-testid="sidebar-tab-commits"
             onClick={() => onChangeTab('commits')}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-[4px] text-xs font-semibold transition cursor-pointer ${
+            className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-[4px] text-[11px] font-semibold transition cursor-pointer ${
               activeTab === 'commits'
                 ? 'bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09]'
                 : 'text-[#6B6B66] dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/10'
@@ -282,7 +524,7 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
             type="button"
             data-testid="sidebar-tab-conflicts"
             onClick={() => onChangeTab('conflicts')}
-            className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-[4px] text-xs font-semibold transition cursor-pointer ${
+            className={`flex-1 flex items-center justify-center gap-1 px-1.5 py-1.5 rounded-[4px] text-[11px] font-semibold transition cursor-pointer ${
               activeTab === 'conflicts'
                 ? 'bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09]'
                 : 'text-[#6B6B66] dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/10'
@@ -373,6 +615,150 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
               </div>
             </>
           )}
+        </div>
+      ) : activeTab === 'changes' ? (
+        <div
+          data-testid="sidebar-changes-content"
+          className="flex-1 overflow-y-auto p-3.5 text-xs flex flex-col gap-3"
+        >
+          {!selectedEntity ? (
+            <div className="my-auto text-center py-10 px-4 text-[#6B6B66] dark:text-zinc-400 space-y-2">
+              <History className="w-7 h-7 mx-auto opacity-35" />
+              <p className="font-semibold text-[#0C0C09] dark:text-zinc-200">
+                Ningún elemento seleccionado
+              </p>
+              <p className="text-[11px] leading-relaxed">
+                Selecciona una <strong>tarea</strong>, <strong>hito</strong>,{' '}
+                <strong>proyecto</strong> o <strong>release</strong> en el Cronograma para ver
+                sus cambios agrupados.
+              </p>
+            </div>
+          ) : selectedEntityChanges.count === 0 ? (
+            <div className="space-y-2">
+              <div className="p-2.5 rounded-[4px] border border-[#E2E2DC] dark:border-zinc-800 bg-[#FAFAF8] dark:bg-zinc-950/60">
+                <span className="text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400">
+                  {selectedEntity.type === 'release'
+                    ? 'Release seleccionada'
+                    : selectedEntity.type === 'project'
+                    ? 'Proyecto seleccionado'
+                    : 'Elemento seleccionado'}
+                </span>
+                <div className="text-xs font-bold text-[#0C0C09] dark:text-zinc-100 mt-0.5 truncate">
+                  {selectedEntity.name}
+                </div>
+              </div>
+              <div className="text-center py-8 px-4 text-[#6B6B66] dark:text-zinc-400 space-y-1.5">
+                <History className="w-6 h-6 mx-auto opacity-35" />
+                <p className="font-semibold text-[#0C0C09] dark:text-zinc-200">
+                  Sin cambios registrados
+                </p>
+                <p className="text-[11px] leading-relaxed">
+                  Todavía no constan modificaciones para este elemento en el historial actual.
+                </p>
+              </div>
+            </div>
+          ) : selectedEntity.type === 'task' && selectedEntityChanges.taskSummary ? (
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between gap-2 pb-2 border-b border-[#E2E2DC] dark:border-zinc-800">
+                <span className="text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400">
+                  Cambios del elemento
+                </span>
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300">
+                  {selectedEntityChanges.count}{' '}
+                  {selectedEntityChanges.count === 1 ? 'cambio' : 'cambios'}
+                </span>
+              </div>
+              {renderSidebarEntityChangesCard(
+                selectedEntityChanges.taskSummary,
+                `task:${selectedEntityChanges.taskSummary.id}`,
+                true
+              )}
+            </div>
+          ) : selectedEntity.type === 'project' && selectedEntityChanges.projectNode ? (
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between gap-2 pb-2 border-b border-[#E2E2DC] dark:border-zinc-800">
+                <div className="min-w-0">
+                  <span className="text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400 block">
+                    Cambios del proyecto y sus tareas
+                  </span>
+                  <span className="text-xs font-bold text-[#0C0C09] dark:text-zinc-100 truncate block">
+                    {selectedEntityChanges.projectNode.projectName}
+                  </span>
+                </div>
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 shrink-0">
+                  {selectedEntityChanges.projectNode.totalEventsCount}
+                </span>
+              </div>
+              {selectedEntityChanges.projectNode.projectChanges &&
+                renderSidebarEntityChangesCard(
+                  selectedEntityChanges.projectNode.projectChanges,
+                  `proj-own:${selectedEntityChanges.projectNode.projectId}`,
+                  true
+                )}
+              {selectedEntityChanges.projectNode.itemChanges.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400">
+                    Tareas e hitos modificados ({selectedEntityChanges.projectNode.itemChanges.length})
+                  </div>
+                  {selectedEntityChanges.projectNode.itemChanges.map((itemSummary) =>
+                    renderSidebarEntityChangesCard(
+                      itemSummary,
+                      `proj-child:${selectedEntityChanges.projectNode!.projectId}:${itemSummary.id}`,
+                      false
+                    )
+                  )}
+                </div>
+              )}
+            </div>
+          ) : selectedEntity.type === 'release' && selectedEntityChanges.releaseNode ? (
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between gap-2 pb-2 border-b border-[#E2E2DC] dark:border-zinc-800">
+                <div className="min-w-0">
+                  <span className="text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400 block">
+                    Cambios de la release
+                  </span>
+                  <span className="text-xs font-bold text-[#0C0C09] dark:text-zinc-100 truncate block">
+                    {selectedEntityChanges.releaseNode.releaseCode} ·{' '}
+                    {selectedEntityChanges.releaseNode.releaseName}
+                  </span>
+                </div>
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 shrink-0">
+                  {selectedEntityChanges.releaseNode.totalEventsCount}
+                </span>
+              </div>
+              {selectedEntityChanges.releaseNode.projects.map((pNode) => (
+                <div
+                  key={pNode.projectId}
+                  data-testid={`sidebar-changes-release-project-${pNode.projectId}`}
+                  className="rounded-[4px] border border-[#E2E2DC] dark:border-zinc-800 overflow-hidden"
+                >
+                  <div className="px-2.5 py-1.5 bg-[#F4F4F1] dark:bg-zinc-800/70 border-b border-[#E2E2DC] dark:border-zinc-800 flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-bold text-[#0C0C09] dark:text-zinc-100 truncate">
+                      {pNode.projectName}
+                    </span>
+                    <span className="font-mono text-[10px] text-[#6B6B66] dark:text-zinc-400 shrink-0">
+                      {pNode.totalEventsCount}
+                    </span>
+                  </div>
+                  <div className="p-2 space-y-2">
+                    {pNode.projectChanges &&
+                      renderSidebarEntityChangesCard(
+                        pNode.projectChanges,
+                        `rel-proj-own:${pNode.projectId}`,
+                        false
+                      )}
+                    {pNode.itemChanges.map((itemSummary) =>
+                      renderSidebarEntityChangesCard(
+                        itemSummary,
+                        `rel-proj-child:${pNode.projectId}:${itemSummary.id}`,
+                        false
+                      )
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : activeTab === 'commits' ? (
         <div className="flex-1 min-h-0 flex flex-col">

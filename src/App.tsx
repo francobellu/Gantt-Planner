@@ -3376,6 +3376,9 @@ export function App({
             conflictItems={metrics.conflictItems}
             onNavigateToConflictItem={handleNavigateToConflictItem}
             onResolveAllConflicts={handleResolveAllConflicts}
+            history={history}
+            currentHistoryIndex={historyIndex}
+            onRestoreHistorySnapshot={handleRestoreSnapshot}
           />
         )}
       </div>

@@ -17,6 +17,8 @@ import {
   GanttImportResult,
   GanttItem,
   GanttProject,
+  PlanHistoryActionType,
+  PlanHistoryEntry,
   ProjectAlertLevel,
   ProjectPlatform,
   ProjectTemplate,
@@ -4559,6 +4561,318 @@ export function computeHistoryEntryDiff(
   }
 
   return result;
+}
+
+export interface GroupedHistoryTimelineEvent {
+  entryId: string;
+  entryIndex: number;
+  timestamp: string;
+  formattedDate: string;
+  actionType: PlanHistoryActionType;
+  actionLabel: string;
+  description: string;
+  changeType: HistoryEntityChange['changeType'];
+  changes: HistoryFieldDiff[];
+}
+
+export interface GroupedEntityHistorySummary {
+  id: string;
+  entityType: 'project' | 'task' | 'milestone';
+  name: string;
+  projectId?: string;
+  projectName?: string;
+  releaseId: string;
+  releaseCode: string;
+  isExternalMilestone?: boolean;
+  isDeleted?: boolean;
+  netChanges: HistoryFieldDiff[];
+  events: GroupedHistoryTimelineEvent[];
+  lastFormattedDate: string;
+  lastTimestamp: string;
+}
+
+export interface GroupedProjectHistoryNode {
+  projectId: string;
+  projectName: string;
+  releaseId: string;
+  releaseCode: string;
+  isExternalGroup?: boolean;
+  projectChanges: GroupedEntityHistorySummary | null;
+  itemChanges: GroupedEntityHistorySummary[];
+  totalEventsCount: number;
+}
+
+export interface GroupedReleaseHistoryNode {
+  releaseId: string;
+  releaseCode: string;
+  releaseName: string;
+  isExternalGroup?: boolean;
+  projects: GroupedProjectHistoryNode[];
+  totalEventsCount: number;
+}
+
+/**
+ * Aggregates step-by-step PlanHistoryEntry diffs into a 3-level hierarchy:
+ * Release (or External Milestones / Sin Release) -> Project -> Task / Milestone.
+ * For each entity, computes both `netChanges` (earliest before -> latest after per field)
+ * and `events` (chronological newest-first list of every individual change).
+ */
+export function groupHistoryChangesByHierarchy(
+  history: PlanHistoryEntry[],
+  releases?: Release[],
+  options?: {
+    currentItems?: GanttItem[];
+    currentProjects?: GanttProject[];
+    allowedEntryIndices?: Set<number>;
+  }
+): GroupedReleaseHistoryNode[] {
+  if (!history || history.length <= 1) return [];
+
+  const latestSnapshot = history[history.length - 1]?.snapshot;
+  const currentItems = options?.currentItems ?? latestSnapshot?.items ?? [];
+  const currentProjects = options?.currentProjects ?? latestSnapshot?.projects ?? [];
+  const allowedEntryIndices = options?.allowedEntryIndices;
+
+  const currentItemMap = new Map(currentItems.map((it) => [it.id, it]));
+  const currentProjMap = new Map(currentProjects.map((p) => [p.id, p]));
+  const releaseCatalog = releases && releases.length > 0 ? releases : DEFAULT_PREDEFINED_RELEASES;
+  const releaseMap = new Map(releaseCatalog.map((r) => [r.id, r]));
+
+  interface Accumulator {
+    id: string;
+    entityType: 'project' | 'task' | 'milestone';
+    name: string;
+    projectId?: string;
+    projectName?: string;
+    releaseId: string;
+    releaseCode: string;
+    isExternalMilestone: boolean;
+    isDeleted: boolean;
+    eventsChronological: GroupedHistoryTimelineEvent[];
+  }
+
+  const entityAccMap = new Map<string, Accumulator>();
+
+  for (let i = 1; i < history.length; i++) {
+    if (allowedEntryIndices && !allowedEntryIndices.has(i)) continue;
+    const entry = history[i];
+    const prevSnapshot = history[i - 1]?.snapshot;
+    if (!prevSnapshot || !entry?.snapshot) continue;
+
+    const entityChanges = computeHistoryEntryDiff(prevSnapshot, entry.snapshot, releases, {
+      actionType: entry.actionType,
+      description: entry.description,
+    });
+
+    const snapProjMap = new Map(entry.snapshot.projects.map((p) => [p.id, p]));
+    const prevProjMap = new Map(prevSnapshot.projects.map((p) => [p.id, p]));
+    const snapItemMap = new Map(entry.snapshot.items.map((it) => [it.id, it]));
+    const prevItemMap = new Map(prevSnapshot.items.map((it) => [it.id, it]));
+
+    for (const ec of entityChanges) {
+      const key = `${ec.entityType === 'project' ? 'project' : 'item'}:${ec.id}`;
+      let resolvedProjectId: string | undefined;
+      let resolvedProjectName: string | undefined;
+      let resolvedReleaseId = '__unassigned__';
+      let isExternalMilestone = false;
+      let isDeleted = false;
+      let resolvedName = ec.name;
+
+      if (ec.entityType === 'project') {
+        const liveP = currentProjMap.get(ec.id);
+        const refP = liveP || snapProjMap.get(ec.id) || prevProjMap.get(ec.id);
+        resolvedProjectId = ec.id;
+        resolvedProjectName = liveP?.name || refP?.name || ec.name;
+        resolvedName = resolvedProjectName;
+        resolvedReleaseId =
+          refP?.releaseId && releaseMap.has(refP.releaseId)
+            ? refP.releaseId
+            : refP?.releaseId || '__unassigned__';
+        isDeleted = !liveP;
+      } else {
+        const liveIt = currentItemMap.get(ec.id);
+        const refIt = liveIt || snapItemMap.get(ec.id) || prevItemMap.get(ec.id);
+        resolvedName = liveIt?.name || refIt?.name || ec.name;
+        isDeleted = !liveIt;
+        isExternalMilestone =
+          (refIt?.type === 'milestone' || ec.entityType === 'milestone') &&
+          Boolean(refIt?.isExternal);
+
+        if (isExternalMilestone) {
+          resolvedProjectId = EXTERNAL_MILESTONES_GROUP_ID;
+          resolvedProjectName = 'Hitos Externos';
+          resolvedReleaseId = EXTERNAL_MILESTONES_GROUP_ID;
+        } else {
+          const pid = refIt?.projectId;
+          const refP = pid
+            ? currentProjMap.get(pid) || snapProjMap.get(pid) || prevProjMap.get(pid)
+            : undefined;
+          resolvedProjectId = pid || '__unassigned_project__';
+          resolvedProjectName =
+            refP?.name || ec.projectName || (pid ? `Proyecto (${pid})` : 'Sin proyecto');
+          const rawRelId = refIt?.releaseId || refP?.releaseId;
+          resolvedReleaseId = rawRelId || '__unassigned__';
+        }
+      }
+
+      const resolvedReleaseCode =
+        resolvedReleaseId === EXTERNAL_MILESTONES_GROUP_ID
+          ? 'HITOS EXTERNOS'
+          : resolvedReleaseId === '__unassigned__'
+          ? 'SIN RELEASE'
+          : resolveReleaseCodeLabel(resolvedReleaseId, releases);
+
+      let acc = entityAccMap.get(key);
+      if (!acc) {
+        acc = {
+          id: ec.id,
+          entityType: ec.entityType,
+          name: resolvedName,
+          projectId: resolvedProjectId,
+          projectName: resolvedProjectName,
+          releaseId: resolvedReleaseId,
+          releaseCode: resolvedReleaseCode,
+          isExternalMilestone,
+          isDeleted,
+          eventsChronological: [],
+        };
+        entityAccMap.set(key, acc);
+      } else {
+        acc.name = resolvedName;
+        acc.entityType = ec.entityType;
+        acc.projectId = resolvedProjectId;
+        acc.projectName = resolvedProjectName;
+        acc.releaseId = resolvedReleaseId;
+        acc.releaseCode = resolvedReleaseCode;
+        acc.isExternalMilestone = isExternalMilestone;
+        acc.isDeleted = isDeleted;
+      }
+
+      acc.eventsChronological.push({
+        entryId: entry.id,
+        entryIndex: i,
+        timestamp: entry.timestamp,
+        formattedDate: entry.formattedDate,
+        actionType: entry.actionType,
+        actionLabel: entry.actionLabel,
+        description: entry.description,
+        changeType: ec.changeType,
+        changes: ec.changes,
+      });
+    }
+  }
+
+  const releaseNodeMap = new Map<string, GroupedReleaseHistoryNode>();
+
+  const getOrCreateReleaseNode = (
+    releaseId: string,
+    releaseCode: string
+  ): GroupedReleaseHistoryNode => {
+    let node = releaseNodeMap.get(releaseId);
+    if (!node) {
+      const rel = releaseMap.get(releaseId);
+      const isExt = releaseId === EXTERNAL_MILESTONES_GROUP_ID;
+      node = {
+        releaseId,
+        releaseCode,
+        releaseName: isExt
+          ? 'Hitos externos independientes'
+          : rel?.name || (releaseId === '__unassigned__' ? 'Sin release asignada' : releaseCode),
+        isExternalGroup: isExt || undefined,
+        projects: [],
+        totalEventsCount: 0,
+      };
+      releaseNodeMap.set(releaseId, node);
+    }
+    return node;
+  };
+
+  for (const acc of entityAccMap.values()) {
+    const fieldTracker = new Map<string, { before: string; after: string }>();
+    for (const ev of acc.eventsChronological) {
+      for (const ch of ev.changes) {
+        const existing = fieldTracker.get(ch.field);
+        if (!existing) {
+          fieldTracker.set(ch.field, { before: ch.before, after: ch.after });
+        } else {
+          existing.after = ch.after;
+        }
+      }
+    }
+    const netChanges: HistoryFieldDiff[] = [];
+    for (const [field, { before, after }] of fieldTracker.entries()) {
+      if (before !== after) {
+        netChanges.push({ field, before, after });
+      }
+    }
+
+    const eventsNewestFirst = [...acc.eventsChronological].reverse();
+    const latestEv = eventsNewestFirst[0];
+
+    const summary: GroupedEntityHistorySummary = {
+      id: acc.id,
+      entityType: acc.entityType,
+      name: acc.name,
+      projectId: acc.projectId,
+      projectName: acc.projectName,
+      releaseId: acc.releaseId,
+      releaseCode: acc.releaseCode,
+      isExternalMilestone: acc.isExternalMilestone || undefined,
+      isDeleted: acc.isDeleted || undefined,
+      netChanges,
+      events: eventsNewestFirst,
+      lastFormattedDate: latestEv?.formattedDate || '',
+      lastTimestamp: latestEv?.timestamp || '',
+    };
+
+    const relNode = getOrCreateReleaseNode(acc.releaseId, acc.releaseCode);
+    const pid = acc.projectId || '__unassigned_project__';
+    let projNode = relNode.projects.find((p) => p.projectId === pid);
+    if (!projNode) {
+      projNode = {
+        projectId: pid,
+        projectName: acc.projectName || 'Sin proyecto',
+        releaseId: acc.releaseId,
+        releaseCode: acc.releaseCode,
+        isExternalGroup: pid === EXTERNAL_MILESTONES_GROUP_ID || undefined,
+        projectChanges: null,
+        itemChanges: [],
+        totalEventsCount: 0,
+      };
+      relNode.projects.push(projNode);
+    }
+
+    if (acc.entityType === 'project') {
+      projNode.projectChanges = summary;
+    } else {
+      projNode.itemChanges.push(summary);
+    }
+    projNode.totalEventsCount += summary.events.length;
+    relNode.totalEventsCount += summary.events.length;
+  }
+
+  const relOrderMap = new Map<string, number>();
+  releaseCatalog.forEach((r, idx) => relOrderMap.set(r.id, idx));
+
+  const sortedReleases = Array.from(releaseNodeMap.values()).sort((a, b) => {
+    if (a.isExternalGroup && !b.isExternalGroup) return -1;
+    if (!a.isExternalGroup && b.isExternalGroup) return 1;
+    if (a.releaseId === '__unassigned__' && b.releaseId !== '__unassigned__') return 1;
+    if (b.releaseId === '__unassigned__' && a.releaseId !== '__unassigned__') return -1;
+    const idxA = relOrderMap.has(a.releaseId) ? relOrderMap.get(a.releaseId)! : 9999;
+    const idxB = relOrderMap.has(b.releaseId) ? relOrderMap.get(b.releaseId)! : 9999;
+    if (idxA !== idxB) return idxA - idxB;
+    return a.releaseCode.localeCompare(b.releaseCode, 'es');
+  });
+
+  for (const rNode of sortedReleases) {
+    for (const pNode of rNode.projects) {
+      pNode.itemChanges.sort((a, b) => b.lastTimestamp.localeCompare(a.lastTimestamp));
+    }
+    rNode.projects.sort((a, b) => b.totalEventsCount - a.totalEventsCount);
+  }
+
+  return sortedReleases;
 }
 
 

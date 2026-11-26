@@ -17,7 +17,11 @@ import {
   Undo2,
 } from 'lucide-react';
 import { PlanHistoryActionType, PlanHistoryEntry, Release } from '../types/gantt';
-import { computeHistoryEntryDiff } from '../utils/ganttEngine';
+import {
+  computeHistoryEntryDiff,
+  GroupedEntityHistorySummary,
+  groupHistoryChangesByHierarchy,
+} from '../utils/ganttEngine';
 
 export interface PlanHistoryPageProps {
   history: PlanHistoryEntry[];
@@ -30,6 +34,7 @@ export interface PlanHistoryPageProps {
   onBackToGantt: () => void;
   onClearHistory?: () => void;
   initialExpandedEntryId?: string | null;
+  initialViewMode?: 'chronological' | 'grouped';
   releases?: Release[];
 }
 
@@ -152,11 +157,28 @@ export const PlanHistoryPage: React.FC<PlanHistoryPageProps> = ({
   onBackToGantt,
   onClearHistory,
   initialExpandedEntryId = null,
+  initialViewMode = 'chronological',
   releases,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [expandedEntryId, setExpandedEntryId] = useState<string | null>(initialExpandedEntryId);
+  const [viewMode, setViewMode] = useState<'chronological' | 'grouped'>(initialViewMode);
+  const [collapsedReleaseKeys, setCollapsedReleaseKeys] = useState<Set<string>>(() => new Set());
+  const [collapsedProjectKeys, setCollapsedProjectKeys] = useState<Set<string>>(() => new Set());
+  const [expandedEntityKeys, setExpandedEntityKeys] = useState<Set<string>>(() => new Set());
+
+  const toggleSetKey = (
+    setter: React.Dispatch<React.SetStateAction<Set<string>>>,
+    key: string
+  ) => {
+    setter((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   // Filter entries while preserving original indices and computed exact diffs against the preceding snapshot
   const indexedEntries = useMemo(() => {
@@ -209,6 +231,177 @@ export const PlanHistoryPage: React.FC<PlanHistoryPageProps> = ({
   const displayList = useMemo(() => {
     return [...filteredEntries].reverse();
   }, [filteredEntries]);
+
+  const groupedHierarchy = useMemo(() => {
+    const allowedIndices = new Set(filteredEntries.map((f) => f.originalIndex));
+    return groupHistoryChangesByHierarchy(history, releases, {
+      allowedEntryIndices: allowedIndices,
+    });
+  }, [history, releases, filteredEntries]);
+
+  const renderGroupedEntityCard = (
+    entity: GroupedEntityHistorySummary,
+    keyPrefix: string
+  ) => {
+    const entityKey = `${keyPrefix}:${entity.entityType}:${entity.id}`;
+    const isTimelineOpen = expandedEntityKeys.has(entityKey);
+    return (
+      <div
+        key={entityKey}
+        data-testid={`grouped-history-entity-${entity.id}`}
+        className="rounded-[4px] border border-[#E2E2DC] dark:border-zinc-800 bg-[#FAFAF8] dark:bg-zinc-950/60 p-3 space-y-2"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+            <span
+              className={`px-1.5 py-0.5 rounded-[2px] text-[10px] font-mono font-bold uppercase ${
+                entity.entityType === 'project'
+                  ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300'
+                  : entity.isExternalMilestone
+                  ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                  : entity.entityType === 'milestone'
+                  ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
+                  : 'bg-zinc-200 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200'
+              }`}
+            >
+              {entity.entityType === 'project'
+                ? 'Proyecto'
+                : entity.isExternalMilestone
+                ? 'Hito Ext.'
+                : entity.entityType === 'milestone'
+                ? 'Hito'
+                : 'Tarea'}
+            </span>
+            <span className="text-xs font-bold text-[#0C0C09] dark:text-zinc-100 truncate">
+              {entity.name}
+            </span>
+            {entity.isDeleted && (
+              <span className="px-1.5 py-0.5 rounded-[2px] text-[9px] font-mono font-bold bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">
+                Eliminado
+              </span>
+            )}
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-[#0C0C09]/10 dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-300">
+              {entity.events.length} {entity.events.length === 1 ? 'cambio' : 'cambios'}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            data-testid={`grouped-history-toggle-timeline-${entity.id}`}
+            onClick={() => toggleSetKey(setExpandedEntityKeys, entityKey)}
+            className="flex items-center gap-1 px-2 py-1 rounded-[3px] text-[11px] font-mono font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition cursor-pointer"
+          >
+            {isTimelineOpen ? (
+              <ChevronDown className="w-3.5 h-3.5" />
+            ) : (
+              <ChevronRight className="w-3.5 h-3.5" />
+            )}
+            <span>
+              {isTimelineOpen
+                ? 'Ocultar cronología'
+                : `Ver cronología (${entity.events.length})`}
+            </span>
+          </button>
+        </div>
+
+        {/* Net accumulated summary (initial before -> latest after) */}
+        {entity.netChanges.length > 0 ? (
+          <div
+            data-testid={`grouped-history-net-${entity.id}`}
+            className="flex flex-wrap items-center gap-1.5"
+          >
+            <span className="text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400 mr-0.5">
+              Neto:
+            </span>
+            {entity.netChanges.map((chg, idx) => (
+              <span
+                key={`${chg.field}-${idx}`}
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[3px] text-[10.5px] font-mono bg-white dark:bg-zinc-900 border border-[#E2E2DC] dark:border-zinc-700"
+              >
+                <span className="font-semibold text-[#6B6B66] dark:text-zinc-400">
+                  {chg.field}:
+                </span>
+                <span className="line-through text-rose-600/80 dark:text-rose-400/80">
+                  {chg.before}
+                </span>
+                <span className="text-[#6B6B66]">→</span>
+                <span className="font-bold text-emerald-700 dark:text-emerald-400">
+                  {chg.after}
+                </span>
+              </span>
+            ))}
+          </div>
+        ) : (
+          <div className="text-[10.5px] font-mono text-[#6B6B66] dark:text-zinc-400 italic">
+            Sin cambio neto (los campos volvieron a su valor inicial).
+          </div>
+        )}
+
+        {/* Expandable chronological list of individual changes */}
+        {isTimelineOpen && (
+          <div
+            data-testid={`grouped-history-events-${entity.id}`}
+            className="pt-2 border-t border-[#E2E2DC] dark:border-zinc-800 space-y-1.5"
+          >
+            {entity.events.map((ev) => {
+              const evBadge =
+                ACTION_BADGE_CONFIG[ev.actionType] || ACTION_BADGE_CONFIG.edit_item;
+              const entryObj = history[ev.entryIndex];
+              const isCurrent = ev.entryIndex === currentIndex;
+              return (
+                <div
+                  key={`${ev.entryId}-${ev.entryIndex}`}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-2.5 py-1.5 rounded-[3px] bg-white dark:bg-zinc-900 border border-[#E2E2DC]/80 dark:border-zinc-800 text-[11px]"
+                >
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span
+                        className={`px-1.5 py-0.2 rounded-[2px] text-[9.5px] font-mono font-bold border ${evBadge.bg} ${evBadge.text} ${evBadge.border}`}
+                      >
+                        {ev.actionLabel}
+                      </span>
+                      <span className="font-mono text-[10px] text-[#6B6B66] dark:text-zinc-400">
+                        {ev.formattedDate}
+                      </span>
+                      {isCurrent && (
+                        <span className="px-1 py-0.2 rounded-[2px] text-[9px] font-mono font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                          Actual
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {ev.changes.map((c, ci) => (
+                        <span
+                          key={`${c.field}-${ci}`}
+                          className="font-mono text-[10px] text-[#0C0C09] dark:text-zinc-200"
+                        >
+                          <span className="text-[#6B6B66] dark:text-zinc-400">{c.field}:</span>{' '}
+                          {c.before} → <strong>{c.after}</strong>
+                          {ci < ev.changes.length - 1 ? ' · ' : ''}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {entryObj && !isCurrent && (
+                    <button
+                      type="button"
+                      onClick={() => onRestoreSnapshot(entryObj, ev.entryIndex)}
+                      className="self-start sm:self-center shrink-0 flex items-center gap-1 px-2 py-1 rounded-[3px] border border-[#E2E2DC] dark:border-zinc-700 text-[10px] font-mono font-semibold text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 transition cursor-pointer"
+                      title="Restaurar el plan a este punto del historial"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>Restaurar</span>
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const currentEntry = history[currentIndex] || history[history.length - 1];
 
@@ -348,18 +541,50 @@ export const PlanHistoryPage: React.FC<PlanHistoryPageProps> = ({
           </div>
         </div>
 
-        {/* Filter & Search Bar */}
-        <div className="bg-white dark:bg-zinc-900 p-3 rounded-[4px] border border-[#0C0C09] dark:border-zinc-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-          <div className="relative flex-1 max-w-md">
-            <Search className="w-3.5 h-3.5 text-[#6B6B66] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              data-testid="history-search-input"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar en el historial de modificaciones..."
-              className="w-full pl-8 pr-3 py-1.5 rounded-[4px] bg-[#F4F4F1] dark:bg-zinc-800 border border-[#E2E2DC] dark:border-zinc-700 text-xs font-sans text-[#0C0C09] dark:text-white outline-none focus:ring-1 focus:ring-[#0C0C09] dark:focus:ring-zinc-400"
-            />
+        {/* Filter, View Switcher & Search Bar */}
+        <div className="bg-white dark:bg-zinc-900 p-3 rounded-[4px] border border-[#0C0C09] dark:border-zinc-800 flex flex-col gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="relative flex-1 max-w-md">
+              <Search className="w-3.5 h-3.5 text-[#6B6B66] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                data-testid="history-search-input"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Buscar en el historial de modificaciones..."
+                className="w-full pl-8 pr-3 py-1.5 rounded-[4px] bg-[#F4F4F1] dark:bg-zinc-800 border border-[#E2E2DC] dark:border-zinc-700 text-xs font-sans text-[#0C0C09] dark:text-white outline-none focus:ring-1 focus:ring-[#0C0C09] dark:focus:ring-zinc-400"
+              />
+            </div>
+
+            {/* View Mode Toggle: Cronológico vs Agrupado */}
+            <div className="inline-flex items-center p-0.5 rounded-[4px] bg-[#F4F4F1] dark:bg-zinc-800 border border-[#E2E2DC] dark:border-zinc-700 shrink-0 self-start sm:self-auto">
+              <button
+                type="button"
+                data-testid="history-view-chronological-btn"
+                onClick={() => setViewMode('chronological')}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-[3px] text-[11px] font-mono font-semibold transition cursor-pointer ${
+                  viewMode === 'chronological'
+                    ? 'bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09]'
+                    : 'text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09] dark:hover:text-white'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5" />
+                <span>Cronológico</span>
+              </button>
+              <button
+                type="button"
+                data-testid="history-view-grouped-btn"
+                onClick={() => setViewMode('grouped')}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-[3px] text-[11px] font-mono font-semibold transition cursor-pointer ${
+                  viewMode === 'grouped'
+                    ? 'bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09]'
+                    : 'text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09] dark:hover:text-white'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>Agrupado (Release · Proyecto · Tarea)</span>
+              </button>
+            </div>
           </div>
 
           {/* Filter Pills */}
@@ -390,7 +615,123 @@ export const PlanHistoryPage: React.FC<PlanHistoryPageProps> = ({
           </div>
         </div>
 
-        {/* Timeline Log of Plan Changes */}
+        {/* Grouped Hierarchy View OR Chronological Log */}
+        {viewMode === 'grouped' ? (
+          <div data-testid="history-grouped-view" className="space-y-3">
+            {groupedHierarchy.length === 0 ? (
+              <div className="bg-white dark:bg-zinc-900 border border-[#0C0C09] dark:border-zinc-800 rounded-[4px] p-8 text-center text-xs text-[#6B6B66] dark:text-zinc-400">
+                No hay cambios agrupados que coincidan con los filtros seleccionados.
+              </div>
+            ) : (
+              groupedHierarchy.map((relNode) => {
+                const isRelCollapsed = collapsedReleaseKeys.has(relNode.releaseId);
+                return (
+                  <div
+                    key={relNode.releaseId}
+                    data-testid={`grouped-history-release-${relNode.releaseId}`}
+                    className="bg-white dark:bg-zinc-900 rounded-[4px] border border-[#0C0C09] dark:border-zinc-800 overflow-hidden"
+                  >
+                    {/* Release Header */}
+                    <button
+                      type="button"
+                      onClick={() => toggleSetKey(setCollapsedReleaseKeys, relNode.releaseId)}
+                      className={`w-full px-3.5 py-2.5 flex items-center justify-between gap-2 text-left transition cursor-pointer ${
+                        relNode.isExternalGroup
+                          ? 'bg-amber-500/10 dark:bg-amber-950/40 border-b border-amber-500/25'
+                          : 'bg-[#0C0C09] text-white dark:bg-zinc-950 border-b border-zinc-800'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        {isRelCollapsed ? (
+                          <ChevronRight className="w-4 h-4 shrink-0" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 shrink-0" />
+                        )}
+                        <span
+                          className={`px-2 py-0.5 rounded-[2px] text-[10px] font-mono font-bold ${
+                            relNode.isExternalGroup
+                              ? 'bg-amber-600 text-white'
+                              : 'bg-white/15 text-white'
+                          }`}
+                        >
+                          {relNode.releaseCode}
+                        </span>
+                        <span
+                          className={`text-xs font-bold truncate ${
+                            relNode.isExternalGroup
+                              ? 'text-amber-900 dark:text-amber-200'
+                              : 'text-white'
+                          }`}
+                        >
+                          {relNode.releaseName}
+                        </span>
+                      </div>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold shrink-0 ${
+                          relNode.isExternalGroup
+                            ? 'bg-amber-600/15 text-amber-800 dark:text-amber-300'
+                            : 'bg-white/15 text-white'
+                        }`}
+                      >
+                        {relNode.projects.length}{' '}
+                        {relNode.projects.length === 1 ? 'grupo' : 'grupos'} ·{' '}
+                        {relNode.totalEventsCount}{' '}
+                        {relNode.totalEventsCount === 1 ? 'cambio' : 'cambios'}
+                      </span>
+                    </button>
+
+                    {!isRelCollapsed && (
+                      <div className="p-3 space-y-2.5">
+                        {relNode.projects.map((projNode) => {
+                          const projKey = `${relNode.releaseId}:${projNode.projectId}`;
+                          const isProjCollapsed = collapsedProjectKeys.has(projKey);
+                          return (
+                            <div
+                              key={projKey}
+                              data-testid={`grouped-history-project-${projNode.projectId}`}
+                              className="rounded-[4px] border border-[#E2E2DC] dark:border-zinc-800 bg-white dark:bg-zinc-900/60 overflow-hidden"
+                            >
+                              <button
+                                type="button"
+                                onClick={() => toggleSetKey(setCollapsedProjectKeys, projKey)}
+                                className="w-full px-3 py-2 flex items-center justify-between gap-2 bg-[#F4F4F1] dark:bg-zinc-800/70 border-b border-[#E2E2DC] dark:border-zinc-800 text-left hover:bg-[#ECECE7] dark:hover:bg-zinc-800 transition cursor-pointer"
+                              >
+                                <div className="flex items-center gap-2 min-w-0">
+                                  {isProjCollapsed ? (
+                                    <ChevronRight className="w-3.5 h-3.5 text-[#6B6B66] shrink-0" />
+                                  ) : (
+                                    <ChevronDown className="w-3.5 h-3.5 text-[#6B6B66] shrink-0" />
+                                  )}
+                                  <span className="text-xs font-bold text-[#0C0C09] dark:text-zinc-100 truncate">
+                                    {projNode.projectName}
+                                  </span>
+                                </div>
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-white dark:bg-zinc-900 border border-[#E2E2DC] dark:border-zinc-700 text-[#6B6B66] dark:text-zinc-300 shrink-0">
+                                  {projNode.totalEventsCount}{' '}
+                                  {projNode.totalEventsCount === 1 ? 'cambio' : 'cambios'}
+                                </span>
+                              </button>
+
+                              {!isProjCollapsed && (
+                                <div className="p-2.5 space-y-2">
+                                  {projNode.projectChanges &&
+                                    renderGroupedEntityCard(projNode.projectChanges, `${projKey}:own`)}
+                                  {projNode.itemChanges.map((itemSummary) =>
+                                    renderGroupedEntityCard(itemSummary, projKey)
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        ) : (
         <div className="space-y-2.5">
           {displayList.length === 0 ? (
             <div className="bg-white dark:bg-zinc-900 border border-[#0C0C09] dark:border-zinc-800 rounded-[4px] p-8 text-center text-xs text-[#6B6B66] dark:text-zinc-400">
@@ -657,6 +998,7 @@ export const PlanHistoryPage: React.FC<PlanHistoryPageProps> = ({
             })
           )}
         </div>
+        )}
       </div>
     </div>
   );

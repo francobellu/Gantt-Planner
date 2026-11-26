@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.11.25',
+    date: '26 Nov 2026',
+    title: 'Vista agrupada en Historial de Cambios y pestaña Cambios en panel derecho',
+    isLatest: true,
+    features: [
+      'Añadida vista Agrupado (Release -> Proyecto -> Tarea/Hito) en PlanHistoryPage con resumen neto por campo y cronología desplegable con restauración',
+      'Añadida pestaña Cambios en RightSidePanel mostrando los cambios agrupados del elemento seleccionado y sus hijos',
+    ],
+  },
+  {
     version: '1.11.24',
     date: '24 Nov 2026',
     title: 'Hitos externos independientes por defecto, checkbox en panel derecho y retirada de TaskFormModal',
-    isLatest: true,
     features: [
       'Retirado TaskFormModal de App.tsx creando tareas e hitos directamente en el panel derecho',
       'Los hitos nuevos nacen externos por defecto sin proyecto ni release y se agrupan en sección independiente Hitos Externos',
