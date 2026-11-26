@@ -36,6 +36,7 @@ export interface PlanHistoryPageProps {
   initialExpandedEntryId?: string | null;
   initialViewMode?: 'chronological' | 'grouped';
   releases?: Release[];
+  embedded?: boolean;
 }
 
 const ACTION_BADGE_CONFIG: Record<
@@ -159,6 +160,7 @@ export const PlanHistoryPage: React.FC<PlanHistoryPageProps> = ({
   initialExpandedEntryId = null,
   initialViewMode = 'chronological',
   releases,
+  embedded = false,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
@@ -412,20 +414,28 @@ export const PlanHistoryPage: React.FC<PlanHistoryPageProps> = ({
       className="flex-1 flex flex-col bg-[#F4F4F1] dark:bg-[#0C0C09] text-[#0C0C09] dark:text-zinc-100 min-h-0 overflow-y-auto"
     >
       {/* Top Navigation & Action Header */}
-      <div className="border-b border-[#0C0C09] dark:border-zinc-800 bg-white dark:bg-[#0C0C09] px-4 sm:px-6 py-4">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div
+        className={`border-b border-[#E2E2DC] dark:border-zinc-800 bg-white dark:bg-[#0C0C09] ${
+          embedded ? 'px-5 py-3' : 'border-[#0C0C09] px-4 sm:px-6 py-4'
+        }`}
+      >
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <button
-              type="button"
-              data-testid="history-back-btn"
-              data-history-back-btn="true"
-              onClick={onBackToGantt}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-[#F4F4F1] dark:bg-zinc-900 hover:bg-[#0C0C09] hover:text-white dark:hover:bg-zinc-100 dark:hover:text-[#0C0C09] text-xs font-semibold transition cursor-pointer"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Volver al Diagrama</span>
-            </button>
-            <div className="h-4 w-px bg-[#E2E2DC] dark:bg-zinc-800 hidden sm:block" />
+            {!embedded && (
+              <>
+                <button
+                  type="button"
+                  data-testid="history-back-btn"
+                  data-history-back-btn="true"
+                  onClick={onBackToGantt}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-[#F4F4F1] dark:bg-zinc-900 hover:bg-[#0C0C09] hover:text-white dark:hover:bg-zinc-100 dark:hover:text-[#0C0C09] text-xs font-semibold transition cursor-pointer"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Volver al Diagrama</span>
+                </button>
+                <div className="h-4 w-px bg-[#E2E2DC] dark:bg-zinc-800 hidden sm:block" />
+              </>
+            )}
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-[4px] bg-[#0C0C09] dark:bg-zinc-100 text-white dark:text-[#0C0C09] flex items-center justify-center shrink-0">
                 <History className="w-4 h-4" />

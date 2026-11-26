@@ -10,10 +10,20 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.11.27',
+    date: '26 Nov 2026',
+    title: 'Rediseño de Configuración estilo macOS, limpieza de Releases y Ayuda en barra principal',
+    isLatest: true,
+    features: [
+      'Eliminadas opciones redundantes de ocultar/mostrar release en ReleasesModal',
+      'Rediseñado SettingsModal con barra lateral izquierda de categorías (General, Releases, Historial y Versiones/Changelog) y panel derecho de detalle',
+      'Movida la página de Ayuda al selector principal junto a Cronograma e Informes',
+    ],
+  },
+  {
     version: '1.11.26',
     date: '26 Nov 2026',
     title: 'Comparación de hasta 2 commits y subpestañas en Cambios (Del elemento / Commits)',
-    isLatest: true,
     features: [
       'Permitida la activación de hasta 2 botones de comparación entre commits distintos mostrando el diff directo A -> B y deshabilitando un 3.º',
       'Reorganizadas las pestañas del RightSidePanel en Detalles, Cambios (con subpestañas Del elemento y Commits) y Conflictos',

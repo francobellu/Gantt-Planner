@@ -118,7 +118,7 @@ import { GanttWorkspace } from './components/GanttWorkspace';
 import { PlanHistoryPage } from './components/PlanHistoryPage';
 import { HelpPage } from './components/HelpPage';
 import { ReleasesModal } from './components/ReleasesModal';
-import { SettingsModal } from './components/SettingsModal';
+import { SettingsCategory, SettingsModal } from './components/SettingsModal';
 import { ReleaseNotesModal } from './components/ReleaseNotesModal';
 import { ReportsView } from './components/ReportsView';
 import { ProjectLockedAlertModal } from './components/ProjectLockedAlertModal';
@@ -822,6 +822,12 @@ export function App({
   });
 
   const [showReleasesModal, setShowReleasesModal] = useState<boolean>(initialReleasesModalOpen || false);
+  const [settingsCategory, setSettingsCategory] = useState<SettingsCategory>('general');
+  const openSettings = (category: SettingsCategory = 'general') => {
+    setSettingsCategory(category);
+    setShowSettingsModal(true);
+    setMoreMenuOpen(false);
+  };
 
   useEffect(() => {
     try {
@@ -2816,6 +2822,30 @@ export function App({
               />
               <span>Informes</span>
             </button>
+            <div className="w-px h-4 bg-[#E2E2DC] dark:bg-zinc-800" />
+            <button
+              type="button"
+              role="tab"
+              aria-selected={currentView === 'help'}
+              data-testid="header-help-btn"
+              onClick={() => setCurrentView('help')}
+              className={`px-2.5 py-1 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+                currentView === 'help'
+                  ? 'bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09]'
+                  : 'text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800'
+              }`}
+              title="Guía de uso y documentación de funcionalidades"
+              aria-label="Ayuda"
+            >
+              <HelpCircle
+                className={`w-3.5 h-3.5 shrink-0 ${
+                  currentView === 'help'
+                    ? 'text-sky-400 dark:text-sky-600'
+                    : 'text-sky-600 dark:text-sky-400'
+                }`}
+              />
+              <span>Ayuda</span>
+            </button>
           </div>
 
           {/* Botón para restablecer releases ocultas cuando hay alguna oculta (Icon-Only) */}
@@ -2927,10 +2957,7 @@ export function App({
                   <button
                     type="button"
                     data-testid="app-version-badge"
-                    onClick={() => {
-                      setMoreMenuOpen(false);
-                      setShowReleaseNotesModal(true);
-                    }}
+                    onClick={() => openSettings('changelog')}
                     className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[3px] bg-[#0C0C09] hover:bg-[#312C85] text-white dark:bg-zinc-100 dark:hover:bg-white dark:text-[#0C0C09] text-[10px] font-mono font-bold tracking-tight shadow-xs transition cursor-pointer"
                     title={`v${APP_VERSION} · Clic para ver notas de versión y novedades`}
                   >
@@ -2953,85 +2980,46 @@ export function App({
                 </button>
               </div>
 
-              {/* Sección 2: Navegación & Ayuda */}
-              <div>
-                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400 block mb-1.5">
-                  Vistas y Ayuda
+              {/* Sección 2: Accesos rápidos a Configuración */}
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400 block">
+                  Configuración y Gestión
                 </span>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <button
-                    type="button"
-                    data-testid="header-history-btn"
-                    data-history-btn="true"
-                    onClick={() => {
-                      setCurrentView((prev) => (prev === 'history' ? 'gantt' : 'history'));
-                      setMoreMenuOpen(false);
-                    }}
-                    className={`flex items-center justify-between px-2.5 py-1.5 rounded-[3px] border text-xs font-medium transition cursor-pointer ${
-                      currentView === 'history'
-                        ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
-                        : 'bg-[#F4F4F1] dark:bg-zinc-800 border-[#E2E2DC] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700'
-                    }`}
-                    title="Consultar historial de cambios del plan"
-                    aria-label="Historial"
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <History className="w-3.5 h-3.5 text-current" />
-                      <span>Historial</span>
-                    </span>
-                    <span
-                      data-testid="history-counter-badge"
-                      className="px-1.5 py-0.2 rounded-[2px] text-[10px] font-mono bg-white dark:bg-zinc-900 border border-[#E2E2DC] dark:border-zinc-700"
-                    >
-                      {history.length}
-                    </span>
-                  </button>
 
-                  <button
-                    type="button"
-                    data-testid="header-help-btn"
-                    onClick={() => {
-                      setCurrentView((prev) => (prev === 'help' ? 'gantt' : 'help'));
-                      setMoreMenuOpen(false);
-                    }}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[3px] border text-xs font-medium transition cursor-pointer ${
-                      currentView === 'help'
-                        ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
-                        : 'bg-[#F4F4F1] dark:bg-zinc-800 border-[#E2E2DC] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700'
-                    }`}
-                    title="Guía de uso y documentación de funcionalidades"
-                    aria-label="Ayuda"
-                  >
-                    <HelpCircle className="w-3.5 h-3.5 text-current" />
-                    <span>Ayuda</span>
-                  </button>
-                </div>
-              </div>
+                <button
+                  type="button"
+                  data-testid="header-settings-btn"
+                  onClick={() => openSettings('general')}
+                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-[3px] border text-xs font-medium transition cursor-pointer ${
+                    showSettingsModal && settingsCategory === 'general'
+                      ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
+                      : 'bg-white dark:bg-zinc-800 border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-700'
+                  }`}
+                  aria-label="Ajustes"
+                  title="Configuración general, Releases, Historial y Versiones"
+                >
+                  <span className="flex items-center gap-2">
+                    <Settings className="w-3.5 h-3.5 text-current shrink-0" />
+                    <span className="font-semibold">Configuración</span>
+                  </span>
+                </button>
 
-              {/* Sección 3: Catálogo de Releases */}
-              <div>
-                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400 block mb-1.5">
-                  Releases
-                </span>
                 <button
                   type="button"
                   data-testid="header-releases-btn"
-                  onClick={() => {
-                    setShowReleasesModal(true);
-                    setMoreMenuOpen(false);
-                  }}
-                  className="w-full flex items-center justify-between px-2.5 py-2 rounded-[3px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-700 text-xs font-medium transition cursor-pointer"
+                  onClick={() => openSettings('releases')}
+                  className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[3px] border border-[#E2E2DC] dark:border-zinc-700 bg-[#F4F4F1] dark:bg-zinc-800/80 text-[#0C0C09] dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-xs font-medium transition cursor-pointer"
                   title="Gestionar catálogo de Releases e hitos (importar/exportar Excel)"
                   aria-label="Releases"
                 >
                   <div className="flex items-center gap-2">
                     <Rocket className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                    <span className="font-semibold">Catálogo de Releases</span>
+                    <span>Catálogo de Releases</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span
                       data-testid="releases-counter-badge"
-                      className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-[#F4F4F1] dark:bg-zinc-700 text-[#0C0C09] dark:text-zinc-300 border border-[#E2E2DC] dark:border-zinc-600"
+                      className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-white dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-300 border border-[#E2E2DC] dark:border-zinc-700"
                     >
                       {releases.length}
                     </span>
@@ -3044,27 +3032,26 @@ export function App({
                     )}
                   </div>
                 </button>
-              </div>
 
-              {/* Sección 4: Configuración General */}
-              <div className="pt-2 border-t border-[#E2E2DC] dark:border-zinc-800">
                 <button
                   type="button"
-                  data-testid="header-settings-btn"
-                  onClick={() => {
-                    setShowSettingsModal(true);
-                    setMoreMenuOpen(false);
-                  }}
-                  className={`w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-[3px] border text-xs font-medium transition cursor-pointer ${
-                    showSettingsModal
-                      ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
-                      : 'bg-white dark:bg-zinc-800 border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-700'
-                  }`}
-                  aria-label="Ajustes"
-                  title="Configuración de interfaz (Truncado, Líneas, Sombreado, Visibilidad)"
+                  data-testid="header-history-btn"
+                  data-history-btn="true"
+                  onClick={() => openSettings('history')}
+                  className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[3px] border border-[#E2E2DC] dark:border-zinc-700 bg-[#F4F4F1] dark:bg-zinc-800/80 text-[#0C0C09] dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-xs font-medium transition cursor-pointer"
+                  title="Consultar historial de cambios del plan"
+                  aria-label="Historial"
                 >
-                  <Settings className="w-3.5 h-3.5" />
-                  <span>Configuración General</span>
+                  <span className="flex items-center gap-2">
+                    <History className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <span>Historial de Cambios</span>
+                  </span>
+                  <span
+                    data-testid="history-counter-badge"
+                    className="px-1.5 py-0.2 rounded-[2px] text-[10px] font-mono bg-white dark:bg-zinc-900 border border-[#E2E2DC] dark:border-zinc-700"
+                  >
+                    {history.length}
+                  </span>
                 </button>
               </div>
             </div>
@@ -3281,7 +3268,7 @@ export function App({
               releaseGuideVisibility={releaseGuideVisibility}
               groupingMode={groupingMode}
               onToggleGroupingMode={() => setGroupingMode((prev) => (prev === 'release' ? 'project' : 'release'))}
-              onOpenReleasesModal={() => setShowReleasesModal(true)}
+              onOpenReleasesModal={() => openSettings('releases')}
               groupByProject={groupByProject}
               selectedProjectId={selectedProjectId}
               selectedProjectIds={selectedProjectIds}
@@ -3387,7 +3374,7 @@ export function App({
             onExitFocusMode={handleExitFocusMode}
             hiddenReleaseIds={hiddenReleaseIds}
             onToggleHideRelease={handleToggleHideRelease}
-            onOpenReleasesModal={() => setShowReleasesModal(true)}
+            onOpenReleasesModal={() => openSettings('releases')}
             commits={commits}
             pendingChanges={pendingCommitChanges}
             activeBaselineCommitId={activeBaselineCommitId}
@@ -3597,10 +3584,11 @@ export function App({
         onResetHiddenReleases={handleResetHiddenReleases}
       />
 
-      {/* Settings Modal (Configuración de interfaz y visualización) */}
+      {/* Settings Modal (macOS System Settings style: General | Releases | Historial | Versiones) */}
       <SettingsModal
         isOpen={showSettingsModal}
         onClose={() => setShowSettingsModal(false)}
+        initialCategory={settingsCategory}
         truncateCharLimit={truncateCharLimit}
         onChangeTruncateCharLimit={setTruncateCharLimit}
         showRowSeparators={showRowSeparators}
@@ -3609,9 +3597,24 @@ export function App({
         onToggleWeekendShading={() => setShowWeekendShading((prev) => !prev)}
         hiddenReleaseCount={hiddenReleaseIds.length}
         onResetHiddenReleases={handleResetHiddenReleases}
-        onOpenReleaseNotes={() => setShowReleaseNotesModal(true)}
+        onOpenReleaseNotes={() => openSettings('changelog')}
         workCalendar={workCalendar}
         onChangeWorkCalendar={setWorkCalendar}
+        releases={releases}
+        projects={effectiveProjects}
+        items={computedItems}
+        guideVisibility={releaseGuideVisibility}
+        onChangeGuideVisibility={setReleaseGuideVisibility}
+        onUpdateReleases={setReleases}
+        onAssignProjectToRelease={handleAssignProjectToRelease}
+        history={history}
+        historyIndex={historyIndex}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        onRestoreSnapshot={handleRestoreSnapshot}
+        onClearHistory={handleClearHistory}
       />
 
       {/* Release Notes Modal (Changelog de versiones) */}

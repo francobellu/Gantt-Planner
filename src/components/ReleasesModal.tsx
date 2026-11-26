@@ -1,20 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
-  Calendar,
   Check,
-  ChevronDown,
-  ChevronRight,
   Download,
   Eye,
-  EyeOff,
-  FileSpreadsheet,
-  FolderKanban,
   Plus,
   RefreshCw,
   Rocket,
   Search,
-  Sparkles,
   Trash2,
   Upload,
   X,
@@ -26,7 +19,6 @@ import {
   Release,
   ReleaseGuideVisibility,
   ReleaseMilestone,
-  TaskColor,
 } from '../types/gantt';
 import {
   checkTaskReleaseCompliance,
@@ -39,6 +31,7 @@ import {
 interface ReleasesModalProps {
   isOpen: boolean;
   onClose: () => void;
+  embedded?: boolean;
   releases: Release[];
   projects: GanttProject[];
   items?: GanttItem[];
@@ -54,6 +47,7 @@ interface ReleasesModalProps {
 export const ReleasesModal: React.FC<ReleasesModalProps> = ({
   isOpen,
   onClose,
+  embedded = false,
   releases,
   projects,
   items = [],
@@ -61,20 +55,16 @@ export const ReleasesModal: React.FC<ReleasesModalProps> = ({
   onChangeGuideVisibility,
   onUpdateReleases,
   onAssignProjectToRelease,
-  hiddenReleaseIds = [],
-  onToggleHideRelease,
-  onResetHiddenReleases,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedReleaseId, setSelectedReleaseId] = useState<string | null>(
     releases[0]?.id || null
   );
-  const [editingMilestones, setEditingMilestones] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!isOpen || typeof window === 'undefined') return;
+    if (!isOpen || embedded || typeof window === 'undefined') return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
@@ -84,9 +74,9 @@ export const ReleasesModal: React.FC<ReleasesModalProps> = ({
     };
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [isOpen, onClose]);
+  }, [isOpen, embedded, onClose]);
 
-  if (!isOpen) return null;
+  if (!isOpen && !embedded) return null;
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -234,37 +224,57 @@ export const ReleasesModal: React.FC<ReleasesModalProps> = ({
 
   return (
     <div
-      role="dialog"
-      aria-modal="true"
+      role={embedded ? undefined : 'dialog'}
+      aria-modal={embedded ? undefined : 'true'}
       data-testid="releases-modal"
-      className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-5"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          onClose();
-        }
-      }}
+      className={
+        embedded
+          ? 'flex flex-col h-full min-h-0 bg-white dark:bg-[#0C0C09]'
+          : 'fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-5'
+      }
+      onClick={
+        embedded
+          ? undefined
+          : (e) => {
+              if (e.target === e.currentTarget) {
+                onClose();
+              }
+            }
+      }
     >
       <div
-        className="w-full max-w-5xl h-[88vh] bg-white dark:bg-[#0C0C09] border border-[#0C0C09] dark:border-zinc-700 rounded-[8px] shadow-2xl overflow-hidden flex flex-col"
-        onClick={(e) => e.stopPropagation()}
+        className={
+          embedded
+            ? 'flex-1 min-h-0 flex flex-col overflow-hidden'
+            : 'w-full max-w-5xl h-[88vh] bg-white dark:bg-[#0C0C09] border border-[#0C0C09] dark:border-zinc-700 rounded-[8px] shadow-2xl overflow-hidden flex flex-col'
+        }
+        onClick={embedded ? undefined : (e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#0C0C09] dark:border-zinc-800 bg-[#F4F4F1] dark:bg-zinc-950">
+        <div
+          className={`flex items-center justify-between border-b border-[#E2E2DC] dark:border-zinc-800 ${
+            embedded
+              ? 'px-5 py-3 bg-[#FAF9F5] dark:bg-zinc-950/60'
+              : 'px-6 py-4 bg-[#F4F4F1] dark:bg-zinc-950 border-[#0C0C09]'
+          }`}
+        >
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-[4px] bg-[#0C0C09] dark:bg-zinc-100 text-white dark:text-[#0C0C09] flex items-center justify-center">
-              <Rocket className="w-4 h-4" />
-            </div>
+            {!embedded && (
+              <div className="w-8 h-8 rounded-[4px] bg-[#0C0C09] dark:bg-zinc-100 text-white dark:text-[#0C0C09] flex items-center justify-center">
+                <Rocket className="w-4 h-4" />
+              </div>
+            )}
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold font-display text-[#0C0C09] dark:text-white">
+                <h2 className="text-sm sm:text-base font-bold font-display text-[#0C0C09] dark:text-white">
                   Calendario de Releases e Hitos
                 </h2>
                 <span className="px-2 py-0.5 rounded-[2px] bg-white dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 text-[11px] font-mono font-bold border border-[#E2E2DC] dark:border-zinc-700">
                   {releases.length} Releases
                 </span>
               </div>
-              <p className="text-xs text-[#6B6B66] dark:text-zinc-400">
-                Gestión de trenes de entrega mensuales, hitos oficiales (QG1 a QG9) y asociación de proyectos
+              <p className="text-[11px] text-[#6B6B66] dark:text-zinc-400">
+                Alta/baja de releases, fechas de hitos oficiales (QG1–QG9), líneas guía y asignación masiva de proyectos
               </p>
             </div>
           </div>
@@ -274,7 +284,7 @@ export const ReleasesModal: React.FC<ReleasesModalProps> = ({
               type="button"
               data-testid="release-import-excel-btn"
               onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#0C0C09] hover:text-white dark:hover:bg-zinc-100 dark:hover:text-[#0C0C09] text-xs font-medium transition cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#0C0C09] hover:text-white dark:hover:bg-zinc-100 dark:hover:text-[#0C0C09] text-xs font-medium transition cursor-pointer"
             >
               <Upload className="w-3.5 h-3.5" />
               <span>Importar Excel / CSV</span>
@@ -292,19 +302,21 @@ export const ReleasesModal: React.FC<ReleasesModalProps> = ({
               type="button"
               data-testid="release-export-excel-btn"
               onClick={handleExportExcel}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#0C0C09] hover:text-white dark:hover:bg-zinc-100 dark:hover:text-[#0C0C09] text-xs font-medium transition cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#0C0C09] hover:text-white dark:hover:bg-zinc-100 dark:hover:text-[#0C0C09] text-xs font-medium transition cursor-pointer"
             >
               <Download className="w-3.5 h-3.5" />
               <span>Exportar Excel</span>
             </button>
 
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-1.5 rounded-[4px] text-[#6B6B66] hover:text-[#0C0C09] dark:hover:text-white hover:bg-slate-200 dark:hover:bg-zinc-800 transition cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            {!embedded && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-1.5 rounded-[4px] text-[#6B6B66] hover:text-[#0C0C09] dark:hover:text-white hover:bg-slate-200 dark:hover:bg-zinc-800 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -342,18 +354,6 @@ export const ReleasesModal: React.FC<ReleasesModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            {hiddenReleaseIds.length > 0 && onResetHiddenReleases && (
-              <button
-                type="button"
-                data-testid="modal-reset-hidden-releases-btn"
-                onClick={onResetHiddenReleases}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-[4px] bg-amber-500 hover:bg-amber-600 text-black font-semibold text-xs shadow-xs transition cursor-pointer"
-                title="Mostrar todas las releases que están ocultas"
-              >
-                <Eye className="w-3 h-3" />
-                <span>Mostrar todas ({hiddenReleaseIds.length} ocultas)</span>
-              </button>
-            )}
             <button
               type="button"
               data-testid="release-restore-defaults-btn"
@@ -419,11 +419,6 @@ export const ReleasesModal: React.FC<ReleasesModalProps> = ({
                             {rel.month}
                           </span>
                         )}
-                        {hiddenReleaseIds?.includes(rel.id) && (
-                          <span className="px-1 py-0.2 rounded text-[8.5px] font-mono font-bold bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30">
-                            Oculta
-                          </span>
-                        )}
                       </div>
                       <span className="text-[10px] font-mono text-[#6B6B66] dark:text-zinc-500">
                         {rel.year}
@@ -472,35 +467,6 @@ export const ReleasesModal: React.FC<ReleasesModalProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {onToggleHideRelease && (
-                    <button
-                      type="button"
-                      data-testid={`modal-toggle-hide-release-${activeRelease.id}`}
-                      onClick={() => onToggleHideRelease(activeRelease.id)}
-                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] border text-xs font-medium transition cursor-pointer ${
-                        hiddenReleaseIds?.includes(activeRelease.id)
-                          ? 'bg-amber-100 border-amber-400 text-amber-800 dark:bg-amber-950/60 dark:border-amber-700 dark:text-amber-200'
-                          : 'bg-white border-[#0C0C09] dark:bg-zinc-900 dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1]'
-                      }`}
-                      title={
-                        hiddenReleaseIds?.includes(activeRelease.id)
-                          ? 'Mostrar release y proyectos en el cronograma'
-                          : 'Ocultar release y proyectos del cronograma'
-                      }
-                    >
-                      {hiddenReleaseIds?.includes(activeRelease.id) ? (
-                        <>
-                          <EyeOff className="w-3.5 h-3.5 text-amber-600" />
-                          <span>Release Oculta</span>
-                        </>
-                      ) : (
-                        <>
-                          <Eye className="w-3.5 h-3.5 text-slate-500" />
-                          <span>Visible en Gantt</span>
-                        </>
-                      )}
-                    </button>
-                  )}
                   {activeViolationsCount > 0 ? (
                     <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 text-xs font-medium">
                       <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
@@ -660,23 +626,27 @@ export const ReleasesModal: React.FC<ReleasesModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 border-t border-[#0C0C09] dark:border-zinc-800 bg-[#F4F4F1] dark:bg-zinc-950 flex items-center justify-between">
-          <div className="text-xs text-[#6B6B66] dark:text-zinc-400">
-            {toastMessage && (
-              <span className="font-semibold text-[#0C0C09] dark:text-white animate-fade-in">
-                {toastMessage}
-              </span>
+        {(!embedded || toastMessage) && (
+          <div className="px-6 py-3 border-t border-[#E2E2DC] dark:border-zinc-800 bg-[#F4F4F1] dark:bg-zinc-950 flex items-center justify-between shrink-0">
+            <div className="text-xs text-[#6B6B66] dark:text-zinc-400">
+              {toastMessage && (
+                <span className="font-semibold text-[#0C0C09] dark:text-white animate-fade-in">
+                  {toastMessage}
+                </span>
+              )}
+            </div>
+            {!embedded && (
+              <button
+                type="button"
+                data-testid="close-releases-modal-btn"
+                onClick={onClose}
+                className="px-5 py-2 rounded-[4px] bg-[#0C0C09] hover:bg-[#312C85] dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-[#0C0C09] font-display font-semibold text-xs transition cursor-pointer"
+              >
+                Guardar y Cerrar
+              </button>
             )}
           </div>
-          <button
-            type="button"
-            data-testid="close-releases-modal-btn"
-            onClick={onClose}
-            className="px-5 py-2 rounded-[4px] bg-[#0C0C09] hover:bg-[#312C85] dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-[#0C0C09] font-display font-semibold text-xs transition cursor-pointer"
-          >
-            Guardar y Cerrar
-          </button>
-        </div>
+        )}
       </div>
     </div>
   );
