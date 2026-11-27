@@ -4515,7 +4515,7 @@ test('Help page, version control v1.2.0, release selection on project creation, 
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version control consistency
-  assert.equal(pkg.version, '1.13.4', 'package.json version must be 1.9.2');
+  assert.equal(pkg.version, '1.14.0', 'package.json version must be 1.9.2');
   assert.ok(pkg.scripts['version:patch'], 'package.json must contain version:patch script');
   assert.ok(pkg.scripts['version:minor'], 'package.json must contain version:minor script');
   assert.ok(pkg.scripts['release:patch'], 'package.json must contain release:patch script');
@@ -5330,7 +5330,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version Bump Verification
-  assert.equal(pkg.version, '1.13.4', 'package.json version must equal 1.9.2');
+  assert.equal(pkg.version, '1.14.0', 'package.json version must equal 1.9.2');
 
   // Verify scripts/bump-version.mjs works properly
   const bumpScript = await fs.readFile(path.resolve(__dirname, '../scripts/bump-version.mjs'), 'utf8');
@@ -5504,7 +5504,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // A. APP_VERSION equals 1.9.2
-    assert.equal(mod.APP_VERSION, '1.13.4', 'APP_VERSION must be 1.9.2');
+    assert.equal(mod.APP_VERSION, '1.14.0', 'APP_VERSION must be 1.9.2');
 
     // A2. Excel Export Unit Test
     const sampleReleases = [
@@ -6031,8 +6031,8 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
-  // 1. Version Bump Verification v1.13.4
-  assert.equal(pkg.version, '1.13.4', 'package.json version must equal 1.9.2');
+  // 1. Version Bump Verification v1.14.0
+  assert.equal(pkg.version, '1.14.0', 'package.json version must equal 1.9.2');
 
   // 2. SSR Bundle verification for TaskFormModal, App Header, and sanitizeGanttItem
   const tmpFile = path.resolve(__dirname, `tmp_test59_bundle_${Date.now()}.mjs`);
@@ -6130,7 +6130,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.equal(mod.APP_VERSION, '1.13.4', 'mod.APP_VERSION must equal 1.9.2');
+    assert.equal(mod.APP_VERSION, '1.14.0', 'mod.APP_VERSION must equal 1.9.2');
 
     // sanitizeGanttItem preserves platform
     const sanitizedIos = mod.sanitizeGanttItem({
@@ -6193,7 +6193,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     }));
     assert.ok(settingsHtml.includes('data-testid="settings-version-badge"'), 'SettingsModal must contain settings-version-badge');
     assert.ok(settingsHtml.includes('data-testid="force-reload-btn"'), 'SettingsModal must contain force-reload-btn');
-    assert.ok(settingsHtml.includes('v1.13.4') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and v1.13.4');
+    assert.ok(settingsHtml.includes('v1.14.0') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and v1.14.0');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6347,14 +6347,14 @@ test('Test 61: Version button, compiled release notes modal and changelog across
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
 
     // 1. Check RELEASE_NOTES compiled data
-    assert.strictEqual(mod.APP_VERSION, '1.13.4');
+    assert.strictEqual(mod.APP_VERSION, '1.14.0');
     assert.ok(Array.isArray(mod.RELEASE_NOTES), 'RELEASE_NOTES must be an array');
     assert.ok(mod.RELEASE_NOTES.length >= 10, 'RELEASE_NOTES must have at least 10 releases');
 
     const latest = mod.RELEASE_NOTES[0];
-    assert.strictEqual(latest.version, '1.13.4', 'First release note must be 1.9.2');
+    assert.strictEqual(latest.version, '1.14.0', 'First release note must be 1.9.2');
     assert.strictEqual(latest.isLatest, true, 'First release note must be isLatest: true');
-    assert.ok(latest.features.length > 0, 'v1.13.4 must contain features');
+    assert.ok(latest.features.length > 0, 'v1.14.0 must contain features');
 
     // 2. Render App and verify version button exists in dropdown menu and is NOT duplicated in top header
     const appHtml = renderToString(React.createElement(mod.App));
@@ -8189,7 +8189,7 @@ test('Test 73: v1.9.0 project alert level (0-3), workspace toolbar alert filter,
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.strictEqual(mod.APP_VERSION, '1.13.4', 'APP_VERSION must be 1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.14.0', 'APP_VERSION must be 1.9.2');
 
     // 1. Check sanitizeProject and describeProjectStateChanges for alertLevel
     const pSanitized0 = mod.sanitizeProject({ id: 'p-1', name: 'Proj 1', alertLevel: 0 });
@@ -8378,7 +8378,7 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.strictEqual(mod.APP_VERSION, '1.13.4', 'APP_VERSION must be 1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.14.0', 'APP_VERSION must be 1.9.2');
 
     // 1. Verify description format: <descripción del proyecto si existe>\n\n* <nombre> <desc>
     const pWithDesc = {
@@ -8463,8 +8463,8 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
   }
 });
 
-// TEST 75: v1.13.4 Project locking, accidental move guard & unlock prompt modal
-test('Test 75: v1.13.4 project locking, cascade/dependency protection, plan history badge, and unlock alert modal', async () => {
+// TEST 75: v1.14.0 Project locking, accidental move guard & unlock prompt modal
+test('Test 75: v1.14.0 project locking, cascade/dependency protection, plan history badge, and unlock alert modal', async () => {
   const fs = await import('node:fs/promises');
   const path = await import('node:path');
   const { fileURLToPath } = await import('node:url');
@@ -8475,7 +8475,7 @@ test('Test 75: v1.13.4 project locking, cascade/dependency protection, plan hist
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
-  assert.strictEqual(pkg.version, '1.13.4', 'package.json version must equal 1.9.2');
+  assert.strictEqual(pkg.version, '1.14.0', 'package.json version must equal 1.9.2');
 
   const tmpFile = path.resolve(__dirname, `tmp_test75_bundle_${Date.now()}.mjs`);
   try {
@@ -8537,9 +8537,9 @@ test('Test 75: v1.13.4 project locking, cascade/dependency protection, plan hist
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // 1. Version & release notes verification
-    assert.strictEqual(mod.APP_VERSION, '1.13.4', 'APP_VERSION must equal 1.9.2');
-    assert.strictEqual(mod.RELEASE_NOTES[0].version, '1.13.4', 'Latest release note must be 1.9.2');
-    assert.strictEqual(mod.RELEASE_NOTES[0].isLatest, true, 'v1.13.4 release note must be marked isLatest');
+    assert.strictEqual(mod.APP_VERSION, '1.14.0', 'APP_VERSION must equal 1.9.2');
+    assert.strictEqual(mod.RELEASE_NOTES[0].version, '1.14.0', 'Latest release note must be 1.9.2');
+    assert.strictEqual(mod.RELEASE_NOTES[0].isLatest, true, 'v1.14.0 release note must be marked isLatest');
 
     // 2. sanitizeProject, getLockedProjectForItem, describeProjectStateChanges
     const lockedProj = mod.sanitizeProject({
@@ -8736,7 +8736,7 @@ test('Test 75: v1.13.4 project locking, cascade/dependency protection, plan hist
   }
 });
 
-test('Test 76: v1.13.4 automatic Free Slack calculation given successor tasks across engine, table badge, inspector sidebar and task modal', async () => {
+test('Test 76: v1.14.0 automatic Free Slack calculation given successor tasks across engine, table badge, inspector sidebar and task modal', async () => {
   // 1. Engine calculation: FS dependency with multiple successors
   const testItems = [
     {
@@ -11035,10 +11035,9 @@ test('Test 92: ReportsView configurable visibility, resizable columns, and inlin
       React.createElement(mod.ReportsView, { ...sharedProps, initialTab: 'cronograma' })
     );
     assert.ok(
-      cronoHtml.includes('data-testid="reports-columns-btn"') &&
-        cronoHtml.includes('data-testid="reports-columns-menu"') &&
-        cronoHtml.includes('data-testid="report-col-toggle-cronograma-name"'),
-      'Cronograma tab must render configurable columns button and dropdown toggles'
+      cronoHtml.includes('data-testid="reports-panel-columns-section"') &&
+        cronoHtml.includes('data-testid="reports-panel-col-pill-name"'),
+      'Cronograma tab must render configurable column pills inside the unified Gmail search panel'
     );
     assert.ok(
       cronoHtml.includes('data-testid="report-col-resizer-cronograma-name"') &&
@@ -11077,7 +11076,7 @@ test('Test 92: ReportsView configurable visibility, resizable columns, and inlin
     );
     assert.ok(
       relHtml.includes('data-testid="report-col-resizer-releases-name"') &&
-        relHtml.includes('data-testid="report-col-toggle-releases-month"'),
+        relHtml.includes('data-testid="reports-panel-col-pill-month"'),
       'Releases tab must render column toggles and resize handles'
     );
     assert.ok(
@@ -11546,7 +11545,7 @@ test('Test 96: Team (Equipo) column in Reports 1 and 2 and Excel export', async 
       React.createElement(mod.ReportsView, { ...sharedProps, initialTab: 'cronograma' })
     );
     assert.ok(
-      cronoHtml.includes('data-testid="report-col-toggle-cronograma-team"') &&
+      cronoHtml.includes('data-testid="reports-panel-col-pill-team"') &&
         cronoHtml.includes('data-testid="report-col-resizer-cronograma-team"') &&
         cronoHtml.includes('data-testid="report-crono-team-t1"'),
       'Cronograma tab must render Equipo column toggle, resizer, and inline editable team cell'
@@ -11944,8 +11943,8 @@ test('Test 101: Cronograma Completo alertLevel & notes columns and drag-and-drop
     );
 
     assert.ok(
-      html.includes('data-testid="report-col-toggle-cronograma-alertLevel"') &&
-        html.includes('data-testid="report-col-toggle-cronograma-notes"') &&
+      html.includes('data-testid="reports-panel-col-pill-alertLevel"') &&
+        html.includes('data-testid="reports-panel-col-pill-notes"') &&
         html.includes('data-testid="report-crono-alert-t1"') &&
         html.includes('data-testid="report-crono-notes-t1"') &&
         html.includes('Nota de prueba en tarea'),
@@ -12455,17 +12454,9 @@ test('Test 105: Format selector (presets), saving custom presets, switching view
       })
     );
 
-    // Format button & menu
-    assert.ok(html.includes('data-testid="reports-format-btn"'), 'Must render format selector button');
-    assert.ok(html.includes('Formato: Completo'), 'Default format display name must be Formato: Completo');
-    assert.ok(html.includes('data-testid="reports-format-menu"'), 'Must render format dropdown menu');
-    assert.ok(html.includes('Formatos predeterminados'), 'Must display Formatos predeterminados section');
-    assert.ok(html.includes('data-testid="reports-preset-option-preset-all"'), 'Must list preset-all option');
-    assert.ok(!html.includes('data-testid="reports-preset-option-preset-executive"'), 'Must not list preset-executive option');
-    assert.ok(!html.includes('data-testid="reports-preset-option-preset-tracking"'), 'Must not list preset-tracking option');
-
-    // Rename button for default complete preset
-    assert.ok(html.includes('data-testid="reports-preset-rename-btn-preset-all"'), 'Must render rename button for preset-all');
+    // Unified Gmail panel replaces legacy Format dropdown; verify no redundant Format button
+    assert.ok(!html.includes('data-testid="reports-format-columns-btn"'), 'Redundant Formato: Completo button must be removed');
+    assert.ok(html.includes('data-testid="reports-panel-columns-section"'), 'Column visibility selector must live inside the Gmail search panel');
 
     // Type filter next to search input & Platform filter renamed to Plat. without Todas option
     const searchIdx = html.indexOf('data-testid="reports-search-input"');
@@ -12480,12 +12471,7 @@ test('Test 105: Format selector (presets), saving custom presets, switching view
     assert.ok(!html.includes('data-testid="reports-platform-filter-option-all"'), 'Platform filter menu must not include Todas option');
     assert.ok(html.includes('data-testid="reports-platform-filter-option-iOS/Android"'), 'Platform filter menu must include iOS/Android option');
 
-    // Save format controls
-    assert.ok(html.includes('+ Guardar formato actual'), 'Must display + Guardar formato actual label');
-    assert.ok(html.includes('data-testid="reports-preset-name-input"'), 'Must render preset name input field');
-    assert.ok(html.includes('data-testid="reports-preset-save-btn"'), 'Must render preset save button');
-
-    // 5. Custom presets rendering with column order, rename action & delete action
+    // 5. Custom presets still apply column order & visibility when passed via initialActivePresetId
     const customPreset1 = {
       id: 'custom-preset-123',
       name: 'Vista Seguimiento Semanal',
@@ -12502,14 +12488,8 @@ test('Test 105: Format selector (presets), saving custom presets, switching view
         initialTab: 'cronograma',
         initialCustomPresets: [customPreset1],
         initialActivePresetId: 'custom-preset-123',
-        initialShowFormatMenu: true,
       })
     );
-    assert.ok(customHtml.includes('Formatos personalizados'), 'Must display Formatos personalizados header when custom presets exist');
-    assert.ok(customHtml.includes('Vista Seguimiento Semanal'), 'Must display custom preset name');
-    assert.ok(customHtml.includes('data-testid="reports-preset-rename-btn-custom-preset-123"'), 'Must render rename button for custom preset');
-    assert.ok(customHtml.includes('data-testid="reports-preset-delete-custom-preset-123"'), 'Must render delete button for custom preset');
-    assert.ok(customHtml.includes('data-testid="reports-preset-option-custom-preset-123" data-active-preset="true"'), 'Custom preset must be marked active');
 
     // Verify column headers render in customPreset1's colOrder: team before progress before name before hierarchy
     const thTeam = customHtml.indexOf('data-testid="report-col-header-cronograma-team"');
@@ -12521,18 +12501,17 @@ test('Test 105: Format selector (presets), saving custom presets, switching view
       'Custom preset colOrder must dictate rendered table column header order'
     );
 
-    // 6. Tab switching to releases maintains independent format and hides cronograma-only type filter
+    // 6. Tab switching to releases keeps independent column selector and hides cronograma-only type filter
     const releasesHtml = mod.renderToString(
       mod.React.createElement(mod.ReportsView, {
         releases,
         projects,
         items,
         initialTab: 'releases',
-        initialShowFormatMenu: true,
       })
     );
-    assert.ok(releasesHtml.includes('Formato: Completo'), 'Releases tab must display Formato: Completo');
-    assert.ok(releasesHtml.includes('data-testid="reports-preset-option-preset-releases-all" data-active-preset="true"'), 'Releases preset must be marked active on releases tab');
+    assert.ok(!releasesHtml.includes('data-testid="reports-format-columns-btn"'), 'Releases tab must not render redundant Formato: Completo button');
+    assert.ok(releasesHtml.includes('data-testid="reports-panel-col-pill-month"'), 'Releases tab must expose release column pills in Gmail panel');
     assert.ok(!releasesHtml.includes('data-testid="reports-type-filter"'), 'Releases tab must not show cronograma type filter');
 
     // 7. Type filter filtering behavior
@@ -12705,15 +12684,11 @@ test('Test 106: Saved filters with specific column format (visibility & order), 
         projects,
         items,
         initialTab: 'cronograma',
-        initialShowSavedFiltersMenu: true,
+        initialShowAdvancedPanel: true,
       })
     );
-    assert.ok(emptyHtml.includes('data-testid="reports-saved-filters-btn"'), 'Must render saved filters button');
-    assert.ok(emptyHtml.includes('data-testid="reports-saved-filters-menu"'), 'Must render saved filters menu');
-    assert.ok(emptyHtml.includes('data-testid="reports-saved-filters-empty"'), 'Must render empty hint when no filters saved');
-    assert.ok(emptyHtml.includes('data-testid="reports-saved-filter-format-select"'), 'Must render format select for saving filter');
-    assert.ok(emptyHtml.includes('data-testid="reports-saved-filter-name-input"'), 'Must render name input for saving filter');
-    assert.ok(emptyHtml.includes('data-testid="reports-saved-filter-save-btn"'), 'Must render save button for filter');
+    assert.ok(!emptyHtml.includes('data-testid="reports-saved-filters-btn"'), 'Redundant legacy saved filters dropdown button must be removed');
+    assert.ok(emptyHtml.includes('data-testid="reports-panel-create-filter-btn"'), 'Gmail panel must expose Crear filtro button');
 
     // 4. Saved filter active: applies both row filtering & linked column format (visibility + order)
     const activeHtml = mod.renderToString(
@@ -12724,14 +12699,13 @@ test('Test 106: Saved filters with specific column format (visibility & order), 
         initialTab: 'cronograma',
         initialSavedFilters: [saved],
         initialActiveSavedFilterId: saved.id,
-        initialShowSavedFiltersMenu: true,
+        initialShowAdvancedPanel: true,
       })
     );
 
-    assert.ok(activeHtml.includes(`Filtro: ${saved.name}`), 'Button must show active saved filter name');
-    assert.ok(activeHtml.includes(`data-testid="reports-saved-filter-option-${saved.id}" data-active-filter="true"`), 'Saved filter option must be marked active');
-    assert.ok(activeHtml.includes(`data-testid="reports-saved-filter-rename-btn-${saved.id}"`), 'Must render rename button for saved filter');
-    assert.ok(activeHtml.includes(`data-testid="reports-saved-filter-delete-${saved.id}"`), 'Must render delete button for saved filter');
+    assert.ok(activeHtml.includes(`data-testid="reports-saved-pill-${saved.id}"`), 'Saved filter pill must render');
+    assert.ok(activeHtml.includes(`data-testid="reports-saved-pill-edit-${saved.id}"`), 'Saved filter pill must render pencil edit button');
+    assert.ok(activeHtml.includes('data-testid="reports-panel-update-filter-btn"'), 'Active saved filter must expose Actualizar button in Gmail panel');
 
     // Verify row filtering applied: only m1-0 (Hito iOS Nivel 3) matches!
     assert.ok(activeHtml.includes('data-report-row="m1-0"'), 'Active saved filter must show matching Hito iOS row');
@@ -14900,15 +14874,15 @@ test('ProjectWizardModal (DIGI/ARQ/QA presets + QG5 default), unified Format+Col
         onCreateProjectFromWizard: () => {},
       })
     );
-    assert.ok(repFocusedHtml.includes('data-testid="reports-format-columns-btn"'), 'Unified Format+Columns button must render');
+    assert.ok(!repFocusedHtml.includes('data-testid="reports-format-columns-btn"'), 'Redundant Format+Columns button must be removed');
     assert.ok(repFocusedHtml.includes('data-testid="reports-open-wizard-btn"'), 'Wizard button must render');
-    assert.ok(repFocusedHtml.includes('data-testid="reports-saved-filters-btn"'), 'Saved filters button must render inside filter bar');
+    assert.ok(repFocusedHtml.includes('data-testid="reports-panel-create-filter-btn"'), 'Create filter button must render inside unified Gmail search panel');
     assert.ok(repFocusedHtml.includes('data-testid="reports-focus-banner"'), 'Focus banner must render for focused projects');
     assert.ok(repFocusedHtml.includes('Tarea Alpha'), 'Focused project p-1 tasks must be visible');
     assert.ok(repFocusedHtml.includes('Tarea Gamma'), 'Focused project p-3 tasks must be visible');
     assert.ok(!repFocusedHtml.includes('Tarea Beta'), 'Unfocused project p-2 tasks must be hidden');
 
-    // 4. GanttWorkspace (Cronograma) also renders Saved Filters inside SearchFilterBar
+    // 4. GanttWorkspace (Cronograma) exposes Crear filtro inside Gmail panel without redundant Guardar filtro button
     const wsHtml = mod.renderToString(
       mod.React.createElement(mod.GanttWorkspace, {
         items,
@@ -14927,7 +14901,8 @@ test('ProjectWizardModal (DIGI/ARQ/QA presets + QG5 default), unified Format+Col
         onQuickAdd: () => {},
       })
     );
-    assert.ok(wsHtml.includes('data-testid="table-saved-filters-btn"'), 'Cronograma filter bar must render Saved Filters button');
+    assert.ok(!wsHtml.includes('data-testid="table-saved-filters-btn"'), 'Redundant Guardar filtro button must be removed from Cronograma');
+    assert.ok(wsHtml.includes('data-testid="table-panel-create-filter-btn"'), 'Cronograma Gmail panel must expose Crear filtro button');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }

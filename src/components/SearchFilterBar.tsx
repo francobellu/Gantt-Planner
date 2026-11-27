@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
-  Bookmark,
   Check,
   Filter,
   Pencil,
@@ -1030,24 +1029,8 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
         </div>
       </div>
 
-      {/* Saved Filters: either external slot (ReportsView legacy menu) + quick editable pills */}
+      {/* Optional external slot + Quick Saved Filter Pills (1-click apply + ✏️ full edit in Gmail panel) */}
       {savedFiltersSlot}
-      {!savedFiltersSlot && enableBuiltInSavedFilters && (
-        <button
-          type="button"
-          data-testid={`${testIdPrefix}-saved-filters-btn`}
-          onClick={() => {
-            refreshBuiltInFilters();
-            setPanelOpen(true);
-            setShowSaveRow(true);
-          }}
-          className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[10px] font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 cursor-pointer h-6.5 shrink-0"
-          title="Guardar búsqueda actual como filtro"
-        >
-          <Bookmark className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
-          <span>Guardar filtro</span>
-        </button>
-      )}
 
       {/* Quick Saved Filter Pills (1-click apply + ✏️ full edit in Gmail panel) */}
       {effectiveSavedFilters.length > 0 && (

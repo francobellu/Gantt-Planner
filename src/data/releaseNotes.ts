@@ -10,10 +10,20 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.14.0',
+    date: '27 Nov 2026',
+    title: 'Limpieza de barras: elimina botones redundantes Guardar filtro, Filtros guardados y Formato: Completo',
+    isLatest: true,
+    features: [
+      'Elimina el botón redundante Guardar filtro de Cronograma',
+      'Elimina los desplegables redundantes Filtros guardados y Formato: Completo de Planificación',
+      'Centraliza la selección de columnas, creación y edición de filtros guardados en el panel unificado estilo Gmail y sus píldoras',
+    ],
+  },
+  {
     version: '1.13.4',
     date: '27 Nov 2026',
     title: 'Mejora de margen y posición del badge junto al icono de opciones de búsqueda',
-    isLatest: true,
     features: [
       'Añade mayor margen derecho en la píldora de búsqueda y coloca el badge contador en línea al lado del icono de filtros sin solaparlo',
     ],
