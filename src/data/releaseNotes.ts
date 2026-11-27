@@ -10,10 +10,18 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.13.1',
+    date: '27 Nov 2026',
+    title: 'Limpieza de archivo temporal de test',
+    isLatest: true,
+    features: [
+      'Elimina archivo temporal de bundle SSR en tests/',
+    ],
+  },
+  {
     version: '1.13.0',
     date: '27 Nov 2026',
     title: 'Buscador unificado estilo Gmail con filtros avanzados, exclusión, columnas y edición completa de filtros guardados',
-    isLatest: true,
     features: [
       'Píldora única de búsqueda estilo Gmail con panel desplegable de criterios completos (Contiene, No contiene, campos, tipo, plataforma, alerta, release y subtareas)',
       'Selector de columnas visibles integrado en el panel de Planificación',
