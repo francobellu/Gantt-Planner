@@ -4515,7 +4515,7 @@ test('Help page, version control v1.2.0, release selection on project creation, 
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version control consistency
-  assert.equal(pkg.version, '1.11.30', 'package.json version must be 1.9.2');
+  assert.equal(pkg.version, '1.11.31', 'package.json version must be 1.9.2');
   assert.ok(pkg.scripts['version:patch'], 'package.json must contain version:patch script');
   assert.ok(pkg.scripts['version:minor'], 'package.json must contain version:minor script');
   assert.ok(pkg.scripts['release:patch'], 'package.json must contain release:patch script');
@@ -5329,7 +5329,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version Bump Verification
-  assert.equal(pkg.version, '1.11.30', 'package.json version must equal 1.9.2');
+  assert.equal(pkg.version, '1.11.31', 'package.json version must equal 1.9.2');
 
   // Verify scripts/bump-version.mjs works properly
   const bumpScript = await fs.readFile(path.resolve(__dirname, '../scripts/bump-version.mjs'), 'utf8');
@@ -5503,7 +5503,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // A. APP_VERSION equals 1.9.2
-    assert.equal(mod.APP_VERSION, '1.11.30', 'APP_VERSION must be 1.9.2');
+    assert.equal(mod.APP_VERSION, '1.11.31', 'APP_VERSION must be 1.9.2');
 
     // A2. Excel Export Unit Test
     const sampleReleases = [
@@ -6030,8 +6030,8 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
-  // 1. Version Bump Verification v1.11.30
-  assert.equal(pkg.version, '1.11.30', 'package.json version must equal 1.9.2');
+  // 1. Version Bump Verification v1.11.31
+  assert.equal(pkg.version, '1.11.31', 'package.json version must equal 1.9.2');
 
   // 2. SSR Bundle verification for TaskFormModal, App Header, and sanitizeGanttItem
   const tmpFile = path.resolve(__dirname, `tmp_test59_bundle_${Date.now()}.mjs`);
@@ -6129,7 +6129,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.equal(mod.APP_VERSION, '1.11.30', 'mod.APP_VERSION must equal 1.9.2');
+    assert.equal(mod.APP_VERSION, '1.11.31', 'mod.APP_VERSION must equal 1.9.2');
 
     // sanitizeGanttItem preserves platform
     const sanitizedIos = mod.sanitizeGanttItem({
@@ -6192,7 +6192,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     }));
     assert.ok(settingsHtml.includes('data-testid="settings-version-badge"'), 'SettingsModal must contain settings-version-badge');
     assert.ok(settingsHtml.includes('data-testid="force-reload-btn"'), 'SettingsModal must contain force-reload-btn');
-    assert.ok(settingsHtml.includes('v1.11.30') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and v1.11.30');
+    assert.ok(settingsHtml.includes('v1.11.31') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and v1.11.31');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6346,14 +6346,14 @@ test('Test 61: Version button, compiled release notes modal and changelog across
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
 
     // 1. Check RELEASE_NOTES compiled data
-    assert.strictEqual(mod.APP_VERSION, '1.11.30');
+    assert.strictEqual(mod.APP_VERSION, '1.11.31');
     assert.ok(Array.isArray(mod.RELEASE_NOTES), 'RELEASE_NOTES must be an array');
     assert.ok(mod.RELEASE_NOTES.length >= 10, 'RELEASE_NOTES must have at least 10 releases');
 
     const latest = mod.RELEASE_NOTES[0];
-    assert.strictEqual(latest.version, '1.11.30', 'First release note must be 1.9.2');
+    assert.strictEqual(latest.version, '1.11.31', 'First release note must be 1.9.2');
     assert.strictEqual(latest.isLatest, true, 'First release note must be isLatest: true');
-    assert.ok(latest.features.length > 0, 'v1.11.30 must contain features');
+    assert.ok(latest.features.length > 0, 'v1.11.31 must contain features');
 
     // 2. Render App and verify version button exists in dropdown menu and is NOT duplicated in top header
     const appHtml = renderToString(React.createElement(mod.App));
@@ -8188,7 +8188,7 @@ test('Test 73: v1.9.0 project alert level (0-3), workspace toolbar alert filter,
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.strictEqual(mod.APP_VERSION, '1.11.30', 'APP_VERSION must be 1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.11.31', 'APP_VERSION must be 1.9.2');
 
     // 1. Check sanitizeProject and describeProjectStateChanges for alertLevel
     const pSanitized0 = mod.sanitizeProject({ id: 'p-1', name: 'Proj 1', alertLevel: 0 });
@@ -8377,7 +8377,7 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.strictEqual(mod.APP_VERSION, '1.11.30', 'APP_VERSION must be 1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.11.31', 'APP_VERSION must be 1.9.2');
 
     // 1. Verify description format: <descripción del proyecto si existe>\n\n* <nombre> <desc>
     const pWithDesc = {
@@ -8462,8 +8462,8 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
   }
 });
 
-// TEST 75: v1.11.30 Project locking, accidental move guard & unlock prompt modal
-test('Test 75: v1.11.30 project locking, cascade/dependency protection, plan history badge, and unlock alert modal', async () => {
+// TEST 75: v1.11.31 Project locking, accidental move guard & unlock prompt modal
+test('Test 75: v1.11.31 project locking, cascade/dependency protection, plan history badge, and unlock alert modal', async () => {
   const fs = await import('node:fs/promises');
   const path = await import('node:path');
   const { fileURLToPath } = await import('node:url');
@@ -8474,7 +8474,7 @@ test('Test 75: v1.11.30 project locking, cascade/dependency protection, plan his
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
-  assert.strictEqual(pkg.version, '1.11.30', 'package.json version must equal 1.9.2');
+  assert.strictEqual(pkg.version, '1.11.31', 'package.json version must equal 1.9.2');
 
   const tmpFile = path.resolve(__dirname, `tmp_test75_bundle_${Date.now()}.mjs`);
   try {
@@ -8536,9 +8536,9 @@ test('Test 75: v1.11.30 project locking, cascade/dependency protection, plan his
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // 1. Version & release notes verification
-    assert.strictEqual(mod.APP_VERSION, '1.11.30', 'APP_VERSION must equal 1.9.2');
-    assert.strictEqual(mod.RELEASE_NOTES[0].version, '1.11.30', 'Latest release note must be 1.9.2');
-    assert.strictEqual(mod.RELEASE_NOTES[0].isLatest, true, 'v1.11.30 release note must be marked isLatest');
+    assert.strictEqual(mod.APP_VERSION, '1.11.31', 'APP_VERSION must equal 1.9.2');
+    assert.strictEqual(mod.RELEASE_NOTES[0].version, '1.11.31', 'Latest release note must be 1.9.2');
+    assert.strictEqual(mod.RELEASE_NOTES[0].isLatest, true, 'v1.11.31 release note must be marked isLatest');
 
     // 2. sanitizeProject, getLockedProjectForItem, describeProjectStateChanges
     const lockedProj = mod.sanitizeProject({
@@ -8735,7 +8735,7 @@ test('Test 75: v1.11.30 project locking, cascade/dependency protection, plan his
   }
 });
 
-test('Test 76: v1.11.30 automatic Free Slack calculation given successor tasks across engine, table badge, inspector sidebar and task modal', async () => {
+test('Test 76: v1.11.31 automatic Free Slack calculation given successor tasks across engine, table badge, inspector sidebar and task modal', async () => {
   // 1. Engine calculation: FS dependency with multiple successors
   const testItems = [
     {
@@ -14578,6 +14578,110 @@ test('Unified SearchFilterBar renders identical filter set in Cronograma and Inf
     assert.ok(repSubtasksHtml.includes('Tarea iOS Principal'), 'Subtareas toggle must include child tasks of matching project');
     assert.ok(repSubtasksHtml.includes('Hito Entrega Alpha'), 'Subtareas toggle must include child milestones of matching project');
     assert.ok(!repSubtasksHtml.includes('Tarea Android Beta'), 'Unrelated project tasks must remain filtered out');
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
+test('ReportsView auto-fits default column widths to content minimum without wasting horizontal space', async () => {
+  const esbuild = await import('esbuild');
+  const fs = await import('node:fs/promises');
+  const tmpFile = path.join(__dirname, `tmp_autofit_cols_${Date.now()}.mjs`);
+  try {
+    await esbuild.build({
+      stdin: {
+        contents: `
+          import React from 'react';
+          import { renderToString } from 'react-dom/server';
+          import { ReportsView, computeAutoFitReportColumnWidths } from './src/components/ReportsView';
+          export { React, renderToString, ReportsView, computeAutoFitReportColumnWidths };
+        `,
+        resolveDir: path.join(__dirname, '..'),
+        loader: 'tsx',
+      },
+      bundle: true,
+      packages: 'external',
+      platform: 'node',
+      format: 'esm',
+      outfile: tmpFile,
+      jsx: 'automatic',
+    });
+    const mod = await import(`file://${tmpFile}`);
+
+    const compactRows = [
+      {
+        rowId: 'r1',
+        level: 'TAREA',
+        wbsCode: '1.1',
+        displayId: 'P1T1',
+        name: 'API Auth',
+        releaseCode: 'T_26.10',
+        projectId: 'p-1',
+        projectName: 'Core',
+        platform: 'iOS',
+        team: 'MC',
+        alertLevel: 0,
+        type: 'Tarea',
+        startDate: '2026-10-01',
+        endDate: '2026-10-10',
+        duration: 10,
+        slack: 0,
+        progress: 50,
+        dependency: '—',
+        isCritical: 'No',
+        isExternal: false,
+        compliance: 'OK',
+        notes: '—',
+      },
+    ];
+    const compactWidths = mod.computeAutoFitReportColumnWidths('cronograma', compactRows);
+
+    // Empty/short columns shrink well below legacy wide defaults (e.g. dependency 230, notes 250, startDate 135, team 150)
+    assert.ok(compactWidths.dependency <= 120, `Empty dependency column should be compact (got ${compactWidths.dependency})`);
+    assert.ok(compactWidths.notes <= 120, `Empty notes column should be compact (got ${compactWidths.notes})`);
+    assert.ok(compactWidths.startDate <= 112, `Date column should fit YYYY-MM-DD tightly (got ${compactWidths.startDate})`);
+    assert.ok(compactWidths.slack <= 80, `Slack column should be compact (got ${compactWidths.slack})`);
+    assert.ok(compactWidths.team <= 95, `Short team 'MC' should not waste width (got ${compactWidths.team})`);
+
+    // Columns with longer content expand cleanly to fit content
+    const wideRows = [
+      {
+        ...compactRows[0],
+        name: 'Implementación completa de SDK adaptado a Xcode 27',
+        team: 'Arquitectura Mobile',
+        notes: 'Validar compatibilidad con iOS 20 y librerías internas',
+      },
+    ];
+    const wideWidths = mod.computeAutoFitReportColumnWidths('cronograma', wideRows);
+    assert.ok(wideWidths.name > compactWidths.name, 'Name column must expand for longer task names');
+    assert.ok(wideWidths.team > compactWidths.team, 'Team column must expand for longer team names');
+    assert.ok(wideWidths.notes > compactWidths.notes, 'Notes column must expand when notes have content');
+
+    // Rendered ReportsView table uses w-max so columns stay at their compact fitted width
+    const html = mod.renderToString(
+      mod.React.createElement(mod.ReportsView, {
+        releases: [],
+        projects: [{ id: 'p-1', name: 'Core', color: 'indigo', platform: 'iOS', alertLevel: 0 }],
+        items: computeGanttMetrics([
+          {
+            id: 't-1',
+            name: 'API Auth',
+            type: 'task',
+            projectId: 'p-1',
+            startDate: '2026-10-01',
+            endDate: '2026-10-10',
+            duration: 10,
+            slack: 0,
+            dependencies: [],
+            progress: 50,
+            color: 'indigo',
+            assignee: 'MC',
+          },
+        ]),
+        initialTab: 'cronograma',
+      })
+    );
+    assert.ok(html.includes('w-max table-fixed'), 'ReportsView table must use w-max table-fixed to avoid stretching columns');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }

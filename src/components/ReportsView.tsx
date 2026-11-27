@@ -117,6 +117,116 @@ const COLUMNS_BY_TAB: Record<ReportTab, ReportColumnDef[]> = {
   releases: RELEASE_COLUMNS,
 };
 
+const REPORT_COL_WIDTH_LIMITS: Record<
+  string,
+  { min: number; max: number; extraPx: number; maxHeaderPx?: number }
+> = {
+  hierarchy: { min: 76, max: 114, extraPx: 28 },
+  name: { min: 140, max: 320, extraPx: 44, maxHeaderPx: 140 },
+  releaseCode: { min: 74, max: 130, extraPx: 24 },
+  code: { min: 70, max: 130, extraPx: 24 },
+  projectName: { min: 108, max: 230, extraPx: 26, maxHeaderPx: 120 },
+  platform: { min: 80, max: 124, extraPx: 30 },
+  team: { min: 70, max: 165, extraPx: 24 },
+  alertLevel: { min: 82, max: 120, extraPx: 26, maxHeaderPx: 104 },
+  type: { min: 64, max: 94, extraPx: 22 },
+  startDate: { min: 96, max: 120, extraPx: 30 },
+  endDate: { min: 96, max: 120, extraPx: 30 },
+  duration: { min: 72, max: 108, extraPx: 22, maxHeaderPx: 98 },
+  slack: { min: 64, max: 88, extraPx: 20 },
+  progress: { min: 72, max: 98, extraPx: 26 },
+  dependency: { min: 84, max: 230, extraPx: 24, maxHeaderPx: 116 },
+  isCritical: { min: 76, max: 100, extraPx: 22 },
+  isExternal: { min: 68, max: 92, extraPx: 20 },
+  compliance: { min: 82, max: 160, extraPx: 26, maxHeaderPx: 112 },
+  notes: { min: 108, max: 255, extraPx: 26, maxHeaderPx: 116 },
+  description: { min: 108, max: 255, extraPx: 26, maxHeaderPx: 116 },
+  tasksCount: { min: 62, max: 84, extraPx: 20 },
+  milestonesCount: { min: 62, max: 84, extraPx: 20 },
+  month: { min: 72, max: 110, extraPx: 22 },
+  assignedProjects: { min: 108, max: 230, extraPx: 26, maxHeaderPx: 124 },
+  keyMilestones: { min: 116, max: 270, extraPx: 26, maxHeaderPx: 124 },
+};
+
+function extractReportCellText(
+  row: CronogramaReportRow | ProjectSummaryReportRow | ReleaseSummaryReportRow,
+  key: string
+): string {
+  const r = row as unknown as Record<string, unknown>;
+  if (key === 'hierarchy') {
+    return String(r.level ?? '');
+  }
+  if (key === 'name') {
+    const displayId = typeof r.displayId === 'string' && r.displayId ? `${r.displayId} ` : '';
+    return `${displayId}${String(r.name ?? '')}`.trim();
+  }
+  if (key === 'alertLevel') {
+    const lvl = r.alertLevel;
+    if (lvl === undefined || lvl === null) return '—';
+    return lvl === 0 ? 'Normal' : `Nivel ${lvl}`;
+  }
+  if (key === 'duration') {
+    const val = r.duration;
+    return val === undefined || val === null || val === '' ? '—' : `${val}d`;
+  }
+  if (key === 'slack') {
+    const val = r.slack;
+    return val === undefined || val === null || val === '' ? '—' : `${val}d`;
+  }
+  if (key === 'progress') {
+    const val = r.progress;
+    return val === undefined || val === null || val === '' ? '—' : `${val}%`;
+  }
+  if (key === 'isCritical') {
+    return r.isCritical === 'Sí' || r.isCritical === true ? 'Crítica' : '—';
+  }
+  if (key === 'isExternal') {
+    return r.isExternal ? 'Ext.' : '—';
+  }
+  const raw = r[key];
+  if (raw === undefined || raw === null) return '';
+  return String(raw);
+}
+
+/**
+ * Computes compact, content-aware minimum default widths for each column in a report tab
+ * so cell content is readable without wasting horizontal space.
+ */
+export function computeAutoFitReportColumnWidths(
+  tab: ReportTab,
+  rows: Array<CronogramaReportRow | ProjectSummaryReportRow | ReleaseSummaryReportRow>,
+  columns: ReportColumnDef[] = COLUMNS_BY_TAB[tab]
+): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const col of columns) {
+    const limits = REPORT_COL_WIDTH_LIMITS[col.key] || {
+      min: 68,
+      max: Math.max(col.defaultWidth, 240),
+      extraPx: 24,
+    };
+    const rawHeaderPx = Math.ceil(col.label.length * 6.2 + 24);
+    const headerPx =
+      limits.maxHeaderPx !== undefined ? Math.min(rawHeaderPx, limits.maxHeaderPx) : rawHeaderPx;
+
+    let maxLineChars = 0;
+    for (const row of rows) {
+      const text = extractReportCellText(row, col.key).trim();
+      if (!text || text === '—') continue;
+      const lines = text.split(/\r?\n/);
+      for (const line of lines) {
+        const len = line.trim().length;
+        if (len > maxLineChars) maxLineChars = len;
+      }
+    }
+
+    const contentPx =
+      maxLineChars > 0 ? Math.ceil(maxLineChars * 6.5 + limits.extraPx) : limits.min;
+    const ideal = Math.max(limits.min, headerPx, contentPx);
+    result[col.key] = Math.min(limits.max, ideal);
+  }
+  return result;
+}
+
 const REPORT_HIDDEN_COLS_KEY = 'ganttflow_report_hidden_cols_v1';
 const REPORT_COL_WIDTHS_KEY = 'ganttflow_report_col_widths_v1';
 export const REPORT_COL_ORDER_KEY = 'ganttflow_report_col_order_v1';
@@ -1311,8 +1421,49 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     });
   };
 
+  const itemById = useMemo(() => new Map(items.map((it) => [it.id, it])), [items]);
+  const projectById = useMemo(() => new Map(projects.map((p) => [p.id, p])), [projects]);
+  const releaseById = useMemo(() => new Map(releases.map((r) => [r.id, r])), [releases]);
+
+  // 1. Generate full dataset for each tab
+  const cronoRows = useMemo(
+    () => generateCronogramaCompletoRows(releases, projects, items),
+    [releases, projects, items]
+  );
+
+  const projectRows = useMemo(
+    () => generateProjectSummaryRows(releases, projects, items),
+    [releases, projects, items]
+  );
+
+  const releaseRows = useMemo(
+    () => generateReleaseSummaryRows(releases, projects),
+    [releases, projects]
+  );
+
+  const autoFitColWidths = useMemo<Record<ReportTab, Record<string, number>>>(
+    () => ({
+      cronograma: computeAutoFitReportColumnWidths('cronograma', cronoRows),
+      projects: computeAutoFitReportColumnWidths('projects', projectRows),
+      releases: computeAutoFitReportColumnWidths('releases', releaseRows),
+    }),
+    [cronoRows, projectRows, releaseRows]
+  );
+
   const getColWidth = (tab: ReportTab, col: ReportColumnDef): number => {
-    return colWidthsByTab[tab]?.[col.key] ?? col.defaultWidth;
+    return colWidthsByTab[tab]?.[col.key] ?? autoFitColWidths[tab]?.[col.key] ?? col.defaultWidth;
+  };
+
+  const resetColWidthToAutoFit = (tab: ReportTab, key: string) => {
+    setColWidthsByTab((prev) => {
+      const tabMap = { ...(prev[tab] || {}) };
+      delete tabMap[key];
+      const next = { ...prev, [tab]: tabMap };
+      try {
+        localStorage.setItem(REPORT_COL_WIDTHS_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
   };
 
   const startColResize = (
@@ -1417,7 +1568,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         }}
         style={{ width, minWidth: width }}
         title="Arrastra el encabezado para reordenar esta columna"
-        className={`relative px-3 py-2 border-r border-[#E2E2DC] dark:border-zinc-700 whitespace-nowrap select-none cursor-grab active:cursor-grabbing transition-colors ${alignClass} ${extraClass} ${
+        className={`relative px-2.5 py-2 border-r border-[#E2E2DC] dark:border-zinc-700 whitespace-nowrap select-none cursor-grab active:cursor-grabbing transition-colors ${alignClass} ${extraClass} ${
           isDragging ? 'opacity-50' : ''
         } ${isDragOver ? 'border-l-2 border-l-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/40' : ''}`}
       >
@@ -1428,32 +1579,16 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             e.stopPropagation();
             startColResize(e, tab, col.key, width);
           }}
-          title="Arrastra para redimensionar esta columna"
+          onDoubleClick={(e) => {
+            e.stopPropagation();
+            resetColWidthToAutoFit(tab, col.key);
+          }}
+          title="Arrastra para redimensionar · Doble clic para auto-ajustar al contenido"
           className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-indigo-500/60 active:bg-indigo-600 transition-colors z-10"
         />
       </th>
     );
   };
-
-  const itemById = useMemo(() => new Map(items.map((it) => [it.id, it])), [items]);
-  const projectById = useMemo(() => new Map(projects.map((p) => [p.id, p])), [projects]);
-  const releaseById = useMemo(() => new Map(releases.map((r) => [r.id, r])), [releases]);
-
-  // 1. Generate full dataset for each tab
-  const cronoRows = useMemo(
-    () => generateCronogramaCompletoRows(releases, projects, items),
-    [releases, projects, items]
-  );
-
-  const projectRows = useMemo(
-    () => generateProjectSummaryRows(releases, projects, items),
-    [releases, projects, items]
-  );
-
-  const releaseRows = useMemo(
-    () => generateReleaseSummaryRows(releases, projects),
-    [releases, projects]
-  );
 
   // 2. Filter Tab 1: Cronograma Completo
   const filteredCronoRows = useMemo(() => {
@@ -2420,7 +2555,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       <div className="flex-1 overflow-auto bg-white dark:bg-[#0C0C09] min-h-0 select-text">
         {activeTab === 'cronograma' && (
           <div className="min-w-full inline-block align-middle">
-            <table className="w-full table-fixed border-collapse text-left text-xs">
+            <table className="w-max table-fixed border-collapse text-left text-xs">
               <thead className="sticky top-0 z-10 bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 border-b-2 border-[#0C0C09] dark:border-zinc-700 font-mono text-[11px] font-bold uppercase tracking-wider">
                 <tr>
                   <th
@@ -3077,7 +3212,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
         {activeTab === 'releases' && (
           <div className="min-w-full inline-block align-middle">
-            <table className="w-full table-fixed border-collapse text-left text-xs">
+            <table className="w-max table-fixed border-collapse text-left text-xs">
               <thead className="sticky top-0 z-10 bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 border-b-2 border-[#0C0C09] dark:border-zinc-700 font-mono text-[11px] font-bold uppercase tracking-wider">
                 <tr>
                   <th

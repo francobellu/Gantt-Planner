@@ -10,10 +10,20 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.11.31',
+    date: '27 Nov 2026',
+    title: 'Ancho mínimo automático de columnas en Informe de Planificación',
+    isLatest: true,
+    features: [
+      'Calcula por defecto el ancho mínimo óptimo de cada columna según su contenido y cabecera sin desperdiciar espacio horizontal',
+      'Usa w-max en las tablas del informe para respetar exactamente los anchos ajustados',
+      'Permite doble clic en el divisor de cualquier columna para restablecerla al ancho auto-ajustado',
+    ],
+  },
+  {
     version: '1.11.30',
     date: '27 Nov 2026',
     title: 'Acceso directo al panel de configuración',
-    isLatest: true,
     features: [
       'Elimina el popup desplegable del botón superior derecho y abre directamente el panel de Configuración',
       'Mueve el botón Recargar app al pie de la barra lateral de Configuración',
