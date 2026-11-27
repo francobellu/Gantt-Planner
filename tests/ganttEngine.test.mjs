@@ -4520,7 +4520,7 @@ test('Help page, version control v1.2.0, release selection on project creation, 
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version control consistency
-  assert.equal(pkg.version, '1.11.27', 'package.json version must be 1.9.2');
+  assert.equal(pkg.version, '1.11.28', 'package.json version must be 1.9.2');
   assert.ok(pkg.scripts['version:patch'], 'package.json must contain version:patch script');
   assert.ok(pkg.scripts['version:minor'], 'package.json must contain version:minor script');
   assert.ok(pkg.scripts['release:patch'], 'package.json must contain release:patch script');
@@ -5301,10 +5301,10 @@ test('Task name positioning, configurable row separators, 37 char truncation, v1
     const htmlWithoutWeekendShading = renderToString(mod.renderWorkspaceWithWeekendShading(false));
     assert.ok(!htmlWithoutWeekendShading.includes('bg-[#E5E5DF]'), 'Canvas and header must NOT render weekend shading when showWeekendShading is false (clean uniform background)');
 
-    // 9. App Header displays v1.11.27 badge, row-separators-btn, and weekend-shading-btn
+    // 9. App Header displays v1.11.28 badge, row-separators-btn, and weekend-shading-btn
     const appHtml = renderToString(mod.renderAppHeader());
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'Header must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.11.27'), 'Header badge must display v1.11.27');
+    assert.ok(appHtml.includes('v1.11.28'), 'Header badge must display v1.11.28');
     assert.ok(appHtml.includes('data-testid="header-toggle-row-separators-btn"'), 'Header must contain header-toggle-row-separators-btn');
     assert.ok(appHtml.includes('data-testid="header-toggle-weekend-shading-btn"'), 'Header must contain header-toggle-weekend-shading-btn');
 
@@ -5334,7 +5334,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version Bump Verification
-  assert.equal(pkg.version, '1.11.27', 'package.json version must equal 1.9.2');
+  assert.equal(pkg.version, '1.11.28', 'package.json version must equal 1.9.2');
 
   // Verify scripts/bump-version.mjs works properly
   const bumpScript = await fs.readFile(path.resolve(__dirname, '../scripts/bump-version.mjs'), 'utf8');
@@ -5508,7 +5508,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // A. APP_VERSION equals 1.9.2
-    assert.equal(mod.APP_VERSION, '1.11.27', 'APP_VERSION must be 1.9.2');
+    assert.equal(mod.APP_VERSION, '1.11.28', 'APP_VERSION must be 1.9.2');
 
     // A2. Excel Export Unit Test
     const sampleReleases = [
@@ -5585,7 +5585,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     assert.ok(appHtml.includes('data-testid="table-platform-filter"'), 'App must contain unified table-platform-filter');
     assert.ok(!appHtml.includes('data-testid="header-toggle-focus-mode-btn"'), 'Redundant header-toggle-focus-mode-btn must be removed');
     assert.ok(appHtml.includes('data-testid="header-reports-btn"'), 'App header must contain header-reports-btn');
-    assert.ok(appHtml.includes('v1.11.27'), 'App header must display version v1.11.27');
+    assert.ok(appHtml.includes('v1.11.28'), 'App header must display version v1.11.28');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6035,8 +6035,8 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
-  // 1. Version Bump Verification v1.11.27
-  assert.equal(pkg.version, '1.11.27', 'package.json version must equal 1.9.2');
+  // 1. Version Bump Verification v1.11.28
+  assert.equal(pkg.version, '1.11.28', 'package.json version must equal 1.9.2');
 
   // 2. SSR Bundle verification for TaskFormModal, App Header, and sanitizeGanttItem
   const tmpFile = path.resolve(__dirname, `tmp_test59_bundle_${Date.now()}.mjs`);
@@ -6134,7 +6134,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.equal(mod.APP_VERSION, '1.11.27', 'mod.APP_VERSION must equal 1.9.2');
+    assert.equal(mod.APP_VERSION, '1.11.28', 'mod.APP_VERSION must equal 1.9.2');
 
     // sanitizeGanttItem preserves platform
     const sanitizedIos = mod.sanitizeGanttItem({
@@ -6179,7 +6179,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     assert.ok(appHtml.includes('data-testid="header-more-menu-btn"'), 'App header must render header-more-menu-btn');
     assert.ok(appHtml.includes('data-testid="header-more-menu-dropdown"'), 'App must render header-more-menu-dropdown');
     assert.ok(appHtml.includes('data-testid="app-version-badge"'), 'More menu must contain app-version-badge');
-    assert.ok(appHtml.includes('v1.11.27'), 'Version badge must display v1.11.27');
+    assert.ok(appHtml.includes('v1.11.28'), 'Version badge must display v1.11.28');
     assert.ok(appHtml.includes('data-testid="force-reload-btn"'), 'More menu must contain force-reload-btn');
 
     // 7. Verify secondary buttons are rendered inside the menu
@@ -6201,7 +6201,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
       hiddenReleaseCount: 0,
     }));
     assert.ok(settingsHtml.includes('data-testid="settings-version-badge"'), 'SettingsModal must contain settings-version-badge');
-    assert.ok(settingsHtml.includes('1.11.27') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.9.2');
+    assert.ok(settingsHtml.includes('1.11.28') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and 1.9.2');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6355,14 +6355,14 @@ test('Test 61: Version button, compiled release notes modal and changelog across
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
 
     // 1. Check RELEASE_NOTES compiled data
-    assert.strictEqual(mod.APP_VERSION, '1.11.27');
+    assert.strictEqual(mod.APP_VERSION, '1.11.28');
     assert.ok(Array.isArray(mod.RELEASE_NOTES), 'RELEASE_NOTES must be an array');
     assert.ok(mod.RELEASE_NOTES.length >= 10, 'RELEASE_NOTES must have at least 10 releases');
 
     const latest = mod.RELEASE_NOTES[0];
-    assert.strictEqual(latest.version, '1.11.27', 'First release note must be 1.9.2');
+    assert.strictEqual(latest.version, '1.11.28', 'First release note must be 1.9.2');
     assert.strictEqual(latest.isLatest, true, 'First release note must be isLatest: true');
-    assert.ok(latest.features.length > 0, 'v1.11.27 must contain features');
+    assert.ok(latest.features.length > 0, 'v1.11.28 must contain features');
 
     // 2. Render App and verify version button exists in dropdown menu and is NOT duplicated in top header
     const appHtml = renderToString(React.createElement(mod.App));
@@ -6375,8 +6375,8 @@ test('Test 61: Version button, compiled release notes modal and changelog across
       'App dropdown must contain data-testid="app-version-badge"'
     );
     assert.ok(
-      appHtml.includes('<button') && appHtml.includes('data-testid="app-version-badge"') && appHtml.includes('v1.11.27'),
-      'app-version-badge in tools dropdown must be an interactive button showing v1.11.27'
+      appHtml.includes('<button') && appHtml.includes('data-testid="app-version-badge"') && appHtml.includes('v1.11.28'),
+      'app-version-badge in tools dropdown must be an interactive button showing v1.11.28'
     );
 
     // 3. Render ReleaseNotesModal
@@ -8193,7 +8193,7 @@ test('Test 73: v1.9.0 project alert level (0-3), workspace toolbar alert filter,
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.strictEqual(mod.APP_VERSION, '1.11.27', 'APP_VERSION must be 1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.11.28', 'APP_VERSION must be 1.9.2');
 
     // 1. Check sanitizeProject and describeProjectStateChanges for alertLevel
     const pSanitized0 = mod.sanitizeProject({ id: 'p-1', name: 'Proj 1', alertLevel: 0 });
@@ -8382,7 +8382,7 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.strictEqual(mod.APP_VERSION, '1.11.27', 'APP_VERSION must be 1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.11.28', 'APP_VERSION must be 1.9.2');
 
     // 1. Verify description format: <descripción del proyecto si existe>\n\n* <nombre> <desc>
     const pWithDesc = {
@@ -8467,8 +8467,8 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
   }
 });
 
-// TEST 75: v1.11.27 Project locking, accidental move guard & unlock prompt modal
-test('Test 75: v1.11.27 project locking, cascade/dependency protection, plan history badge, and unlock alert modal', async () => {
+// TEST 75: v1.11.28 Project locking, accidental move guard & unlock prompt modal
+test('Test 75: v1.11.28 project locking, cascade/dependency protection, plan history badge, and unlock alert modal', async () => {
   const fs = await import('node:fs/promises');
   const path = await import('node:path');
   const { fileURLToPath } = await import('node:url');
@@ -8479,7 +8479,7 @@ test('Test 75: v1.11.27 project locking, cascade/dependency protection, plan his
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
-  assert.strictEqual(pkg.version, '1.11.27', 'package.json version must equal 1.9.2');
+  assert.strictEqual(pkg.version, '1.11.28', 'package.json version must equal 1.9.2');
 
   const tmpFile = path.resolve(__dirname, `tmp_test75_bundle_${Date.now()}.mjs`);
   try {
@@ -8541,9 +8541,9 @@ test('Test 75: v1.11.27 project locking, cascade/dependency protection, plan his
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // 1. Version & release notes verification
-    assert.strictEqual(mod.APP_VERSION, '1.11.27', 'APP_VERSION must equal 1.9.2');
-    assert.strictEqual(mod.RELEASE_NOTES[0].version, '1.11.27', 'Latest release note must be 1.9.2');
-    assert.strictEqual(mod.RELEASE_NOTES[0].isLatest, true, 'v1.11.27 release note must be marked isLatest');
+    assert.strictEqual(mod.APP_VERSION, '1.11.28', 'APP_VERSION must equal 1.9.2');
+    assert.strictEqual(mod.RELEASE_NOTES[0].version, '1.11.28', 'Latest release note must be 1.9.2');
+    assert.strictEqual(mod.RELEASE_NOTES[0].isLatest, true, 'v1.11.28 release note must be marked isLatest');
 
     // 2. sanitizeProject, getLockedProjectForItem, describeProjectStateChanges
     const lockedProj = mod.sanitizeProject({
@@ -8740,7 +8740,7 @@ test('Test 75: v1.11.27 project locking, cascade/dependency protection, plan his
   }
 });
 
-test('Test 76: v1.11.27 automatic Free Slack calculation given successor tasks across engine, table badge, inspector sidebar and task modal', async () => {
+test('Test 76: v1.11.28 automatic Free Slack calculation given successor tasks across engine, table badge, inspector sidebar and task modal', async () => {
   // 1. Engine calculation: FS dependency with multiple successors
   const testItems = [
     {
@@ -14203,6 +14203,169 @@ test('Test 114: macOS-style SettingsModal (General / Releases / Historial / Vers
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
+});
+
+test('computeFitToProjectScale respects Focus Mode for project, empty project with release, release, and task', () => {
+  const projects = [
+    { id: 'p-early', name: 'Early Project', color: 'blue', releaseId: 'rel-early' },
+    { id: 'p-focused', name: 'Focused Project', color: 'violet', releaseId: 'rel-mid' },
+    { id: 'p-mid-2', name: 'Second Mid Project', color: 'emerald', releaseId: 'rel-mid' },
+    { id: 'p-empty-rel', name: 'Empty Project In Release', color: 'amber', releaseId: 'rel-late' },
+  ];
+  const releases = [
+    {
+      id: 'rel-early',
+      code: 'T_26.01',
+      name: 'Release Early',
+      color: 'blue',
+      startDate: '2026-01-01',
+      endDate: '2026-02-15',
+      milestones: [],
+    },
+    {
+      id: 'rel-mid',
+      code: 'T_26.06',
+      name: 'Release Mid',
+      color: 'violet',
+      startDate: '2026-06-01',
+      endDate: '2026-06-30',
+      milestones: [
+        { id: 'm1', key: 'qg5', code: 'QG5', name: 'QG5', category: 'QG', date: '2026-07-05' },
+      ],
+    },
+    {
+      id: 'rel-late',
+      code: 'T_26.11',
+      name: 'Release Late',
+      color: 'amber',
+      startDate: '2026-11-01',
+      endDate: '2026-11-20',
+      milestones: [],
+    },
+  ];
+  const items = [
+    {
+      id: 't-early',
+      name: 'Early Task',
+      type: 'task',
+      projectId: 'p-early',
+      startDate: '2026-01-05',
+      endDate: '2026-02-10',
+      duration: 37,
+      slack: 0,
+      dependencies: [],
+      progress: 100,
+      color: 'blue',
+    },
+    {
+      id: 't-f1',
+      name: 'Focused Task 1',
+      type: 'task',
+      projectId: 'p-focused',
+      startDate: '2026-06-02',
+      endDate: '2026-06-12',
+      duration: 11,
+      slack: 0,
+      dependencies: [],
+      progress: 0,
+      color: 'violet',
+    },
+    {
+      id: 't-f2',
+      name: 'Focused Task 2',
+      type: 'task',
+      projectId: 'p-focused',
+      startDate: '2026-06-13',
+      endDate: '2026-06-21',
+      duration: 9,
+      slack: 0,
+      dependencies: ['t-f1'],
+      progress: 0,
+      color: 'violet',
+    },
+    {
+      id: 't-mid2',
+      name: 'Other Project In Mid Release',
+      type: 'task',
+      projectId: 'p-mid-2',
+      startDate: '2026-06-20',
+      endDate: '2026-06-28',
+      duration: 9,
+      slack: 0,
+      dependencies: [],
+      progress: 0,
+      color: 'emerald',
+    },
+  ];
+
+  const refToday = new Date(2026, 0, 1);
+
+  // Full portfolio fit spans Jan..Jun (~175 days)
+  const portfolioFit = computeFitToProjectScale(items, 1000, { referenceToday: refToday });
+
+  // 1. Focus on project: maximizes zoom strictly to p-focused (20 days) and scrolls to June relative to full timeline
+  const focusedProjectFit = computeFitToProjectScale(items, 1000, {
+    focusEntity: { type: 'project', id: 'p-focused', name: 'Focused Project' },
+    projects,
+    releases,
+    referenceToday: refToday,
+  });
+  assert.equal(focusedProjectFit.targetProjectId, 'p-focused');
+  assert.equal(focusedProjectFit.startDate, '2026-06-02');
+  assert.equal(focusedProjectFit.endDate, '2026-06-21');
+  assert.equal(focusedProjectFit.spanDays, 20);
+  assert.ok(
+    focusedProjectFit.dayWidth > portfolioFit.dayWidth * 3,
+    `Focused project dayWidth (${focusedProjectFit.dayWidth}) should be significantly larger than portfolio (${portfolioFit.dayWidth})`
+  );
+  assert.ok(
+    focusedProjectFit.scrollLeft > 1000,
+    `Focused project scrollLeft (${focusedProjectFit.scrollLeft}) should scroll to June on the full timeline`
+  );
+
+  // 2. Focus on empty project with release: falls back to its release span
+  const emptyProjFit = computeFitToProjectScale(items, 1000, {
+    focusEntity: { type: 'project', id: 'p-empty-rel', name: 'Empty Project In Release' },
+    projects,
+    releases,
+    referenceToday: refToday,
+  });
+  assert.equal(emptyProjFit.targetProjectId, 'p-empty-rel');
+  assert.equal(emptyProjFit.startDate, '2026-11-01');
+  assert.equal(emptyProjFit.endDate, '2026-11-20');
+  assert.equal(emptyProjFit.spanDays, 20);
+
+  // 3. Focus on release: maximizes zoom to all projects/items in rel-mid AND its milestones (Jun 1..Jul 5)
+  const focusedReleaseFit = computeFitToProjectScale(items, 1000, {
+    focusEntity: { type: 'release', id: 'rel-mid', name: 'Release Mid' },
+    projects,
+    releases,
+    referenceToday: refToday,
+  });
+  assert.equal(focusedReleaseFit.targetProjectId, 'rel-mid');
+  assert.equal(focusedReleaseFit.startDate, '2026-06-01');
+  assert.equal(focusedReleaseFit.endDate, '2026-07-05');
+  assert.equal(focusedReleaseFit.spanDays, 35);
+  assert.ok(
+    focusedReleaseFit.dayWidth > portfolioFit.dayWidth * 2,
+    `Focused release dayWidth (${focusedReleaseFit.dayWidth}) should be significantly larger than portfolio (${portfolioFit.dayWidth})`
+  );
+  assert.ok(
+    focusedReleaseFit.scrollLeft > 1000,
+    `Focused release scrollLeft (${focusedReleaseFit.scrollLeft}) should scroll to June on the full timeline`
+  );
+
+  // 4. Focus on task: maximizes zoom to the task and its connected dependency chain (t-f1 -> t-f2)
+  const focusedTaskFit = computeFitToProjectScale(items, 1000, {
+    focusEntity: { type: 'task', id: 't-f1', name: 'Focused Task 1' },
+    projects,
+    releases,
+    referenceToday: refToday,
+  });
+  assert.equal(focusedTaskFit.targetProjectId, 't-f1');
+  assert.equal(focusedTaskFit.startDate, '2026-06-02');
+  assert.equal(focusedTaskFit.endDate, '2026-06-21');
+  assert.equal(focusedTaskFit.spanDays, 20);
 });
 
 

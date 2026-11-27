@@ -3002,39 +3002,123 @@ export function computeFitToProjectScale(
   viewportWidth: number,
   options?: {
     projectId?: string;
+    focusEntity?: FocusEntity | null;
+    projects?: GanttProject[];
+    releases?: Release[];
     referenceToday?: Date;
     horizontalPaddingPx?: number;
     extraDates?: Array<string | Date | null | undefined>;
+    timelineItems?: Array<GanttItem | ComputedGanttItem>;
+    timelineExtraDates?: Array<string | Date | null | undefined>;
+    timelineStart?: Date;
   }
 ): FitToProjectResult {
   const todayStr = formatDateISO(startOfDay(options?.referenceToday || new Date()));
   const requestedProjectId = options?.projectId || 'all';
+  const focusEntity = requestedProjectId === 'all' ? options?.focusEntity || null : null;
   const validExtraDates = (options?.extraDates || []).filter(
     (d): d is string | Date => d != null && d !== ''
   );
 
-  if ((!items || items.length === 0) && validExtraDates.length === 0) {
+  const collectReleaseDates = (releaseId?: string | null): string[] => {
+    if (!releaseId || !options?.releases) return [];
+    const rel = options.releases.find((r) => r.id === releaseId);
+    if (!rel) return [];
+    const dates = new Set<string>();
+    const span = getReleaseDateSpan(rel);
+    if (rel.startDate) dates.add(rel.startDate);
+    if (rel.endDate) dates.add(rel.endDate);
+    if (span.startDate) dates.add(span.startDate);
+    if (span.endDate) dates.add(span.endDate);
+    for (const m of rel.milestones || []) {
+      if (m && m.date) dates.add(m.date);
+    }
+    return Array.from(dates);
+  };
+
+  let targetItems: Array<GanttItem | ComputedGanttItem> = [];
+  let targetExtraDates: Array<string | Date> = [];
+  let resolvedTargetId = requestedProjectId;
+
+  if (focusEntity) {
+    resolvedTargetId = focusEntity.id;
+    if (focusEntity.type === 'project') {
+      const projItems = (items || []).filter((it) => it.projectId === focusEntity.id);
+      if (projItems.length > 0) {
+        targetItems = projItems;
+      } else {
+        const proj = (options?.projects || []).find((p) => p.id === focusEntity.id);
+        const relDates = collectReleaseDates(proj?.releaseId);
+        if (relDates.length > 0) {
+          targetExtraDates = relDates;
+        } else {
+          targetItems = items || [];
+          targetExtraDates = validExtraDates;
+          resolvedTargetId = 'all';
+        }
+      }
+    } else if (focusEntity.type === 'release') {
+      const releaseProjectIds = new Set(
+        (options?.projects || [])
+          .filter((p) => p.releaseId === focusEntity.id)
+          .map((p) => p.id)
+      );
+      const relItems = (items || []).filter(
+        (it) =>
+          (it.projectId && releaseProjectIds.has(it.projectId)) ||
+          it.releaseId === focusEntity.id
+      );
+      const relDates = collectReleaseDates(focusEntity.id);
+      if (relItems.length > 0 || relDates.length > 0) {
+        targetItems = relItems;
+        targetExtraDates = relDates;
+      } else {
+        targetItems = items || [];
+        targetExtraDates = validExtraDates;
+        resolvedTargetId = 'all';
+      }
+    } else if (focusEntity.type === 'task') {
+      const related = getRelatedFocusEntityIds(
+        focusEntity,
+        items || [],
+        options?.projects || []
+      );
+      const relatedSet = new Set(related.itemIds);
+      const taskItems = (items || []).filter((it) => relatedSet.has(it.id));
+      if (taskItems.length > 0) {
+        targetItems = taskItems;
+      } else {
+        targetItems = items || [];
+        targetExtraDates = validExtraDates;
+        resolvedTargetId = 'all';
+      }
+    }
+  } else {
+    const filtered =
+      requestedProjectId !== 'all'
+        ? (items || []).filter((it) => it.projectId === requestedProjectId)
+        : items || [];
+    targetItems = filtered.length > 0 ? filtered : items || [];
+    targetExtraDates = validExtraDates;
+    resolvedTargetId = filtered.length > 0 ? requestedProjectId : 'all';
+  }
+
+  if (targetItems.length === 0 && targetExtraDates.length === 0) {
     return {
       dayWidth: DEFAULT_DAY_WIDTH,
       scrollLeft: 0,
       spanDays: 1,
       startDate: todayStr,
       endDate: todayStr,
-      targetProjectId: requestedProjectId,
+      targetProjectId: resolvedTargetId,
     };
   }
 
-  const filtered =
-    requestedProjectId !== 'all'
-      ? (items || []).filter((it) => it.projectId === requestedProjectId)
-      : items || [];
-  const targetItems = filtered.length > 0 ? filtered : items || [];
-
   const firstExtraParsed =
-    validExtraDates.length > 0
-      ? typeof validExtraDates[0] === 'string'
-        ? parseDateSafe(validExtraDates[0])
-        : startOfDay(validExtraDates[0])
+    targetExtraDates.length > 0
+      ? typeof targetExtraDates[0] === 'string'
+        ? parseDateSafe(targetExtraDates[0])
+        : startOfDay(targetExtraDates[0])
       : parseDateSafe(todayStr);
 
   let minStart =
@@ -3050,8 +3134,8 @@ export function computeFitToProjectScale(
     if (withSlack > maxEnd) maxEnd = withSlack;
   }
 
-  if (validExtraDates.length > 0) {
-    for (const d of validExtraDates) {
+  if (targetExtraDates.length > 0) {
+    for (const d of targetExtraDates) {
       const parsed = typeof d === 'string' ? parseDateSafe(d) : startOfDay(d);
       if (parsed < minStart) minStart = parsed;
       if (parsed > maxEnd) maxEnd = parsed;
@@ -3069,12 +3153,14 @@ export function computeFitToProjectScale(
   const rawDayWidth = usableWidth / Math.max(2, spanDays + 2);
   const dayWidth = clampDayWidth(rawDayWidth);
 
-  const { timelineStart } = computeTimelineBounds(
-    items,
-    options?.referenceToday,
-    options?.extraDates
-  );
-  const startOffsetDays = differenceInCalendarDays(minStart, timelineStart);
+  const resolvedTimelineStart =
+    options?.timelineStart ??
+    computeTimelineBounds(
+      options?.timelineItems ?? items,
+      options?.referenceToday,
+      options?.timelineExtraDates ?? options?.extraDates
+    ).timelineStart;
+  const startOffsetDays = differenceInCalendarDays(minStart, resolvedTimelineStart);
   const targetStartX = startOffsetDays * dayWidth;
   const leftMarginPx = Math.max(16, Math.min(48, dayWidth * 1.5));
   const scrollLeft = Math.max(0, Math.round(targetStartX - leftMarginPx));
@@ -3085,7 +3171,7 @@ export function computeFitToProjectScale(
     spanDays,
     startDate: formatDateISO(minStart),
     endDate: formatDateISO(maxEnd),
-    targetProjectId: filtered.length > 0 ? requestedProjectId : 'all',
+    targetProjectId: resolvedTargetId,
   };
 }
 

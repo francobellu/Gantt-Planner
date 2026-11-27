@@ -2288,13 +2288,19 @@ export function App({
     }
   };
 
-  const handleFitToProject = (targetProjectId?: string, notify = true) => {
+  const handleFitToProject = (
+    targetProjectId?: string,
+    notify = true,
+    options?: { timelineStart?: Date }
+  ) => {
     const container = scrollContainerRef.current;
     const viewportW = container && container.clientWidth > 0 ? container.clientWidth : 980;
-    const pid = targetProjectId || selectedProjectId || 'all';
+    const hasExplicitProjectTarget = Boolean(targetProjectId && targetProjectId !== 'all');
+    const useFocusFit = !hasExplicitProjectTarget && isFocusMode && Boolean(focusEntity);
+    const pid = useFocusFit ? 'all' : targetProjectId || selectedProjectId || 'all';
     const selectedSet = new Set(selectedProjectIds);
     const projectsToFit =
-      targetProjectId && targetProjectId !== 'all'
+      hasExplicitProjectTarget
         ? effectiveProjects.filter((p) => p.id === targetProjectId)
         : !targetProjectId &&
           pid === 'all' &&
@@ -2303,7 +2309,8 @@ export function App({
         ? effectiveProjects.filter((p) => selectedSet.has(p.id))
         : effectiveProjects;
     const itemsToFit =
-      !targetProjectId &&
+      !hasExplicitProjectTarget &&
+      !useFocusFit &&
       pid === 'all' &&
       selectedSet.size > 0 &&
       selectedSet.size < effectiveProjects.length
@@ -2311,10 +2318,20 @@ export function App({
             selectedSet.has(it.projectId || effectiveProjects[0]?.id || 'proj-default')
           )
         : computedItems;
-    const extraDates = collectTimelineAnchorDates({
-      projects: projectsToFit,
+    const extraDates = useFocusFit
+      ? undefined
+      : collectTimelineAnchorDates({
+          projects: projectsToFit,
+          releases,
+          items: hasExplicitProjectTarget
+            ? computedItems.filter((it) => it.projectId === targetProjectId)
+            : itemsToFit,
+          hiddenReleaseIds,
+        });
+    const timelineExtraDates = collectTimelineAnchorDates({
+      projects: effectiveProjects,
       releases,
-      items: itemsToFit,
+      items: computedItems,
       hiddenReleaseIds,
     });
     const fit = computeFitToProjectScale(
@@ -2322,7 +2339,13 @@ export function App({
       viewportW,
       {
         projectId: pid,
+        focusEntity: useFocusFit ? focusEntity : null,
+        projects: effectiveProjects,
+        releases,
         extraDates,
+        timelineItems: computedItems,
+        timelineExtraDates,
+        timelineStart: options?.timelineStart,
       }
     );
     setDayWidth(fit.dayWidth);
@@ -2339,7 +2362,19 @@ export function App({
       });
     }
     if (notify) {
-      showToast(`Escala auto-ajustada: ${fit.dayWidth} px/día (${fit.spanDays} días en vista)`);
+      if (useFocusFit && focusEntity) {
+        const entityLabel =
+          focusEntity.type === 'release'
+            ? 'release'
+            : focusEntity.type === 'project'
+            ? 'proyecto'
+            : 'enfoque';
+        showToast(
+          `Zoom ajustado a ${entityLabel} '${focusEntity.name || focusEntity.id}': ${fit.dayWidth} px/día (${fit.spanDays} días en vista)`
+        );
+      } else {
+        showToast(`Escala auto-ajustada: ${fit.dayWidth} px/día (${fit.spanDays} días en vista)`);
+      }
     }
   };
 
@@ -3275,7 +3310,7 @@ export function App({
               zoom={zoom}
               dayWidth={dayWidth}
               onChangeDayWidth={handleChangeDayWidth}
-              onFitToProject={(pid) => handleFitToProject(pid)}
+              onFitToProject={(pid, opts) => handleFitToProject(pid, true, opts)}
               showCriticalPath={showCriticalPath}
               onToggleCriticalPath={() => setShowCriticalPath((prev) => !prev)}
               onScrollToToday={scrollToToday}

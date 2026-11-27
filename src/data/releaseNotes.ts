@@ -10,10 +10,20 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.11.28',
+    date: '27 Nov 2026',
+    title: 'Ajustar zoom respetando el modo enfoque',
+    isLatest: true,
+    features: [
+      'Ajustar zoom maximiza ahora el proyecto, release o tarea enfocados cuando el modo enfoque está activo',
+      'Sincroniza el origen temporal del canvas para desplazar exactamente al elemento enfocado',
+      'Actualiza el tooltip y notificación del botón Ajustar zoom según el enfoque activo',
+    ],
+  },
+  {
     version: '1.11.27',
     date: '26 Nov 2026',
     title: 'Rediseño de Configuración estilo macOS, limpieza de Releases y Ayuda en barra principal',
-    isLatest: true,
     features: [
       'Eliminadas opciones redundantes de ocultar/mostrar release en ReleasesModal',
       'Rediseñado SettingsModal con barra lateral izquierda de categorías (General, Releases, Historial y Versiones/Changelog) y panel derecho de detalle',

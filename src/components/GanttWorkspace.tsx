@@ -194,7 +194,7 @@ interface GanttWorkspaceProps {
   zoom: ZoomLevel;
   dayWidth?: number;
   onChangeDayWidth?: (newDayWidth: number) => void;
-  onFitToProject?: (projectId?: string) => void;
+  onFitToProject?: (projectId?: string, options?: { timelineStart?: Date }) => void;
   showCriticalPath: boolean;
   onToggleCriticalPath?: () => void;
   onScrollToToday?: () => void;
@@ -2866,21 +2866,33 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     updateDayWidth(clamped);
   };
 
+  const timelineStartRef = useRef<Date | undefined>(undefined);
+
   const handleFitProjectAction = (targetProjectId?: string) => {
-    const pid = targetProjectId || selectedProjectId || 'all';
-    if (targetProjectId && onToggleProjectCollapse) {
-      const targetProj = projects.find((p) => p.id === targetProjectId);
+    const isFocusedFit = !targetProjectId && isFocusMode && Boolean(focusEntity);
+    const pid = isFocusedFit ? undefined : targetProjectId || selectedProjectId || 'all';
+    const expandProjectId =
+      targetProjectId ||
+      (isFocusedFit && focusEntity?.type === 'project' ? focusEntity.id : undefined);
+    if (expandProjectId && onToggleProjectCollapse) {
+      const targetProj = projects.find((p) => p.id === expandProjectId);
       if (targetProj?.collapsed) {
-        onToggleProjectCollapse(targetProjectId);
+        onToggleProjectCollapse(expandProjectId);
       }
     }
     if (onFitToProject) {
-      onFitToProject(pid);
+      onFitToProject(pid, { timelineStart: timelineStartRef.current });
       return;
     }
     const container = scrollContainerRef.current;
     const viewportW = container && container.clientWidth > 0 ? container.clientWidth : 960;
-    const fit = computeFitToProjectScale(items, viewportW, { projectId: pid });
+    const fit = computeFitToProjectScale(items, viewportW, {
+      projectId: pid,
+      focusEntity: isFocusedFit ? focusEntity : null,
+      projects,
+      releases,
+      timelineStart: timelineStartRef.current,
+    });
     if (canvasRef.current) {
       canvasRef.current.style.width = `${timelineDaysCountRef.current * fit.dayWidth}px`;
     }
@@ -3677,6 +3689,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
     const tIdx = days.findIndex((d) => isSameDay(d, today));
     timelineDaysCountRef.current = days.length;
+    timelineStartRef.current = paddedStart;
 
     return {
       timelineDays: days,
@@ -6255,7 +6268,17 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               data-fit-project-header-btn="true"
               onClick={() => handleFitProjectAction()}
               aria-label="Ajustar a Proyecto"
-              title="Ajustar a Proyecto (ajustar zoom al proyecto completo)"
+              title={
+                isFocusMode && focusEntity
+                  ? `Ajustar zoom a ${
+                      focusEntity.type === 'release'
+                        ? 'la release enfocada'
+                        : focusEntity.type === 'project'
+                        ? 'el proyecto enfocado'
+                        : 'la tarea enfocada'
+                    } (${focusEntity.name || focusEntity.id})`
+                  : 'Ajustar a Proyecto (ajustar zoom al proyecto completo)'
+              }
               className="w-7 h-7 flex items-center justify-center rounded-[3px] border border-[#E2E2DC] dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09] dark:hover:text-white hover:border-[#0C0C09] dark:hover:border-zinc-500 transition cursor-pointer shrink-0"
             >
               <Maximize2 className="w-3.5 h-3.5" />
@@ -6263,7 +6286,13 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             <div className="pointer-events-none absolute top-full mt-1.5 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col items-center z-50 animate-fade-in">
               <div className="w-1.5 h-1.5 bg-[#0C0C09] dark:bg-zinc-100 rotate-45 -mb-0.5" />
               <div className="bg-[#0C0C09] dark:bg-zinc-100 text-white dark:text-[#0C0C09] text-[10px] font-medium px-2 py-0.5 rounded shadow-lg whitespace-nowrap">
-                Ajustar zoom al proyecto
+                {isFocusMode && focusEntity
+                  ? focusEntity.type === 'release'
+                    ? 'Ajustar zoom a la release enfocada'
+                    : focusEntity.type === 'project'
+                    ? 'Ajustar zoom al proyecto enfocado'
+                    : 'Ajustar zoom al enfoque activo'
+                  : 'Ajustar zoom al proyecto'}
               </div>
             </div>
           </div>
