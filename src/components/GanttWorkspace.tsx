@@ -285,12 +285,14 @@ interface GanttWorkspaceProps {
   truncateCharLimit?: number;
   onChangeTruncateCharLimit?: (limit: number) => void;
   initialSearchQuery?: string;
+  initialExcludeQuery?: string;
   initialAlertFilter?: 'all' | ProjectAlertLevel;
   initialTypeFilter?: UnifiedRowTypeFilter;
   initialReleaseFilter?: string;
   initialShowSubtasksOnFilter?: boolean;
   initialSearchFields?: Partial<GanttSearchFieldsConfig>;
   initialShowSearchFieldsMenu?: boolean;
+  initialShowAdvancedPanel?: boolean;
 }
 
 
@@ -734,15 +736,18 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   truncateCharLimit,
   onChangeTruncateCharLimit,
   initialSearchQuery = '',
+  initialExcludeQuery = '',
   initialAlertFilter = 'all',
   initialTypeFilter = 'all',
   initialReleaseFilter = 'all',
   initialShowSubtasksOnFilter = false,
   initialSearchFields,
   initialShowSearchFieldsMenu = false,
+  initialShowAdvancedPanel = false,
 }) => {
   const [focusedProjectInputId, setFocusedProjectInputId] = useState<string | null>(null);
   const [tableSearchQuery, setTableSearchQuery] = useState<string>(initialSearchQuery);
+  const [tableExcludeQuery, setTableExcludeQuery] = useState<string>(initialExcludeQuery);
   const [showSubtasksOnFilter, setShowSubtasksOnFilter] = useState<boolean>(initialShowSubtasksOnFilter);
   const [searchFields, setSearchFields] = useState<GanttSearchFieldsConfig>(() => ({
     ...DEFAULT_GANTT_SEARCH_FIELDS,
@@ -3112,6 +3117,15 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       });
     }
 
+    const excludeQ = tableExcludeQuery.trim().toLowerCase();
+    if (excludeQ) {
+      filtered = filtered.filter((g) => {
+        if (doesProjectMatchQuery(g.project, g.projectIndex, excludeQ)) return false;
+        if (g.items.length === 0) return true;
+        return g.items.some((it) => !doesItemMatchQuery(it, excludeQ));
+      });
+    }
+
     if (focusRelatedSets) {
       filtered = filtered.filter((g) => focusRelatedSets.projectIds.has(g.project.id));
     }
@@ -3129,6 +3143,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     tablePlatformFilter,
     tableAlertFilter,
     tableSearchQuery,
+    tableExcludeQuery,
     searchFields,
     enrichedItemById,
     focusRelatedSets,
@@ -3157,6 +3172,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         ? selectedPlatform
         : 'all';
     const query = tableSearchQuery.trim().toLowerCase();
+    const excludeQ = tableExcludeQuery.trim().toLowerCase();
 
     const targetRelForFilter =
       tableReleaseFilter !== 'all'
@@ -3194,6 +3210,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         if (!itemAlertMatches && !(showSubtasksOnFilter && projAlertMatches)) {
           return false;
         }
+      }
+      if (excludeQ) {
+        if (doesItemMatchQuery(it, excludeQ)) return false;
+        if (doesProjectMatchQuery(proj, projectIndex, excludeQ)) return false;
       }
       if (!query) return true;
       if (doesItemMatchQuery(it, query)) return true;
@@ -3392,6 +3412,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     hiddenReleaseIds,
     focusRelatedSets,
     tableSearchQuery,
+    tableExcludeQuery,
     tableTypeFilter,
     tableReleaseFilter,
     tablePlatformFilter,
@@ -5617,11 +5638,13 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
           <div className="h-4 w-px bg-[#E2E2DC] dark:bg-zinc-800 shrink-0 hidden sm:block" />
 
-          {/* Unified Search & Filter Bar (shared with Informe de Planificación) */}
+          {/* Unified Gmail-style Search & Filter Bar (shared with Planificación) */}
           <SearchFilterBar
             testIdPrefix="table"
             searchQuery={tableSearchQuery}
             onChangeSearchQuery={setTableSearchQuery}
+            excludeQuery={tableExcludeQuery}
+            onChangeExcludeQuery={setTableExcludeQuery}
             searchFields={searchFields}
             onChangeSearchFields={setSearchFields}
             selectedType={tableTypeFilter}
@@ -5636,9 +5659,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             showSubtasksOnFilter={showSubtasksOnFilter}
             onChangeShowSubtasksOnFilter={setShowSubtasksOnFilter}
             initialShowSearchFieldsMenu={initialShowSearchFieldsMenu}
+            initialShowAdvancedPanel={initialShowAdvancedPanel}
             enableBuiltInSavedFilters={true}
             onClearFilters={() => {
               setTableSearchQuery('');
+              setTableExcludeQuery('');
               setTableTypeFilter('all');
               handleSelectPlatformFilter('all');
               setTableAlertFilter('all');
@@ -6125,6 +6150,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         className="flex flex-col items-center justify-center py-12 px-6 text-center bg-slate-50/40 dark:bg-zinc-900/30"
                       >
                         {tableSearchQuery.trim() ||
+                        tableExcludeQuery.trim() ||
                         tableTypeFilter !== 'all' ||
                         tablePlatformFilter !== 'all' ||
                         tableAlertFilter !== 'all' ||
@@ -6142,6 +6168,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               data-testid="table-reset-filters-btn"
                               onClick={() => {
                                 setTableSearchQuery('');
+                                setTableExcludeQuery('');
                                 setTableTypeFilter('all');
                                 setTablePlatformFilter('all');
                                 setTableAlertFilter('all');

@@ -10,10 +10,21 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.13.0',
+    date: '27 Nov 2026',
+    title: 'Buscador unificado estilo Gmail con filtros avanzados, exclusión, columnas y edición completa de filtros guardados',
+    isLatest: true,
+    features: [
+      'Píldora única de búsqueda estilo Gmail con panel desplegable de criterios completos (Contiene, No contiene, campos, tipo, plataforma, alerta, release y subtareas)',
+      'Selector de columnas visibles integrado en el panel de Planificación',
+      'Pills de filtros guardados con aplicación en 1 clic y edición completa (texto, exclusión, criterios y columnas) mediante lápiz',
+      'Chips removibles de filtros activos en Cronograma y Planificación',
+    ],
+  },
+  {
     version: '1.12.5',
     date: '27 Nov 2026',
     title: 'Actualizar guía de Ayuda con las nuevas funcionalidades',
-    isLatest: true,
     features: [
       'Añade sección 10 sobre Planificación, Wizard de proyectos (QG5 y presets DIGI/ARQ/QA), clic derecho contextual, enfoque multi-proyecto, filtros unificados y auto-ajuste de columnas',
       'Actualiza las secciones de Configuración, Exportación JSON (Cmd/Ctrl+S) y Ajustar Zoom con Modo Enfoque',

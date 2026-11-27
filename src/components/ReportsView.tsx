@@ -336,6 +336,7 @@ export interface ReportSavedFilter {
   id: string;
   name: string;
   searchQuery: string;
+  excludeQuery?: string;
   searchFields?: GanttSearchFieldsConfig;
   selectedType: ReportRowTypeFilter;
   selectedPlatform: 'all' | ProjectPlatform;
@@ -351,6 +352,7 @@ export interface ReportSavedFilter {
 export function createSavedFilter(params: {
   name: string;
   searchQuery?: string;
+  excludeQuery?: string;
   searchFields?: GanttSearchFieldsConfig;
   selectedType?: ReportRowTypeFilter;
   selectedPlatform?: 'all' | ProjectPlatform;
@@ -366,6 +368,7 @@ export function createSavedFilter(params: {
     id: `filter-custom-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
     name: params.name.trim(),
     searchQuery: params.searchQuery ?? '',
+    excludeQuery: params.excludeQuery ?? '',
     searchFields: params.searchFields ? { ...params.searchFields } : undefined,
     selectedType: params.selectedType ?? 'all',
     selectedPlatform: params.selectedPlatform ?? 'all',
@@ -403,6 +406,9 @@ export function formatSavedFilterSummary(f: ReportSavedFilter): string {
   }
   if (f.searchQuery && f.searchQuery.trim()) {
     parts.push(`"${f.searchQuery.trim()}"`);
+  }
+  if (f.excludeQuery && f.excludeQuery.trim()) {
+    parts.push(`-"${f.excludeQuery.trim()}"`);
   }
   return parts.length > 0 ? parts.join(' · ') : 'Sin filtros de fila';
 }
@@ -505,9 +511,11 @@ interface ReportsViewProps {
   initialActiveSavedFilterId?: string;
   initialTypeFilter?: ReportRowTypeFilter;
   initialSearchQuery?: string;
+  initialExcludeQuery?: string;
   initialSearchFields?: Partial<GanttSearchFieldsConfig>;
   initialShowSubtasksOnFilter?: boolean;
   initialShowSearchFieldsMenu?: boolean;
+  initialShowAdvancedPanel?: boolean;
   initialContextMenu?: ReportRowContextMenuState | null;
   initialFocusedProjectIds?: string[];
   initialShowWizard?: boolean;
@@ -536,9 +544,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   initialActiveSavedFilterId,
   initialTypeFilter = 'all',
   initialSearchQuery,
+  initialExcludeQuery,
   initialSearchFields,
   initialShowSubtasksOnFilter = false,
   initialShowSearchFieldsMenu = false,
+  initialShowAdvancedPanel = false,
   initialContextMenu = null,
   initialFocusedProjectIds = [],
   initialShowWizard = false,
@@ -803,6 +813,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const [dragOverColKey, setDragOverColKey] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState(
     initialSearchQuery !== undefined ? initialSearchQuery : (initialMatchedSavedFilter?.searchQuery ?? '')
+  );
+  const [excludeQuery, setExcludeQuery] = useState(
+    initialExcludeQuery !== undefined ? initialExcludeQuery : (initialMatchedSavedFilter?.excludeQuery ?? '')
   );
   const [searchFields, setSearchFields] = useState<GanttSearchFieldsConfig>(() => ({
     ...DEFAULT_GANTT_SEARCH_FIELDS,
@@ -1184,6 +1197,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
   const applySavedFilter = (filter: ReportSavedFilter) => {
     setSearchQuery(filter.searchQuery ?? '');
+    setExcludeQuery(filter.excludeQuery ?? '');
     setSearchFields(filter.searchFields ? { ...DEFAULT_GANTT_SEARCH_FIELDS, ...filter.searchFields } : { ...DEFAULT_GANTT_SEARCH_FIELDS });
     setShowSubtasksOnFilter(Boolean(filter.showSubtasksOnFilter));
     setSelectedType(filter.selectedType ?? 'all');
@@ -1278,6 +1292,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               ...f,
               name: trimmed,
               searchQuery,
+              excludeQuery,
               searchFields: { ...searchFields },
               showSubtasksOnFilter,
               selectedType,
@@ -1292,6 +1307,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       const created = createSavedFilter({
         name: trimmed,
         searchQuery,
+        excludeQuery,
         searchFields: { ...searchFields },
         showSubtasksOnFilter,
         selectedType,
@@ -1316,6 +1332,64 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
     setNewFilterName('');
     setToastMessage(`Filtro "${trimmed}" guardado correctamente.`);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleSaveExternalSavedFilter = (name: string, existingId?: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const formatFields = resolveFormatFieldsFromChoice('__current__');
+    const targetIdx = existingId
+      ? savedFilters.findIndex((f) => f.id === existingId)
+      : savedFilters.findIndex((f) => f.name.toLowerCase() === trimmed.toLowerCase());
+
+    let savedId: string;
+    let nextFilters: ReportSavedFilter[];
+    if (targetIdx >= 0) {
+      savedId = savedFilters[targetIdx].id;
+      nextFilters = savedFilters.map((f, idx) =>
+        idx === targetIdx
+          ? {
+              ...f,
+              name: trimmed,
+              searchQuery,
+              excludeQuery,
+              searchFields: { ...searchFields },
+              showSubtasksOnFilter,
+              selectedType,
+              selectedPlatform,
+              selectedAlert,
+              selectedRelease,
+              ...formatFields,
+            }
+          : f
+      );
+    } else {
+      const created = createSavedFilter({
+        name: trimmed,
+        searchQuery,
+        excludeQuery,
+        searchFields: { ...searchFields },
+        showSubtasksOnFilter,
+        selectedType,
+        selectedPlatform,
+        selectedAlert,
+        selectedRelease,
+        ...formatFields,
+      });
+      savedId = created.id;
+      nextFilters = [...savedFilters, created];
+    }
+
+    setSavedFilters(nextFilters);
+    try {
+      localStorage.setItem(REPORT_SAVED_FILTERS_KEY, JSON.stringify(nextFilters));
+    } catch {}
+    setActiveSavedFilterId(savedId);
+    try {
+      localStorage.setItem(REPORT_ACTIVE_FILTER_KEY, savedId);
+    } catch {}
+    setToastMessage(`Filtro "${trimmed}" guardado con criterios y columnas.`);
     setTimeout(() => setToastMessage(null), 3000);
   };
 
@@ -1693,6 +1767,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           return false;
         }
       }
+      // Exclude query ("No contiene")
+      if (excludeQuery.trim()) {
+        const exQ = excludeQuery.trim().toLowerCase();
+        if (matchesSearchQuery(row, exQ)) {
+          return false;
+        }
+      }
       return true;
     };
 
@@ -1718,7 +1799,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       selectedRelease !== 'all' ||
       selectedAlert !== 'all' ||
       selectedPlatform !== 'all' ||
-      Boolean(searchQuery.trim());
+      Boolean(searchQuery.trim()) ||
+      Boolean(excludeQuery.trim());
 
     if (!hasFilters) {
       return baseCronoRows;
@@ -1793,10 +1875,17 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       }
       return false;
     });
-  }, [cronoRows, focusedProjectIds, selectedType, selectedPlatform, selectedAlert, selectedRelease, searchQuery, searchFields, showSubtasksOnFilter]);
+  }, [cronoRows, focusedProjectIds, selectedType, selectedPlatform, selectedAlert, selectedRelease, searchQuery, excludeQuery, searchFields, showSubtasksOnFilter]);
 
   // 3. Filter Tab 2: Resumen Proyectos
   const filteredProjectRows = useMemo(() => {
+    const matchesProjectText = (row: ProjectSummaryReportRow, q: string): boolean =>
+      (searchFields.name && row.projectName.toLowerCase().includes(q)) ||
+      (searchFields.displayId && row.code.toLowerCase().includes(q)) ||
+      (searchFields.description && row.description.toLowerCase().includes(q)) ||
+      (searchFields.platform && row.platform.toLowerCase().includes(q)) ||
+      (searchFields.assignee && row.team.toLowerCase().includes(q));
+
     return projectRows.filter((row) => {
       if (selectedPlatform !== 'all') {
         if (selectedPlatform === 'iOS/Android') {
@@ -1813,24 +1902,28 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       if (selectedRelease !== 'all' && row.releaseCode !== selectedRelease) {
         return false;
       }
-      if (searchQuery.trim()) {
-        const q = searchQuery.trim().toLowerCase();
-        const matched =
-          (searchFields.name && row.projectName.toLowerCase().includes(q)) ||
-          (searchFields.displayId && row.code.toLowerCase().includes(q)) ||
-          (searchFields.description && row.description.toLowerCase().includes(q)) ||
-          (searchFields.platform && row.platform.toLowerCase().includes(q)) ||
-          (searchFields.assignee && row.team.toLowerCase().includes(q));
-        if (!matched) {
-          return false;
-        }
+      if (searchQuery.trim() && !matchesProjectText(row, searchQuery.trim().toLowerCase())) {
+        return false;
+      }
+      if (excludeQuery.trim() && matchesProjectText(row, excludeQuery.trim().toLowerCase())) {
+        return false;
       }
       return true;
     });
-  }, [projectRows, selectedPlatform, selectedAlert, selectedRelease, searchQuery, searchFields]);
+  }, [projectRows, selectedPlatform, selectedAlert, selectedRelease, searchQuery, excludeQuery, searchFields]);
 
   // 4. Filter Tab 3: Catálogo Releases
   const filteredReleaseRows = useMemo(() => {
+    const matchesReleaseText = (row: ReleaseSummaryReportRow, q: string): boolean =>
+      (searchFields.name &&
+        (row.name.toLowerCase().includes(q) || row.code.toLowerCase().includes(q))) ||
+      (searchFields.displayId && row.code.toLowerCase().includes(q)) ||
+      (searchFields.description &&
+        (row.assignedProjects.toLowerCase().includes(q) ||
+          row.month.toLowerCase().includes(q))) ||
+      (searchFields.platform &&
+        Boolean(row.platforms?.some((pl) => pl.toLowerCase().includes(q))));
+
     return releaseRows.filter((row) => {
       if (selectedRelease !== 'all' && row.code !== selectedRelease) {
         return false;
@@ -1848,24 +1941,15 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         const alerts = row.alertLevels || [];
         if (!alerts.includes(selectedAlert)) return false;
       }
-      if (searchQuery.trim()) {
-        const q = searchQuery.trim().toLowerCase();
-        const matched =
-          (searchFields.name &&
-            (row.name.toLowerCase().includes(q) || row.code.toLowerCase().includes(q))) ||
-          (searchFields.displayId && row.code.toLowerCase().includes(q)) ||
-          (searchFields.description &&
-            (row.assignedProjects.toLowerCase().includes(q) ||
-              row.month.toLowerCase().includes(q))) ||
-          (searchFields.platform &&
-            Boolean(row.platforms?.some((pl) => pl.toLowerCase().includes(q))));
-        if (!matched) {
-          return false;
-        }
+      if (searchQuery.trim() && !matchesReleaseText(row, searchQuery.trim().toLowerCase())) {
+        return false;
+      }
+      if (excludeQuery.trim() && matchesReleaseText(row, excludeQuery.trim().toLowerCase())) {
+        return false;
       }
       return true;
     });
-  }, [releaseRows, selectedPlatform, selectedAlert, selectedRelease, searchQuery, searchFields]);
+  }, [releaseRows, selectedPlatform, selectedAlert, selectedRelease, searchQuery, excludeQuery, searchFields]);
 
   const handleDownloadExcel = () => {
     try {
@@ -1964,6 +2048,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           testIdPrefix="reports"
           searchQuery={searchQuery}
           onChangeSearchQuery={setSearchQuery}
+          excludeQuery={excludeQuery}
+          onChangeExcludeQuery={setExcludeQuery}
           searchFields={searchFields}
           onChangeSearchFields={setSearchFields}
           selectedType={selectedType}
@@ -1981,6 +2067,20 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           showSubtasksToggle={activeTab === 'cronograma'}
           searchInputClassName="w-56 sm:w-64"
           initialShowSearchFieldsMenu={initialShowSearchFieldsMenu}
+          initialShowAdvancedPanel={initialShowAdvancedPanel}
+          columns={getOrderedColumns(activeTab).map((c) => ({
+            key: c.key,
+            label: c.label,
+            visible: isColVisible(activeTab, c.key),
+          }))}
+          onToggleColumn={(key) => toggleReportCol(activeTab, key)}
+          onResetColumns={() => resetReportCols(activeTab)}
+          enableBuiltInSavedFilters={activeTab === 'cronograma'}
+          externalSavedFilters={activeTab === 'cronograma' ? savedFilters : undefined}
+          externalActiveSavedFilterId={activeTab === 'cronograma' ? activeSavedFilterId : null}
+          onSelectExternalSavedFilter={(f) => applySavedFilter(f as ReportSavedFilter)}
+          onSaveExternalSavedFilter={handleSaveExternalSavedFilter}
+          onDeleteExternalSavedFilter={handleDeleteSavedFilter}
           savedFiltersSlot={
             activeTab === 'cronograma' ? (
               <div className="relative shrink-0" ref={savedFiltersMenuRef}>
@@ -2285,6 +2385,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           }
           onClearFilters={() => {
             setSearchQuery('');
+            setExcludeQuery('');
             setSearchFields({ ...DEFAULT_GANTT_SEARCH_FIELDS });
             setSelectedType('all');
             setSelectedPlatform('all');

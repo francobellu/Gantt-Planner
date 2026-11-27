@@ -3,8 +3,8 @@ import {
   AlertTriangle,
   Bookmark,
   Check,
-  ChevronDown,
   Filter,
+  Pencil,
   Plus,
   Search,
   SlidersHorizontal,
@@ -55,10 +55,37 @@ export function isDefaultSearchFields(fields: GanttSearchFieldsConfig): boolean 
   );
 }
 
+export interface SearchFilterColumnOption {
+  key: string;
+  label: string;
+  visible: boolean;
+}
+
+export interface StoredSavedFilter {
+  id: string;
+  name: string;
+  searchQuery: string;
+  excludeQuery?: string;
+  searchFields?: GanttSearchFieldsConfig;
+  selectedType: UnifiedRowTypeFilter;
+  selectedPlatform: 'all' | ProjectPlatform;
+  selectedAlert: 'all' | ProjectAlertLevel;
+  selectedRelease: string;
+  showSubtasksOnFilter?: boolean;
+  visibleColKeys?: string[];
+  colOrder?: string[];
+  formatPresetId?: string;
+  formatLabel?: string;
+}
+
+export const SHARED_SAVED_FILTERS_KEY = 'gantt_report_saved_filters_v1';
+
 export interface SearchFilterBarProps {
   testIdPrefix: 'table' | 'reports';
   searchQuery: string;
   onChangeSearchQuery: (value: string) => void;
+  excludeQuery?: string;
+  onChangeExcludeQuery?: (value: string) => void;
   searchFields: GanttSearchFieldsConfig;
   onChangeSearchFields: (next: GanttSearchFieldsConfig) => void;
   selectedType: UnifiedRowTypeFilter;
@@ -78,28 +105,31 @@ export interface SearchFilterBarProps {
   searchPlaceholder?: string;
   searchInputClassName?: string;
   initialShowSearchFieldsMenu?: boolean;
+  initialShowAdvancedPanel?: boolean;
+  /** Optional column picker inside the Gmail-style advanced panel (Planificación) */
+  columns?: SearchFilterColumnOption[];
+  onToggleColumn?: (key: string) => void;
+  onResetColumns?: () => void;
+  /** Optional external saved filters slot (kept for backwards compatibility) */
   savedFiltersSlot?: React.ReactNode;
+  /** Enables built-in Gmail-style saved filter pills + full create/edit inside panel */
   enableBuiltInSavedFilters?: boolean;
+  /** Optional callback when a saved filter with visibleColKeys is applied */
+  onApplySavedColumns?: (visibleColKeys: string[], colOrder?: string[]) => void;
+  /** Optional external saved filters list (syncs with ReportsView) */
+  externalSavedFilters?: StoredSavedFilter[];
+  externalActiveSavedFilterId?: string | null;
+  onSelectExternalSavedFilter?: (filter: StoredSavedFilter) => void;
+  onSaveExternalSavedFilter?: (name: string, existingId?: string) => void;
+  onDeleteExternalSavedFilter?: (id: string) => void;
 }
-
-interface StoredSavedFilter {
-  id: string;
-  name: string;
-  searchQuery: string;
-  searchFields?: GanttSearchFieldsConfig;
-  selectedType: UnifiedRowTypeFilter;
-  selectedPlatform: 'all' | ProjectPlatform;
-  selectedAlert: 'all' | ProjectAlertLevel;
-  selectedRelease: string;
-  showSubtasksOnFilter?: boolean;
-}
-
-const SHARED_SAVED_FILTERS_KEY = 'gantt_report_saved_filters_v1';
 
 export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
   testIdPrefix,
   searchQuery,
   onChangeSearchQuery,
+  excludeQuery = '',
+  onChangeExcludeQuery,
   searchFields,
   onChangeSearchFields,
   selectedType,
@@ -119,20 +149,32 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
   searchPlaceholder = 'Buscar proyecto o tarea...',
   searchInputClassName,
   initialShowSearchFieldsMenu = false,
+  initialShowAdvancedPanel = false,
+  columns,
+  onToggleColumn,
+  onResetColumns,
   savedFiltersSlot,
   enableBuiltInSavedFilters = false,
+  onApplySavedColumns,
+  externalSavedFilters,
+  externalActiveSavedFilterId,
+  onSelectExternalSavedFilter,
+  onSaveExternalSavedFilter,
+  onDeleteExternalSavedFilter,
 }) => {
-  const [showSearchFieldsMenu, setShowSearchFieldsMenu] = useState(initialShowSearchFieldsMenu);
-  const [showTypeFilterMenu, setShowTypeFilterMenu] = useState(false);
-  const [showPlatformFilterMenu, setShowPlatformFilterMenu] = useState(false);
-  const [showAlertFilterMenu, setShowAlertFilterMenu] = useState(false);
-  const [showBuiltInSavedMenu, setShowBuiltInSavedMenu] = useState(false);
-  const [builtInNewName, setBuiltInNewName] = useState('');
+  const [panelOpen, setPanelOpen] = useState<boolean>(
+    initialShowAdvancedPanel || initialShowSearchFieldsMenu
+  );
+  const [showSaveRow, setShowSaveRow] = useState<boolean>(false);
+  const [newFilterName, setNewFilterName] = useState<string>('');
   const [builtInActiveId, setBuiltInActiveId] = useState<string | null>(null);
   const [builtInFilters, setBuiltInFilters] = useState<StoredSavedFilter[]>(() => {
-    if (!enableBuiltInSavedFilters) return [];
+    if (!enableBuiltInSavedFilters || externalSavedFilters) return [];
     try {
-      const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(SHARED_SAVED_FILTERS_KEY) : null;
+      const raw =
+        typeof localStorage !== 'undefined'
+          ? localStorage.getItem(SHARED_SAVED_FILTERS_KEY)
+          : null;
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) return parsed;
@@ -141,89 +183,51 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
     return [];
   });
 
-  const searchFieldsMenuRef = useRef<HTMLDivElement>(null);
-  const typeFilterMenuRef = useRef<HTMLDivElement>(null);
-  const platformFilterMenuRef = useRef<HTMLDivElement>(null);
-  const alertFilterMenuRef = useRef<HTMLDivElement>(null);
-  const builtInSavedMenuRef = useRef<HTMLDivElement>(null);
+  const panelContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as Node;
+    if (!panelOpen) return;
+    const handleOutsideClick = (e: MouseEvent) => {
       if (
-        showSearchFieldsMenu &&
-        searchFieldsMenuRef.current &&
-        !searchFieldsMenuRef.current.contains(target)
+        panelContainerRef.current &&
+        !panelContainerRef.current.contains(e.target as Node)
       ) {
-        setShowSearchFieldsMenu(false);
-      }
-      if (
-        showTypeFilterMenu &&
-        typeFilterMenuRef.current &&
-        !typeFilterMenuRef.current.contains(target)
-      ) {
-        setShowTypeFilterMenu(false);
-      }
-      if (
-        showPlatformFilterMenu &&
-        platformFilterMenuRef.current &&
-        !platformFilterMenuRef.current.contains(target)
-      ) {
-        setShowPlatformFilterMenu(false);
-      }
-      if (
-        showAlertFilterMenu &&
-        alertFilterMenuRef.current &&
-        !alertFilterMenuRef.current.contains(target)
-      ) {
-        setShowAlertFilterMenu(false);
-      }
-      if (
-        showBuiltInSavedMenu &&
-        builtInSavedMenuRef.current &&
-        !builtInSavedMenuRef.current.contains(target)
-      ) {
-        setShowBuiltInSavedMenu(false);
+        setPanelOpen(false);
+        setShowSaveRow(false);
       }
     };
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setShowSearchFieldsMenu(false);
-        setShowTypeFilterMenu(false);
-        setShowPlatformFilterMenu(false);
-        setShowAlertFilterMenu(false);
-        setShowBuiltInSavedMenu(false);
+        setPanelOpen(false);
+        setShowSaveRow(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('mousedown', handleOutsideClick);
     document.addEventListener('keydown', handleKeyDown);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('mousedown', handleOutsideClick);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [
-    showSearchFieldsMenu,
-    showTypeFilterMenu,
-    showPlatformFilterMenu,
-    showAlertFilterMenu,
-    showBuiltInSavedMenu,
-  ]);
+  }, [panelOpen]);
 
   const optPrefix = testIdPrefix === 'reports' ? 'reports-' : '';
+
+  const effectiveSavedFilters = externalSavedFilters ?? builtInFilters;
+  const effectiveActiveFilterId =
+    externalActiveSavedFilterId !== undefined ? externalActiveSavedFilterId : builtInActiveId;
+  const activeSavedFilterObj = effectiveSavedFilters.find(
+    (f) => f.id === effectiveActiveFilterId
+  );
 
   const activeSearchFieldKeys = (
     Object.keys(searchFields) as (keyof GanttSearchFieldsConfig)[]
   ).filter((k) => searchFields[k]);
 
-  const searchFieldsBtnLabel =
+  const searchFieldsSummaryLabel =
     activeSearchFieldKeys.length === 1
-      ? activeSearchFieldKeys[0] === 'description'
-        ? 'Desc.'
-        : activeSearchFieldKeys[0] === 'assignee'
-        ? 'Equipo'
-        : activeSearchFieldKeys[0] === 'displayId'
-        ? 'ID'
-        : SEARCH_FIELD_LABELS[activeSearchFieldKeys[0]]
+      ? SEARCH_FIELD_LABELS[activeSearchFieldKeys[0]].split(' / ')[0]
+      : activeSearchFieldKeys.length === Object.keys(SEARCH_FIELD_LABELS).length
+      ? 'Todos'
       : `${activeSearchFieldKeys.length} campos`;
 
   const toggleSearchField = (field: keyof GanttSearchFieldsConfig) => {
@@ -233,315 +237,259 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
     onChangeSearchFields(next);
   };
 
-  const hasActiveFilters =
-    Boolean(searchQuery.trim()) ||
-    (showTypeFilter && selectedType !== 'all') ||
-    selectedPlatform !== 'all' ||
-    selectedAlert !== 'all' ||
-    selectedRelease !== 'all' ||
-    (showSubtasksToggle && showSubtasksOnFilter) ||
-    !isDefaultSearchFields(searchFields);
+  const visibleColsCount = columns ? columns.filter((c) => c.visible).length : 0;
+  const hasHiddenCols = Boolean(columns && visibleColsCount < columns.length);
+
+  // Count non-query active criteria for the Gmail sliders badge
+  let activeCriteriaCount = 0;
+  if (excludeQuery.trim()) activeCriteriaCount += 1;
+  if (!isDefaultSearchFields(searchFields)) activeCriteriaCount += 1;
+  if (showTypeFilter && selectedType !== 'all') activeCriteriaCount += 1;
+  if (selectedPlatform !== 'all') activeCriteriaCount += 1;
+  if (selectedAlert !== 'all') activeCriteriaCount += 1;
+  if (selectedRelease !== 'all') activeCriteriaCount += 1;
+  if (showSubtasksToggle && showSubtasksOnFilter) activeCriteriaCount += 1;
+  if (hasHiddenCols) activeCriteriaCount += 1;
+
+  const hasActiveFilters = Boolean(searchQuery.trim()) || activeCriteriaCount > 0;
+
+  const refreshBuiltInFilters = () => {
+    if (externalSavedFilters) return;
+    try {
+      const raw =
+        typeof localStorage !== 'undefined'
+          ? localStorage.getItem(SHARED_SAVED_FILTERS_KEY)
+          : null;
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) setBuiltInFilters(parsed);
+      }
+    } catch {}
+  };
+
+  const applyFilter = (f: StoredSavedFilter) => {
+    if (onSelectExternalSavedFilter) {
+      onSelectExternalSavedFilter(f);
+      return;
+    }
+    onChangeSearchQuery(f.searchQuery || '');
+    onChangeExcludeQuery?.(f.excludeQuery || '');
+    onChangeSearchFields(
+      f.searchFields
+        ? { ...DEFAULT_GANTT_SEARCH_FIELDS, ...f.searchFields }
+        : { ...DEFAULT_GANTT_SEARCH_FIELDS }
+    );
+    onChangeSelectedType(f.selectedType || 'all');
+    onChangeSelectedPlatform(f.selectedPlatform || 'all');
+    onChangeSelectedAlert(f.selectedAlert ?? 'all');
+    onChangeSelectedRelease(f.selectedRelease || 'all');
+    onChangeShowSubtasksOnFilter(Boolean(f.showSubtasksOnFilter));
+    if (f.visibleColKeys && f.visibleColKeys.length > 0 && onApplySavedColumns) {
+      onApplySavedColumns(f.visibleColKeys, f.colOrder);
+    }
+    setBuiltInActiveId(f.id);
+  };
+
+  const saveCurrentAsFilter = (name: string, existingId?: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    if (onSaveExternalSavedFilter) {
+      onSaveExternalSavedFilter(trimmed, existingId);
+      setShowSaveRow(false);
+      setNewFilterName('');
+      setPanelOpen(false);
+      return;
+    }
+    const visibleColKeys = columns ? columns.filter((c) => c.visible).map((c) => c.key) : undefined;
+    let next: StoredSavedFilter[];
+    let savedId: string;
+    if (existingId) {
+      savedId = existingId;
+      next = builtInFilters.map((f) =>
+        f.id === existingId
+          ? {
+              ...f,
+              name: trimmed,
+              searchQuery,
+              excludeQuery: excludeQuery || undefined,
+              searchFields: { ...searchFields },
+              selectedType,
+              selectedPlatform,
+              selectedAlert,
+              selectedRelease,
+              showSubtasksOnFilter,
+              ...(visibleColKeys ? { visibleColKeys } : {}),
+            }
+          : f
+      );
+    } else {
+      const created: StoredSavedFilter = {
+        id: `filter-custom-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        name: trimmed,
+        searchQuery,
+        excludeQuery: excludeQuery || undefined,
+        searchFields: { ...searchFields },
+        selectedType,
+        selectedPlatform,
+        selectedAlert,
+        selectedRelease,
+        showSubtasksOnFilter,
+        ...(visibleColKeys ? { visibleColKeys } : {}),
+      };
+      savedId = created.id;
+      next = [...builtInFilters, created];
+    }
+    setBuiltInFilters(next);
+    setBuiltInActiveId(savedId);
+    setShowSaveRow(false);
+    setNewFilterName('');
+    setPanelOpen(false);
+    try {
+      localStorage.setItem(SHARED_SAVED_FILTERS_KEY, JSON.stringify(next));
+    } catch {}
+  };
+
+  const deleteFilter = (id: string) => {
+    if (onDeleteExternalSavedFilter) {
+      onDeleteExternalSavedFilter(id);
+      return;
+    }
+    const next = builtInFilters.filter((f) => f.id !== id);
+    setBuiltInFilters(next);
+    if (builtInActiveId === id) setBuiltInActiveId(null);
+    try {
+      localStorage.setItem(SHARED_SAVED_FILTERS_KEY, JSON.stringify(next));
+    } catch {}
+  };
+
+  // Active chips summary
+  const activeChips: { key: string; label: string; onRemove: () => void }[] = [];
+  if (excludeQuery.trim() && onChangeExcludeQuery) {
+    activeChips.push({
+      key: 'exclude',
+      label: `no:"${excludeQuery.trim()}"`,
+      onRemove: () => onChangeExcludeQuery(''),
+    });
+  }
+  if (!isDefaultSearchFields(searchFields)) {
+    activeChips.push({
+      key: 'fields',
+      label: `en:${activeSearchFieldKeys.map((k) => SEARCH_FIELD_LABELS[k].split(' ')[0]).join(',')}`,
+      onRemove: () => onChangeSearchFields({ ...DEFAULT_GANTT_SEARCH_FIELDS }),
+    });
+  }
+  if (showTypeFilter && selectedType !== 'all') {
+    activeChips.push({
+      key: 'type',
+      label: `tipo:${selectedType}`,
+      onRemove: () => onChangeSelectedType('all'),
+    });
+  }
+  if (selectedPlatform !== 'all') {
+    activeChips.push({
+      key: 'platform',
+      label: `plat:${selectedPlatform}`,
+      onRemove: () => onChangeSelectedPlatform('all'),
+    });
+  }
+  if (selectedAlert !== 'all') {
+    activeChips.push({
+      key: 'alert',
+      label: `alerta:Nivel ${selectedAlert}`,
+      onRemove: () => onChangeSelectedAlert('all'),
+    });
+  }
+  if (selectedRelease !== 'all') {
+    activeChips.push({
+      key: 'release',
+      label: `release:${selectedRelease}`,
+      onRemove: () => onChangeSelectedRelease('all'),
+    });
+  }
+  if (showSubtasksToggle && showSubtasksOnFilter) {
+    activeChips.push({
+      key: 'subtasks',
+      label: '+ subtareas',
+      onRemove: () => onChangeShowSubtasksOnFilter(false),
+    });
+  }
+  if (hasHiddenCols && columns && onResetColumns) {
+    activeChips.push({
+      key: 'cols',
+      label: `cols:${visibleColsCount}/${columns.length}`,
+      onRemove: onResetColumns,
+    });
+  }
 
   return (
     <div
       data-testid={`${testIdPrefix}-unified-filter-bar`}
       className="flex items-center gap-1.5 min-w-0 flex-wrap"
     >
-      {/* 1. Search Input */}
-      <div
-        className={`relative flex items-center shrink-0 ${
-          searchInputClassName || (testIdPrefix === 'reports' ? 'w-56 sm:w-64' : 'w-40 sm:w-52')
-        }`}
-      >
-        <Search className="w-3 h-3 absolute left-1.5 text-zinc-400 pointer-events-none" />
-        <input
-          type="text"
-          data-testid={`${testIdPrefix}-search-input`}
-          value={searchQuery}
-          onChange={(e) => onChangeSearchQuery(e.target.value)}
-          placeholder={searchPlaceholder}
-          className="w-full pl-6 pr-5 py-0.5 text-[10px] font-sans font-normal normal-case rounded-[3px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 outline-none focus:border-[#0C0C09] dark:focus:border-white h-6.5"
-        />
-        {searchQuery && (
-          <button
-            type="button"
-            data-testid={`${testIdPrefix}-search-clear-btn`}
-            onClick={() => onChangeSearchQuery('')}
-            className="absolute right-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-0.5 cursor-pointer"
-            title="Limpiar búsqueda"
-          >
-            <X className="w-2.5 h-2.5" />
-          </button>
-        )}
-      </div>
-
-      {/* 2. Search Fields Selector ("En: ...") */}
-      <div ref={searchFieldsMenuRef} className="relative flex items-center shrink-0">
-        <button
-          type="button"
-          data-testid={`${testIdPrefix}-search-fields-btn`}
-          onClick={() => setShowSearchFieldsMenu((prev) => !prev)}
-          className={`flex items-center gap-1 px-2 py-0.5 text-[10px] font-sans font-medium normal-case rounded-[3px] border outline-none cursor-pointer h-6.5 transition ${
-            isDefaultSearchFields(searchFields)
-              ? 'border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700/70'
-              : 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-          }`}
-          title="Seleccionar en qué campos del elemento buscar (por defecto solo Nombre)"
-        >
-          <SlidersHorizontal className="w-3 h-3 shrink-0" />
-          <span>{`En: ${searchFieldsBtnLabel}`}</span>
-          <ChevronDown className="w-3 h-3 text-zinc-500 shrink-0" />
-        </button>
-
+      {/* Gmail-style Unified Search Pill + Advanced Filter Panel */}
+      <div ref={panelContainerRef} className="relative flex items-center shrink-0">
         <div
-          data-testid={`${testIdPrefix}-search-fields-menu`}
-          className={`absolute left-0 top-full mt-1 z-50 min-w-[200px] rounded-[4px] border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg py-1.5 px-1.5 ${
-            showSearchFieldsMenu ? 'flex flex-col gap-0.5' : 'hidden'
-          }`}
+          className={`flex items-center gap-1 pl-2 pr-1 rounded-full border bg-white dark:bg-zinc-800 h-7 transition ${
+            panelOpen || hasActiveFilters
+              ? 'border-[#0C0C09] dark:border-indigo-400 shadow-xs'
+              : 'border-zinc-300 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-500'
+          } ${searchInputClassName || (testIdPrefix === 'reports' ? 'w-60 sm:w-72' : 'w-48 sm:w-64')}`}
         >
-          <div className="flex items-center justify-between px-1.5 pb-1 mb-0.5 border-b border-zinc-200 dark:border-zinc-800">
-            <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-              Buscar en campos
-            </span>
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                data-testid={`${testIdPrefix}-search-fields-reset-btn`}
-                onClick={() => onChangeSearchFields({ ...DEFAULT_GANTT_SEARCH_FIELDS })}
-                className="text-[9px] font-sans font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
-              >
-                Solo Nombre
-              </button>
-              <button
-                type="button"
-                data-testid={`${testIdPrefix}-search-fields-all-btn`}
-                onClick={() =>
-                  onChangeSearchFields({
-                    name: true,
-                    description: true,
-                    assignee: true,
-                    platform: true,
-                    predecessors: true,
-                    displayId: true,
-                  })
-                }
-                className="text-[9px] font-sans font-semibold text-zinc-500 dark:text-zinc-400 hover:underline cursor-pointer"
-              >
-                Todos
-              </button>
-            </div>
-          </div>
-
-          {(Object.keys(SEARCH_FIELD_LABELS) as (keyof GanttSearchFieldsConfig)[]).map((fieldKey) => {
-            const isChecked = searchFields[fieldKey];
-            const isOnlyActive = isChecked && activeSearchFieldKeys.length <= 1;
-            return (
-              <label
-                key={fieldKey}
-                className={`flex items-center gap-2 px-1.5 py-1 rounded-[3px] text-[10px] font-sans font-medium transition ${
-                  isOnlyActive
-                    ? 'text-zinc-500 dark:text-zinc-400 cursor-not-allowed'
-                    : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer'
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  data-testid={`${testIdPrefix}-search-field-checkbox-${fieldKey}`}
-                  checked={isChecked}
-                  disabled={isOnlyActive}
-                  onChange={() => toggleSearchField(fieldKey)}
-                  className="w-3 h-3 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 accent-indigo-600 cursor-pointer disabled:cursor-not-allowed"
-                />
-                <span>{SEARCH_FIELD_LABELS[fieldKey]}</span>
-              </label>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* 3. Type Filter */}
-      {showTypeFilter && (
-        <div ref={typeFilterMenuRef} className="relative flex items-center shrink-0">
-          <button
-            type="button"
-            data-testid={`${testIdPrefix}-type-filter`}
-            data-selected-type={selectedType}
-            onClick={() => setShowTypeFilterMenu((prev) => !prev)}
-            className={`flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-sans font-medium normal-case rounded-[3px] border outline-none cursor-pointer h-6.5 transition ${
-              selectedType === 'all'
-                ? 'border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700/70'
-                : 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-            }`}
-            title="Filtrar por tipo de elemento"
-          >
-            <Filter
-              className={`w-3 h-3 shrink-0 ${
-                selectedType === 'all' ? 'text-zinc-500' : 'text-indigo-600 dark:text-indigo-400'
-              }`}
-            />
-            <span>
-              {selectedType === 'all'
-                ? 'Tipo'
-                : selectedType === 'RELEASE'
-                ? 'Release'
-                : selectedType === 'PROYECTO'
-                ? 'Proyecto'
-                : selectedType === 'TAREA'
-                ? 'Tarea'
-                : 'Hito'}
-            </span>
-            <ChevronDown className="w-3 h-3 text-zinc-500 shrink-0" />
-          </button>
-
-          <div
-            data-testid={`${testIdPrefix}-type-filter-menu`}
-            className={`absolute left-0 top-full mt-1 z-50 min-w-[130px] rounded-[4px] border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg py-1 ${
-              showTypeFilterMenu ? 'flex flex-col' : 'hidden'
-            }`}
-          >
-            {(
-              [
-                { value: 'all', label: 'Todos los tipos' },
-                { value: 'RELEASE', label: 'Release' },
-                { value: 'PROYECTO', label: 'Proyecto' },
-                { value: 'TAREA', label: 'Tarea' },
-                { value: 'HITO', label: 'Hito' },
-              ] as { value: UnifiedRowTypeFilter; label: string }[]
-            ).map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                data-testid={`${testIdPrefix}-type-filter-option-${opt.value}`}
-                onClick={() => {
-                  onChangeSelectedType(opt.value);
-                  setShowTypeFilterMenu(false);
-                }}
-                className={`flex items-center gap-2 px-2.5 py-1.5 text-[10px] font-sans font-medium cursor-pointer transition text-left ${
-                  selectedType === opt.value
-                    ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-                    : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                }`}
-              >
-                <span>{opt.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 4. Platform Filter */}
-      <div ref={platformFilterMenuRef} className="relative flex items-center shrink-0">
-        <button
-          type="button"
-          data-testid={`${testIdPrefix}-platform-filter`}
-          data-selected-platform={selectedPlatform}
-          onClick={() => setShowPlatformFilterMenu((prev) => !prev)}
-          className={`flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-sans font-medium normal-case rounded-[3px] border outline-none cursor-pointer h-6.5 transition ${
-            selectedPlatform === 'all'
-              ? 'border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700/70'
-              : 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-          }`}
-          title="Filtrar por plataforma"
-        >
-          {selectedPlatform === 'all' ? (
-            <>
-              <Smartphone className="w-3 h-3 text-zinc-500 shrink-0" />
-              <span>Plat.</span>
-            </>
-          ) : selectedPlatform === 'iOS' ? (
-            <AppleIosIcon
-              testId={`${optPrefix}active-filter-icon-ios`}
-              className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400"
-            />
-          ) : selectedPlatform === 'Android' ? (
-            <AndroidIcon
-              testId={`${optPrefix}active-filter-icon-android`}
-              className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400"
-            />
-          ) : (
-            <span className="inline-flex items-center gap-1">
-              <AppleIosIcon
-                testId={`${optPrefix}active-filter-icon-both-ios`}
-                className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400"
-              />
-              <AndroidIcon
-                testId={`${optPrefix}active-filter-icon-both-android`}
-                className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400"
-              />
-            </span>
+          <Search className="w-3.5 h-3.5 text-zinc-400 shrink-0 pointer-events-none" />
+          <input
+            type="text"
+            data-testid={`${testIdPrefix}-search-input`}
+            value={searchQuery}
+            onChange={(e) => onChangeSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') setPanelOpen(false);
+            }}
+            placeholder={searchPlaceholder}
+            className="flex-1 min-w-0 bg-transparent text-[11px] font-sans font-normal normal-case text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 outline-none"
+          />
+          {hasActiveFilters && (
+            <button
+              type="button"
+              data-testid={`${testIdPrefix}-search-clear-btn`}
+              onClick={() => {
+                setBuiltInActiveId(null);
+                onClearFilters();
+              }}
+              className="p-0.5 rounded-full text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 cursor-pointer shrink-0"
+              title="Limpiar búsqueda y filtros"
+            >
+              <X className="w-3 h-3" />
+            </button>
           )}
-          <ChevronDown className="w-3 h-3 text-zinc-500 shrink-0" />
-        </button>
-
-        <div
-          data-testid={`${testIdPrefix}-platform-filter-menu`}
-          className={`absolute left-0 top-full mt-1 z-50 min-w-[84px] rounded-[4px] border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg py-1 ${
-            showPlatformFilterMenu ? 'flex flex-col' : 'hidden'
-          }`}
-        >
           <button
             type="button"
-            data-testid={`${optPrefix}platform-filter-option-iOS`}
+            data-testid={`${testIdPrefix}-advanced-filters-btn`}
             onClick={() => {
-              onChangeSelectedPlatform(selectedPlatform === 'iOS' ? 'all' : 'iOS');
-              setShowPlatformFilterMenu(false);
+              if (!panelOpen) refreshBuiltInFilters();
+              setPanelOpen((prev) => !prev);
+              setShowSaveRow(false);
             }}
-            className={`flex items-center justify-center px-2.5 py-1.5 cursor-pointer transition ${
-              selectedPlatform === 'iOS'
-                ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-                : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+            className={`relative w-5.5 h-5.5 rounded-full flex items-center justify-center transition cursor-pointer shrink-0 ${
+              panelOpen || activeCriteriaCount > 0
+                ? 'bg-indigo-100 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300'
+                : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-zinc-800 dark:hover:text-zinc-100'
             }`}
-            title="iOS"
+            title="Mostrar opciones de búsqueda, filtros y columnas"
+            aria-label="Opciones de búsqueda y filtros"
           >
-            <AppleIosIcon
-              testId={`${optPrefix}filter-option-icon-ios`}
-              className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400"
-            />
-          </button>
-          <button
-            type="button"
-            data-testid={`${optPrefix}platform-filter-option-Android`}
-            onClick={() => {
-              onChangeSelectedPlatform(selectedPlatform === 'Android' ? 'all' : 'Android');
-              setShowPlatformFilterMenu(false);
-            }}
-            className={`flex items-center justify-center px-2.5 py-1.5 cursor-pointer transition ${
-              selectedPlatform === 'Android'
-                ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-                : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-            }`}
-            title="Android"
-          >
-            <AndroidIcon
-              testId={`${optPrefix}filter-option-icon-android`}
-              className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400"
-            />
-          </button>
-          <button
-            type="button"
-            data-testid={`${optPrefix}platform-filter-option-iOS/Android`}
-            onClick={() => {
-              onChangeSelectedPlatform(selectedPlatform === 'iOS/Android' ? 'all' : 'iOS/Android');
-              setShowPlatformFilterMenu(false);
-            }}
-            className={`flex items-center justify-center gap-1 px-2.5 py-1.5 cursor-pointer transition ${
-              selectedPlatform === 'iOS/Android'
-                ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-                : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-            }`}
-            title="iOS/Android"
-          >
-            <AppleIosIcon
-              testId={`${optPrefix}filter-option-icon-both-ios`}
-              className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400"
-            />
-            <AndroidIcon
-              testId={`${optPrefix}filter-option-icon-both-android`}
-              className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400"
-            />
+            <SlidersHorizontal className="w-3 h-3" />
+            {activeCriteriaCount > 0 && (
+              <span
+                data-testid={`${testIdPrefix}-active-filters-count`}
+                className="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-0.5 rounded-full bg-indigo-600 text-white text-[9px] font-mono font-bold flex items-center justify-center leading-none"
+              >
+                {activeCriteriaCount}
+              </span>
+            )}
           </button>
         </div>
 
+        {/* Hidden fallback select for backward compatibility with existing ReportsView tests */}
         {testIdPrefix === 'reports' && (
           <select
             data-testid="reports-platform-select"
@@ -557,343 +505,611 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
             <option value="iOS/Android">iOS/Android</option>
           </select>
         )}
-      </div>
 
-      {/* 5. Alert Level Filter */}
-      <div ref={alertFilterMenuRef} className="relative flex items-center shrink-0">
-        <button
-          type="button"
-          data-testid={`${testIdPrefix}-alert-filter`}
-          data-selected-alert={selectedAlert}
-          onClick={() => setShowAlertFilterMenu((prev) => !prev)}
-          className={`flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-sans font-medium normal-case rounded-[3px] border outline-none cursor-pointer h-6.5 transition ${
-            selectedAlert === 'all'
-              ? 'border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700/70'
-              : 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-          }`}
-          title="Filtrar por nivel de alerta"
-        >
-          <AlertTriangle
-            className={`w-3 h-3 shrink-0 ${
-              selectedAlert === 'all'
-                ? 'text-zinc-500'
-                : selectedAlert === 0
-                ? 'text-zinc-400'
-                : selectedAlert === 1
-                ? 'text-amber-500'
-                : selectedAlert === 2
-                ? 'text-orange-500'
-                : 'text-rose-500'
-            }`}
-          />
-          <span>{selectedAlert === 'all' ? 'Alerta' : `Nivel ${selectedAlert}`}</span>
-          <ChevronDown className="w-3 h-3 text-zinc-500 shrink-0" />
-        </button>
-
+        {/* Gmail-Style Unified Advanced Search & Filter Popover */}
         <div
-          data-testid={`${testIdPrefix}-alert-filter-menu`}
-          className={`absolute left-0 top-full mt-1 z-50 min-w-[140px] rounded-[4px] border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg py-1 ${
-            showAlertFilterMenu ? 'flex flex-col' : 'hidden'
+          data-testid={`${testIdPrefix}-advanced-filters-panel`}
+          className={`absolute left-0 top-full mt-1.5 z-50 w-[440px] max-w-[calc(100vw-24px)] rounded-[8px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl p-4 text-[11px] font-sans normal-case ${
+            panelOpen ? 'flex flex-col gap-3' : 'hidden'
           }`}
         >
-          <button
-            type="button"
-            data-testid={`${optPrefix}alert-filter-option-all`}
-            onClick={() => {
-              onChangeSelectedAlert('all');
-              setShowAlertFilterMenu(false);
-            }}
-            className={`flex items-center gap-2 px-2.5 py-1.5 text-[10px] font-sans font-medium cursor-pointer transition text-left ${
-              selectedAlert === 'all'
-                ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-                : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-            }`}
-          >
-            <span>Todas las alertas</span>
-          </button>
-          {(
-            [
-              { value: 0 as ProjectAlertLevel, label: 'Nivel 0 (Normal)', dot: 'bg-zinc-400' },
-              { value: 1 as ProjectAlertLevel, label: 'Nivel 1 (Baja)', dot: 'bg-amber-500' },
-              { value: 2 as ProjectAlertLevel, label: 'Nivel 2 (Media)', dot: 'bg-orange-500' },
-              { value: 3 as ProjectAlertLevel, label: 'Nivel 3 (Alta)', dot: 'bg-rose-500' },
-            ]
-          ).map((opt) => (
+          {/* Panel Header */}
+          <div className="flex items-center justify-between pb-2 border-b border-[#E2E2DC] dark:border-zinc-800">
+            <span className="font-bold text-xs text-[#0C0C09] dark:text-zinc-100 flex items-center gap-1.5">
+              <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+              <span>
+                {activeSavedFilterObj
+                  ? `Editando filtro: "${activeSavedFilterObj.name}"`
+                  : 'Búsqueda avanzada y filtros'}
+              </span>
+            </span>
             <button
-              key={opt.value}
               type="button"
-              data-testid={`${optPrefix}alert-filter-option-${opt.value}`}
               onClick={() => {
-                onChangeSelectedAlert(opt.value);
-                setShowAlertFilterMenu(false);
+                setPanelOpen(false);
+                setShowSaveRow(false);
               }}
-              className={`flex items-center gap-2 px-2.5 py-1.5 text-[10px] font-sans font-medium cursor-pointer transition text-left ${
-                selectedAlert === opt.value
-                  ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-                  : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-              }`}
+              className="p-0.5 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 cursor-pointer"
             >
-              <span className={`w-2 h-2 rounded-full ${opt.dot} shrink-0`} />
-              <span>{opt.label}</span>
+              <X className="w-3.5 h-3.5" />
             </button>
-          ))}
-        </div>
-      </div>
+          </div>
 
-      {/* 6. Release Filter */}
-      {releases.length > 0 && (
-        <div className="flex items-center gap-1 shrink-0">
-          <select
-            data-testid={`${testIdPrefix}-release-select`}
-            value={selectedRelease}
-            onChange={(e) => onChangeSelectedRelease(e.target.value)}
-            title="Filtrar por release"
-            aria-label="Filtrar por release"
-            className={`px-2 py-0.5 rounded-[3px] border text-[10px] font-sans font-medium outline-none cursor-pointer max-w-[140px] truncate h-6.5 transition ${
-              selectedRelease === 'all'
-                ? 'border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200'
-                : 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-            }`}
-          >
-            <option value="all">Todas las releases</option>
-            {releases.map((r) => (
-              <option key={r.id} value={r.code}>
-                {r.code}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
+          {/* Row 1: Contiene */}
+          <div className="grid grid-cols-12 items-center gap-2">
+            <label className="col-span-4 text-[11px] font-medium text-[#6B6B66] dark:text-zinc-400">
+              Contiene
+            </label>
+            <input
+              type="text"
+              data-testid={`${testIdPrefix}-panel-query-input`}
+              value={searchQuery}
+              onChange={(e) => onChangeSearchQuery(e.target.value)}
+              placeholder="Nombre, código, equipo..."
+              className="col-span-8 px-2 py-1 bg-transparent border-b border-zinc-300 dark:border-zinc-700 focus:border-[#0C0C09] dark:focus:border-indigo-400 outline-none text-xs text-zinc-800 dark:text-zinc-100"
+            />
+          </div>
 
-      {/* 7. Subtareas Toggle */}
-      {showSubtasksToggle && (
-        <label
-          data-testid={`${testIdPrefix}-show-subtasks-label`}
-          className={`flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-sans font-medium normal-case rounded-[3px] border cursor-pointer h-6.5 transition shrink-0 select-none ${
-            showSubtasksOnFilter
-              ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-              : 'border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700/70'
-          }`}
-          title="Al filtrar, mostrar también todas las subtareas de proyectos coincidentes aunque la subtarea no coincida directamente"
-        >
-          <input
-            type="checkbox"
-            data-testid={`${testIdPrefix}-show-subtasks-checkbox`}
-            checked={showSubtasksOnFilter}
-            onChange={(e) => onChangeShowSubtasksOnFilter(e.target.checked)}
-            className="w-3 h-3 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer accent-indigo-600"
-          />
-          <span>Subtareas</span>
-        </label>
-      )}
+          {/* Row 2: No contiene */}
+          {onChangeExcludeQuery && (
+            <div className="grid grid-cols-12 items-center gap-2">
+              <label className="col-span-4 text-[11px] font-medium text-[#6B6B66] dark:text-zinc-400">
+                No contiene
+              </label>
+              <input
+                type="text"
+                data-testid={`${testIdPrefix}-exclude-input`}
+                value={excludeQuery}
+                onChange={(e) => onChangeExcludeQuery(e.target.value)}
+                placeholder="Excluir palabras..."
+                className="col-span-8 px-2 py-1 bg-transparent border-b border-zinc-300 dark:border-zinc-700 focus:border-[#0C0C09] dark:focus:border-indigo-400 outline-none text-xs text-zinc-800 dark:text-zinc-100"
+              />
+            </div>
+          )}
 
-      {/* 8. Saved Filters (custom slot from ReportsView or built-in for Cronograma) */}
-      {savedFiltersSlot}
-      {!savedFiltersSlot && enableBuiltInSavedFilters && (
-        <div ref={builtInSavedMenuRef} className="relative flex items-center shrink-0">
-          {(() => {
-            const activeBuiltIn = builtInFilters.find(
-              (f) =>
-                f.id === builtInActiveId &&
-                (f.searchQuery || '') === searchQuery &&
-                (f.selectedType || 'all') === selectedType &&
-                (f.selectedPlatform || 'all') === selectedPlatform &&
-                (f.selectedAlert ?? 'all') === selectedAlert &&
-                (f.selectedRelease || 'all') === selectedRelease
-            );
-            return (
-              <>
+          {/* Row 3: Buscar en campos */}
+          <div className="grid grid-cols-12 items-start gap-2">
+            <div className="col-span-4 pt-0.5 space-y-0.5">
+              <span
+                data-testid={`${testIdPrefix}-search-fields-btn`}
+                className="block text-[11px] font-medium text-[#6B6B66] dark:text-zinc-400"
+              >
+                {`En: ${searchFieldsSummaryLabel}`}
+              </span>
+              <div className="flex items-center gap-1.5">
                 <button
                   type="button"
-                  data-testid={`${testIdPrefix}-saved-filters-btn`}
-                  onClick={() => {
-                    setShowBuiltInSavedMenu((prev) => {
-                      const next = !prev;
-                      if (next) {
-                        try {
-                          const raw =
-                            typeof localStorage !== 'undefined'
-                              ? localStorage.getItem(SHARED_SAVED_FILTERS_KEY)
-                              : null;
-                          if (raw) {
-                            const parsed = JSON.parse(raw);
-                            if (Array.isArray(parsed)) setBuiltInFilters(parsed);
-                          }
-                        } catch {}
-                      }
-                      return next;
-                    });
-                  }}
-                  className={`flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-sans font-semibold normal-case rounded-[3px] border outline-none cursor-pointer h-6.5 transition ${
-                    activeBuiltIn
-                      ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-                      : 'border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700/70'
-                  }`}
-                  title="Guardar y aplicar filtros guardados"
+                  data-testid={`${testIdPrefix}-search-fields-reset-btn`}
+                  onClick={() => onChangeSearchFields({ ...DEFAULT_GANTT_SEARCH_FIELDS })}
+                  className="text-[9px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
                 >
-                  <Bookmark className="w-3 h-3 text-indigo-600 dark:text-indigo-400 shrink-0" />
-                  <span className="truncate max-w-[130px]">
-                    {activeBuiltIn ? `Filtro: ${activeBuiltIn.name}` : 'Filtros guardados'}
-                  </span>
-                  {builtInFilters.length > 0 && !activeBuiltIn && (
-                    <span className="px-1 rounded bg-zinc-100 dark:bg-zinc-700 text-[9px] font-mono">
-                      {builtInFilters.length}
-                    </span>
-                  )}
-                  <ChevronDown className="w-3 h-3 text-zinc-500 shrink-0" />
+                  Nombre
                 </button>
-
-                {showBuiltInSavedMenu && (
-                  <div
-                    data-testid={`${testIdPrefix}-saved-filters-menu`}
-                    className="absolute left-0 top-full mt-1 w-72 max-h-80 overflow-y-auto bg-white dark:bg-zinc-900 border border-[#0C0C09] dark:border-zinc-700 rounded-[4px] shadow-2xl z-50 p-2 flex flex-col gap-1.5"
-                  >
-                    <div className="px-1 py-0.5 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
-                      <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                        Filtros guardados
-                      </span>
-                    </div>
-
-                    {builtInFilters.length === 0 ? (
-                      <div className="px-2 py-2 text-[10px] text-zinc-500 dark:text-zinc-400">
-                        Sin filtros guardados todavía.
-                      </div>
-                    ) : (
-                      <div className="flex flex-col gap-1">
-                        {builtInFilters.map((f) => {
-                          const isAct = activeBuiltIn?.id === f.id;
-                          return (
-                            <div
-                              key={f.id}
-                              className={`flex items-center justify-between gap-1 px-2 py-1 rounded-[3px] text-[10px] transition ${
-                                isAct
-                                  ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-                                  : 'hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200'
-                              }`}
-                            >
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  onChangeSearchQuery(f.searchQuery || '');
-                                  onChangeSearchFields(
-                                    f.searchFields
-                                      ? { ...DEFAULT_GANTT_SEARCH_FIELDS, ...f.searchFields }
-                                      : { ...DEFAULT_GANTT_SEARCH_FIELDS }
-                                  );
-                                  onChangeSelectedType(f.selectedType || 'all');
-                                  onChangeSelectedPlatform(f.selectedPlatform || 'all');
-                                  onChangeSelectedAlert(f.selectedAlert ?? 'all');
-                                  onChangeSelectedRelease(f.selectedRelease || 'all');
-                                  onChangeShowSubtasksOnFilter(Boolean(f.showSubtasksOnFilter));
-                                  setBuiltInActiveId(f.id);
-                                  setShowBuiltInSavedMenu(false);
-                                }}
-                                className="flex-1 text-left flex items-center gap-1.5 truncate cursor-pointer font-medium"
-                              >
-                                {isAct && <Check className="w-3 h-3 text-indigo-600 shrink-0" />}
-                                <span className="truncate">{f.name}</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const next = builtInFilters.filter((x) => x.id !== f.id);
-                                  setBuiltInFilters(next);
-                                  if (builtInActiveId === f.id) setBuiltInActiveId(null);
-                                  try {
-                                    localStorage.setItem(SHARED_SAVED_FILTERS_KEY, JSON.stringify(next));
-                                  } catch {}
-                                }}
-                                className="p-0.5 text-zinc-400 hover:text-rose-500 cursor-pointer"
-                                title="Eliminar filtro"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    <div className="pt-1.5 border-t border-zinc-200 dark:border-zinc-800 flex items-center gap-1">
+                <button
+                  type="button"
+                  data-testid={`${testIdPrefix}-search-fields-all-btn`}
+                  onClick={() =>
+                    onChangeSearchFields({
+                      name: true,
+                      description: true,
+                      assignee: true,
+                      platform: true,
+                      predecessors: true,
+                      displayId: true,
+                    })
+                  }
+                  className="text-[9px] font-semibold text-zinc-500 hover:underline cursor-pointer"
+                >
+                  Todos
+                </button>
+              </div>
+            </div>
+            <div
+              data-testid={`${testIdPrefix}-search-fields-menu`}
+              className="col-span-8 grid grid-cols-2 gap-1"
+            >
+              {(Object.keys(SEARCH_FIELD_LABELS) as (keyof GanttSearchFieldsConfig)[]).map(
+                (fieldKey) => {
+                  const isChecked = searchFields[fieldKey];
+                  const isOnlyActive = isChecked && activeSearchFieldKeys.length <= 1;
+                  return (
+                    <label
+                      key={fieldKey}
+                      className={`flex items-center gap-1.5 text-[10px] font-medium ${
+                        isOnlyActive
+                          ? 'text-zinc-400 cursor-not-allowed'
+                          : 'text-zinc-700 dark:text-zinc-200 cursor-pointer'
+                      }`}
+                    >
                       <input
-                        type="text"
-                        value={builtInNewName}
-                        onChange={(e) => setBuiltInNewName(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && builtInNewName.trim()) {
-                            const created: StoredSavedFilter = {
-                              id: `filter-custom-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-                              name: builtInNewName.trim(),
-                              searchQuery,
-                              searchFields: { ...searchFields },
-                              selectedType,
-                              selectedPlatform,
-                              selectedAlert,
-                              selectedRelease,
-                              showSubtasksOnFilter,
-                            };
-                            const next = [...builtInFilters, created];
-                            setBuiltInFilters(next);
-                            setBuiltInActiveId(created.id);
-                            setBuiltInNewName('');
-                            try {
-                              localStorage.setItem(SHARED_SAVED_FILTERS_KEY, JSON.stringify(next));
-                            } catch {}
-                          }
-                        }}
-                        placeholder="Guardar filtro actual..."
-                        className="flex-1 px-2 py-1 rounded-[3px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-[10px] outline-none"
+                        type="checkbox"
+                        data-testid={`${testIdPrefix}-search-field-checkbox-${fieldKey}`}
+                        checked={isChecked}
+                        disabled={isOnlyActive}
+                        onChange={() => toggleSearchField(fieldKey)}
+                        className="w-3 h-3 rounded border-zinc-300 accent-indigo-600 cursor-pointer disabled:cursor-not-allowed"
                       />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!builtInNewName.trim()) return;
-                          const created: StoredSavedFilter = {
-                            id: `filter-custom-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-                            name: builtInNewName.trim(),
-                            searchQuery,
-                            searchFields: { ...searchFields },
-                            selectedType,
-                            selectedPlatform,
-                            selectedAlert,
-                            selectedRelease,
-                            showSubtasksOnFilter,
-                          };
-                          const next = [...builtInFilters, created];
-                          setBuiltInFilters(next);
-                          setBuiltInActiveId(created.id);
-                          setBuiltInNewName('');
-                          try {
-                            localStorage.setItem(SHARED_SAVED_FILTERS_KEY, JSON.stringify(next));
-                          } catch {}
-                        }}
-                        className="px-2 py-1 rounded-[3px] bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-semibold flex items-center gap-0.5 cursor-pointer shrink-0"
-                      >
-                        <Plus className="w-3 h-3" />
-                        <span>Guardar</span>
-                      </button>
-                    </div>
-                  </div>
+                      <span className="truncate">{SEARCH_FIELD_LABELS[fieldKey]}</span>
+                    </label>
+                  );
+                }
+              )}
+            </div>
+          </div>
+
+          {/* Row 4: Tipo */}
+          {showTypeFilter && (
+            <div className="grid grid-cols-12 items-center gap-2">
+              <span
+                data-testid={`${testIdPrefix}-type-filter`}
+                data-selected-type={selectedType}
+                className="col-span-4 text-[11px] font-medium text-[#6B6B66] dark:text-zinc-400 flex items-center gap-1"
+              >
+                <Filter className="w-3 h-3" />
+                <span>Tipo</span>
+              </span>
+              <div
+                data-testid={`${testIdPrefix}-type-filter-menu`}
+                className="col-span-8 flex flex-wrap gap-1"
+              >
+                {(
+                  [
+                    { value: 'all', label: 'Todos' },
+                    { value: 'RELEASE', label: 'Release' },
+                    { value: 'PROYECTO', label: 'Proyecto' },
+                    { value: 'TAREA', label: 'Tarea' },
+                    { value: 'HITO', label: 'Hito' },
+                  ] as { value: UnifiedRowTypeFilter; label: string }[]
+                ).map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    data-testid={`${testIdPrefix}-type-filter-option-${opt.value}`}
+                    onClick={() => onChangeSelectedType(opt.value)}
+                    className={`px-2 py-0.5 rounded-full border text-[10px] font-medium cursor-pointer transition ${
+                      selectedType === opt.value
+                        ? 'border-[#0C0C09] bg-[#0C0C09] text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-[#0C0C09]'
+                        : 'border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Row 5: Plataforma */}
+          <div className="grid grid-cols-12 items-center gap-2">
+            <span
+              data-testid={`${testIdPrefix}-platform-filter`}
+              data-selected-platform={selectedPlatform}
+              className="col-span-4 text-[11px] font-medium text-[#6B6B66] dark:text-zinc-400 flex items-center gap-1"
+            >
+              {selectedPlatform === 'all' ? (
+                <>
+                  <Smartphone className="w-3 h-3" />
+                  <span>Plat.</span>
+                </>
+              ) : selectedPlatform === 'iOS' ? (
+                <>
+                  <AppleIosIcon
+                    testId={`${optPrefix}active-filter-icon-ios`}
+                    className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400"
+                  />
+                  <span>Plat.</span>
+                </>
+              ) : selectedPlatform === 'Android' ? (
+                <>
+                  <AndroidIcon
+                    testId={`${optPrefix}active-filter-icon-android`}
+                    className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400"
+                  />
+                  <span>Plat.</span>
+                </>
+              ) : (
+                <>
+                  <AppleIosIcon
+                    testId={`${optPrefix}active-filter-icon-both-ios`}
+                    className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400"
+                  />
+                  <AndroidIcon
+                    testId={`${optPrefix}active-filter-icon-both-android`}
+                    className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400"
+                  />
+                  <span>Plat.</span>
+                </>
+              )}
+            </span>
+            <div
+              data-testid={`${testIdPrefix}-platform-filter-menu`}
+              className="col-span-8 flex items-center gap-1.5"
+            >
+              <button
+                type="button"
+                data-testid={`${optPrefix}platform-filter-option-iOS`}
+                onClick={() => onChangeSelectedPlatform(selectedPlatform === 'iOS' ? 'all' : 'iOS')}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-full border text-[10px] font-medium cursor-pointer transition ${
+                  selectedPlatform === 'iOS'
+                    ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                    : 'border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100'
+                }`}
+                title="iOS"
+              >
+                <AppleIosIcon
+                  testId={`${optPrefix}filter-option-icon-ios`}
+                  className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400"
+                />
+              </button>
+              <button
+                type="button"
+                data-testid={`${optPrefix}platform-filter-option-Android`}
+                onClick={() =>
+                  onChangeSelectedPlatform(selectedPlatform === 'Android' ? 'all' : 'Android')
+                }
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-full border text-[10px] font-medium cursor-pointer transition ${
+                  selectedPlatform === 'Android'
+                    ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                    : 'border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100'
+                }`}
+                title="Android"
+              >
+                <AndroidIcon
+                  testId={`${optPrefix}filter-option-icon-android`}
+                  className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400"
+                />
+              </button>
+              <button
+                type="button"
+                data-testid={`${optPrefix}platform-filter-option-iOS/Android`}
+                onClick={() =>
+                  onChangeSelectedPlatform(
+                    selectedPlatform === 'iOS/Android' ? 'all' : 'iOS/Android'
+                  )
+                }
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-full border text-[10px] font-medium cursor-pointer transition ${
+                  selectedPlatform === 'iOS/Android'
+                    ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                    : 'border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100'
+                }`}
+                title="iOS/Android"
+              >
+                <AppleIosIcon
+                  testId={`${optPrefix}filter-option-icon-both-ios`}
+                  className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400"
+                />
+                <AndroidIcon
+                  testId={`${optPrefix}filter-option-icon-both-android`}
+                  className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400"
+                />
+              </button>
+            </div>
+          </div>
+
+          {/* Row 6: Nivel de Alerta */}
+          <div className="grid grid-cols-12 items-center gap-2">
+            <span
+              data-testid={`${testIdPrefix}-alert-filter`}
+              data-selected-alert={selectedAlert}
+              className="col-span-4 text-[11px] font-medium text-[#6B6B66] dark:text-zinc-400 flex items-center gap-1"
+            >
+              <AlertTriangle className="w-3 h-3" />
+              <span>Alerta</span>
+            </span>
+            <div
+              data-testid={`${testIdPrefix}-alert-filter-menu`}
+              className="col-span-8 flex flex-wrap gap-1"
+            >
+              <button
+                type="button"
+                data-testid={`${optPrefix}alert-filter-option-all`}
+                onClick={() => onChangeSelectedAlert('all')}
+                className={`px-2 py-0.5 rounded-full border text-[10px] font-medium cursor-pointer transition ${
+                  selectedAlert === 'all'
+                    ? 'border-[#0C0C09] bg-[#0C0C09] text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-[#0C0C09]'
+                    : 'border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300'
+                }`}
+              >
+                Todas
+              </button>
+              {(
+                [
+                  { value: 0 as ProjectAlertLevel, label: '0', dot: 'bg-zinc-400' },
+                  { value: 1 as ProjectAlertLevel, label: '1', dot: 'bg-amber-500' },
+                  { value: 2 as ProjectAlertLevel, label: '2', dot: 'bg-orange-500' },
+                  { value: 3 as ProjectAlertLevel, label: '3', dot: 'bg-rose-500' },
+                ]
+              ).map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  data-testid={`${optPrefix}alert-filter-option-${opt.value}`}
+                  onClick={() => onChangeSelectedAlert(opt.value)}
+                  className={`flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-medium cursor-pointer transition ${
+                    selectedAlert === opt.value
+                      ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                      : 'border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300'
+                  }`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${opt.dot}`} />
+                  <span>{`Nivel ${opt.label}`}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Row 7: Release */}
+          {releases.length > 0 && (
+            <div className="grid grid-cols-12 items-center gap-2">
+              <label className="col-span-4 text-[11px] font-medium text-[#6B6B66] dark:text-zinc-400">
+                Release
+              </label>
+              <select
+                data-testid={`${testIdPrefix}-release-select`}
+                value={selectedRelease}
+                onChange={(e) => onChangeSelectedRelease(e.target.value)}
+                aria-label="Filtrar por release"
+                className="col-span-8 px-2 py-1 rounded-[4px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs text-zinc-800 dark:text-zinc-200 outline-none cursor-pointer"
+              >
+                <option value="all">Todas las releases</option>
+                {releases.map((r) => (
+                  <option key={r.id} value={r.code}>
+                    {r.code}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Row 8: Subtareas */}
+          {showSubtasksToggle && (
+            <div className="grid grid-cols-12 items-center gap-2">
+              <span className="col-span-4 text-[11px] font-medium text-[#6B6B66] dark:text-zinc-400">
+                Opciones
+              </span>
+              <label
+                data-testid={`${testIdPrefix}-show-subtasks-label`}
+                className="col-span-8 inline-flex items-center gap-2 text-[11px] text-zinc-700 dark:text-zinc-200 cursor-pointer select-none"
+              >
+                <input
+                  type="checkbox"
+                  data-testid={`${testIdPrefix}-show-subtasks-checkbox`}
+                  checked={showSubtasksOnFilter}
+                  onChange={(e) => onChangeShowSubtasksOnFilter(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded border-zinc-300 accent-indigo-600 cursor-pointer"
+                />
+                <span>Incluir subtareas de proyectos coincidentes</span>
+              </label>
+            </div>
+          )}
+
+          {/* Row 9: Columnas visibles (in Planificación) */}
+          {columns && columns.length > 0 && onToggleColumn && (
+            <div
+              data-testid={`${testIdPrefix}-panel-columns-section`}
+              className="grid grid-cols-12 items-start gap-2 pt-2 border-t border-[#E2E2DC] dark:border-zinc-800"
+            >
+              <div className="col-span-4 pt-0.5 space-y-0.5">
+                <span className="block text-[11px] font-medium text-[#6B6B66] dark:text-zinc-400">
+                  Columnas ({visibleColsCount}/{columns.length})
+                </span>
+                {onResetColumns && (
+                  <button
+                    type="button"
+                    onClick={onResetColumns}
+                    className="text-[9px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                  >
+                    Seleccionar todas
+                  </button>
                 )}
-              </>
+              </div>
+              <div className="col-span-8 flex flex-wrap gap-1 max-h-28 overflow-y-auto">
+                {columns.map((col) => (
+                  <button
+                    key={col.key}
+                    type="button"
+                    data-testid={`${testIdPrefix}-panel-col-pill-${col.key}`}
+                    onClick={() => onToggleColumn(col.key)}
+                    className={`px-2 py-0.5 rounded-full border text-[10px] font-medium cursor-pointer transition ${
+                      col.visible
+                        ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                        : 'border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400'
+                    }`}
+                  >
+                    {col.visible ? '✓ ' : ''}
+                    {col.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Inline Save Filter Row */}
+          {showSaveRow && (
+            <div className="pt-2 border-t border-[#E2E2DC] dark:border-zinc-800 flex items-center gap-1.5">
+              <input
+                type="text"
+                data-testid={`${testIdPrefix}-panel-save-filter-input`}
+                value={newFilterName}
+                onChange={(e) => setNewFilterName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newFilterName.trim()) {
+                    e.preventDefault();
+                    saveCurrentAsFilter(newFilterName);
+                  }
+                }}
+                placeholder="Nombre del filtro guardado..."
+                className="flex-1 px-2.5 py-1 rounded-[4px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-xs outline-none focus:border-indigo-500"
+              />
+              <button
+                type="button"
+                data-testid={`${testIdPrefix}-panel-save-filter-confirm`}
+                onClick={() => saveCurrentAsFilter(newFilterName)}
+                disabled={!newFilterName.trim()}
+                className="px-2.5 py-1 rounded-[4px] bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-semibold disabled:opacity-40 cursor-pointer"
+              >
+                Guardar
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowSaveRow(false)}
+                className="px-2 py-1 rounded-[4px] border border-zinc-300 dark:border-zinc-700 text-[11px] cursor-pointer"
+              >
+                Cancelar
+              </button>
+            </div>
+          )}
+
+          {/* Gmail-style Footer Actions */}
+          <div className="pt-2.5 border-t border-[#E2E2DC] dark:border-zinc-800 flex items-center justify-between gap-2">
+            <button
+              type="button"
+              data-testid={`${testIdPrefix}-clear-filters-btn`}
+              onClick={() => {
+                setBuiltInActiveId(null);
+                onClearFilters();
+              }}
+              className="text-[11px] font-medium text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09] dark:hover:text-white cursor-pointer"
+            >
+              Restablecer
+            </button>
+            <div className="flex items-center gap-1.5">
+              {activeSavedFilterObj && (
+                <button
+                  type="button"
+                  data-testid={`${testIdPrefix}-panel-update-filter-btn`}
+                  onClick={() =>
+                    saveCurrentAsFilter(activeSavedFilterObj.name, activeSavedFilterObj.id)
+                  }
+                  className="px-2.5 py-1 rounded-[4px] border border-indigo-500 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 text-[11px] font-semibold cursor-pointer"
+                >
+                  {`Actualizar "${activeSavedFilterObj.name}"`}
+                </button>
+              )}
+              {(enableBuiltInSavedFilters || onSaveExternalSavedFilter) && (
+                <button
+                  type="button"
+                  data-testid={`${testIdPrefix}-panel-create-filter-btn`}
+                  onClick={() => setShowSaveRow(true)}
+                  className="px-2.5 py-1 rounded-[4px] text-[#6B6B66] dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] font-semibold cursor-pointer flex items-center gap-1"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>Crear filtro</span>
+                </button>
+              )}
+              <button
+                type="button"
+                data-testid={`${testIdPrefix}-panel-apply-btn`}
+                onClick={() => {
+                  setPanelOpen(false);
+                  setShowSaveRow(false);
+                }}
+                className="px-3.5 py-1 rounded-full bg-[#0C0C09] dark:bg-zinc-100 text-white dark:text-[#0C0C09] text-[11px] font-semibold cursor-pointer"
+              >
+                Buscar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Saved Filters: either external slot (ReportsView legacy menu) + quick editable pills */}
+      {savedFiltersSlot}
+      {!savedFiltersSlot && enableBuiltInSavedFilters && (
+        <button
+          type="button"
+          data-testid={`${testIdPrefix}-saved-filters-btn`}
+          onClick={() => {
+            refreshBuiltInFilters();
+            setPanelOpen(true);
+            setShowSaveRow(true);
+          }}
+          className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[10px] font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 cursor-pointer h-6.5 shrink-0"
+          title="Guardar búsqueda actual como filtro"
+        >
+          <Bookmark className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+          <span>Guardar filtro</span>
+        </button>
+      )}
+
+      {/* Quick Saved Filter Pills (1-click apply + ✏️ full edit in Gmail panel) */}
+      {effectiveSavedFilters.length > 0 && (
+        <div className="flex items-center gap-1 flex-wrap">
+          {effectiveSavedFilters.map((f) => {
+            const isAct = f.id === effectiveActiveFilterId;
+            return (
+              <div
+                key={f.id}
+                data-testid={`${testIdPrefix}-saved-pill-${f.id}`}
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] h-6 transition ${
+                  isAct
+                    ? 'border-indigo-600 bg-indigo-600 text-white font-semibold'
+                    : 'border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700'
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => applyFilter(f)}
+                  className="cursor-pointer truncate max-w-[120px] flex items-center gap-1"
+                  title={`Aplicar filtro "${f.name}"`}
+                >
+                  {isAct && <Check className="w-2.5 h-2.5 shrink-0" />}
+                  <span className="truncate">{f.name}</span>
+                </button>
+                <button
+                  type="button"
+                  data-testid={`${testIdPrefix}-saved-pill-edit-${f.id}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    applyFilter(f);
+                    setPanelOpen(true);
+                    setShowSaveRow(false);
+                  }}
+                  className="opacity-75 hover:opacity-100 cursor-pointer p-0.5"
+                  title="Editar todos los criterios de este filtro"
+                >
+                  <Pencil className="w-2.5 h-2.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteFilter(f.id);
+                  }}
+                  className="opacity-75 hover:opacity-100 cursor-pointer p-0.5"
+                  title="Eliminar filtro guardado"
+                >
+                  <Trash2 className="w-2.5 h-2.5" />
+                </button>
+              </div>
             );
-          })()}
+          })}
         </div>
       )}
 
-      {/* 9. Clear Filters Button */}
-      {hasActiveFilters && (
-        <button
-          type="button"
-          data-testid={`${testIdPrefix}-clear-filters-btn`}
-          onClick={() => {
-            setBuiltInActiveId(null);
-            onClearFilters();
-          }}
-          className="text-[10px] font-sans font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer shrink-0 px-1"
+      {/* Active Filter Chips (removable in 1 click) */}
+      {activeChips.length > 0 && (
+        <div
+          data-testid={`${testIdPrefix}-active-filter-chips`}
+          className="flex items-center gap-1 flex-wrap"
         >
-          Limpiar
-        </button>
+          {activeChips.map((chip) => (
+            <span
+              key={chip.key}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 font-mono text-[10px] h-6"
+            >
+              <span>{chip.label}</span>
+              <button
+                type="button"
+                onClick={chip.onRemove}
+                className="hover:text-rose-600 cursor-pointer"
+                title="Quitar criterio"
+              >
+                <X className="w-2.5 h-2.5" />
+              </button>
+            </span>
+          ))}
+        </div>
       )}
     </div>
   );
