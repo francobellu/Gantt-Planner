@@ -9,6 +9,7 @@ import {
   FolderPlus,
   Flag,
   Eye,
+  Crosshair,
   Rocket,
   CheckCircle2,
   AlertTriangle,
@@ -47,6 +48,10 @@ import {
   GanttSearchFieldsConfig,
   DEFAULT_GANTT_SEARCH_FIELDS,
 } from './SearchFilterBar';
+import {
+  ProjectWizardModal,
+  ProjectWizardPayload,
+} from './ProjectWizardModal';
 import {
   generateCronogramaCompletoRows,
   generateProjectSummaryRows,
@@ -504,12 +509,15 @@ interface ReportsViewProps {
   initialShowSubtasksOnFilter?: boolean;
   initialShowSearchFieldsMenu?: boolean;
   initialContextMenu?: ReportRowContextMenuState | null;
+  initialFocusedProjectIds?: string[];
+  initialShowWizard?: boolean;
   selectedEntity?: FocusEntity | null;
   onSelectEntity?: (entity: FocusEntity) => void;
   onUpdateItem?: (item: GanttItem, autoCascade: boolean) => void;
   onUpdateProject?: (project: GanttProject) => void;
   onUpdateRelease?: (release: Release) => void;
   onCreateProject?: (newProj?: Partial<GanttProject>) => void;
+  onCreateProjectFromWizard?: (payload: ProjectWizardPayload) => void;
   onCreateTask?: (projectId?: string) => void;
   onCreateMilestone?: (projectId?: string) => void;
 }
@@ -532,21 +540,29 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   initialShowSubtasksOnFilter = false,
   initialShowSearchFieldsMenu = false,
   initialContextMenu = null,
+  initialFocusedProjectIds = [],
+  initialShowWizard = false,
   selectedEntity = null,
   onSelectEntity,
   onUpdateItem,
   onUpdateProject,
   onUpdateRelease,
   onCreateProject,
+  onCreateProjectFromWizard,
   onCreateTask,
   onCreateMilestone,
 }) => {
   const [activeTab, setActiveTab] = useState<ReportTab>(initialTab === 'projects' ? 'cronograma' : initialTab);
-  const [showColumnsMenu, setShowColumnsMenu] = useState<boolean>(initialShowColumnsMenu);
-  const columnsMenuRef = useRef<HTMLDivElement>(null);
-
-  const [showFormatMenu, setShowFormatMenu] = useState<boolean>(initialShowFormatMenu);
-  const formatMenuRef = useRef<HTMLDivElement>(null);
+  const [showFormatColumnsMenu, setShowFormatColumnsMenu] = useState<boolean>(
+    initialShowFormatMenu || initialShowColumnsMenu
+  );
+  const [formatColumnsTab, setFormatColumnsTab] = useState<'format' | 'columns'>(
+    initialShowColumnsMenu && !initialShowFormatMenu ? 'columns' : 'format'
+  );
+  const formatColumnsMenuRef = useRef<HTMLDivElement>(null);
+  const [focusedProjectIds, setFocusedProjectIds] = useState<string[]>(initialFocusedProjectIds);
+  const [wizardOpen, setWizardOpen] = useState<boolean>(initialShowWizard);
+  const [wizardInitialReleaseId, setWizardInitialReleaseId] = useState<string | undefined>(undefined);
   const [newPresetName, setNewPresetName] = useState<string>('');
 
   const [showSavedFiltersMenu, setShowSavedFiltersMenu] = useState<boolean>(initialShowSavedFiltersMenu);
@@ -838,16 +854,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         setContextMenu(null);
       }
       if (
-        columnsMenuRef.current &&
-        !columnsMenuRef.current.contains(e.target as Node)
+        formatColumnsMenuRef.current &&
+        !formatColumnsMenuRef.current.contains(e.target as Node)
       ) {
-        setShowColumnsMenu(false);
-      }
-      if (
-        formatMenuRef.current &&
-        !formatMenuRef.current.contains(e.target as Node)
-      ) {
-        setShowFormatMenu(false);
+        setShowFormatColumnsMenu(false);
       }
       if (
         savedFiltersMenuRef.current &&
@@ -866,8 +876,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setContextMenu(null);
-        setShowColumnsMenu(false);
-        setShowFormatMenu(false);
+        setShowFormatColumnsMenu(false);
         setShowSavedFiltersMenu(false);
       }
     };
@@ -1021,7 +1030,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       } catch {}
       return next;
     });
-    setShowFormatMenu(false);
+    setShowFormatColumnsMenu(false);
   };
 
   const handleSavePreset = () => {
@@ -1687,6 +1696,23 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       return true;
     };
 
+    const hasFocusFilter = focusedProjectIds.length > 0;
+    const focusedProjectSet = hasFocusFilter ? new Set(focusedProjectIds) : null;
+    const baseCronoRows = hasFocusFilter && focusedProjectSet
+      ? (() => {
+          const allowedReleaseCodes = new Set<string>();
+          for (const r of cronoRows) {
+            if (r.projectId && focusedProjectSet.has(r.projectId) && r.releaseCode && r.releaseCode !== '—') {
+              allowedReleaseCodes.add(r.releaseCode);
+            }
+          }
+          return cronoRows.filter((r) => {
+            if (r.level === 'RELEASE') return allowedReleaseCodes.has(r.releaseCode);
+            return Boolean(r.projectId && focusedProjectSet.has(r.projectId));
+          });
+        })()
+      : cronoRows;
+
     const hasFilters =
       selectedType !== 'all' ||
       selectedRelease !== 'all' ||
@@ -1695,11 +1721,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       Boolean(searchQuery.trim());
 
     if (!hasFilters) {
-      return cronoRows;
+      return baseCronoRows;
     }
 
     const directlyMatchingProjectIds = new Set<string>();
-    for (const r of cronoRows) {
+    for (const r of baseCronoRows) {
       if (r.level === 'PROYECTO' && r.projectId && matchesNonReleaseRow(r)) {
         directlyMatchingProjectIds.add(r.projectId);
       }
@@ -1708,12 +1734,12 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     if (selectedType !== 'all') {
       if (selectedType === 'RELEASE' && (selectedPlatform !== 'all' || selectedAlert !== 'all')) {
         const matchingReleaseCodes = new Set<string>();
-        for (const r of cronoRows) {
+        for (const r of baseCronoRows) {
           if (r.level !== 'RELEASE' && matchesNonReleaseRow(r) && r.releaseCode && r.releaseCode !== '—') {
             matchingReleaseCodes.add(r.releaseCode);
           }
         }
-        return cronoRows.filter((row) => {
+        return baseCronoRows.filter((row) => {
           if (row.level !== 'RELEASE') return false;
           if (selectedRelease !== 'all' && row.releaseCode !== selectedRelease) return false;
           if (!matchingReleaseCodes.has(row.releaseCode)) return false;
@@ -1721,7 +1747,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           return true;
         });
       }
-      return cronoRows.filter((row) => {
+      return baseCronoRows.filter((row) => {
         if (row.level !== selectedType) return false;
         if (matchesNonReleaseRow(row)) return true;
         if (
@@ -1740,7 +1766,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     const matchingProjectIds = new Set<string>();
     const matchingReleaseCodes = new Set<string>();
 
-    for (const r of cronoRows) {
+    for (const r of baseCronoRows) {
       if (r.level !== 'RELEASE') {
         if (matchesNonReleaseRow(r)) {
           matchingRowIds.add(r.rowId);
@@ -1750,7 +1776,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       }
     }
 
-    return cronoRows.filter((row) => {
+    return baseCronoRows.filter((row) => {
       if (row.level === 'RELEASE') {
         if (selectedRelease !== 'all' && row.releaseCode !== selectedRelease) {
           return false;
@@ -1767,7 +1793,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       }
       return false;
     });
-  }, [cronoRows, selectedType, selectedPlatform, selectedAlert, selectedRelease, searchQuery, searchFields, showSubtasksOnFilter]);
+  }, [cronoRows, focusedProjectIds, selectedType, selectedPlatform, selectedAlert, selectedRelease, searchQuery, searchFields, showSubtasksOnFilter]);
 
   // 3. Filter Tab 2: Resumen Proyectos
   const filteredProjectRows = useMemo(() => {
@@ -1973,50 +1999,32 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           showSubtasksToggle={activeTab === 'cronograma'}
           searchInputClassName="w-56 sm:w-64"
           initialShowSearchFieldsMenu={initialShowSearchFieldsMenu}
-          onClearFilters={() => {
-            setSearchQuery('');
-            setSearchFields({ ...DEFAULT_GANTT_SEARCH_FIELDS });
-            setSelectedType('all');
-            setSelectedPlatform('all');
-            setSelectedAlert('all');
-            setSelectedRelease('all');
-            setShowSubtasksOnFilter(false);
-            setActiveSavedFilterId(null);
-            try {
-              localStorage.removeItem(REPORT_ACTIVE_FILTER_KEY);
-            } catch {}
-          }}
-        />
-
-        {/* Right side: Saved Filters, Formats & Columns Configurators */}
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Saved Filters with Column Format (Informe Planificación) */}
-          {activeTab === 'cronograma' && (
-            <div className="relative shrink-0" ref={savedFiltersMenuRef}>
-              <button
-                type="button"
-                data-testid="reports-saved-filters-btn"
-                onClick={() => {
-                  setShowSavedFiltersMenu((prev) => {
-                    const next = !prev;
-                    if (next) {
-                      setNewFilterFormatChoice(activePresetId !== 'custom' ? activePresetId : '__current__');
-                    }
-                    return next;
-                  });
-                  setShowFormatMenu(false);
-                  setShowColumnsMenu(false);
-                }}
-                className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-[3px] border text-[10px] font-semibold transition cursor-pointer h-6.5 ${
-                  activeSavedFilter
-                    ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-                    : 'border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700'
-                }`}
-                title={
-                  activeSavedFilter
-                    ? `Filtro activo: ${activeSavedFilter.name}`
-                    : 'Guardar y aplicar filtros con formato de columnas'
-                }
+          savedFiltersSlot={
+            activeTab === 'cronograma' ? (
+              <div className="relative shrink-0" ref={savedFiltersMenuRef}>
+                <button
+                  type="button"
+                  data-testid="reports-saved-filters-btn"
+                  onClick={() => {
+                    setShowSavedFiltersMenu((prev) => {
+                      const next = !prev;
+                      if (next) {
+                        setNewFilterFormatChoice(activePresetId !== 'custom' ? activePresetId : '__current__');
+                      }
+                      return next;
+                    });
+                    setShowFormatColumnsMenu(false);
+                  }}
+                  className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-[3px] border text-[10px] font-semibold transition cursor-pointer h-6.5 ${
+                    activeSavedFilter
+                      ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                      : 'border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700'
+                  }`}
+                  title={
+                    activeSavedFilter
+                      ? `Filtro activo: ${activeSavedFilter.name}`
+                      : 'Guardar y aplicar filtros con formato de columnas'
+                  }
               >
                 <Bookmark className="w-3 h-3 text-indigo-600 dark:text-indigo-400 shrink-0" />
                 <span className="truncate max-w-[140px] sm:max-w-[180px]">
@@ -2245,40 +2253,114 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     </div>
                   </div>
                 </div>
-              )}
-            </div>
-          )}
+                )}
+              </div>
+            ) : undefined
+          }
+          onClearFilters={() => {
+            setSearchQuery('');
+            setSearchFields({ ...DEFAULT_GANTT_SEARCH_FIELDS });
+            setSelectedType('all');
+            setSelectedPlatform('all');
+            setSelectedAlert('all');
+            setSelectedRelease('all');
+            setShowSubtasksOnFilter(false);
+            setActiveSavedFilterId(null);
+            try {
+              localStorage.removeItem(REPORT_ACTIVE_FILTER_KEY);
+            } catch {}
+          }}
+        />
 
-          {/* Format Selector Dropdown */}
-          <div className="relative shrink-0" ref={formatMenuRef}>
+        {/* Right side: Project Wizard + Unified Format & Columns Configurator */}
+        <div className="flex items-center gap-2 shrink-0">
+          {activeTab === 'cronograma' && (onCreateProjectFromWizard || onCreateProject) && (
             <button
               type="button"
-              data-testid="reports-format-btn"
+              data-testid="reports-open-wizard-btn"
               onClick={() => {
-                setShowFormatMenu((prev) => !prev);
-                setShowColumnsMenu(false);
+                const relMatch =
+                  selectedRelease !== 'all'
+                    ? releases.find((r) => r.code === selectedRelease)?.id
+                    : undefined;
+                setWizardInitialReleaseId(relMatch);
+                setWizardOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-[3px] border border-[#0C0C09] dark:border-zinc-600 bg-[#0C0C09] dark:bg-zinc-100 text-white dark:text-[#0C0C09] hover:opacity-90 text-[10px] font-semibold transition cursor-pointer h-6.5"
+              title="Crear nuevo proyecto con subtareas mediante asistente guiado"
+            >
+              <FolderPlus className="w-3 h-3 shrink-0" />
+              <span>Nuevo Proyecto</span>
+            </button>
+          )}
+
+          {/* Unified Format + Columns Selector Dropdown */}
+          <div className="relative shrink-0" ref={formatColumnsMenuRef}>
+            <button
+              type="button"
+              data-testid="reports-format-columns-btn"
+              onClick={() => {
+                setShowFormatColumnsMenu((prev) => !prev);
                 setShowSavedFiltersMenu(false);
               }}
               className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-[3px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[10px] font-semibold text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition cursor-pointer h-6.5"
-              title={`Formato actual: ${activePresetDisplayName}`}
+              title={`Formato: ${activePresetDisplayName} · Columnas visibles`}
             >
-              <LayoutTemplate className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-              <span className="truncate max-w-[130px] sm:max-w-[180px]">
+              <LayoutTemplate className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span className="truncate max-w-[130px] sm:max-w-[170px]">
                 {`Formato: ${activePresetDisplayName}`}
+              </span>
+              <span className="px-1 rounded bg-zinc-100 dark:bg-zinc-700 font-mono text-[9px] text-indigo-700 dark:text-indigo-300">
+                {COLUMNS_BY_TAB[activeTab].filter((c) => isColVisible(activeTab, c.key)).length}/{COLUMNS_BY_TAB[activeTab].length}
               </span>
               <ChevronDown className="w-3 h-3 text-zinc-500 shrink-0" />
             </button>
-            {showFormatMenu && (
+
+            {showFormatColumnsMenu && (
               <div
-                data-testid="reports-format-menu"
-                className="absolute right-0 top-full mt-1 w-64 max-h-96 overflow-y-auto bg-white dark:bg-zinc-900 border border-[#0C0C09] dark:border-zinc-700 rounded-[4px] shadow-2xl z-50 p-1.5 flex flex-col gap-1"
+                data-testid="reports-format-columns-menu"
+                className="absolute right-0 top-full mt-1 w-72 max-h-[28rem] overflow-y-auto bg-white dark:bg-zinc-900 border border-[#0C0C09] dark:border-zinc-700 rounded-[4px] shadow-2xl z-50 p-1.5 flex flex-col gap-1.5"
               >
-                {/* Predeterminados header */}
-                <div className="px-2 py-1 border-b border-slate-200 dark:border-zinc-800">
-                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
-                    Formatos predeterminados
-                  </span>
+                {/* Unified Tab Switcher: Formatos | Columnas */}
+                <div className="grid grid-cols-2 gap-1 p-0.5 rounded-[3px] bg-[#F4F4F1] dark:bg-zinc-800 border border-[#E2E2DC] dark:border-zinc-700">
+                  <button
+                    type="button"
+                    data-testid="reports-format-btn"
+                    onClick={() => setFormatColumnsTab('format')}
+                    className={`flex items-center justify-center gap-1 py-1 px-2 rounded-[2px] text-[10px] font-semibold cursor-pointer transition ${
+                      formatColumnsTab === 'format'
+                        ? 'bg-white dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-100 shadow-xs'
+                        : 'text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09] dark:hover:text-zinc-200'
+                    }`}
+                  >
+                    <LayoutTemplate className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                    <span>Formatos</span>
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="reports-columns-btn"
+                    onClick={() => setFormatColumnsTab('columns')}
+                    className={`flex items-center justify-center gap-1 py-1 px-2 rounded-[2px] text-[10px] font-semibold cursor-pointer transition ${
+                      formatColumnsTab === 'columns'
+                        ? 'bg-white dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-100 shadow-xs'
+                        : 'text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09] dark:hover:text-zinc-200'
+                    }`}
+                  >
+                    <SlidersHorizontal className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+                    <span>
+                      Columnas ({COLUMNS_BY_TAB[activeTab].filter((c) => isColVisible(activeTab, c.key)).length}/{COLUMNS_BY_TAB[activeTab].length})
+                    </span>
+                  </button>
                 </div>
+
+                {formatColumnsTab === 'format' ? (
+                  <div data-testid="reports-format-menu" className="flex flex-col gap-1">
+                    {/* Predeterminados header */}
+                    <div className="px-2 py-1 border-b border-slate-200 dark:border-zinc-800">
+                      <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+                        Formatos predeterminados
+                      </span>
+                    </div>
 
                 {/* Default presets */}
                 {defaultPresetsForTab.map((preset) => {
@@ -2528,75 +2610,121 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     </button>
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
-
-          {/* Columns Configurator Dropdown */}
-          <div className="relative shrink-0" ref={columnsMenuRef}>
-            <button
-              type="button"
-              data-testid="reports-columns-btn"
-              onClick={() => {
-                setShowColumnsMenu((prev) => !prev);
-                setShowFormatMenu(false);
-                setShowSavedFiltersMenu(false);
-              }}
-              className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-[3px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[10px] font-semibold text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition cursor-pointer h-6.5"
-              title="Configurar columnas visibles de esta tabla"
-            >
-              <SlidersHorizontal className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
-              <span>Columnas</span>
-              <span className="px-1 rounded bg-zinc-100 dark:bg-zinc-700 font-mono text-[9px]">
-                {COLUMNS_BY_TAB[activeTab].filter((c) => isColVisible(activeTab, c.key)).length}/{COLUMNS_BY_TAB[activeTab].length}
-              </span>
-            </button>
-            {showColumnsMenu && (
-              <div
-                data-testid="reports-columns-menu"
-                className="absolute right-0 top-full mt-1 w-60 max-h-80 overflow-y-auto bg-white dark:bg-zinc-900 border border-[#0C0C09] dark:border-zinc-700 rounded-[4px] shadow-2xl z-50 p-1.5 flex flex-col gap-0.5"
-              >
-                <div className="flex items-center justify-between px-2 py-1 border-b border-slate-200 dark:border-zinc-800 mb-1">
-                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
-                    Columnas visibles
-                  </span>
-                  <button
-                    type="button"
-                    data-testid="reports-columns-reset-btn"
-                    onClick={() => resetReportCols(activeTab)}
-                    className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline font-semibold cursor-pointer"
+                  </div>
+                ) : (
+                  <div
+                    data-testid="reports-columns-menu"
+                    className="flex flex-col gap-0.5 max-h-72 overflow-y-auto"
                   >
-                    Mostrar todas
-                  </button>
-                </div>
-                {getOrderedColumns(activeTab).map((col) => {
-                  const visible = isColVisible(activeTab, col.key);
-                  return (
-                    <button
-                      key={col.key}
-                      type="button"
-                      data-testid={`report-col-toggle-${activeTab}-${col.key}`}
-                      onClick={() => toggleReportCol(activeTab, col.key)}
-                      className="flex items-center gap-2 px-2 py-1 rounded-[3px] text-[11px] text-left hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 cursor-pointer"
-                    >
-                      <span
-                        className={`w-3.5 h-3.5 rounded-[2px] border flex items-center justify-center shrink-0 ${
-                          visible
-                            ? 'bg-indigo-600 border-indigo-600 text-white'
-                            : 'border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900'
-                        }`}
-                      >
-                        {visible && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                    <div className="flex items-center justify-between px-2 py-1 border-b border-slate-200 dark:border-zinc-800 mb-1">
+                      <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+                        Columnas visibles
                       </span>
-                      <span className="truncate">{col.label}</span>
-                    </button>
-                  );
-                })}
+                      <button
+                        type="button"
+                        data-testid="reports-columns-reset-btn"
+                        onClick={() => resetReportCols(activeTab)}
+                        className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline font-semibold cursor-pointer"
+                      >
+                        Mostrar todas
+                      </button>
+                    </div>
+                    {getOrderedColumns(activeTab).map((col) => {
+                      const visible = isColVisible(activeTab, col.key);
+                      return (
+                        <button
+                          key={col.key}
+                          type="button"
+                          data-testid={`report-col-toggle-${activeTab}-${col.key}`}
+                          onClick={() => toggleReportCol(activeTab, col.key)}
+                          className="flex items-center gap-2 px-2 py-1 rounded-[3px] text-[11px] text-left hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 cursor-pointer"
+                        >
+                          <span
+                            className={`w-3.5 h-3.5 rounded-[2px] border flex items-center justify-center shrink-0 ${
+                              visible
+                                ? 'bg-indigo-600 border-indigo-600 text-white'
+                                : 'border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900'
+                            }`}
+                          >
+                            {visible && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                          </span>
+                          <span className="truncate">{col.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>
         </div>
       </div>
+
+      {/* Multi-Project Focus Banner (Informe Planificación) */}
+      {activeTab === 'cronograma' && focusedProjectIds.length > 0 && (
+        <div
+          data-testid="reports-focus-banner"
+          className="flex flex-wrap items-center justify-between gap-2 px-4 py-1.5 bg-indigo-600 text-white text-xs shrink-0"
+        >
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <Crosshair className="w-3.5 h-3.5 shrink-0" />
+            <span className="font-mono font-bold text-[10px] uppercase tracking-wider">
+              Enfoque ({focusedProjectIds.length}):
+            </span>
+            {focusedProjectIds.map((pid) => {
+              const p = projectById.get(pid);
+              if (!p) return null;
+              return (
+                <span
+                  key={pid}
+                  data-testid={`reports-focus-chip-${pid}`}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/15 border border-white/30 text-[11px] font-medium"
+                >
+                  <span className="truncate max-w-[180px]">{p.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => setFocusedProjectIds((prev) => prev.filter((id) => id !== pid))}
+                    className="hover:text-amber-200 cursor-pointer"
+                    title="Quitar proyecto del enfoque"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              );
+            })}
+            {projects.filter((p) => !focusedProjectIds.includes(p.id)).length > 0 && (
+              <select
+                data-testid="reports-focus-add-select"
+                value=""
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val && !focusedProjectIds.includes(val)) {
+                    setFocusedProjectIds((prev) => [...prev, val]);
+                  }
+                }}
+                className="px-2 py-0.5 rounded-[3px] bg-white/15 border border-white/30 text-white text-[10px] font-medium outline-none cursor-pointer"
+              >
+                <option value="" className="text-zinc-900">+ Añadir proyecto...</option>
+                {projects
+                  .filter((p) => !focusedProjectIds.includes(p.id))
+                  .map((p) => (
+                    <option key={p.id} value={p.id} className="text-zinc-900">
+                      {p.name}
+                    </option>
+                  ))}
+              </select>
+            )}
+          </div>
+          <button
+            type="button"
+            data-testid="reports-focus-clear-btn"
+            onClick={() => setFocusedProjectIds([])}
+            className="px-2 py-0.5 rounded-[3px] bg-white/20 hover:bg-white/30 text-[10px] font-semibold cursor-pointer shrink-0"
+          >
+            Salir de enfoque
+          </button>
+        </div>
+      )}
 
       {/* Main Table Content (Spreadsheet View) */}
       <div className="flex-1 overflow-auto bg-white dark:bg-[#0C0C09] min-h-0 select-text">
@@ -3512,14 +3640,19 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               </button>
             )}
 
-            {onCreateProject && (
+            {(onCreateProjectFromWizard || onCreateProject) && (
               <button
                 type="button"
                 data-testid="report-ctx-create-project"
                 onClick={() => {
-                  onCreateProject(
-                    contextMenu.releaseId ? { releaseId: contextMenu.releaseId } : undefined
-                  );
+                  if (onCreateProjectFromWizard) {
+                    setWizardInitialReleaseId(contextMenu.releaseId);
+                    setWizardOpen(true);
+                  } else if (onCreateProject) {
+                    onCreateProject(
+                      contextMenu.releaseId ? { releaseId: contextMenu.releaseId } : undefined
+                    );
+                  }
                   setContextMenu(null);
                 }}
                 className="w-full px-3 py-1.5 text-left flex items-center gap-2 text-[#0C0C09] dark:text-zinc-100 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:text-emerald-700 dark:hover:text-emerald-300 cursor-pointer transition-colors"
@@ -3545,6 +3678,30 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               >
                 <Flag className="w-3.5 h-3.5 text-orange-500 shrink-0" />
                 <span>Nuevo hito externo</span>
+              </button>
+            )}
+
+            {contextMenu.projectId && (
+              <button
+                type="button"
+                data-testid="report-ctx-focus-project"
+                onClick={() => {
+                  const pid = contextMenu.projectId!;
+                  setFocusedProjectIds((prev) =>
+                    prev.includes(pid) ? prev.filter((id) => id !== pid) : [...prev, pid]
+                  );
+                  setContextMenu(null);
+                }}
+                className="w-full px-3 py-1.5 text-left flex items-center gap-2 text-[#0C0C09] dark:text-zinc-100 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:text-indigo-700 dark:hover:text-indigo-300 cursor-pointer transition-colors"
+              >
+                <Crosshair className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                <span>
+                  {focusedProjectIds.includes(contextMenu.projectId)
+                    ? 'Quitar del enfoque'
+                    : focusedProjectIds.length > 0
+                    ? 'Añadir proyecto al enfoque'
+                    : 'Enfocar este proyecto'}
+                </span>
               </button>
             )}
           </div>
@@ -3573,6 +3730,24 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           )}
         </div>
       )}
+
+      {/* 3-Step Project Creation Wizard Modal */}
+      <ProjectWizardModal
+        isOpen={wizardOpen}
+        onClose={() => setWizardOpen(false)}
+        releases={releases}
+        existingTeams={Array.from(
+          new Set(items.map((it) => it.assignee?.trim()).filter((x): x is string => Boolean(x)))
+        )}
+        initialReleaseId={wizardInitialReleaseId}
+        onCreate={(payload) => {
+          if (onCreateProjectFromWizard) {
+            onCreateProjectFromWizard(payload);
+          } else if (onCreateProject) {
+            onCreateProject(payload.project);
+          }
+        }}
+      />
     </div>
   );
 };

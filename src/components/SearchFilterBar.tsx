@@ -1,11 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
+  Bookmark,
+  Check,
   ChevronDown,
   Filter,
+  Plus,
   Search,
   SlidersHorizontal,
   Smartphone,
+  Trash2,
   X,
 } from 'lucide-react';
 import { ProjectAlertLevel, ProjectPlatform, Release } from '../types/gantt';
@@ -74,7 +78,23 @@ export interface SearchFilterBarProps {
   searchPlaceholder?: string;
   searchInputClassName?: string;
   initialShowSearchFieldsMenu?: boolean;
+  savedFiltersSlot?: React.ReactNode;
+  enableBuiltInSavedFilters?: boolean;
 }
+
+interface StoredSavedFilter {
+  id: string;
+  name: string;
+  searchQuery: string;
+  searchFields?: GanttSearchFieldsConfig;
+  selectedType: UnifiedRowTypeFilter;
+  selectedPlatform: 'all' | ProjectPlatform;
+  selectedAlert: 'all' | ProjectAlertLevel;
+  selectedRelease: string;
+  showSubtasksOnFilter?: boolean;
+}
+
+const SHARED_SAVED_FILTERS_KEY = 'gantt_report_saved_filters_v1';
 
 export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
   testIdPrefix,
@@ -99,16 +119,33 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
   searchPlaceholder = 'Buscar proyecto o tarea...',
   searchInputClassName,
   initialShowSearchFieldsMenu = false,
+  savedFiltersSlot,
+  enableBuiltInSavedFilters = false,
 }) => {
   const [showSearchFieldsMenu, setShowSearchFieldsMenu] = useState(initialShowSearchFieldsMenu);
   const [showTypeFilterMenu, setShowTypeFilterMenu] = useState(false);
   const [showPlatformFilterMenu, setShowPlatformFilterMenu] = useState(false);
   const [showAlertFilterMenu, setShowAlertFilterMenu] = useState(false);
+  const [showBuiltInSavedMenu, setShowBuiltInSavedMenu] = useState(false);
+  const [builtInNewName, setBuiltInNewName] = useState('');
+  const [builtInActiveId, setBuiltInActiveId] = useState<string | null>(null);
+  const [builtInFilters, setBuiltInFilters] = useState<StoredSavedFilter[]>(() => {
+    if (!enableBuiltInSavedFilters) return [];
+    try {
+      const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(SHARED_SAVED_FILTERS_KEY) : null;
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
+  });
 
   const searchFieldsMenuRef = useRef<HTMLDivElement>(null);
   const typeFilterMenuRef = useRef<HTMLDivElement>(null);
   const platformFilterMenuRef = useRef<HTMLDivElement>(null);
   const alertFilterMenuRef = useRef<HTMLDivElement>(null);
+  const builtInSavedMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -141,6 +178,13 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
       ) {
         setShowAlertFilterMenu(false);
       }
+      if (
+        showBuiltInSavedMenu &&
+        builtInSavedMenuRef.current &&
+        !builtInSavedMenuRef.current.contains(target)
+      ) {
+        setShowBuiltInSavedMenu(false);
+      }
     };
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -148,6 +192,7 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
         setShowTypeFilterMenu(false);
         setShowPlatformFilterMenu(false);
         setShowAlertFilterMenu(false);
+        setShowBuiltInSavedMenu(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -156,7 +201,13 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [showSearchFieldsMenu, showTypeFilterMenu, showPlatformFilterMenu, showAlertFilterMenu]);
+  }, [
+    showSearchFieldsMenu,
+    showTypeFilterMenu,
+    showPlatformFilterMenu,
+    showAlertFilterMenu,
+    showBuiltInSavedMenu,
+  ]);
 
   const optPrefix = testIdPrefix === 'reports' ? 'reports-' : '';
 
@@ -636,12 +687,209 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
         </label>
       )}
 
-      {/* 8. Clear Filters Button */}
+      {/* 8. Saved Filters (custom slot from ReportsView or built-in for Cronograma) */}
+      {savedFiltersSlot}
+      {!savedFiltersSlot && enableBuiltInSavedFilters && (
+        <div ref={builtInSavedMenuRef} className="relative flex items-center shrink-0">
+          {(() => {
+            const activeBuiltIn = builtInFilters.find(
+              (f) =>
+                f.id === builtInActiveId &&
+                (f.searchQuery || '') === searchQuery &&
+                (f.selectedType || 'all') === selectedType &&
+                (f.selectedPlatform || 'all') === selectedPlatform &&
+                (f.selectedAlert ?? 'all') === selectedAlert &&
+                (f.selectedRelease || 'all') === selectedRelease
+            );
+            return (
+              <>
+                <button
+                  type="button"
+                  data-testid={`${testIdPrefix}-saved-filters-btn`}
+                  onClick={() => {
+                    setShowBuiltInSavedMenu((prev) => {
+                      const next = !prev;
+                      if (next) {
+                        try {
+                          const raw =
+                            typeof localStorage !== 'undefined'
+                              ? localStorage.getItem(SHARED_SAVED_FILTERS_KEY)
+                              : null;
+                          if (raw) {
+                            const parsed = JSON.parse(raw);
+                            if (Array.isArray(parsed)) setBuiltInFilters(parsed);
+                          }
+                        } catch {}
+                      }
+                      return next;
+                    });
+                  }}
+                  className={`flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-sans font-semibold normal-case rounded-[3px] border outline-none cursor-pointer h-6.5 transition ${
+                    activeBuiltIn
+                      ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                      : 'border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700/70'
+                  }`}
+                  title="Guardar y aplicar filtros guardados"
+                >
+                  <Bookmark className="w-3 h-3 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                  <span className="truncate max-w-[130px]">
+                    {activeBuiltIn ? `Filtro: ${activeBuiltIn.name}` : 'Filtros guardados'}
+                  </span>
+                  {builtInFilters.length > 0 && !activeBuiltIn && (
+                    <span className="px-1 rounded bg-zinc-100 dark:bg-zinc-700 text-[9px] font-mono">
+                      {builtInFilters.length}
+                    </span>
+                  )}
+                  <ChevronDown className="w-3 h-3 text-zinc-500 shrink-0" />
+                </button>
+
+                {showBuiltInSavedMenu && (
+                  <div
+                    data-testid={`${testIdPrefix}-saved-filters-menu`}
+                    className="absolute left-0 top-full mt-1 w-72 max-h-80 overflow-y-auto bg-white dark:bg-zinc-900 border border-[#0C0C09] dark:border-zinc-700 rounded-[4px] shadow-2xl z-50 p-2 flex flex-col gap-1.5"
+                  >
+                    <div className="px-1 py-0.5 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+                      <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                        Filtros guardados
+                      </span>
+                    </div>
+
+                    {builtInFilters.length === 0 ? (
+                      <div className="px-2 py-2 text-[10px] text-zinc-500 dark:text-zinc-400">
+                        Sin filtros guardados todavía.
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-1">
+                        {builtInFilters.map((f) => {
+                          const isAct = activeBuiltIn?.id === f.id;
+                          return (
+                            <div
+                              key={f.id}
+                              className={`flex items-center justify-between gap-1 px-2 py-1 rounded-[3px] text-[10px] transition ${
+                                isAct
+                                  ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                                  : 'hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200'
+                              }`}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onChangeSearchQuery(f.searchQuery || '');
+                                  onChangeSearchFields(
+                                    f.searchFields
+                                      ? { ...DEFAULT_GANTT_SEARCH_FIELDS, ...f.searchFields }
+                                      : { ...DEFAULT_GANTT_SEARCH_FIELDS }
+                                  );
+                                  onChangeSelectedType(f.selectedType || 'all');
+                                  onChangeSelectedPlatform(f.selectedPlatform || 'all');
+                                  onChangeSelectedAlert(f.selectedAlert ?? 'all');
+                                  onChangeSelectedRelease(f.selectedRelease || 'all');
+                                  onChangeShowSubtasksOnFilter(Boolean(f.showSubtasksOnFilter));
+                                  setBuiltInActiveId(f.id);
+                                  setShowBuiltInSavedMenu(false);
+                                }}
+                                className="flex-1 text-left flex items-center gap-1.5 truncate cursor-pointer font-medium"
+                              >
+                                {isAct && <Check className="w-3 h-3 text-indigo-600 shrink-0" />}
+                                <span className="truncate">{f.name}</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const next = builtInFilters.filter((x) => x.id !== f.id);
+                                  setBuiltInFilters(next);
+                                  if (builtInActiveId === f.id) setBuiltInActiveId(null);
+                                  try {
+                                    localStorage.setItem(SHARED_SAVED_FILTERS_KEY, JSON.stringify(next));
+                                  } catch {}
+                                }}
+                                className="p-0.5 text-zinc-400 hover:text-rose-500 cursor-pointer"
+                                title="Eliminar filtro"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    <div className="pt-1.5 border-t border-zinc-200 dark:border-zinc-800 flex items-center gap-1">
+                      <input
+                        type="text"
+                        value={builtInNewName}
+                        onChange={(e) => setBuiltInNewName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && builtInNewName.trim()) {
+                            const created: StoredSavedFilter = {
+                              id: `filter-custom-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+                              name: builtInNewName.trim(),
+                              searchQuery,
+                              searchFields: { ...searchFields },
+                              selectedType,
+                              selectedPlatform,
+                              selectedAlert,
+                              selectedRelease,
+                              showSubtasksOnFilter,
+                            };
+                            const next = [...builtInFilters, created];
+                            setBuiltInFilters(next);
+                            setBuiltInActiveId(created.id);
+                            setBuiltInNewName('');
+                            try {
+                              localStorage.setItem(SHARED_SAVED_FILTERS_KEY, JSON.stringify(next));
+                            } catch {}
+                          }
+                        }}
+                        placeholder="Guardar filtro actual..."
+                        className="flex-1 px-2 py-1 rounded-[3px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-[10px] outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!builtInNewName.trim()) return;
+                          const created: StoredSavedFilter = {
+                            id: `filter-custom-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+                            name: builtInNewName.trim(),
+                            searchQuery,
+                            searchFields: { ...searchFields },
+                            selectedType,
+                            selectedPlatform,
+                            selectedAlert,
+                            selectedRelease,
+                            showSubtasksOnFilter,
+                          };
+                          const next = [...builtInFilters, created];
+                          setBuiltInFilters(next);
+                          setBuiltInActiveId(created.id);
+                          setBuiltInNewName('');
+                          try {
+                            localStorage.setItem(SHARED_SAVED_FILTERS_KEY, JSON.stringify(next));
+                          } catch {}
+                        }}
+                        className="px-2 py-1 rounded-[3px] bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-semibold flex items-center gap-0.5 cursor-pointer shrink-0"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>Guardar</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* 9. Clear Filters Button */}
       {hasActiveFilters && (
         <button
           type="button"
           data-testid={`${testIdPrefix}-clear-filters-btn`}
-          onClick={onClearFilters}
+          onClick={() => {
+            setBuiltInActiveId(null);
+            onClearFilters();
+          }}
           className="text-[10px] font-sans font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer shrink-0 px-1"
         >
           Limpiar

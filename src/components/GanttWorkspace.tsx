@@ -5636,6 +5636,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             showSubtasksOnFilter={showSubtasksOnFilter}
             onChangeShowSubtasksOnFilter={setShowSubtasksOnFilter}
             initialShowSearchFieldsMenu={initialShowSearchFieldsMenu}
+            enableBuiltInSavedFilters={true}
             onClearFilters={() => {
               setTableSearchQuery('');
               setTableTypeFilter('all');

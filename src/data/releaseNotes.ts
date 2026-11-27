@@ -10,10 +10,21 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.12.0',
+    date: '27 Nov 2026',
+    title: 'Wizard de proyectos, enfoque multi-proyecto, formato+columnas unificado y filtros guardados en barra',
+    isLatest: true,
+    features: [
+      'Añade Wizard guiado de 3 pasos para crear proyectos con subtareas en el Informe de Planificación con límite QG5 automático, inicio Hoy/Otra fecha y presets DIGI (MC), ARQ (ARQ) y QA (QA)',
+      'Añade enfoque en uno o más proyectos desde el clic derecho y barra de enfoque en el Informe de Planificación',
+      'Unifica los botones de Formato y Columnas en un único selector con pestañas Formatos y Columnas',
+      'Mueve Filtros guardados dentro de la barra de búsqueda/filtros tanto en Informe de Planificación como en Cronograma',
+    ],
+  },
+  {
     version: '1.11.32',
     date: '27 Nov 2026',
     title: 'Menú contextual clic derecho para crear elementos en Informe de Planificación',
-    isLatest: true,
     features: [
       'Añade menú contextual con clic derecho sobre filas de Release, Proyecto, Tarea o Hito en el Informe de Planificación',
       'Permite crear nueva tarea en el proyecto, nuevo hito en el proyecto, nuevo proyecto en la release y nuevo hito externo directamente desde la tabla',

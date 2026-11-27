@@ -64,6 +64,7 @@ import {
 } from './types/gantt';
 import {
   autoScheduleConflicts,
+  calculateDurationFromDates,
   cascadeDependencies,
   clampDayWidth,
   collectTimelineAnchorDates,
@@ -118,6 +119,7 @@ import { ReleaseNotesModal } from './components/ReleaseNotesModal';
 import { ReportsView } from './components/ReportsView';
 import { ProjectLockedAlertModal } from './components/ProjectLockedAlertModal';
 import { RightSidePanel, RightSidebarTab } from './components/RightSidePanel';
+import { ProjectWizardPayload } from './components/ProjectWizardModal';
 import {
   DEFAULT_PREDEFINED_RELEASES,
   getReleaseDateSpan,
@@ -1714,6 +1716,77 @@ export function App({
     );
   };
 
+  const handleCreateProjectFromWizard = (payload: ProjectWizardPayload) => {
+    const nextProjectIndex =
+      effectiveProjects.reduce((max, p, i) => Math.max(max, p.projectIndex || i + 1), 0) + 1;
+    const baseProj = payload.project || {};
+    const clean = {
+      ...sanitizeProject(
+        {
+          id: `proj-${Date.now()}`,
+          projectIndex: nextProjectIndex,
+          name: baseProj.name || `Proyecto ${nextProjectIndex}`,
+          color: baseProj.color || 'indigo',
+          releaseId: baseProj.releaseId || undefined,
+          platform: baseProj.platform || 'iOS/Android',
+          ...baseProj,
+          isDemo: false,
+        },
+        effectiveProjects.length
+      ),
+      isDemo: false,
+    };
+    const nextProjects = [...effectiveProjects, clean];
+    setProjects(nextProjects);
+    setSelectedProjectIds((prev) =>
+      prev.includes(clean.id) ? prev : [...prev, clean.id]
+    );
+    setGroupByProject(true);
+    setSelectedProjectId('all');
+
+    const nowTs = Date.now();
+    const createdSubtasks: GanttItem[] = (payload.subtasks || []).map((st, idx) =>
+      sanitizeGanttItem({
+        id: `task-${nowTs}-${idx + 1}`,
+        projectId: clean.id,
+        taskIndex: idx + 1,
+        name: st.name || `Subtarea ${idx + 1}`,
+        type: 'task',
+        startDate: st.startDate,
+        endDate: st.endDate,
+        duration: calculateDurationFromDates(st.startDate, st.endDate, 'task'),
+        progress: 0,
+        dependencies: [],
+        slack: 0,
+        color: clean.color || 'indigo',
+        releaseId: clean.releaseId,
+        platform: st.platform || clean.platform,
+        assignee: st.assignee || undefined,
+      })
+    );
+
+    const nextItems = [...items, ...createdSubtasks];
+    setItems(nextItems);
+    setSelectedEntity({ type: 'project', id: clean.id, name: clean.name });
+    setShowCommitsSidebar(true);
+    setRightSidebarTab('details');
+
+    const targetRelease = releases.find((r) => r.id === clean.releaseId);
+    showToast(
+      `Proyecto '${clean.name}' creado con ${createdSubtasks.length} subtarea(s)${
+        targetRelease ? ` (${targetRelease.code})` : ''
+      }`
+    );
+    recordPlanChange(
+      'create_project',
+      'Nuevo Proyecto (Wizard)',
+      `Crear proyecto '${clean.name}' con ${createdSubtasks.length} subtarea(s)`,
+      nextItems,
+      nextProjects,
+      clean.id
+    );
+  };
+
   const handleCreateDigiTask = (project: GanttProject, taskType: 'DIGI' | 'SCR' = 'DIGI') => {
     const targetRelease = releases.find((r) => r.id === project.releaseId) || releases[0];
     const span = getReleaseDateSpan(targetRelease);
@@ -3152,6 +3225,7 @@ export function App({
               setShowCommitsSidebar(true);
               setRightSidebarTab('details');
             }}
+            onCreateProjectFromWizard={handleCreateProjectFromWizard}
             onCreateTask={(projectId) => {
               if (projectId) {
                 handleCreateTaskDirect(projectId);
