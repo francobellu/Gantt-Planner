@@ -121,7 +121,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       }
     };
     window.addEventListener('keydown', handleKeyDown, true);
-    return () => window.removeEventListener('keydown', handleKeyDown, true);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, true);
+      document.body.style.overflow = prevOverflow;
+    };
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
@@ -149,12 +154,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     },
     {
       id: 'releases',
-      label: 'Releases',
+      label: 'Catálogo Releases',
       subtitle: 'Catálogo, hitos QG y líneas guía',
       icon: <Rocket className="w-3.5 h-3.5 text-white" />,
       iconBg: 'bg-indigo-600',
       badge: releases.length > 0 ? releases.length : undefined,
-      keywords: 'releases hitos qg calendario excel importar exportar lineas guia proyectos',
+      keywords: 'releases catalogo hitos qg calendario excel importar exportar lineas guia proyectos',
     },
     {
       id: 'history',
@@ -672,9 +677,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {activeCategory === 'help' && (
             <div
               data-testid="settings-panel-help"
-              className="flex-1 min-h-0 flex flex-col overflow-hidden"
+              className="flex-1 min-h-0 overflow-y-auto overscroll-contain flex flex-col"
             >
-              <HelpPage onBackToGantt={onClose} />
+              <HelpPage onBackToGantt={onClose} embedded />
             </div>
           )}
 

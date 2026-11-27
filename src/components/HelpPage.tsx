@@ -29,6 +29,7 @@ import { APP_VERSION } from '../types/gantt';
 
 export interface HelpPageProps {
   onBackToGantt: () => void;
+  embedded?: boolean;
 }
 
 interface HelpSection {
@@ -40,7 +41,7 @@ interface HelpSection {
   content: React.ReactNode;
 }
 
-export const HelpPage: React.FC<HelpPageProps> = ({ onBackToGantt }) => {
+export const HelpPage: React.FC<HelpPageProps> = ({ onBackToGantt, embedded = false }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
@@ -317,26 +318,55 @@ export const HelpPage: React.FC<HelpPageProps> = ({ onBackToGantt }) => {
   return (
     <div
       data-testid="help-page-container"
-      className="min-h-screen bg-[#F4F4F1] dark:bg-[#0C0C09] text-[#0C0C09] dark:text-[#F4F4F1] flex flex-col font-sans"
+      className={`${
+        embedded ? 'flex-1 min-h-0' : 'min-h-screen'
+      } bg-[#F4F4F1] dark:bg-[#0C0C09] text-[#0C0C09] dark:text-[#F4F4F1] flex flex-col font-sans`}
     >
-      {/* Top sticky navigation bar */}
-      <header className="sticky top-0 z-30 h-12 px-4 bg-[#F4F4F1] dark:bg-[#0C0C09] border-b border-[#0C0C09] dark:border-zinc-800 flex items-center justify-between gap-3 select-none">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            data-testid="help-back-to-gantt-btn"
-            onClick={onBackToGantt}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-semibold text-[#0C0C09] dark:text-zinc-200 hover:bg-[#0C0C09] hover:text-white dark:hover:bg-zinc-100 dark:hover:text-[#0C0C09] transition cursor-pointer shadow-none"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Volver al Diagrama Gantt</span>
-          </button>
+      {/* Top sticky navigation bar (hidden/compact when embedded inside SettingsModal) */}
+      {!embedded ? (
+        <header className="sticky top-0 z-30 h-12 px-4 bg-[#F4F4F1] dark:bg-[#0C0C09] border-b border-[#0C0C09] dark:border-zinc-800 flex items-center justify-between gap-3 select-none">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              data-testid="help-back-to-gantt-btn"
+              onClick={onBackToGantt}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-semibold text-[#0C0C09] dark:text-zinc-200 hover:bg-[#0C0C09] hover:text-white dark:hover:bg-zinc-100 dark:hover:text-[#0C0C09] transition cursor-pointer shadow-none"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Volver al Diagrama Gantt</span>
+            </button>
 
-          <div className="h-4 w-px bg-[#E2E2DC] dark:bg-zinc-800 hidden sm:block" />
+            <div className="h-4 w-px bg-[#E2E2DC] dark:bg-zinc-800 hidden sm:block" />
 
+            <div className="flex items-center gap-2">
+              <BookOpen className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              <h1 className="text-sm font-bold tracking-tight">Guía de Ayuda y Funcionalidades</h1>
+              <span
+                data-testid="help-version-badge"
+                className="px-1.5 py-0.5 rounded-[2px] bg-white dark:bg-zinc-900 text-[#6B6B66] dark:text-zinc-400 text-[10px] font-mono font-bold border border-[#E2E2DC] dark:border-zinc-700"
+              >
+                {`v${APP_VERSION}`}
+              </span>
+            </div>
+          </div>
+
+          <div className="relative w-64 max-w-[280px] hidden md:block">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              data-testid="help-search-input"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Buscar en la ayuda..."
+              className="w-full pl-8 pr-3 py-1 text-xs rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-100 placeholder-slate-400 outline-none focus:ring-1 focus:ring-indigo-500 font-sans"
+            />
+          </div>
+        </header>
+      ) : (
+        <div className="px-5 pt-4 pb-2 flex items-center justify-between gap-3 border-b border-[#E2E2DC] dark:border-zinc-800 bg-[#F4F4F1] dark:bg-[#0C0C09]">
           <div className="flex items-center gap-2">
             <BookOpen className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-            <h1 className="text-sm font-bold tracking-tight">Guía de Ayuda y Funcionalidades</h1>
+            <span className="text-xs font-bold tracking-tight">Guía de Ayuda y Funcionalidades</span>
             <span
               data-testid="help-version-badge"
               className="px-1.5 py-0.5 rounded-[2px] bg-white dark:bg-zinc-900 text-[#6B6B66] dark:text-zinc-400 text-[10px] font-mono font-bold border border-[#E2E2DC] dark:border-zinc-700"
@@ -344,20 +374,19 @@ export const HelpPage: React.FC<HelpPageProps> = ({ onBackToGantt }) => {
               {`v${APP_VERSION}`}
             </span>
           </div>
+          <div className="relative w-56">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              data-testid="help-search-input"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Buscar en la ayuda..."
+              className="w-full pl-8 pr-3 py-1 text-xs rounded-[4px] border border-[#E2E2DC] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-100 placeholder-slate-400 outline-none focus:border-[#0C0C09] font-sans"
+            />
+          </div>
         </div>
-
-        <div className="relative w-64 max-w-[280px] hidden md:block">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            data-testid="help-search-input"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Buscar en la ayuda..."
-            className="w-full pl-8 pr-3 py-1 text-xs rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-100 placeholder-slate-400 outline-none focus:ring-1 focus:ring-indigo-500 font-sans"
-          />
-        </div>
-      </header>
+      )}
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-5xl w-full mx-auto p-4 md:p-6 space-y-6">

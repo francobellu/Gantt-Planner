@@ -4515,7 +4515,7 @@ test('Help page, version control v1.2.0, release selection on project creation, 
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version control consistency
-  assert.equal(pkg.version, '1.12.2', 'package.json version must be 1.9.2');
+  assert.equal(pkg.version, '1.12.3', 'package.json version must be 1.9.2');
   assert.ok(pkg.scripts['version:patch'], 'package.json must contain version:patch script');
   assert.ok(pkg.scripts['version:minor'], 'package.json must contain version:minor script');
   assert.ok(pkg.scripts['release:patch'], 'package.json must contain release:patch script');
@@ -5330,7 +5330,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version Bump Verification
-  assert.equal(pkg.version, '1.12.2', 'package.json version must equal 1.9.2');
+  assert.equal(pkg.version, '1.12.3', 'package.json version must equal 1.9.2');
 
   // Verify scripts/bump-version.mjs works properly
   const bumpScript = await fs.readFile(path.resolve(__dirname, '../scripts/bump-version.mjs'), 'utf8');
@@ -5504,7 +5504,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // A. APP_VERSION equals 1.9.2
-    assert.equal(mod.APP_VERSION, '1.12.2', 'APP_VERSION must be 1.9.2');
+    assert.equal(mod.APP_VERSION, '1.12.3', 'APP_VERSION must be 1.9.2');
 
     // A2. Excel Export Unit Test
     const sampleReleases = [
@@ -5991,8 +5991,8 @@ test('Excel Cronograma Completo splits dependencies per row with element names, 
     assert.ok(cronoHtml.includes('data-testid="reports-view"'), 'ReportsView container renders');
     assert.ok(cronoHtml.includes('data-testid="reports-tab-cronograma"'), 'Cronograma tab button renders');
     assert.ok(!cronoHtml.includes('data-testid="reports-tab-projects"'), 'Projects tab button is removed');
-    assert.ok(cronoHtml.includes('1. Informe Planificación'), 'Tab button label is updated to Informe Planificación');
-    assert.ok(cronoHtml.includes('data-testid="reports-tab-releases"'), 'Releases tab button renders');
+    assert.ok(cronoHtml.includes('>Planificación</span>'), 'Tab button label is updated to Planificación');
+    assert.ok(!cronoHtml.includes('data-testid="reports-tab-releases"'), 'Releases catalog tab moved to SettingsModal');
     assert.ok(cronoHtml.includes('data-testid="reports-download-excel-btn"'), 'Download Excel button renders');
     assert.ok(!cronoHtml.includes('data-testid="reports-back-btn"'), 'Redundant Back to Gantt button is removed');
     assert.ok(cronoHtml.includes('data-testid="reports-search-input"'), 'Search input renders');
@@ -6013,7 +6013,7 @@ test('Excel Cronograma Completo splits dependencies per row with element names, 
     // 7. App Header includes Informes button
     const appHtml = renderToString(React.createElement(mod.App));
     assert.ok(appHtml.includes('data-testid="header-reports-btn"'), 'App header must render header-reports-btn');
-    assert.ok(appHtml.includes('Informes'), 'App header must display Informes label');
+    assert.ok(appHtml.includes('Planificación'), 'App header must display Planificación label');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6031,8 +6031,8 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
-  // 1. Version Bump Verification v1.12.2
-  assert.equal(pkg.version, '1.12.2', 'package.json version must equal 1.9.2');
+  // 1. Version Bump Verification v1.12.3
+  assert.equal(pkg.version, '1.12.3', 'package.json version must equal 1.9.2');
 
   // 2. SSR Bundle verification for TaskFormModal, App Header, and sanitizeGanttItem
   const tmpFile = path.resolve(__dirname, `tmp_test59_bundle_${Date.now()}.mjs`);
@@ -6130,7 +6130,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.equal(mod.APP_VERSION, '1.12.2', 'mod.APP_VERSION must equal 1.9.2');
+    assert.equal(mod.APP_VERSION, '1.12.3', 'mod.APP_VERSION must equal 1.9.2');
 
     // sanitizeGanttItem preserves platform
     const sanitizedIos = mod.sanitizeGanttItem({
@@ -6193,7 +6193,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     }));
     assert.ok(settingsHtml.includes('data-testid="settings-version-badge"'), 'SettingsModal must contain settings-version-badge');
     assert.ok(settingsHtml.includes('data-testid="force-reload-btn"'), 'SettingsModal must contain force-reload-btn');
-    assert.ok(settingsHtml.includes('v1.12.2') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and v1.12.2');
+    assert.ok(settingsHtml.includes('v1.12.3') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and v1.12.3');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6347,14 +6347,14 @@ test('Test 61: Version button, compiled release notes modal and changelog across
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
 
     // 1. Check RELEASE_NOTES compiled data
-    assert.strictEqual(mod.APP_VERSION, '1.12.2');
+    assert.strictEqual(mod.APP_VERSION, '1.12.3');
     assert.ok(Array.isArray(mod.RELEASE_NOTES), 'RELEASE_NOTES must be an array');
     assert.ok(mod.RELEASE_NOTES.length >= 10, 'RELEASE_NOTES must have at least 10 releases');
 
     const latest = mod.RELEASE_NOTES[0];
-    assert.strictEqual(latest.version, '1.12.2', 'First release note must be 1.9.2');
+    assert.strictEqual(latest.version, '1.12.3', 'First release note must be 1.9.2');
     assert.strictEqual(latest.isLatest, true, 'First release note must be isLatest: true');
-    assert.ok(latest.features.length > 0, 'v1.12.2 must contain features');
+    assert.ok(latest.features.length > 0, 'v1.12.3 must contain features');
 
     // 2. Render App and verify version button exists in dropdown menu and is NOT duplicated in top header
     const appHtml = renderToString(React.createElement(mod.App));
@@ -6521,7 +6521,7 @@ test('Test 62: Diagram project/release selection, contextual focus, moved import
     // 4. Verify top header buttons are icon-only (do not contain text labels)
     assert.ok(!appHtml.includes('>Importar</span>'), 'Header import button must be icon-only');
     assert.ok(!appHtml.includes('>JSON</span>'), 'Header export JSON button must be icon-only');
-    assert.ok(appHtml.includes('>Cronograma</span>') && appHtml.includes('>Informes</span>'), 'Header primary page switcher must render Cronograma and Informes labels');
+    assert.ok(appHtml.includes('>Cronograma</span>') && appHtml.includes('>Planificación</span>'), 'Header primary page switcher must render Cronograma and Planificación labels');
 
     const settingsBtnMatch = appHtml.match(/data-testid="header-settings-btn"[^>]*>([\s\S]*?)<\/button>/);
     assert.ok(settingsBtnMatch, 'Header settings button must exist');
@@ -8189,7 +8189,7 @@ test('Test 73: v1.9.0 project alert level (0-3), workspace toolbar alert filter,
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.strictEqual(mod.APP_VERSION, '1.12.2', 'APP_VERSION must be 1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.12.3', 'APP_VERSION must be 1.9.2');
 
     // 1. Check sanitizeProject and describeProjectStateChanges for alertLevel
     const pSanitized0 = mod.sanitizeProject({ id: 'p-1', name: 'Proj 1', alertLevel: 0 });
@@ -8378,7 +8378,7 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.strictEqual(mod.APP_VERSION, '1.12.2', 'APP_VERSION must be 1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.12.3', 'APP_VERSION must be 1.9.2');
 
     // 1. Verify description format: <descripción del proyecto si existe>\n\n* <nombre> <desc>
     const pWithDesc = {
@@ -8463,8 +8463,8 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
   }
 });
 
-// TEST 75: v1.12.2 Project locking, accidental move guard & unlock prompt modal
-test('Test 75: v1.12.2 project locking, cascade/dependency protection, plan history badge, and unlock alert modal', async () => {
+// TEST 75: v1.12.3 Project locking, accidental move guard & unlock prompt modal
+test('Test 75: v1.12.3 project locking, cascade/dependency protection, plan history badge, and unlock alert modal', async () => {
   const fs = await import('node:fs/promises');
   const path = await import('node:path');
   const { fileURLToPath } = await import('node:url');
@@ -8475,7 +8475,7 @@ test('Test 75: v1.12.2 project locking, cascade/dependency protection, plan hist
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
-  assert.strictEqual(pkg.version, '1.12.2', 'package.json version must equal 1.9.2');
+  assert.strictEqual(pkg.version, '1.12.3', 'package.json version must equal 1.9.2');
 
   const tmpFile = path.resolve(__dirname, `tmp_test75_bundle_${Date.now()}.mjs`);
   try {
@@ -8537,9 +8537,9 @@ test('Test 75: v1.12.2 project locking, cascade/dependency protection, plan hist
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // 1. Version & release notes verification
-    assert.strictEqual(mod.APP_VERSION, '1.12.2', 'APP_VERSION must equal 1.9.2');
-    assert.strictEqual(mod.RELEASE_NOTES[0].version, '1.12.2', 'Latest release note must be 1.9.2');
-    assert.strictEqual(mod.RELEASE_NOTES[0].isLatest, true, 'v1.12.2 release note must be marked isLatest');
+    assert.strictEqual(mod.APP_VERSION, '1.12.3', 'APP_VERSION must equal 1.9.2');
+    assert.strictEqual(mod.RELEASE_NOTES[0].version, '1.12.3', 'Latest release note must be 1.9.2');
+    assert.strictEqual(mod.RELEASE_NOTES[0].isLatest, true, 'v1.12.3 release note must be marked isLatest');
 
     // 2. sanitizeProject, getLockedProjectForItem, describeProjectStateChanges
     const lockedProj = mod.sanitizeProject({
@@ -8736,7 +8736,7 @@ test('Test 75: v1.12.2 project locking, cascade/dependency protection, plan hist
   }
 });
 
-test('Test 76: v1.12.2 automatic Free Slack calculation given successor tasks across engine, table badge, inspector sidebar and task modal', async () => {
+test('Test 76: v1.12.3 automatic Free Slack calculation given successor tasks across engine, table badge, inspector sidebar and task modal', async () => {
   // 1. Engine calculation: FS dependency with multiple successors
   const testItems = [
     {
@@ -11067,8 +11067,8 @@ test('Test 92: ReportsView configurable visibility, resizable columns, and inlin
       'Projects tab must not be present in reports navigation'
     );
     assert.ok(
-      projHtml.includes('1. Informe Planificación'),
-      'initialTab projects falls back to Informe Planificación'
+      projHtml.includes('>Planificación</span>'),
+      'initialTab projects falls back to Planificación'
     );
 
     // 3. Tab 2: Catálogo Releases
@@ -12313,13 +12313,13 @@ test('Test 104: Rename to Informe Planificación, remove Resumen Proyectos tab, 
       })
     );
 
-    // Tab 1 renamed to Informe Planificación
-    assert.ok(html.includes('1. Informe Planificación'), 'Tab 1 button must be labeled 1. Informe Planificación');
+    // Tab renamed to Planificación; Catálogo Releases moved to SettingsModal
+    assert.ok(html.includes('>Planificación</span>'), 'Tab button must be labeled Planificación');
     // Tab Resumen Proyectos removed
     assert.ok(!html.includes('data-testid="reports-tab-projects"'), 'Resumen Proyectos tab button must be removed');
     assert.ok(!html.includes('2. Resumen Proyectos'), '2. Resumen Proyectos label must not appear');
-    // Tab 2 is Catálogo Releases
-    assert.ok(html.includes('2. Catálogo Releases'), 'Tab 2 button must be labeled 2. Catálogo Releases');
+    // Catálogo Releases moved to SettingsModal
+    assert.ok(!html.includes('2. Catálogo Releases'), 'Catálogo Releases tab button must be moved to SettingsModal');
 
     // Excel export sheets
     const wb = mod.exportFullGanttToWorkbook(releases, projects, items);
@@ -14195,6 +14195,7 @@ test('Test 114: macOS-style SettingsModal (General / Releases / Historial / Vers
       mod.React.createElement(mod.SettingsModal, { ...baseSettingsProps, initialCategory: 'help' })
     );
     assert.ok(helpHtml.includes('data-testid="settings-panel-help"'), 'SettingsModal must render settings-panel-help');
+    assert.ok(helpHtml.includes('overflow-y-auto overscroll-contain'), 'Help panel inside SettingsModal must scroll independently without chaining to background');
     assert.ok(helpHtml.includes('data-testid="help-page-container"'), 'Help category inside SettingsModal must embed HelpPage');
 
     const appHtml = mod.renderToString(mod.React.createElement(mod.App));

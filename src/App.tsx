@@ -2960,8 +2960,8 @@ export function App({
                   ? 'bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09]'
                   : 'text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800'
               }`}
-              title="Informes y descarga Excel (.xlsx)"
-              aria-label="Informes"
+              title="Planificación tabular y descarga Excel (.xlsx)"
+              aria-label="Planificación"
             >
               <FileSpreadsheet
                 className={`w-3.5 h-3.5 shrink-0 ${
@@ -2970,7 +2970,7 @@ export function App({
                     : 'text-emerald-600 dark:text-emerald-400'
                 }`}
               />
-              <span>Informes</span>
+              <span>Planificación</span>
             </button>
           </div>
 

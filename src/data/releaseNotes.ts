@@ -10,10 +10,20 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.12.3',
+    date: '27 Nov 2026',
+    title: 'Scroll aislado en Ayuda, pestaña Planificación y Catálogo Releases en Configuración',
+    isLatest: true,
+    features: [
+      'Corrige el scroll de la página de Ayuda dentro del modal de Configuración (overflow-y-auto, overscroll-contain y bloqueo de scroll del body)',
+      'Renombra la pestaña y página de informes a Planificación',
+      'Mueve el acceso al Catálogo de Releases al panel de Configuración eliminando la subpestaña duplicada',
+    ],
+  },
+  {
     version: '1.12.2',
     date: '27 Nov 2026',
     title: 'Atajo Cmd/Ctrl+S para exportar JSON',
-    isLatest: true,
     features: [
       'Intercepta Cmd+S / Ctrl+S globalmente para exportar el cronograma en formato JSON en lugar del diálogo del navegador',
       'Actualiza el tooltip del botón de exportar JSON con el atajo Cmd/Ctrl+S',

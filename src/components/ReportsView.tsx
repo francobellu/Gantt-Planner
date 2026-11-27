@@ -1892,10 +1892,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             </div>
             <div>
               <h1 className="text-sm font-bold font-display text-[#0C0C09] dark:text-zinc-100 leading-tight">
-                Informes del Plan (Hojas de Cálculo)
+                Planificación
               </h1>
               <p className="text-[11px] text-[#6B6B66] dark:text-zinc-400">
-                Visualización tabular de datos con formato Excel: Informe Planificación y Catálogo de Releases.
+                Visualización tabular de la planificación con formato Excel y edición directa.
               </p>
             </div>
           </div>
@@ -1929,10 +1929,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         </div>
       </div>
 
-      {/* Excel Sheet Tabs Bar (Estilo Hojas de Excel) */}
+      {/* Sheet Tab Bar */}
       <div className="flex items-center justify-between px-4 bg-[#EAEAE6] dark:bg-zinc-900/90 border-b border-[#0C0C09] dark:border-zinc-800 shrink-0">
         <div className="flex items-center gap-1 overflow-x-auto py-1">
-          {/* Tab 1: Informe Planificación */}
+          {/* Tab: Planificación */}
           <button
             type="button"
             data-testid="reports-tab-cronograma"
@@ -1944,27 +1944,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             }`}
           >
             <Layers className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-            <span>1. Informe Planificación</span>
+            <span>Planificación</span>
             <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-[#F4F4F1] dark:bg-zinc-800 border border-[#E2E2DC] dark:border-zinc-700">
               {cronoRows.length}
-            </span>
-          </button>
-
-          {/* Tab 2: Catálogo Releases */}
-          <button
-            type="button"
-            data-testid="reports-tab-releases"
-            onClick={() => setActiveTab('releases')}
-            className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-t-[4px] border-t-2 transition cursor-pointer shrink-0 ${
-              activeTab === 'releases'
-                ? 'bg-white dark:bg-[#0C0C09] text-[#0C0C09] dark:text-zinc-100 border-emerald-600 shadow-xs'
-                : 'bg-transparent text-[#6B6B66] dark:text-zinc-400 border-transparent hover:text-[#0C0C09] dark:hover:text-zinc-200'
-            }`}
-          >
-            <Rocket className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-            <span>2. Catálogo Releases</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-[#F4F4F1] dark:bg-zinc-800 border border-[#E2E2DC] dark:border-zinc-700">
-              {releaseRows.length}
             </span>
           </button>
         </div>
@@ -3572,7 +3554,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             Pestaña activa:{' '}
             <strong className="text-[#0C0C09] dark:text-zinc-200">
               {activeTab === 'cronograma'
-                ? 'Informe Planificación'
+                ? 'Planificación'
                 : 'Catálogo Releases'}
             </strong>
           </span>
