@@ -12,6 +12,7 @@ import {
   RotateCw,
   Rocket,
   History,
+  HelpCircle,
   Sparkles,
   Search,
   Tag,
@@ -30,8 +31,9 @@ import {
 import { RELEASE_NOTES } from '../data/releaseNotes';
 import { ReleasesModal } from './ReleasesModal';
 import { PlanHistoryPage } from './PlanHistoryPage';
+import { HelpPage } from './HelpPage';
 
-export type SettingsCategory = 'general' | 'releases' | 'history' | 'changelog';
+export type SettingsCategory = 'general' | 'releases' | 'history' | 'help' | 'changelog';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -162,6 +164,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       iconBg: 'bg-emerald-600',
       badge: history.length > 0 ? history.length : undefined,
       keywords: 'historial cambios undo redo restaurar cronologico agrupado',
+    },
+    {
+      id: 'help',
+      label: 'Ayuda',
+      subtitle: 'Guía rápida, atajos y documentación',
+      icon: <HelpCircle className="w-3.5 h-3.5 text-white" />,
+      iconBg: 'bg-amber-500',
+      keywords: 'ayuda guia manual atajos teclado dependencias cpm holgura enfoque tutorial',
     },
     {
       id: 'changelog',
@@ -656,6 +666,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 onClearHistory={onClearHistory}
                 releases={releases}
               />
+            </div>
+          )}
+
+          {activeCategory === 'help' && (
+            <div
+              data-testid="settings-panel-help"
+              className="flex-1 min-h-0 flex flex-col overflow-hidden"
+            >
+              <HelpPage onBackToGantt={onClose} />
             </div>
           )}
 

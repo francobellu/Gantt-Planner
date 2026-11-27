@@ -19,7 +19,6 @@ import {
   FileSpreadsheet,
   Flame,
   FolderKanban,
-  HelpCircle,
   Layers,
   Lock,
   Maximize2,
@@ -2963,30 +2962,6 @@ export function App({
                 }`}
               />
               <span>Informes</span>
-            </button>
-            <div className="w-px h-4 bg-[#E2E2DC] dark:bg-zinc-800" />
-            <button
-              type="button"
-              role="tab"
-              aria-selected={currentView === 'help'}
-              data-testid="header-help-btn"
-              onClick={() => setCurrentView('help')}
-              className={`px-2.5 py-1 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
-                currentView === 'help'
-                  ? 'bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09]'
-                  : 'text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800'
-              }`}
-              title="Guía de uso y documentación de funcionalidades"
-              aria-label="Ayuda"
-            >
-              <HelpCircle
-                className={`w-3.5 h-3.5 shrink-0 ${
-                  currentView === 'help'
-                    ? 'text-sky-400 dark:text-sky-600'
-                    : 'text-sky-600 dark:text-sky-400'
-                }`}
-              />
-              <span>Ayuda</span>
             </button>
           </div>
 

@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.12.1',
+    date: '27 Nov 2026',
+    title: 'Mover página de Ayuda al panel de Configuración',
+    isLatest: true,
+    features: [
+      'Mueve la guía de Ayuda como categoría dedicada dentro del panel de Configuración',
+      'Elimina la pestaña Ayuda de la barra superior dejando solo Cronograma e Informes',
+    ],
+  },
+  {
     version: '1.12.0',
     date: '27 Nov 2026',
     title: 'Wizard de proyectos, enfoque multi-proyecto, formato+columnas unificado y filtros guardados en barra',
-    isLatest: true,
     features: [
       'Añade Wizard guiado de 3 pasos para crear proyectos con subtareas en el Informe de Planificación con límite QG5 automático, inicio Hoy/Otra fecha y presets DIGI (MC), ARQ (ARQ) y QA (QA)',
       'Añade enfoque en uno o más proyectos desde el clic derecho y barra de enfoque en el Informe de Planificación',
