@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.12.5',
+    date: '27 Nov 2026',
+    title: 'Actualizar guía de Ayuda con las nuevas funcionalidades',
+    isLatest: true,
+    features: [
+      'Añade sección 10 sobre Planificación, Wizard de proyectos (QG5 y presets DIGI/ARQ/QA), clic derecho contextual, enfoque multi-proyecto, filtros unificados y auto-ajuste de columnas',
+      'Actualiza las secciones de Configuración, Exportación JSON (Cmd/Ctrl+S) y Ajustar Zoom con Modo Enfoque',
+    ],
+  },
+  {
     version: '1.12.4',
     date: '27 Nov 2026',
     title: 'Selector directo de columnas al guardar filtros y perfiles',
-    isLatest: true,
     features: [
       'Añade selector de columnas directamente dentro del menú Filtros guardados al guardar con columnas actuales',
       'Mantiene siempre visible la barra Guardar perfil de columnas tanto en la pestaña Formatos como en Columnas',

@@ -21,6 +21,7 @@ import {
   Search,
   ShieldAlert,
   Sliders,
+  Table2,
   Trash2,
   Undo2,
   Upload,
@@ -229,7 +230,7 @@ export const HelpPage: React.FC<HelpPageProps> = ({ onBackToGantt, embedded = fa
                 <strong>Deshacer / Rehacer:</strong> Usa los botones directos de la barra superior o los atajos <code>⌘Z</code> / <code>Ctrl+Z</code> y <code>⌘Y</code> / <code>Ctrl+Y</code> para revertir cualquier cambio.
               </li>
               <li>
-                <strong>Página de Historial:</strong> Pulsa el botón <code>Historial</code> en la cabecera para ver la lista de todas las acciones registradas con fecha y hora, y restaurar una instantánea previa del plan con un solo clic.
+                <strong>Panel de Configuración Unificado:</strong> Pulsa el icono de engranaje en la esquina superior derecha para acceder directamente a <strong>General</strong>, <strong>Catálogo Releases</strong>, <strong>Historial</strong> (con restauración de instantáneas), <strong>Ayuda</strong> y <strong>Versiones</strong>.
               </li>
             </ul>
           </div>
@@ -248,7 +249,7 @@ export const HelpPage: React.FC<HelpPageProps> = ({ onBackToGantt, embedded = fa
                 <strong>Guardado Automático:</strong> Todos los cambios en proyectos, tareas, fechas, dependencias y Releases se almacenan en <code>localStorage</code> del navegador, persistiendo entre sesiones y recargas de página.
               </li>
               <li>
-                <strong>Exportación JSON Directa:</strong> Pulsa el botón <code>Exportar</code> en la cabecera para descargar inmediatamente un archivo <code>.json</code> con la estructura completa de tu cronograma.
+                <strong>Exportación JSON Directa (<code>⌘S / Ctrl+S</code>):</strong> Pulsa el botón <code>Exportar</code> en la cabecera o usa el atajo de teclado <code>⌘S</code> / <code>Ctrl+S</code> desde cualquier vista para descargar inmediatamente un archivo <code>.json</code> con la estructura completa de tu cronograma.
               </li>
               <li>
                 <strong>Importación:</strong> Pulsa el botón <code>Importar</code> o simplemente arrastra y suelta un archivo <code>.json</code> sobre la ventana para cargar y fusionar tus proyectos.
@@ -266,20 +267,50 @@ export const HelpPage: React.FC<HelpPageProps> = ({ onBackToGantt, embedded = fa
         content: (
           <div className="space-y-3 text-xs leading-relaxed text-slate-700 dark:text-zinc-300">
             <div className="grid grid-cols-2 gap-2 p-2.5 bg-slate-100 dark:bg-zinc-900 rounded-[4px] border border-slate-200 dark:border-zinc-800 text-[11px] font-mono">
-              <div><code>Escape</code>: Cerrar modal / panel</div>
+              <div><code>Escape</code>: Cerrar modal / salir enfoque</div>
+              <div><code>⌘S / Ctrl+S</code>: Exportar JSON</div>
               <div><code>⌘Z / Ctrl+Z</code>: Deshacer cambio</div>
               <div><code>⌘Y / Ctrl+Y</code>: Rehacer cambio</div>
-              <div><code>Rueda ratón</code>: Zoom suave</div>
+              <div><code>Ctrl/⌘ + Rueda</code>: Zoom suave</div>
+              <div><code>Doble clic divisor</code>: Auto-ajustar columna</div>
             </div>
             <ul className="list-disc pl-4 space-y-1.5">
               <li>
                 <strong>Ir a Hoy:</strong> El botón de brújula centra instantáneamente la línea roja del día actual.
               </li>
               <li>
-                <strong>Ajustar a Pantalla:</strong> El botón de maximizar adapta la escala temporal para ver todos los proyectos dentro del ancho de la ventana.
+                <strong>Ajustar Zoom (con Modo Enfoque):</strong> El botón de maximizar adapta la escala temporal al ancho de la ventana. Si el <strong>Modo Enfoque</strong> está activo, ajusta el zoom automáticamente para maximizar la vista del proyecto, release o tarea enfocados.
               </li>
               <li>
-                <strong>Ocultar Tabla:</strong> El botón superior izquierdo junto a la versión permite colapsar la tabla para ver únicamente el diagrama Gantt a pantalla completa.
+                <strong>Ocultar Tabla:</strong> El botón superior izquierdo permite colapsar la tabla WBS para ver únicamente el diagrama Gantt a pantalla completa.
+              </li>
+            </ul>
+          </div>
+        ),
+      },
+      {
+        id: 'planning',
+        title: '10. Vista Planificación, Wizard de Proyectos y Filtros Unificados',
+        icon: <Table2 className="w-5 h-5 text-emerald-600" />,
+        category: 'planning',
+        summary: 'Tabla tipo Excel, asistente de creación con QG5, clic derecho contextual, enfoque multi-proyecto y filtros guardados.',
+        content: (
+          <div className="space-y-3 text-xs leading-relaxed text-slate-700 dark:text-zinc-300">
+            <ul className="list-disc pl-4 space-y-1.5">
+              <li>
+                <strong>Asistente (Wizard) de Nuevo Proyecto (3 pasos):</strong> Accesible desde el botón <code>Nuevo Proyecto</code> o con clic derecho en <strong>Planificación</strong>. Asigna por defecto la fecha límite igual al <strong>QG5</strong> de la release seleccionada, inicio por defecto en <strong>Hoy</strong> (o fecha personalizada) y permite crear subtareas heredando fechas, equipo y plataforma con botones rápidos: <code>+ DIGI (MC)</code>, <code>+ ARQ (ARQ)</code> y <code>+ QA (QA)</code>.
+              </li>
+              <li>
+                <strong>Menú Contextual (Clic Derecho):</strong> Haz clic derecho sobre cualquier fila de Release, Proyecto, Tarea o Hito en <strong>Planificación</strong> para crear tareas, hitos internos, proyectos en la release, hitos externos o gestionar el enfoque.
+              </li>
+              <li>
+                <strong>Enfoque Multi-Proyecto:</strong> Desde el clic derecho o la barra superior de enfoque puedes centrarte en uno o varios proyectos a la vez en la tabla de Planificación.
+              </li>
+              <li>
+                <strong>Barra de Búsqueda y Filtros Unificada:</strong> Tanto <strong>Cronograma</strong> como <strong>Planificación</strong> comparten los mismos controles: buscador, selector de campos (<code>En: ...</code>), <em>Tipo</em>, <em>Plataforma</em>, <em>Alerta</em>, <em>Release</em>, <em>Subtareas</em> y <strong>Filtros guardados</strong> (con selector directo de columnas del perfil al guardar).
+              </li>
+              <li>
+                <strong>Formato + Columnas y Ancho Automático:</strong> Un único selector agrupa los formatos guardados y las columnas visibles. Por defecto cada columna se ajusta al ancho mínimo óptimo según su contenido; puedes redimensionarlas arrastrando o hacer doble clic en el divisor para restablecer el auto-ajuste.
               </li>
             </ul>
           </div>
@@ -291,6 +322,7 @@ export const HelpPage: React.FC<HelpPageProps> = ({ onBackToGantt, embedded = fa
 
   const categories = [
     { id: 'all', label: 'Todas las funcionalidades' },
+    { id: 'planning', label: 'Planificación & Filtros' },
     { id: 'releases', label: 'Releases e Hitos' },
     { id: 'projects', label: 'Proyectos' },
     { id: 'tasks', label: 'Tareas' },
