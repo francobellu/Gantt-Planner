@@ -9,6 +9,7 @@ import {
   EyeOff,
   Plus,
   RotateCcw,
+  RotateCw,
   Rocket,
   History,
   Sparkles,
@@ -277,8 +278,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             })}
           </nav>
 
-          {/* Bottom Version Shortcut */}
-          <div className="pt-2 border-t border-[#E2E2DC] dark:border-zinc-800">
+          {/* Bottom Version Shortcut & Reload */}
+          <div className="pt-2 border-t border-[#E2E2DC] dark:border-zinc-800 flex flex-col gap-1">
             <button
               type="button"
               data-testid="settings-version-badge"
@@ -292,6 +293,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               title="Ver historial de versiones (Changelog)"
             >
               GanttFlow v{APP_VERSION} · Ver novedades
+            </button>
+            <button
+              type="button"
+              data-testid="force-reload-btn"
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  window.location.reload();
+                }
+              }}
+              className="w-full flex items-center justify-center gap-1 text-[10px] font-mono text-indigo-600 dark:text-indigo-400 hover:underline py-0.5 cursor-pointer"
+              title="Forzar recarga sin caché para garantizar la última versión"
+            >
+              <RotateCw className="w-3 h-3" />
+              <span>Recargar app</span>
             </button>
           </div>
         </aside>

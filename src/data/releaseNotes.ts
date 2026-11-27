@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.11.30',
+    date: '27 Nov 2026',
+    title: 'Acceso directo al panel de configuración',
+    isLatest: true,
+    features: [
+      'Elimina el popup desplegable del botón superior derecho y abre directamente el panel de Configuración',
+      'Mueve el botón Recargar app al pie de la barra lateral de Configuración',
+    ],
+  },
+  {
     version: '1.11.29',
     date: '27 Nov 2026',
     title: 'Barra de búsqueda y filtros unificada',
-    isLatest: true,
     features: [
       'Unifica la barra de búsqueda y filtros entre Cronograma e Informe de Planificación con SearchFilterBar sin duplicados',
       'Añade selector de campos de búsqueda (En: ...) y casilla Subtareas al Informe de Planificación',

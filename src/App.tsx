@@ -20,20 +20,16 @@ import {
   Flame,
   FolderKanban,
   HelpCircle,
-  History,
   Layers,
   Lock,
   Maximize2,
   Moon,
   PanelRight,
   Plus,
-  Rocket,
-  RotateCw,
   Rows,
   Save,
   Settings,
   Sliders,
-  SlidersHorizontal,
   Sparkles,
   Sun,
   Trash2,
@@ -41,7 +37,6 @@ import {
   X,
 } from 'lucide-react';
 import {
-  APP_VERSION,
   ArrowVisibility,
   ComputedGanttItem,
   DEFAULT_TRUNCATE_CHAR_LIMIT,
@@ -125,7 +120,6 @@ import { ProjectLockedAlertModal } from './components/ProjectLockedAlertModal';
 import { RightSidePanel, RightSidebarTab } from './components/RightSidePanel';
 import {
   DEFAULT_PREDEFINED_RELEASES,
-  checkTaskReleaseCompliance,
   getReleaseDateSpan,
 } from './utils/releaseEngine';
 
@@ -826,7 +820,6 @@ export function App({
   const openSettings = (category: SettingsCategory = 'general') => {
     setSettingsCategory(category);
     setShowSettingsModal(true);
-    setMoreMenuOpen(false);
   };
 
   useEffect(() => {
@@ -1081,7 +1074,6 @@ export function App({
   // Minimalist UI toggles and menus
   const [showMetricsDrawer, setShowMetricsDrawer] = useState<boolean>(false);
   const [projectMenuOpen, setProjectMenuOpen] = useState<boolean>(initialProjectMenuOpen);
-  const [moreMenuOpen, setMoreMenuOpen] = useState<boolean>(false);
   const [createProjectModalOpen, setCreateProjectModalOpen] = useState<boolean>(false);
   const [newProjectFormName, setNewProjectFormName] = useState<string>('');
   const [newProjectFormReleaseId, setNewProjectFormReleaseId] = useState<string>('');
@@ -1090,7 +1082,6 @@ export function App({
   const [newProjectFormAlertLevel, setNewProjectFormAlertLevel] = useState<ProjectAlertLevel>(0);
 
   const projectMenuRef = useRef<HTMLDivElement>(null);
-  const moreMenuRef = useRef<HTMLDivElement>(null);
   const metricsDrawerRef = useRef<HTMLDivElement>(null);
   const metricsToggleBtnRef = useRef<HTMLButtonElement>(null);
 
@@ -1099,9 +1090,6 @@ export function App({
       const target = e.target as Node;
       if (projectMenuRef.current && !projectMenuRef.current.contains(target)) {
         setProjectMenuOpen(false);
-      }
-      if (moreMenuRef.current && !moreMenuRef.current.contains(target)) {
-        setMoreMenuOpen(false);
       }
       if (
         showMetricsDrawer &&
@@ -1126,7 +1114,6 @@ export function App({
           return;
         }
         setProjectMenuOpen(false);
-        setMoreMenuOpen(false);
         setShowMetricsDrawer(false);
         setShowSettingsModal(false);
         setShowReleasesModal(false);
@@ -1391,23 +1378,6 @@ export function App({
       conflictItems,
     };
   }, [computedItems, projectGroups, selectedProjectIds]);
-
-  // Total count of tasks that violate their assigned release milestones
-  const totalReleaseViolations = useMemo(() => {
-    let count = 0;
-    for (const p of effectiveProjects) {
-      if (!p.releaseId) continue;
-      const rel = releases.find((r) => r.id === p.releaseId);
-      if (!rel) continue;
-      for (const it of computedItems) {
-        if (it.projectId === p.id && it.type === 'task') {
-          const violations = checkTaskReleaseCompliance(it, p, rel);
-          if (violations.length > 0) count++;
-        }
-      }
-    }
-    return count;
-  }, [effectiveProjects, releases, computedItems]);
 
   const focusRelatedItemCount = useMemo(() => {
     if (!isFocusMode || !focusEntity) return 0;
@@ -2962,135 +2932,21 @@ export function App({
             )}
           </button>
 
-          {/* Menú Secundario "Herramientas / Más Opciones" (Icon-Only) */}
-          <div ref={moreMenuRef} className="relative">
-            <button
-              type="button"
-              data-testid="header-more-menu-btn"
-              onClick={() => setMoreMenuOpen((prev) => !prev)}
-              className={`p-1.5 rounded-[4px] border transition cursor-pointer shrink-0 flex items-center justify-center ${
-                moreMenuOpen
-                  ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
-                  : 'bg-white dark:bg-zinc-900 border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800'
-              }`}
-              title="Herramientas y configuración"
-              aria-label="Más opciones"
-            >
-              <SlidersHorizontal className="w-3.5 h-3.5 text-current" />
-            </button>
-
-            {/* Dropdown Menu (rendered in DOM so test assertions find testids) */}
-            <div
-              data-testid="header-more-menu-dropdown"
-              className={`absolute right-0 top-10 w-80 p-3 bg-white dark:bg-zinc-900 border border-[#0C0C09] dark:border-zinc-700 rounded-[4px] shadow-2xl z-50 text-xs flex flex-col gap-3 max-h-[calc(100vh-60px)] overflow-y-auto ${
-                moreMenuOpen ? 'block' : 'hidden'
-              }`}
-            >
-              {/* Sección 1: Versión de la Aplicación y Recarga */}
-              <div className="flex items-center justify-between pb-2 border-b border-[#E2E2DC] dark:border-zinc-800">
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    data-testid="app-version-badge"
-                    onClick={() => openSettings('changelog')}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[3px] bg-[#0C0C09] hover:bg-[#312C85] text-white dark:bg-zinc-100 dark:hover:bg-white dark:text-[#0C0C09] text-[10px] font-mono font-bold tracking-tight shadow-xs transition cursor-pointer"
-                    title={`v${APP_VERSION} · Clic para ver notas de versión y novedades`}
-                  >
-                    <span>{`v${APP_VERSION}`}</span>
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  data-testid="force-reload-btn"
-                  onClick={() => {
-                    if (typeof window !== 'undefined') {
-                      window.location.reload();
-                    }
-                  }}
-                  className="flex items-center gap-1 text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline font-mono cursor-pointer"
-                  title="Forzar recarga sin caché para garantizar la última versión"
-                >
-                  <RotateCw className="w-3 h-3" />
-                  <span>Recargar app</span>
-                </button>
-              </div>
-
-              {/* Sección 2: Accesos rápidos a Configuración */}
-              <div className="space-y-1.5">
-                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400 block">
-                  Configuración y Gestión
-                </span>
-
-                <button
-                  type="button"
-                  data-testid="header-settings-btn"
-                  onClick={() => openSettings('general')}
-                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-[3px] border text-xs font-medium transition cursor-pointer ${
-                    showSettingsModal && settingsCategory === 'general'
-                      ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
-                      : 'bg-white dark:bg-zinc-800 border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-700'
-                  }`}
-                  aria-label="Ajustes"
-                  title="Configuración general, Releases, Historial y Versiones"
-                >
-                  <span className="flex items-center gap-2">
-                    <Settings className="w-3.5 h-3.5 text-current shrink-0" />
-                    <span className="font-semibold">Configuración</span>
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  data-testid="header-releases-btn"
-                  onClick={() => openSettings('releases')}
-                  className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[3px] border border-[#E2E2DC] dark:border-zinc-700 bg-[#F4F4F1] dark:bg-zinc-800/80 text-[#0C0C09] dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-xs font-medium transition cursor-pointer"
-                  title="Gestionar catálogo de Releases e hitos (importar/exportar Excel)"
-                  aria-label="Releases"
-                >
-                  <div className="flex items-center gap-2">
-                    <Rocket className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                    <span>Catálogo de Releases</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span
-                      data-testid="releases-counter-badge"
-                      className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-white dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-300 border border-[#E2E2DC] dark:border-zinc-700"
-                    >
-                      {releases.length}
-                    </span>
-                    {totalReleaseViolations > 0 && (
-                      <span
-                        data-testid="releases-header-violation-indicator"
-                        className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0"
-                        title={`${totalReleaseViolations} tarea(s) violan los hitos de su release`}
-                      />
-                    )}
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  data-testid="header-history-btn"
-                  data-history-btn="true"
-                  onClick={() => openSettings('history')}
-                  className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[3px] border border-[#E2E2DC] dark:border-zinc-700 bg-[#F4F4F1] dark:bg-zinc-800/80 text-[#0C0C09] dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-xs font-medium transition cursor-pointer"
-                  title="Consultar historial de cambios del plan"
-                  aria-label="Historial"
-                >
-                  <span className="flex items-center gap-2">
-                    <History className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                    <span>Historial de Cambios</span>
-                  </span>
-                  <span
-                    data-testid="history-counter-badge"
-                    className="px-1.5 py-0.2 rounded-[2px] text-[10px] font-mono bg-white dark:bg-zinc-900 border border-[#E2E2DC] dark:border-zinc-700"
-                  >
-                    {history.length}
-                  </span>
-                </button>
-              </div>
-            </div>
-          </div>
+          {/* Acceso Directo a Configuración (General, Releases, Historial y Versiones) */}
+          <button
+            type="button"
+            data-testid="header-settings-btn"
+            onClick={() => openSettings('general')}
+            className={`p-1.5 rounded-[4px] border transition cursor-pointer shrink-0 flex items-center justify-center ${
+              showSettingsModal
+                ? 'bg-[#0C0C09] border-[#0C0C09] text-white dark:bg-zinc-100 dark:border-white dark:text-[#0C0C09]'
+                : 'bg-white dark:bg-zinc-900 border-[#0C0C09] dark:border-zinc-700 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800'
+            }`}
+            title="Configuración (General, Releases, Historial y Versiones)"
+            aria-label="Ajustes"
+          >
+            <Settings className="w-3.5 h-3.5 text-current" />
+          </button>
 
           {/* Compact Conflict Indicator Pill (opens Conflictos tab in RightSidePanel) */}
           {metrics.conflictCount > 0 && (
