@@ -40,6 +40,11 @@ import {
 } from '../utils/ganttEngine';
 import { AppleIosIcon, AndroidIcon } from './PlatformIcons';
 import {
+  SearchFilterBar,
+  GanttSearchFieldsConfig,
+  DEFAULT_GANTT_SEARCH_FIELDS,
+} from './SearchFilterBar';
+import {
   generateCronogramaCompletoRows,
   generateProjectSummaryRows,
   generateReleaseSummaryRows,
@@ -213,10 +218,12 @@ export interface ReportSavedFilter {
   id: string;
   name: string;
   searchQuery: string;
+  searchFields?: GanttSearchFieldsConfig;
   selectedType: ReportRowTypeFilter;
   selectedPlatform: 'all' | ProjectPlatform;
   selectedAlert: 'all' | ProjectAlertLevel;
   selectedRelease: string;
+  showSubtasksOnFilter?: boolean;
   formatPresetId?: string;
   visibleColKeys?: string[];
   colOrder?: string[];
@@ -226,10 +233,12 @@ export interface ReportSavedFilter {
 export function createSavedFilter(params: {
   name: string;
   searchQuery?: string;
+  searchFields?: GanttSearchFieldsConfig;
   selectedType?: ReportRowTypeFilter;
   selectedPlatform?: 'all' | ProjectPlatform;
   selectedAlert?: 'all' | ProjectAlertLevel;
   selectedRelease?: string;
+  showSubtasksOnFilter?: boolean;
   formatPresetId?: string;
   visibleColKeys?: string[];
   colOrder?: string[];
@@ -239,10 +248,12 @@ export function createSavedFilter(params: {
     id: `filter-custom-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
     name: params.name.trim(),
     searchQuery: params.searchQuery ?? '',
+    searchFields: params.searchFields ? { ...params.searchFields } : undefined,
     selectedType: params.selectedType ?? 'all',
     selectedPlatform: params.selectedPlatform ?? 'all',
     selectedAlert: params.selectedAlert ?? 'all',
     selectedRelease: params.selectedRelease ?? 'all',
+    showSubtasksOnFilter: params.showSubtasksOnFilter ?? false,
     formatPresetId: params.formatPresetId,
     visibleColKeys: params.visibleColKeys ? [...params.visibleColKeys] : undefined,
     colOrder: params.colOrder ? [...params.colOrder] : undefined,
@@ -365,6 +376,10 @@ interface ReportsViewProps {
   initialSavedFilters?: ReportSavedFilter[];
   initialActiveSavedFilterId?: string;
   initialTypeFilter?: ReportRowTypeFilter;
+  initialSearchQuery?: string;
+  initialSearchFields?: Partial<GanttSearchFieldsConfig>;
+  initialShowSubtasksOnFilter?: boolean;
+  initialShowSearchFieldsMenu?: boolean;
   selectedEntity?: FocusEntity | null;
   onSelectEntity?: (entity: FocusEntity) => void;
   onUpdateItem?: (item: GanttItem, autoCascade: boolean) => void;
@@ -385,6 +400,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   initialSavedFilters,
   initialActiveSavedFilterId,
   initialTypeFilter = 'all',
+  initialSearchQuery,
+  initialSearchFields,
+  initialShowSubtasksOnFilter = false,
+  initialShowSearchFieldsMenu = false,
   selectedEntity = null,
   onSelectEntity,
   onUpdateItem,
@@ -635,25 +654,26 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   });
   const [draggingCol, setDraggingCol] = useState<{ tab: ReportTab; key: string } | null>(null);
   const [dragOverColKey, setDragOverColKey] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState(initialMatchedSavedFilter?.searchQuery ?? '');
+  const [searchQuery, setSearchQuery] = useState(
+    initialSearchQuery !== undefined ? initialSearchQuery : (initialMatchedSavedFilter?.searchQuery ?? '')
+  );
+  const [searchFields, setSearchFields] = useState<GanttSearchFieldsConfig>(() => ({
+    ...DEFAULT_GANTT_SEARCH_FIELDS,
+    ...(initialMatchedSavedFilter?.searchFields || {}),
+    ...(initialSearchFields || {}),
+  }));
+  const [showSubtasksOnFilter, setShowSubtasksOnFilter] = useState<boolean>(
+    initialShowSubtasksOnFilter || Boolean(initialMatchedSavedFilter?.showSubtasksOnFilter)
+  );
   const [selectedType, setSelectedType] = useState<ReportRowTypeFilter>(
     initialTypeFilter !== 'all' ? initialTypeFilter : (initialMatchedSavedFilter?.selectedType ?? 'all')
   );
-  const [showTypeFilterMenu, setShowTypeFilterMenu] = useState<boolean>(false);
-  const typeFilterMenuRef = useRef<HTMLDivElement>(null);
-
   const [selectedPlatform, setSelectedPlatform] = useState<'all' | ProjectPlatform>(
     initialMatchedSavedFilter?.selectedPlatform ?? 'all'
   );
-  const [showPlatformFilterMenu, setShowPlatformFilterMenu] = useState<boolean>(false);
-  const platformFilterMenuRef = useRef<HTMLDivElement>(null);
-
   const [selectedAlert, setSelectedAlert] = useState<'all' | ProjectAlertLevel>(
     initialMatchedSavedFilter?.selectedAlert ?? 'all'
   );
-  const [showAlertFilterMenu, setShowAlertFilterMenu] = useState<boolean>(false);
-  const alertFilterMenuRef = useRef<HTMLDivElement>(null);
-
   const [selectedRelease, setSelectedRelease] = useState<string>(
     initialMatchedSavedFilter?.selectedRelease ?? 'all'
   );
@@ -661,24 +681,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
-      if (
-        typeFilterMenuRef.current &&
-        !typeFilterMenuRef.current.contains(e.target as Node)
-      ) {
-        setShowTypeFilterMenu(false);
-      }
-      if (
-        platformFilterMenuRef.current &&
-        !platformFilterMenuRef.current.contains(e.target as Node)
-      ) {
-        setShowPlatformFilterMenu(false);
-      }
-      if (
-        alertFilterMenuRef.current &&
-        !alertFilterMenuRef.current.contains(e.target as Node)
-      ) {
-        setShowAlertFilterMenu(false);
-      }
       if (
         columnsMenuRef.current &&
         !columnsMenuRef.current.contains(e.target as Node)
@@ -707,9 +709,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setShowTypeFilterMenu(false);
-        setShowPlatformFilterMenu(false);
-        setShowAlertFilterMenu(false);
         setShowColumnsMenu(false);
         setShowFormatMenu(false);
         setShowSavedFiltersMenu(false);
@@ -1019,6 +1018,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
   const applySavedFilter = (filter: ReportSavedFilter) => {
     setSearchQuery(filter.searchQuery ?? '');
+    setSearchFields(filter.searchFields ? { ...DEFAULT_GANTT_SEARCH_FIELDS, ...filter.searchFields } : { ...DEFAULT_GANTT_SEARCH_FIELDS });
+    setShowSubtasksOnFilter(Boolean(filter.showSubtasksOnFilter));
     setSelectedType(filter.selectedType ?? 'all');
     setSelectedPlatform(filter.selectedPlatform ?? 'all');
     setSelectedAlert(filter.selectedAlert ?? 'all');
@@ -1111,6 +1112,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               ...f,
               name: trimmed,
               searchQuery,
+              searchFields: { ...searchFields },
+              showSubtasksOnFilter,
               selectedType,
               selectedPlatform,
               selectedAlert,
@@ -1123,6 +1126,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       const created = createSavedFilter({
         name: trimmed,
         searchQuery,
+        searchFields: { ...searchFields },
+        showSubtasksOnFilter,
         selectedType,
         selectedPlatform,
         selectedAlert,
@@ -1452,6 +1457,21 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
   // 2. Filter Tab 1: Cronograma Completo
   const filteredCronoRows = useMemo(() => {
+    const matchesSearchQuery = (row: CronogramaReportRow, q: string): boolean => {
+      if (searchFields.name && row.name.toLowerCase().includes(q)) return true;
+      if (searchFields.description && row.notes.toLowerCase().includes(q)) return true;
+      if (searchFields.assignee && row.team.toLowerCase().includes(q)) return true;
+      if (searchFields.platform && row.platform.toLowerCase().includes(q)) return true;
+      if (searchFields.predecessors && row.dependency.toLowerCase().includes(q)) return true;
+      if (
+        searchFields.displayId &&
+        (row.wbsCode.toLowerCase().includes(q) || row.displayId.toLowerCase().includes(q))
+      ) {
+        return true;
+      }
+      return false;
+    };
+
     const matchesNonReleaseRow = (row: CronogramaReportRow): boolean => {
       // Release filter
       if (selectedRelease !== 'all' && row.releaseCode !== selectedRelease) {
@@ -1475,34 +1495,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           }
         }
       }
-      // Search query
+      // Search query (respects selected searchFields)
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchesName = row.name.toLowerCase().includes(q);
-        const matchesWbs =
-          row.wbsCode.toLowerCase().includes(q) || row.displayId.toLowerCase().includes(q);
-        const matchesProject = row.projectName.toLowerCase().includes(q);
-        const matchesRelease = row.releaseCode.toLowerCase().includes(q);
-        const matchesDep = row.dependency.toLowerCase().includes(q);
-        const matchesType = row.type.toLowerCase().includes(q);
-        const matchesPlatform = row.platform.toLowerCase().includes(q);
-        const matchesTeam = row.team.toLowerCase().includes(q);
-        const matchesNotes = row.notes.toLowerCase().includes(q);
-        const matchesAlert =
-          row.alertLevel !== undefined &&
-          (`nivel ${row.alertLevel}`.includes(q) || String(row.alertLevel) === q);
-        if (
-          !matchesName &&
-          !matchesWbs &&
-          !matchesProject &&
-          !matchesRelease &&
-          !matchesDep &&
-          !matchesType &&
-          !matchesPlatform &&
-          !matchesTeam &&
-          !matchesNotes &&
-          !matchesAlert
-        ) {
+        const q = searchQuery.trim().toLowerCase();
+        if (!matchesSearchQuery(row, q)) {
           return false;
         }
       }
@@ -1518,6 +1514,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
     if (!hasFilters) {
       return cronoRows;
+    }
+
+    const directlyMatchingProjectIds = new Set<string>();
+    for (const r of cronoRows) {
+      if (r.level === 'PROYECTO' && r.projectId && matchesNonReleaseRow(r)) {
+        directlyMatchingProjectIds.add(r.projectId);
+      }
     }
 
     if (selectedType !== 'all') {
@@ -1536,7 +1539,19 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           return true;
         });
       }
-      return cronoRows.filter((row) => row.level === selectedType && matchesNonReleaseRow(row));
+      return cronoRows.filter((row) => {
+        if (row.level !== selectedType) return false;
+        if (matchesNonReleaseRow(row)) return true;
+        if (
+          showSubtasksOnFilter &&
+          (selectedType === 'TAREA' || selectedType === 'HITO') &&
+          row.projectId &&
+          directlyMatchingProjectIds.has(row.projectId)
+        ) {
+          return true;
+        }
+        return false;
+      });
     }
 
     const matchingRowIds = new Set<string>();
@@ -1564,9 +1579,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         if (matchingRowIds.has(row.rowId)) return true;
         return row.projectId ? matchingProjectIds.has(row.projectId) : false;
       }
-      return matchingRowIds.has(row.rowId);
+      if (matchingRowIds.has(row.rowId)) return true;
+      if (showSubtasksOnFilter && row.projectId && directlyMatchingProjectIds.has(row.projectId)) {
+        return true;
+      }
+      return false;
     });
-  }, [cronoRows, selectedType, selectedPlatform, selectedAlert, selectedRelease, searchQuery]);
+  }, [cronoRows, selectedType, selectedPlatform, selectedAlert, selectedRelease, searchQuery, searchFields, showSubtasksOnFilter]);
 
   // 3. Filter Tab 2: Resumen Proyectos
   const filteredProjectRows = useMemo(() => {
@@ -1587,21 +1606,20 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         return false;
       }
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchesName = row.projectName.toLowerCase().includes(q);
-        const matchesCode = row.code.toLowerCase().includes(q);
-        const matchesRel = row.releaseCode.toLowerCase().includes(q);
-        const matchesDesc = row.description.toLowerCase().includes(q);
-        const matchesPlatform = row.platform.toLowerCase().includes(q);
-        const matchesTeam = row.team.toLowerCase().includes(q);
-        const matchesAlert = `nivel ${row.alertLevel}`.includes(q) || String(row.alertLevel) === q;
-        if (!matchesName && !matchesCode && !matchesRel && !matchesDesc && !matchesPlatform && !matchesTeam && !matchesAlert) {
+        const q = searchQuery.trim().toLowerCase();
+        const matched =
+          (searchFields.name && row.projectName.toLowerCase().includes(q)) ||
+          (searchFields.displayId && row.code.toLowerCase().includes(q)) ||
+          (searchFields.description && row.description.toLowerCase().includes(q)) ||
+          (searchFields.platform && row.platform.toLowerCase().includes(q)) ||
+          (searchFields.assignee && row.team.toLowerCase().includes(q));
+        if (!matched) {
           return false;
         }
       }
       return true;
     });
-  }, [projectRows, selectedPlatform, selectedAlert, selectedRelease, searchQuery]);
+  }, [projectRows, selectedPlatform, selectedAlert, selectedRelease, searchQuery, searchFields]);
 
   // 4. Filter Tab 3: Catálogo Releases
   const filteredReleaseRows = useMemo(() => {
@@ -1623,24 +1641,23 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         if (!alerts.includes(selectedAlert)) return false;
       }
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchesCode = row.code.toLowerCase().includes(q);
-        const matchesName = row.name.toLowerCase().includes(q);
-        const matchesMonth = row.month.toLowerCase().includes(q);
-        const matchesProjs = row.assignedProjects.toLowerCase().includes(q);
-        const matchesAlert =
-          row.alertLevels &&
-          row.alertLevels.some((al) => `nivel ${al}`.includes(q) || String(al) === q);
-        const matchesPlat =
-          row.platforms &&
-          row.platforms.some((pl) => pl.toLowerCase().includes(q));
-        if (!matchesCode && !matchesName && !matchesMonth && !matchesProjs && !matchesAlert && !matchesPlat) {
+        const q = searchQuery.trim().toLowerCase();
+        const matched =
+          (searchFields.name &&
+            (row.name.toLowerCase().includes(q) || row.code.toLowerCase().includes(q))) ||
+          (searchFields.displayId && row.code.toLowerCase().includes(q)) ||
+          (searchFields.description &&
+            (row.assignedProjects.toLowerCase().includes(q) ||
+              row.month.toLowerCase().includes(q))) ||
+          (searchFields.platform &&
+            Boolean(row.platforms?.some((pl) => pl.toLowerCase().includes(q))));
+        if (!matched) {
           return false;
         }
       }
       return true;
     });
-  }, [releaseRows, selectedPlatform, selectedAlert, selectedRelease, searchQuery]);
+  }, [releaseRows, selectedPlatform, selectedAlert, selectedRelease, searchQuery, searchFields]);
 
   const handleDownloadExcel = () => {
     try {
@@ -1751,378 +1768,43 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         </div>
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-2.5 px-4 py-2 bg-white dark:bg-[#0C0C09] border-b border-[#E2E2DC] dark:border-zinc-800 text-xs shrink-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Reduced length search input */}
-          <div className="relative w-56 sm:w-64 shrink-0">
-            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#6B6B66] dark:text-zinc-400" />
-            <input
-              type="text"
-              data-testid="reports-search-input"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar en la tabla..."
-              className="w-full pl-8 pr-7 py-1 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs text-[#0C0C09] dark:text-zinc-100 placeholder-[#6B6B66]/60 dark:placeholder-zinc-500 outline-none h-6.5"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-[#6B6B66] hover:text-[#0C0C09] dark:hover:text-white"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-          {/* Type Filter (Informe Planificación) */}
-          {activeTab === 'cronograma' && (
-            <div ref={typeFilterMenuRef} className="relative flex items-center shrink-0">
-              <button
-                type="button"
-                data-testid="reports-type-filter"
-                data-selected-type={selectedType}
-                onClick={() => setShowTypeFilterMenu((prev) => !prev)}
-                className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-sans font-medium normal-case rounded-[3px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700/70 outline-none cursor-pointer h-6.5 transition"
-                title="Filtrar por tipo de elemento"
-              >
-                <Filter className={`w-3 h-3 shrink-0 ${selectedType === 'all' ? 'text-zinc-500' : 'text-indigo-600 dark:text-indigo-400'}`} />
-                <span>
-                  {selectedType === 'all'
-                    ? 'Tipo'
-                    : selectedType === 'RELEASE'
-                    ? 'Release'
-                    : selectedType === 'PROYECTO'
-                    ? 'Proyecto'
-                    : selectedType === 'TAREA'
-                    ? 'Tarea'
-                    : 'Hito'}
-                </span>
-                <ChevronDown className="w-3 h-3 text-zinc-500 shrink-0" />
-              </button>
-
-              <div
-                data-testid="reports-type-filter-menu"
-                className={`absolute left-0 top-full mt-1 z-50 min-w-[130px] rounded-[4px] border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg py-1 ${
-                  showTypeFilterMenu ? 'flex flex-col' : 'hidden'
-                }`}
-              >
-                {(
-                  [
-                    { value: 'all', label: 'Todos los tipos' },
-                    { value: 'RELEASE', label: 'Release' },
-                    { value: 'PROYECTO', label: 'Proyecto' },
-                    { value: 'TAREA', label: 'Tarea' },
-                    { value: 'HITO', label: 'Hito' },
-                  ] as { value: ReportRowTypeFilter; label: string }[]
-                ).map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    data-testid={`reports-type-filter-option-${opt.value}`}
-                    onClick={() => {
-                      setSelectedType(opt.value);
-                      setShowTypeFilterMenu(false);
-                    }}
-                    className={`flex items-center gap-2 px-2.5 py-1.5 text-[10px] font-sans font-medium cursor-pointer transition text-left ${
-                      selectedType === opt.value
-                        ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-                        : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                    }`}
-                  >
-                    <span>{opt.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Platform Filter (Custom UI with Icons) */}
-          <div ref={platformFilterMenuRef} className="relative flex items-center shrink-0">
-            <button
-              type="button"
-              data-testid="reports-platform-filter"
-              data-selected-platform={selectedPlatform}
-              onClick={() => setShowPlatformFilterMenu((prev) => !prev)}
-              className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-sans font-medium normal-case rounded-[3px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700/70 outline-none cursor-pointer h-6.5 transition"
-              title="Filtrar por plataforma"
-            >
-              {selectedPlatform === 'all' ? (
-                <>
-                  <Smartphone className="w-3 h-3 text-zinc-500 shrink-0" />
-                  <span>Plat.</span>
-                </>
-              ) : selectedPlatform === 'iOS' ? (
-                <AppleIosIcon
-                  testId="reports-active-filter-icon-ios"
-                  className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400"
-                />
-              ) : selectedPlatform === 'Android' ? (
-                <AndroidIcon
-                  testId="reports-active-filter-icon-android"
-                  className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400"
-                />
-              ) : (
-                <span className="inline-flex items-center gap-1">
-                  <AppleIosIcon
-                    testId="reports-active-filter-icon-both-ios"
-                    className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400"
-                  />
-                  <AndroidIcon
-                    testId="reports-active-filter-icon-both-android"
-                    className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400"
-                  />
-                </span>
-              )}
-              <ChevronDown className="w-3 h-3 text-zinc-500 shrink-0" />
-            </button>
-
-            <div
-              data-testid="reports-platform-filter-menu"
-              className={`absolute left-0 top-full mt-1 z-50 min-w-[84px] rounded-[4px] border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg py-1 ${
-                showPlatformFilterMenu ? 'flex flex-col' : 'hidden'
-              }`}
-            >
-              <button
-                type="button"
-                data-testid="reports-platform-filter-option-iOS"
-                onClick={() => {
-                  setSelectedPlatform(selectedPlatform === 'iOS' ? 'all' : 'iOS');
-                  setShowPlatformFilterMenu(false);
-                }}
-                className={`flex items-center justify-center px-2.5 py-1.5 cursor-pointer transition ${
-                  selectedPlatform === 'iOS'
-                    ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-                    : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                }`}
-                title="iOS"
-              >
-                <AppleIosIcon
-                  testId="reports-filter-option-icon-ios"
-                  className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400"
-                />
-              </button>
-              <button
-                type="button"
-                data-testid="reports-platform-filter-option-Android"
-                onClick={() => {
-                  setSelectedPlatform(selectedPlatform === 'Android' ? 'all' : 'Android');
-                  setShowPlatformFilterMenu(false);
-                }}
-                className={`flex items-center justify-center px-2.5 py-1.5 cursor-pointer transition ${
-                  selectedPlatform === 'Android'
-                    ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-                    : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                }`}
-                title="Android"
-              >
-                <AndroidIcon
-                  testId="reports-filter-option-icon-android"
-                  className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400"
-                />
-              </button>
-              <button
-                type="button"
-                data-testid="reports-platform-filter-option-iOS/Android"
-                onClick={() => {
-                  setSelectedPlatform(selectedPlatform === 'iOS/Android' ? 'all' : 'iOS/Android');
-                  setShowPlatformFilterMenu(false);
-                }}
-                className={`flex items-center justify-center gap-1 px-2.5 py-1.5 cursor-pointer transition ${
-                  selectedPlatform === 'iOS/Android'
-                    ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-                    : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                }`}
-                title="iOS/Android"
-              >
-                <AppleIosIcon
-                  testId="reports-filter-option-icon-both-ios"
-                  className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400"
-                />
-                <AndroidIcon
-                  testId="reports-filter-option-icon-both-android"
-                  className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400"
-                />
-              </button>
-            </div>
-
-            {/* Hidden fallback select for backward compatibility with existing tests */}
-            <select
-              data-testid="reports-platform-select"
-              value={selectedPlatform}
-              onChange={(e) => setSelectedPlatform(e.target.value as any)}
-              className="sr-only"
-              tabIndex={-1}
-              aria-hidden="true"
-            >
-              <option value="all">Plat.</option>
-              <option value="iOS">iOS</option>
-              <option value="Android">Android</option>
-              <option value="iOS/Android">iOS/Android</option>
-            </select>
-          </div>
-
-          {/* Alert Level Filter */}
-          <div ref={alertFilterMenuRef} className="relative flex items-center shrink-0">
-            <button
-              type="button"
-              data-testid="reports-alert-filter"
-              data-selected-alert={selectedAlert}
-              onClick={() => setShowAlertFilterMenu((prev) => !prev)}
-              className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-sans font-medium normal-case rounded-[3px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700/70 outline-none cursor-pointer h-6.5 transition"
-              title="Filtrar por nivel de alerta"
-            >
-              <AlertTriangle
-                className={`w-3 h-3 shrink-0 ${
-                  selectedAlert === 'all'
-                    ? 'text-zinc-500'
-                    : selectedAlert === 0
-                    ? 'text-zinc-400'
-                    : selectedAlert === 1
-                    ? 'text-amber-500'
-                    : selectedAlert === 2
-                    ? 'text-orange-500'
-                    : 'text-rose-500'
-                }`}
-              />
-              <span>
-                {selectedAlert === 'all'
-                  ? 'Alerta'
-                  : `Nivel ${selectedAlert}`}
-              </span>
-              <ChevronDown className="w-3 h-3 text-zinc-500 shrink-0" />
-            </button>
-
-            <div
-              data-testid="reports-alert-filter-menu"
-              className={`absolute left-0 top-full mt-1 z-50 min-w-[140px] rounded-[4px] border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg py-1 ${
-                showAlertFilterMenu ? 'flex flex-col' : 'hidden'
-              }`}
-            >
-              <button
-                type="button"
-                data-testid="reports-alert-filter-option-all"
-                onClick={() => {
-                  setSelectedAlert('all');
-                  setShowAlertFilterMenu(false);
-                }}
-                className={`flex items-center gap-2 px-2.5 py-1.5 text-[10px] font-sans font-medium cursor-pointer transition text-left ${
-                  selectedAlert === 'all'
-                    ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-                    : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                }`}
-              >
-                <span>Todas las alertas</span>
-              </button>
-              <button
-                type="button"
-                data-testid="reports-alert-filter-option-0"
-                onClick={() => {
-                  setSelectedAlert(0);
-                  setShowAlertFilterMenu(false);
-                }}
-                className={`flex items-center gap-2 px-2.5 py-1.5 text-[10px] font-sans font-medium cursor-pointer transition text-left ${
-                  selectedAlert === 0
-                    ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-                    : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                }`}
-              >
-                <span className="w-2 h-2 rounded-full bg-zinc-400 shrink-0" />
-                <span>Nivel 0 (Normal)</span>
-              </button>
-              <button
-                type="button"
-                data-testid="reports-alert-filter-option-1"
-                onClick={() => {
-                  setSelectedAlert(1);
-                  setShowAlertFilterMenu(false);
-                }}
-                className={`flex items-center gap-2 px-2.5 py-1.5 text-[10px] font-sans font-medium cursor-pointer transition text-left ${
-                  selectedAlert === 1
-                    ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-                    : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                }`}
-              >
-                <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
-                <span>Nivel 1 (Baja)</span>
-              </button>
-              <button
-                type="button"
-                data-testid="reports-alert-filter-option-2"
-                onClick={() => {
-                  setSelectedAlert(2);
-                  setShowAlertFilterMenu(false);
-                }}
-                className={`flex items-center gap-2 px-2.5 py-1.5 text-[10px] font-sans font-medium cursor-pointer transition text-left ${
-                  selectedAlert === 2
-                    ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-                    : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                }`}
-              >
-                <span className="w-2 h-2 rounded-full bg-orange-500 shrink-0" />
-                <span>Nivel 2 (Media)</span>
-              </button>
-              <button
-                type="button"
-                data-testid="reports-alert-filter-option-3"
-                onClick={() => {
-                  setSelectedAlert(3);
-                  setShowAlertFilterMenu(false);
-                }}
-                className={`flex items-center gap-2 px-2.5 py-1.5 text-[10px] font-sans font-medium cursor-pointer transition text-left ${
-                  selectedAlert === 3
-                    ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-                    : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                }`}
-              >
-                <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
-                <span>Nivel 3 (Alta)</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Release Filter */}
-          {releases.length > 0 && (
-            <div className="flex items-center gap-1 shrink-0">
-              <span className="text-[11px] font-mono text-[#6B6B66] dark:text-zinc-400">Release:</span>
-              <select
-                data-testid="reports-release-select"
-                value={selectedRelease}
-                onChange={(e) => setSelectedRelease(e.target.value)}
-                className="px-2 py-0.5 rounded-[3px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[10px] text-zinc-800 dark:text-zinc-200 outline-none cursor-pointer max-w-[160px] truncate h-6.5 font-sans"
-              >
-                <option value="all">Todas las releases</option>
-                {releases.map((r) => (
-                  <option key={r.id} value={r.code}>
-                    {r.code}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Clear Filters Button */}
-          {(searchQuery || selectedType !== 'all' || selectedPlatform !== 'all' || selectedAlert !== 'all' || selectedRelease !== 'all') && (
-            <button
-              type="button"
-              data-testid="reports-clear-filters-btn"
-              onClick={() => {
-                setSearchQuery('');
-                setSelectedType('all');
-                setSelectedPlatform('all');
-                setSelectedAlert('all');
-                setSelectedRelease('all');
-                setActiveSavedFilterId(null);
-                try {
-                  localStorage.removeItem(REPORT_ACTIVE_FILTER_KEY);
-                } catch {}
-              }}
-              className="px-2 py-0.5 text-[11px] text-[#6B6B66] dark:text-zinc-400 hover:text-[#0C0C09] dark:hover:text-white underline cursor-pointer"
-            >
-              Limpiar filtros
-            </button>
-          )}
-        </div>
+      {/* Unified Filter and Search Bar (shared with Cronograma) */}
+      <div className="flex flex-wrap items-center justify-between gap-2.5 px-4 py-2 bg-[#F4F4F1] dark:bg-zinc-900 border-b border-[#E2E2DC] dark:border-zinc-800 text-xs shrink-0">
+        <SearchFilterBar
+          testIdPrefix="reports"
+          searchQuery={searchQuery}
+          onChangeSearchQuery={setSearchQuery}
+          searchFields={searchFields}
+          onChangeSearchFields={setSearchFields}
+          selectedType={selectedType}
+          onChangeSelectedType={setSelectedType}
+          showTypeFilter={activeTab === 'cronograma'}
+          selectedPlatform={selectedPlatform}
+          onChangeSelectedPlatform={setSelectedPlatform}
+          selectedAlert={selectedAlert}
+          onChangeSelectedAlert={setSelectedAlert}
+          releases={releases}
+          selectedRelease={selectedRelease}
+          onChangeSelectedRelease={setSelectedRelease}
+          showSubtasksOnFilter={showSubtasksOnFilter}
+          onChangeShowSubtasksOnFilter={setShowSubtasksOnFilter}
+          showSubtasksToggle={activeTab === 'cronograma'}
+          searchInputClassName="w-56 sm:w-64"
+          initialShowSearchFieldsMenu={initialShowSearchFieldsMenu}
+          onClearFilters={() => {
+            setSearchQuery('');
+            setSearchFields({ ...DEFAULT_GANTT_SEARCH_FIELDS });
+            setSelectedType('all');
+            setSelectedPlatform('all');
+            setSelectedAlert('all');
+            setSelectedRelease('all');
+            setShowSubtasksOnFilter(false);
+            setActiveSavedFilterId(null);
+            try {
+              localStorage.removeItem(REPORT_ACTIVE_FILTER_KEY);
+            } catch {}
+          }}
+        />
 
         {/* Right side: Saved Filters, Formats & Columns Configurators */}
         <div className="flex items-center gap-2 shrink-0">

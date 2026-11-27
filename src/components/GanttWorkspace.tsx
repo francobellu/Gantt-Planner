@@ -121,6 +121,14 @@ import {
 } from '../utils/releaseEngine';
 
 import { AppleIosIcon, AndroidIcon } from './PlatformIcons';
+import {
+  SearchFilterBar,
+  GanttSearchFieldsConfig,
+  DEFAULT_GANTT_SEARCH_FIELDS,
+  UnifiedRowTypeFilter,
+} from './SearchFilterBar';
+export type { GanttSearchFieldsConfig };
+export { DEFAULT_GANTT_SEARCH_FIELDS };
 import { ProjectLockedAlertModal } from './ProjectLockedAlertModal';
 
 
@@ -150,33 +158,6 @@ function computePolylineMidpoint(pts: OrthogonalPoint[]): OrthogonalPoint {
   }
   return pts[pts.length - 1];
 }
-
-export interface GanttSearchFieldsConfig {
-  name: boolean;
-  description: boolean;
-  assignee: boolean;
-  platform: boolean;
-  predecessors: boolean;
-  displayId: boolean;
-}
-
-export const DEFAULT_GANTT_SEARCH_FIELDS: GanttSearchFieldsConfig = {
-  name: true,
-  description: false,
-  assignee: false,
-  platform: false,
-  predecessors: false,
-  displayId: false,
-};
-
-const SEARCH_FIELD_LABELS: Record<keyof GanttSearchFieldsConfig, string> = {
-  name: 'Nombre',
-  description: 'Descripción / Notas',
-  assignee: 'Equipo / Responsable',
-  platform: 'Plataforma',
-  predecessors: 'Predecesoras',
-  displayId: 'ID / Código',
-};
 
 interface GanttWorkspaceProps {
   items: ComputedGanttItem[];
@@ -305,6 +286,8 @@ interface GanttWorkspaceProps {
   onChangeTruncateCharLimit?: (limit: number) => void;
   initialSearchQuery?: string;
   initialAlertFilter?: 'all' | ProjectAlertLevel;
+  initialTypeFilter?: UnifiedRowTypeFilter;
+  initialReleaseFilter?: string;
   initialShowSubtasksOnFilter?: boolean;
   initialSearchFields?: Partial<GanttSearchFieldsConfig>;
   initialShowSearchFieldsMenu?: boolean;
@@ -752,6 +735,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   onChangeTruncateCharLimit,
   initialSearchQuery = '',
   initialAlertFilter = 'all',
+  initialTypeFilter = 'all',
+  initialReleaseFilter = 'all',
   initialShowSubtasksOnFilter = false,
   initialSearchFields,
   initialShowSearchFieldsMenu = false,
@@ -763,26 +748,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     ...DEFAULT_GANTT_SEARCH_FIELDS,
     ...(initialSearchFields || {}),
   }));
-  const [showSearchFieldsMenu, setShowSearchFieldsMenu] = useState<boolean>(initialShowSearchFieldsMenu);
-  const searchFieldsMenuRef = useRef<HTMLDivElement>(null);
-
-  const toggleSearchField = (key: keyof GanttSearchFieldsConfig) => {
-    setSearchFields((prev) => {
-      if (prev[key]) {
-        const activeCount = (Object.keys(prev) as (keyof GanttSearchFieldsConfig)[]).filter((k) => prev[k]).length;
-        if (activeCount <= 1) return prev; // Keep at least 1 searchable field active
-      }
-      return { ...prev, [key]: !prev[key] };
-    });
-  };
+  const [tableTypeFilter, setTableTypeFilter] = useState<UnifiedRowTypeFilter>(initialTypeFilter);
+  const [tableReleaseFilter, setTableReleaseFilter] = useState<string>(initialReleaseFilter);
 
   const [tablePlatformFilter, setTablePlatformFilter] = useState<'all' | ProjectPlatform>('all');
-  const [showPlatformFilterMenu, setShowPlatformFilterMenu] = useState<boolean>(false);
-  const platformFilterMenuRef = useRef<HTMLDivElement>(null);
-
   const [tableAlertFilter, setTableAlertFilter] = useState<'all' | ProjectAlertLevel>(initialAlertFilter);
-  const [showAlertFilterMenu, setShowAlertFilterMenu] = useState<boolean>(false);
-  const alertFilterMenuRef = useRef<HTMLDivElement>(null);
 
   const activePlatformFilter: 'all' | ProjectPlatform =
     tablePlatformFilter !== 'all'
@@ -794,7 +764,6 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   const handleSelectPlatformFilter = (next: 'all' | ProjectPlatform) => {
     setTablePlatformFilter(next);
     onChangeSelectedPlatform?.(next);
-    setShowPlatformFilterMenu(false);
   };
   const [hoveredNameId, setHoveredNameId] = useState<string | null>(null);
   const [activeColorPickerProjId, setActiveColorPickerProjId] = useState<string | null>(null);
@@ -1641,75 +1610,6 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [showColumnsMenu]);
-
-  useEffect(() => {
-    if (!showPlatformFilterMenu) return;
-    const handleOutsideClick = (e: MouseEvent) => {
-      if (
-        platformFilterMenuRef.current &&
-        !platformFilterMenuRef.current.contains(e.target as Node)
-      ) {
-        setShowPlatformFilterMenu(false);
-      }
-    };
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setShowPlatformFilterMenu(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutsideClick);
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', handleOutsideClick);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [showPlatformFilterMenu]);
-
-  useEffect(() => {
-    if (!showAlertFilterMenu) return;
-    const handleOutsideClick = (e: MouseEvent) => {
-      if (
-        alertFilterMenuRef.current &&
-        !alertFilterMenuRef.current.contains(e.target as Node)
-      ) {
-        setShowAlertFilterMenu(false);
-      }
-    };
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setShowAlertFilterMenu(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutsideClick);
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', handleOutsideClick);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [showAlertFilterMenu]);
-
-  useEffect(() => {
-    if (!showSearchFieldsMenu) return;
-    const handleOutsideClick = (e: MouseEvent) => {
-      if (
-        searchFieldsMenuRef.current &&
-        !searchFieldsMenuRef.current.contains(e.target as Node)
-      ) {
-        setShowSearchFieldsMenu(false);
-      }
-    };
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setShowSearchFieldsMenu(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutsideClick);
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', handleOutsideClick);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [showSearchFieldsMenu]);
 
   // Configurable text truncation limit (controlled via prop or local fallback)
   const [internalTruncateLimit, setInternalTruncateLimit] = useState<number>(() => {
@@ -3180,6 +3080,22 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       });
     }
 
+    if (tableReleaseFilter !== 'all') {
+      const targetRel = releases.find((r) => r.code === tableReleaseFilter);
+      const targetRelId = targetRel?.id;
+      filtered = filtered.filter(
+        (g) =>
+          (targetRelId && g.project.releaseId === targetRelId) ||
+          (targetRelId && g.items.some((it) => it.releaseId === targetRelId))
+      );
+    }
+
+    if (tableTypeFilter === 'TAREA') {
+      filtered = filtered.filter((g) => g.items.some((it) => it.type === 'task'));
+    } else if (tableTypeFilter === 'HITO') {
+      filtered = filtered.filter((g) => g.items.some((it) => it.type === 'milestone'));
+    }
+
     if (tableAlertFilter !== 'all') {
       filtered = filtered.filter(
         (g) =>
@@ -3206,6 +3122,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     selectedProjectIds,
     selectedProjectId,
     hiddenReleaseIds,
+    releases,
+    tableReleaseFilter,
+    tableTypeFilter,
     selectedPlatform,
     tablePlatformFilter,
     tableAlertFilter,
@@ -3239,11 +3158,28 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         : 'all';
     const query = tableSearchQuery.trim().toLowerCase();
 
+    const targetRelForFilter =
+      tableReleaseFilter !== 'all'
+        ? releases.find((r) => r.code === tableReleaseFilter)
+        : undefined;
+
     const itemMatchesFilter = (
       it: ComputedGanttItem,
       proj: GanttProject,
       projectIndex?: number
     ) => {
+      if (tableTypeFilter === 'TAREA' && it.type !== 'task') {
+        return false;
+      }
+      if (tableTypeFilter === 'HITO' && it.type !== 'milestone') {
+        return false;
+      }
+      if (tableReleaseFilter !== 'all') {
+        const relId = targetRelForFilter?.id;
+        if (!relId || (it.releaseId !== relId && proj.releaseId !== relId)) {
+          return false;
+        }
+      }
       if (effectivePlatform !== 'all') {
         const targetPlat = normalizePlatform(effectivePlatform) || 'iOS/Android';
         const plat = normalizePlatform(it.platform || proj.platform) || 'iOS/Android';
@@ -3318,6 +3254,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         if (hiddenReleaseIds && hiddenReleaseIds.includes(rg.release.id)) {
           continue;
         }
+        if (tableReleaseFilter !== 'all' && rg.release.code !== tableReleaseFilter) {
+          continue;
+        }
         if (focusRelatedSets && !focusRelatedSets.releaseIds.has(rg.release.id)) {
           continue;
         }
@@ -3326,6 +3265,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
           rowId: `release:${rg.release.id}`,
           group: rg,
         });
+        if (tableTypeFilter === 'RELEASE') {
+          continue;
+        }
         if (!collapsedReleaseIds.has(rg.release.id) || recentlyCollapsedParentIds.has(`rel:${rg.release.id}`)) {
           for (const group of rg.projectGroups) {
             rows.push({
@@ -3333,6 +3275,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               rowId: `proj-${group.project.id}`,
               group,
             });
+            if (tableTypeFilter === 'PROYECTO') {
+              continue;
+            }
             if (!group.project.collapsed || recentlyCollapsedParentIds.has(`proj:${group.project.id}`)) {
               if (group.items.length === 0) {
                 rows.push({
@@ -3373,57 +3318,64 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         }
       }
     } else if (groupByProject) {
-      for (const group of visibleProjectGroups) {
-        rows.push({
-          kind: 'project',
-          rowId: `proj-${group.project.id}`,
-          group,
-        });
-        if (!group.project.collapsed || recentlyCollapsedParentIds.has(`proj:${group.project.id}`)) {
-          if (group.items.length === 0) {
-            rows.push({
-              kind: 'empty-project',
-              rowId: `empty-proj-${group.project.id}`,
-              group,
-            });
-          } else {
-            for (const item of group.items) {
-              if (focusRelatedSets && !focusRelatedSets.itemIds.has(item.id)) {
-                continue;
-              }
-              if (!itemMatchesFilter(item, group.project, group.projectIndex)) {
-                continue;
+      if (tableTypeFilter !== 'RELEASE') {
+        for (const group of visibleProjectGroups) {
+          rows.push({
+            kind: 'project',
+            rowId: `proj-${group.project.id}`,
+            group,
+          });
+          if (tableTypeFilter === 'PROYECTO') {
+            continue;
+          }
+          if (!group.project.collapsed || recentlyCollapsedParentIds.has(`proj:${group.project.id}`)) {
+            if (group.items.length === 0) {
+              rows.push({
+                kind: 'empty-project',
+                rowId: `empty-proj-${group.project.id}`,
+                group,
+              });
+            } else {
+              for (const item of group.items) {
+                if (focusRelatedSets && !focusRelatedSets.itemIds.has(item.id)) {
+                  continue;
+                }
+                if (!itemMatchesFilter(item, group.project, group.projectIndex)) {
+                  continue;
+                }
+                rows.push({
+                  kind: 'item',
+                  rowId: item.id,
+                  item,
+                  group,
+                });
               }
               rows.push({
-                kind: 'item',
-                rowId: item.id,
-                item,
+                kind: 'add-task',
+                rowId: `add-task-${group.project.id}`,
                 group,
               });
             }
-            rows.push({
-              kind: 'add-task',
-              rowId: `add-task-${group.project.id}`,
-              group,
-            });
           }
         }
       }
     } else {
-      for (const group of visibleProjectGroups) {
-        for (const item of group.items) {
-          if (focusRelatedSets && !focusRelatedSets.itemIds.has(item.id)) {
-            continue;
+      if (tableTypeFilter !== 'RELEASE' && tableTypeFilter !== 'PROYECTO') {
+        for (const group of visibleProjectGroups) {
+          for (const item of group.items) {
+            if (focusRelatedSets && !focusRelatedSets.itemIds.has(item.id)) {
+              continue;
+            }
+            if (!itemMatchesFilter(item, group.project, group.projectIndex)) {
+              continue;
+            }
+            rows.push({
+              kind: 'item',
+              rowId: item.id,
+              item,
+              group,
+            });
           }
-          if (!itemMatchesFilter(item, group.project, group.projectIndex)) {
-            continue;
-          }
-          rows.push({
-            kind: 'item',
-            rowId: item.id,
-            item,
-            group,
-          });
         }
       }
     }
@@ -3440,6 +3392,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     hiddenReleaseIds,
     focusRelatedSets,
     tableSearchQuery,
+    tableTypeFilter,
+    tableReleaseFilter,
     tablePlatformFilter,
     selectedPlatform,
     tableAlertFilter,
@@ -5621,29 +5575,15 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     setCursorScrubber(null);
   };
 
-  const activeSearchFieldKeys = (
-    Object.keys(searchFields) as (keyof GanttSearchFieldsConfig)[]
-  ).filter((k) => searchFields[k]);
-  const searchFieldsBtnLabel =
-    activeSearchFieldKeys.length === 1
-      ? activeSearchFieldKeys[0] === 'description'
-        ? 'Desc.'
-        : activeSearchFieldKeys[0] === 'assignee'
-        ? 'Equipo'
-        : activeSearchFieldKeys[0] === 'displayId'
-        ? 'ID'
-        : SEARCH_FIELD_LABELS[activeSearchFieldKeys[0]]
-      : `${activeSearchFieldKeys.length} campos`;
-
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-white dark:bg-[#0C0C09] rounded-[8px] border border-[#0C0C09] dark:border-zinc-800 shadow-none">
       {/* Barra de Herramientas Dedicada del Cronograma (Icon-Only con Hints, Sticky) */}
       <div
         ref={cronogramaToolbarRef}
         data-testid="cronograma-toolbar"
-        className="sticky top-12 z-40 h-10 px-3 bg-[#F4F4F1] dark:bg-zinc-900 border-b border-[#0C0C09] dark:border-zinc-800 flex items-center justify-between shrink-0 select-none gap-2 shadow-xs"
+        className="sticky top-12 z-40 min-h-10 py-1 px-3 bg-[#F4F4F1] dark:bg-zinc-900 border-b border-[#0C0C09] dark:border-zinc-800 flex items-center justify-between shrink-0 select-none gap-2 shadow-xs"
       >
-        {/* Left Side: WBS Toggle & Table Search / Platform Filter */}
+        {/* Left Side: WBS Toggle & Unified Search / Filter Bar */}
         <div className="flex items-center gap-2 min-w-0 flex-1">
           {/* Toggle WBS Table button (Icon-only with hint) */}
           {onToggleShowTable && (
@@ -5677,393 +5617,35 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
           <div className="h-4 w-px bg-[#E2E2DC] dark:bg-zinc-800 shrink-0 hidden sm:block" />
 
-          {/* Table Search Input & Platform Filter: Cleanly positioned in toolbar so it never occludes release info */}
-          <div className="flex items-center gap-1.5 min-w-0">
-            <div className="relative flex items-center w-40 sm:w-56 shrink-0">
-              <Search className="w-3 h-3 absolute left-1.5 text-zinc-400 pointer-events-none" />
-              <input
-                type="text"
-                data-testid="table-search-input"
-                value={tableSearchQuery}
-                onChange={(e) => setTableSearchQuery(e.target.value)}
-                placeholder="Buscar proyecto o tarea..."
-                className="w-full pl-6 pr-5 py-0.5 text-[10px] font-sans font-normal normal-case rounded-[3px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 outline-none focus:border-[#0C0C09] dark:focus:border-white h-6.5"
-              />
-              {tableSearchQuery && (
-                <button
-                  type="button"
-                  data-testid="table-search-clear-btn"
-                  onClick={() => setTableSearchQuery('')}
-                  className="absolute right-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-0.5 cursor-pointer"
-                  title="Limpiar búsqueda"
-                >
-                  <X className="w-2.5 h-2.5" />
-                </button>
-              )}
-            </div>
-
-            <div ref={searchFieldsMenuRef} className="relative flex items-center shrink-0">
-              <button
-                type="button"
-                data-testid="table-search-fields-btn"
-                onClick={() => setShowSearchFieldsMenu((prev) => !prev)}
-                className={`flex items-center gap-1 px-2 py-0.5 text-[10px] font-sans font-medium normal-case rounded-[3px] border outline-none cursor-pointer h-6.5 transition ${
-                  activeSearchFieldKeys.length === 1 && searchFields.name
-                    ? 'border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700/70'
-                    : 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-                }`}
-                title="Seleccionar en qué campos del elemento buscar (por defecto solo Nombre)"
-              >
-                <SlidersHorizontal className="w-3 h-3 shrink-0" />
-                <span>{`En: ${searchFieldsBtnLabel}`}</span>
-                <ChevronDown className="w-3 h-3 text-zinc-500 shrink-0" />
-              </button>
-
-              <div
-                data-testid="table-search-fields-menu"
-                className={`absolute left-0 top-full mt-1 z-50 min-w-[200px] rounded-[4px] border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg py-1.5 px-1.5 ${
-                  showSearchFieldsMenu ? 'flex flex-col gap-0.5' : 'hidden'
-                }`}
-              >
-                <div className="flex items-center justify-between px-1.5 pb-1 mb-0.5 border-b border-zinc-200 dark:border-zinc-800">
-                  <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                    Buscar en campos
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      data-testid="table-search-fields-reset-btn"
-                      onClick={() => setSearchFields({ ...DEFAULT_GANTT_SEARCH_FIELDS })}
-                      className="text-[9px] font-sans font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
-                    >
-                      Solo Nombre
-                    </button>
-                    <button
-                      type="button"
-                      data-testid="table-search-fields-all-btn"
-                      onClick={() =>
-                        setSearchFields({
-                          name: true,
-                          description: true,
-                          assignee: true,
-                          platform: true,
-                          predecessors: true,
-                          displayId: true,
-                        })
-                      }
-                      className="text-[9px] font-sans font-semibold text-zinc-500 dark:text-zinc-400 hover:underline cursor-pointer"
-                    >
-                      Todos
-                    </button>
-                  </div>
-                </div>
-
-                {(Object.keys(SEARCH_FIELD_LABELS) as (keyof GanttSearchFieldsConfig)[]).map((fieldKey) => {
-                  const isChecked = searchFields[fieldKey];
-                  const isOnlyActive = isChecked && activeSearchFieldKeys.length <= 1;
-                  return (
-                    <label
-                      key={fieldKey}
-                      className={`flex items-center gap-2 px-1.5 py-1 rounded-[3px] text-[10px] font-sans font-medium transition ${
-                        isOnlyActive
-                          ? 'text-zinc-500 dark:text-zinc-400 cursor-not-allowed'
-                          : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        data-testid={`table-search-field-checkbox-${fieldKey}`}
-                        checked={isChecked}
-                        disabled={isOnlyActive}
-                        onChange={() => toggleSearchField(fieldKey)}
-                        className="w-3 h-3 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 accent-indigo-600 cursor-pointer disabled:cursor-not-allowed"
-                      />
-                      <span>{SEARCH_FIELD_LABELS[fieldKey]}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div ref={platformFilterMenuRef} className="relative flex items-center shrink-0">
-              <button
-                type="button"
-                data-testid="table-platform-filter"
-                data-selected-platform={activePlatformFilter}
-                onClick={() => setShowPlatformFilterMenu((prev) => !prev)}
-                className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-sans font-medium normal-case rounded-[3px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700/70 outline-none cursor-pointer h-6.5 transition"
-                title="Filtrar por plataforma"
-              >
-                {activePlatformFilter === 'all' ? (
-                  <>
-                    <Smartphone className="w-3 h-3 text-zinc-500 shrink-0" />
-                    <span>Todas</span>
-                  </>
-                ) : activePlatformFilter === 'iOS' ? (
-                  <AppleIosIcon
-                    testId="active-filter-icon-ios"
-                    className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400"
-                  />
-                ) : activePlatformFilter === 'Android' ? (
-                  <AndroidIcon
-                    testId="active-filter-icon-android"
-                    className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400"
-                  />
-                ) : (
-                  <span className="inline-flex items-center gap-1">
-                    <AppleIosIcon
-                      testId="active-filter-icon-both-ios"
-                      className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400"
-                    />
-                    <AndroidIcon
-                      testId="active-filter-icon-both-android"
-                      className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400"
-                    />
-                  </span>
-                )}
-                <ChevronDown className="w-3 h-3 text-zinc-500 shrink-0" />
-              </button>
-
-              <div
-                data-testid="table-platform-filter-menu"
-                className={`absolute left-0 top-full mt-1 z-50 min-w-[84px] rounded-[4px] border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg py-1 ${
-                  showPlatformFilterMenu ? 'flex flex-col' : 'hidden'
-                }`}
-              >
-                <button
-                  type="button"
-                  data-testid="platform-filter-option-all"
-                  onClick={() => {
-                    handleSelectPlatformFilter('all');
-                    setShowPlatformFilterMenu(false);
-                  }}
-                  className={`flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-[10px] font-sans font-medium cursor-pointer transition ${
-                    activePlatformFilter === 'all'
-                      ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-                      : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                  }`}
-                  title="Todas las plataformas"
-                >
-                  <span>Todas</span>
-                </button>
-                <button
-                  type="button"
-                  data-testid="platform-filter-option-iOS"
-                  onClick={() => {
-                    handleSelectPlatformFilter('iOS');
-                    setShowPlatformFilterMenu(false);
-                  }}
-                  className={`flex items-center justify-center px-2.5 py-1.5 cursor-pointer transition ${
-                    activePlatformFilter === 'iOS'
-                      ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-                      : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                  }`}
-                  title="iOS"
-                >
-                  <AppleIosIcon
-                    testId="filter-option-icon-ios"
-                    className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400"
-                  />
-                </button>
-                <button
-                  type="button"
-                  data-testid="platform-filter-option-Android"
-                  onClick={() => {
-                    handleSelectPlatformFilter('Android');
-                    setShowPlatformFilterMenu(false);
-                  }}
-                  className={`flex items-center justify-center px-2.5 py-1.5 cursor-pointer transition ${
-                    activePlatformFilter === 'Android'
-                      ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-                      : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                  }`}
-                  title="Android"
-                >
-                  <AndroidIcon
-                    testId="filter-option-icon-android"
-                    className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400"
-                  />
-                </button>
-                <button
-                  type="button"
-                  data-testid="platform-filter-option-iOS/Android"
-                  onClick={() => {
-                    handleSelectPlatformFilter('iOS/Android');
-                    setShowPlatformFilterMenu(false);
-                  }}
-                  className={`flex items-center justify-center gap-1 px-2.5 py-1.5 cursor-pointer transition ${
-                    activePlatformFilter === 'iOS/Android'
-                      ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-                      : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                  }`}
-                  title="iOS/Android"
-                >
-                  <AppleIosIcon
-                    testId="filter-option-icon-both-ios"
-                    className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400"
-                  />
-                  <AndroidIcon
-                    testId="filter-option-icon-both-android"
-                    className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400"
-                  />
-                </button>
-              </div>
-            </div>
-
-            <div ref={alertFilterMenuRef} className="relative flex items-center shrink-0">
-              <button
-                type="button"
-                data-testid="table-alert-filter"
-                data-selected-alert={tableAlertFilter}
-                onClick={() => setShowAlertFilterMenu((prev) => !prev)}
-                className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-sans font-medium normal-case rounded-[3px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700/70 outline-none cursor-pointer h-6.5 transition"
-                title="Filtrar por nivel de alerta"
-              >
-                <AlertTriangle
-                  className={`w-3 h-3 shrink-0 ${
-                    tableAlertFilter === 'all'
-                      ? 'text-zinc-500'
-                      : tableAlertFilter === 0
-                      ? 'text-zinc-400'
-                      : tableAlertFilter === 1
-                      ? 'text-amber-500'
-                      : tableAlertFilter === 2
-                      ? 'text-orange-500'
-                      : 'text-rose-500'
-                  }`}
-                />
-                <span>
-                  {tableAlertFilter === 'all'
-                    ? 'Alerta'
-                    : `Nivel ${tableAlertFilter}`}
-                </span>
-                <ChevronDown className="w-3 h-3 text-zinc-500 shrink-0" />
-              </button>
-
-              <div
-                data-testid="table-alert-filter-menu"
-                className={`absolute left-0 top-full mt-1 z-50 min-w-[140px] rounded-[4px] border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg py-1 ${
-                  showAlertFilterMenu ? 'flex flex-col' : 'hidden'
-                }`}
-              >
-                <button
-                  type="button"
-                  data-testid="alert-filter-option-all"
-                  onClick={() => {
-                    setTableAlertFilter('all');
-                    setShowAlertFilterMenu(false);
-                  }}
-                  className={`flex items-center gap-2 px-2.5 py-1.5 text-[10px] font-sans font-medium cursor-pointer transition text-left ${
-                    tableAlertFilter === 'all'
-                      ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-                      : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                  }`}
-                >
-                  <span>Todas las alertas</span>
-                </button>
-                <button
-                  type="button"
-                  data-testid="alert-filter-option-0"
-                  onClick={() => {
-                    setTableAlertFilter(0);
-                    setShowAlertFilterMenu(false);
-                  }}
-                  className={`flex items-center gap-2 px-2.5 py-1.5 text-[10px] font-sans font-medium cursor-pointer transition text-left ${
-                    tableAlertFilter === 0
-                      ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-                      : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                  }`}
-                >
-                  <span className="w-2 h-2 rounded-full bg-zinc-400 shrink-0" />
-                  <span>Nivel 0 (Normal)</span>
-                </button>
-                <button
-                  type="button"
-                  data-testid="alert-filter-option-1"
-                  onClick={() => {
-                    setTableAlertFilter(1);
-                    setShowAlertFilterMenu(false);
-                  }}
-                  className={`flex items-center gap-2 px-2.5 py-1.5 text-[10px] font-sans font-medium cursor-pointer transition text-left ${
-                    tableAlertFilter === 1
-                      ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-                      : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                  }`}
-                >
-                  <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
-                  <span>Nivel 1 (Baja)</span>
-                </button>
-                <button
-                  type="button"
-                  data-testid="alert-filter-option-2"
-                  onClick={() => {
-                    setTableAlertFilter(2);
-                    setShowAlertFilterMenu(false);
-                  }}
-                  className={`flex items-center gap-2 px-2.5 py-1.5 text-[10px] font-sans font-medium cursor-pointer transition text-left ${
-                    tableAlertFilter === 2
-                      ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-                      : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                  }`}
-                >
-                  <span className="w-2 h-2 rounded-full bg-orange-500 shrink-0" />
-                  <span>Nivel 2 (Media)</span>
-                </button>
-                <button
-                  type="button"
-                  data-testid="alert-filter-option-3"
-                  onClick={() => {
-                    setTableAlertFilter(3);
-                    setShowAlertFilterMenu(false);
-                  }}
-                  className={`flex items-center gap-2 px-2.5 py-1.5 text-[10px] font-sans font-medium cursor-pointer transition text-left ${
-                    tableAlertFilter === 3
-                      ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-                      : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                  }`}
-                >
-                  <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
-                  <span>Nivel 3 (Alta)</span>
-                </button>
-              </div>
-            </div>
-
-            <label
-              data-testid="table-show-subtasks-label"
-              className={`flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-sans font-medium normal-case rounded-[3px] border cursor-pointer h-6.5 transition shrink-0 select-none ${
-                showSubtasksOnFilter
-                  ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-                  : 'border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700/70'
-              }`}
-              title="Al filtrar, mostrar también todas las subtareas de proyectos coincidentes aunque la subtarea no coincida directamente"
-            >
-              <input
-                type="checkbox"
-                data-testid="table-show-subtasks-checkbox"
-                checked={showSubtasksOnFilter}
-                onChange={(e) => setShowSubtasksOnFilter(e.target.checked)}
-                className="w-3 h-3 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer accent-indigo-600"
-              />
-              <span>Subtareas</span>
-            </label>
-
-            {(tableSearchQuery || activePlatformFilter !== 'all' || tableAlertFilter !== 'all') && (
-              <button
-                type="button"
-                data-testid="table-clear-filters-btn"
-                onClick={() => {
-                  setTableSearchQuery('');
-                  handleSelectPlatformFilter('all');
-                  setTableAlertFilter('all');
-                  setShowSubtasksOnFilter(false);
-                  setSearchFields({ ...DEFAULT_GANTT_SEARCH_FIELDS });
-                }}
-                className="text-[9px] font-sans font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer shrink-0"
-              >
-                Limpiar
-              </button>
-            )}
-          </div>
+          {/* Unified Search & Filter Bar (shared with Informe de Planificación) */}
+          <SearchFilterBar
+            testIdPrefix="table"
+            searchQuery={tableSearchQuery}
+            onChangeSearchQuery={setTableSearchQuery}
+            searchFields={searchFields}
+            onChangeSearchFields={setSearchFields}
+            selectedType={tableTypeFilter}
+            onChangeSelectedType={setTableTypeFilter}
+            selectedPlatform={activePlatformFilter}
+            onChangeSelectedPlatform={handleSelectPlatformFilter}
+            selectedAlert={tableAlertFilter}
+            onChangeSelectedAlert={setTableAlertFilter}
+            releases={releases.filter((r) => !hiddenReleaseIds || !hiddenReleaseIds.includes(r.id))}
+            selectedRelease={tableReleaseFilter}
+            onChangeSelectedRelease={setTableReleaseFilter}
+            showSubtasksOnFilter={showSubtasksOnFilter}
+            onChangeShowSubtasksOnFilter={setShowSubtasksOnFilter}
+            initialShowSearchFieldsMenu={initialShowSearchFieldsMenu}
+            onClearFilters={() => {
+              setTableSearchQuery('');
+              setTableTypeFilter('all');
+              handleSelectPlatformFilter('all');
+              setTableAlertFilter('all');
+              setTableReleaseFilter('all');
+              setShowSubtasksOnFilter(false);
+              setSearchFields({ ...DEFAULT_GANTT_SEARCH_FIELDS });
+            }}
+          />
         </div>
 
         {/* Right Side: Dedicated Icon-Only Buttons with Tooltip Hints */}
@@ -6541,7 +6123,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         style={{ minWidth: tableMinWidth }}
                         className="flex flex-col items-center justify-center py-12 px-6 text-center bg-slate-50/40 dark:bg-zinc-900/30"
                       >
-                        {tableSearchQuery.trim() || tablePlatformFilter !== 'all' || tableAlertFilter !== 'all' ? (
+                        {tableSearchQuery.trim() ||
+                        tableTypeFilter !== 'all' ||
+                        tablePlatformFilter !== 'all' ||
+                        tableAlertFilter !== 'all' ||
+                        tableReleaseFilter !== 'all' ? (
                           <>
                             <Search className="w-8 h-8 text-slate-400 dark:text-zinc-500 mb-2" />
                             <p className="text-sm font-bold text-slate-700 dark:text-zinc-200">
@@ -6555,8 +6141,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                               data-testid="table-reset-filters-btn"
                               onClick={() => {
                                 setTableSearchQuery('');
+                                setTableTypeFilter('all');
                                 setTablePlatformFilter('all');
                                 setTableAlertFilter('all');
+                                setTableReleaseFilter('all');
+                                setShowSubtasksOnFilter(false);
+                                setSearchFields({ ...DEFAULT_GANTT_SEARCH_FIELDS });
                               }}
                               className="mt-3 px-3.5 py-1.5 rounded-[4px] bg-[#0C0C09] hover:bg-[#312C85] dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-[#0C0C09] text-xs font-semibold shadow-sm transition cursor-pointer flex items-center gap-1.5"
                             >

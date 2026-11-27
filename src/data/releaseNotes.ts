@@ -10,10 +10,20 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.11.29',
+    date: '27 Nov 2026',
+    title: 'Barra de búsqueda y filtros unificada',
+    isLatest: true,
+    features: [
+      'Unifica la barra de búsqueda y filtros entre Cronograma e Informe de Planificación con SearchFilterBar sin duplicados',
+      'Añade selector de campos de búsqueda (En: ...) y casilla Subtareas al Informe de Planificación',
+      'Añade filtros de Tipo y Release al Cronograma',
+    ],
+  },
+  {
     version: '1.11.28',
     date: '27 Nov 2026',
     title: 'Ajustar zoom respetando el modo enfoque',
-    isLatest: true,
     features: [
       'Ajustar zoom maximiza ahora el proyecto, release o tarea enfocados cuando el modo enfoque está activo',
       'Sincroniza el origen temporal del canvas para desplazar exactamente al elemento enfocado',
