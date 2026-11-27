@@ -1085,6 +1085,7 @@ export function App({
   const projectMenuRef = useRef<HTMLDivElement>(null);
   const metricsDrawerRef = useRef<HTMLDivElement>(null);
   const metricsToggleBtnRef = useRef<HTMLButtonElement>(null);
+  const handleExportJSONRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     const handleGlobalClick = (e: MouseEvent) => {
@@ -1119,6 +1120,12 @@ export function App({
         setShowSettingsModal(false);
         setShowReleasesModal(false);
         setShowReleaseNotesModal(false);
+        return;
+      }
+
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        handleExportJSONRef.current();
         return;
       }
 
@@ -2553,6 +2560,7 @@ export function App({
     a.click();
     URL.revokeObjectURL(url);
   };
+  handleExportJSONRef.current = handleExportJSON;
 
   const handleExportCSV = () => {
     const projectMap = new Map(
@@ -2603,6 +2611,7 @@ export function App({
     a.click();
     URL.revokeObjectURL(url);
   };
+  handleExportJSONRef.current = handleExportJSON;
 
   const handleImportFile = (file: File) => {
     if (!file) return;
@@ -3021,7 +3030,7 @@ export function App({
               data-testid="header-export-btn"
               onClick={handleExportJSON}
               className="p-1.5 text-[#0C0C09] dark:text-zinc-200 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 transition cursor-pointer flex items-center justify-center"
-              title="Exportar cronograma (JSON)"
+              title="Exportar cronograma (JSON) · Cmd/Ctrl+S"
               aria-label="Exportar"
             >
               <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />

@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.12.2',
+    date: '27 Nov 2026',
+    title: 'Atajo Cmd/Ctrl+S para exportar JSON',
+    isLatest: true,
+    features: [
+      'Intercepta Cmd+S / Ctrl+S globalmente para exportar el cronograma en formato JSON en lugar del diálogo del navegador',
+      'Actualiza el tooltip del botón de exportar JSON con el atajo Cmd/Ctrl+S',
+    ],
+  },
+  {
     version: '1.12.1',
     date: '27 Nov 2026',
     title: 'Mover página de Ayuda al panel de Configuración',
-    isLatest: true,
     features: [
       'Mueve la guía de Ayuda como categoría dedicada dentro del panel de Configuración',
       'Elimina la pestaña Ayuda de la barra superior dejando solo Cronograma e Informes',
