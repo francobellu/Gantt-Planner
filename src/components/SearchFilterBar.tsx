@@ -184,9 +184,17 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
   });
 
   const panelContainerRef = useRef<HTMLDivElement>(null);
+  const [panelMaxHeight, setPanelMaxHeight] = useState<number | undefined>(undefined);
 
   useEffect(() => {
     if (!panelOpen) return;
+    const updatePanelMaxHeight = () => {
+      if (!panelContainerRef.current || typeof window === 'undefined') return;
+      const rect = panelContainerRef.current.getBoundingClientRect();
+      const available = Math.floor(window.innerHeight - rect.bottom - 16);
+      setPanelMaxHeight(Math.max(240, available));
+    };
+    updatePanelMaxHeight();
     const handleOutsideClick = (e: MouseEvent) => {
       if (
         panelContainerRef.current &&
@@ -204,9 +212,11 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
     };
     document.addEventListener('mousedown', handleOutsideClick);
     document.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('resize', updatePanelMaxHeight);
     return () => {
       document.removeEventListener('mousedown', handleOutsideClick);
       document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('resize', updatePanelMaxHeight);
     };
   }, [panelOpen]);
 
@@ -509,7 +519,8 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
         {/* Gmail-Style Unified Advanced Search & Filter Popover */}
         <div
           data-testid={`${testIdPrefix}-advanced-filters-panel`}
-          className={`absolute left-0 top-full mt-1.5 z-50 w-[450px] max-w-[calc(100vw-24px)] max-h-[min(80vh,620px)] overflow-hidden rounded-[8px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl text-[11px] font-sans normal-case ${
+          style={panelMaxHeight ? { maxHeight: `${panelMaxHeight}px` } : undefined}
+          className={`absolute left-0 top-full mt-1.5 z-50 w-[450px] max-w-[calc(100vw-24px)] max-h-[calc(100vh-240px)] overflow-hidden rounded-[8px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl text-[11px] font-sans normal-case ${
             panelOpen ? 'flex flex-col' : 'hidden'
           }`}
         >

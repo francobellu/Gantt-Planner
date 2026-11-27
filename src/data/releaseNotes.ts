@@ -10,10 +10,18 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.13.3',
+    date: '27 Nov 2026',
+    title: 'Ajuste dinámico de altura del panel de búsqueda al viewport disponible',
+    isLatest: true,
+    features: [
+      'Calcula dinámicamente maxHeight según el espacio real bajo la barra de búsqueda (window.innerHeight - rect.bottom - 16px) para que el pie con Crear filtro y Actualizar nunca quede fuera de la ventana en Planificación ni Cronograma',
+    ],
+  },
+  {
     version: '1.13.2',
     date: '27 Nov 2026',
     title: 'Pie fijo en panel de búsqueda estilo Gmail para que Crear filtro y Actualizar sean siempre visibles',
-    isLatest: true,
     features: [
       'Limita la altura del panel avanzado con scroll interno en el cuerpo de criterios',
       'Mantiene fija la cabecera y la barra inferior con Restablecer, Actualizar, Crear filtro y Buscar en cualquier tamaño de pantalla',
