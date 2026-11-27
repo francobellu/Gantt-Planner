@@ -439,7 +439,7 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
       {/* Gmail-style Unified Search Pill + Advanced Filter Panel */}
       <div ref={panelContainerRef} className="relative flex items-center shrink-0">
         <div
-          className={`flex items-center gap-1 pl-2 pr-1 rounded-full border bg-white dark:bg-zinc-800 h-7 transition ${
+          className={`flex items-center gap-1.5 pl-2.5 pr-2 rounded-full border bg-white dark:bg-zinc-800 h-7 transition ${
             panelOpen || hasActiveFilters
               ? 'border-[#0C0C09] dark:border-indigo-400 shadow-xs'
               : 'border-zinc-300 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-500'
@@ -479,7 +479,7 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
               setPanelOpen((prev) => !prev);
               setShowSaveRow(false);
             }}
-            className={`relative w-5.5 h-5.5 rounded-full flex items-center justify-center transition cursor-pointer shrink-0 ${
+            className={`h-5 px-1.5 rounded-full flex items-center justify-center gap-1 transition cursor-pointer shrink-0 ${
               panelOpen || activeCriteriaCount > 0
                 ? 'bg-indigo-100 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300'
                 : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-zinc-800 dark:hover:text-zinc-100'
@@ -487,11 +487,11 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
             title="Mostrar opciones de búsqueda, filtros y columnas"
             aria-label="Opciones de búsqueda y filtros"
           >
-            <SlidersHorizontal className="w-3 h-3" />
+            <SlidersHorizontal className="w-3 h-3 shrink-0" />
             {activeCriteriaCount > 0 && (
               <span
                 data-testid={`${testIdPrefix}-active-filters-count`}
-                className="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-0.5 rounded-full bg-indigo-600 text-white text-[9px] font-mono font-bold flex items-center justify-center leading-none"
+                className="min-w-[14px] h-[14px] px-1 rounded-full bg-indigo-600 text-white text-[9px] font-mono font-bold flex items-center justify-center leading-none"
               >
                 {activeCriteriaCount}
               </span>

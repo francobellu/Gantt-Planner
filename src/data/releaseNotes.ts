@@ -10,10 +10,18 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.13.4',
+    date: '27 Nov 2026',
+    title: 'Mejora de margen y posición del badge junto al icono de opciones de búsqueda',
+    isLatest: true,
+    features: [
+      'Añade mayor margen derecho en la píldora de búsqueda y coloca el badge contador en línea al lado del icono de filtros sin solaparlo',
+    ],
+  },
+  {
     version: '1.13.3',
     date: '27 Nov 2026',
     title: 'Ajuste dinámico de altura del panel de búsqueda al viewport disponible',
-    isLatest: true,
     features: [
       'Calcula dinámicamente maxHeight según el espacio real bajo la barra de búsqueda (window.innerHeight - rect.bottom - 16px) para que el pie con Crear filtro y Actualizar nunca quede fuera de la ventana en Planificación ni Cronograma',
     ],
