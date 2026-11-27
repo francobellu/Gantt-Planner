@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.13.2',
+    date: '27 Nov 2026',
+    title: 'Pie fijo en panel de búsqueda estilo Gmail para que Crear filtro y Actualizar sean siempre visibles',
+    isLatest: true,
+    features: [
+      'Limita la altura del panel avanzado con scroll interno en el cuerpo de criterios',
+      'Mantiene fija la cabecera y la barra inferior con Restablecer, Actualizar, Crear filtro y Buscar en cualquier tamaño de pantalla',
+    ],
+  },
+  {
     version: '1.13.1',
     date: '27 Nov 2026',
     title: 'Limpieza de archivo temporal de test',
-    isLatest: true,
     features: [
       'Elimina archivo temporal de bundle SSR en tests/',
     ],

@@ -509,12 +509,12 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
         {/* Gmail-Style Unified Advanced Search & Filter Popover */}
         <div
           data-testid={`${testIdPrefix}-advanced-filters-panel`}
-          className={`absolute left-0 top-full mt-1.5 z-50 w-[440px] max-w-[calc(100vw-24px)] rounded-[8px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl p-4 text-[11px] font-sans normal-case ${
-            panelOpen ? 'flex flex-col gap-3' : 'hidden'
+          className={`absolute left-0 top-full mt-1.5 z-50 w-[450px] max-w-[calc(100vw-24px)] max-h-[min(80vh,620px)] overflow-hidden rounded-[8px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl text-[11px] font-sans normal-case ${
+            panelOpen ? 'flex flex-col' : 'hidden'
           }`}
         >
-          {/* Panel Header */}
-          <div className="flex items-center justify-between pb-2 border-b border-[#E2E2DC] dark:border-zinc-800">
+          {/* Panel Header (always visible) */}
+          <div className="shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-[#E2E2DC] dark:border-zinc-800 bg-[#FAFAF8] dark:bg-zinc-900">
             <span className="font-bold text-xs text-[#0C0C09] dark:text-zinc-100 flex items-center gap-1.5">
               <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
               <span>
@@ -535,6 +535,8 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
             </button>
           </div>
 
+          {/* Scrollable Criteria Body */}
+          <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-2.5">
           {/* Row 1: Contiene */}
           <div className="grid grid-cols-12 items-center gap-2">
             <label className="col-span-4 text-[11px] font-medium text-[#6B6B66] dark:text-zinc-400">
@@ -923,10 +925,13 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
               </div>
             </div>
           )}
+          </div>
 
+          {/* Sticky Footer: Inline Save Filter Row + Gmail-style Actions */}
+          <div className="shrink-0 px-4 py-2.5 border-t border-[#E2E2DC] dark:border-zinc-800 bg-[#FAFAF8] dark:bg-zinc-900/95 space-y-2">
           {/* Inline Save Filter Row */}
           {showSaveRow && (
-            <div className="pt-2 border-t border-[#E2E2DC] dark:border-zinc-800 flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5">
               <input
                 type="text"
                 data-testid={`${testIdPrefix}-panel-save-filter-input`}
@@ -961,7 +966,7 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
           )}
 
           {/* Gmail-style Footer Actions */}
-          <div className="pt-2.5 border-t border-[#E2E2DC] dark:border-zinc-800 flex items-center justify-between gap-2">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
             <button
               type="button"
               data-testid={`${testIdPrefix}-clear-filters-btn`}
@@ -973,7 +978,7 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
             >
               Restablecer
             </button>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
               {activeSavedFilterObj && (
                 <button
                   type="button"
@@ -991,7 +996,7 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
                   type="button"
                   data-testid={`${testIdPrefix}-panel-create-filter-btn`}
                   onClick={() => setShowSaveRow(true)}
-                  className="px-2.5 py-1 rounded-[4px] text-[#6B6B66] dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] font-semibold cursor-pointer flex items-center gap-1"
+                  className="px-2.5 py-1 rounded-[4px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-[11px] font-semibold cursor-pointer flex items-center gap-1"
                 >
                   <Plus className="w-3 h-3" />
                   <span>Crear filtro</span>
@@ -1009,6 +1014,7 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
                 Buscar
               </button>
             </div>
+          </div>
           </div>
         </div>
       </div>
