@@ -6,6 +6,9 @@ import {
   Filter,
   Layers,
   FolderKanban,
+  FolderPlus,
+  Flag,
+  Eye,
   Rocket,
   CheckCircle2,
   AlertTriangle,
@@ -472,6 +475,16 @@ const EditableReportTextCell: React.FC<EditableReportTextCellProps> = ({
   );
 };
 
+export interface ReportRowContextMenuState {
+  x: number;
+  y: number;
+  level: 'RELEASE' | 'PROYECTO' | 'TAREA' | 'HITO';
+  label: string;
+  projectId?: string;
+  releaseId?: string;
+  itemId?: string;
+}
+
 interface ReportsViewProps {
   releases: Release[];
   projects: GanttProject[];
@@ -490,11 +503,15 @@ interface ReportsViewProps {
   initialSearchFields?: Partial<GanttSearchFieldsConfig>;
   initialShowSubtasksOnFilter?: boolean;
   initialShowSearchFieldsMenu?: boolean;
+  initialContextMenu?: ReportRowContextMenuState | null;
   selectedEntity?: FocusEntity | null;
   onSelectEntity?: (entity: FocusEntity) => void;
   onUpdateItem?: (item: GanttItem, autoCascade: boolean) => void;
   onUpdateProject?: (project: GanttProject) => void;
   onUpdateRelease?: (release: Release) => void;
+  onCreateProject?: (newProj?: Partial<GanttProject>) => void;
+  onCreateTask?: (projectId?: string) => void;
+  onCreateMilestone?: (projectId?: string) => void;
 }
 
 export const ReportsView: React.FC<ReportsViewProps> = ({
@@ -514,11 +531,15 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   initialSearchFields,
   initialShowSubtasksOnFilter = false,
   initialShowSearchFieldsMenu = false,
+  initialContextMenu = null,
   selectedEntity = null,
   onSelectEntity,
   onUpdateItem,
   onUpdateProject,
   onUpdateRelease,
+  onCreateProject,
+  onCreateTask,
+  onCreateMilestone,
 }) => {
   const [activeTab, setActiveTab] = useState<ReportTab>(initialTab === 'projects' ? 'cronograma' : initialTab);
   const [showColumnsMenu, setShowColumnsMenu] = useState<boolean>(initialShowColumnsMenu);
@@ -788,9 +809,34 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     initialMatchedSavedFilter?.selectedRelease ?? 'all'
   );
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<ReportRowContextMenuState | null>(initialContextMenu);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
+
+  const openRowContextMenu = (
+    e: React.MouseEvent,
+    payload: Omit<ReportRowContextMenuState, 'x' | 'y'>
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const menuWidth = 240;
+    const menuHeight = 220;
+    const maxX = typeof window !== 'undefined' ? Math.max(8, window.innerWidth - menuWidth - 8) : e.clientX;
+    const maxY = typeof window !== 'undefined' ? Math.max(8, window.innerHeight - menuHeight - 8) : e.clientY;
+    setContextMenu({
+      ...payload,
+      x: Math.min(e.clientX, maxX),
+      y: Math.min(e.clientY, maxY),
+    });
+  };
 
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
+      if (
+        contextMenuRef.current &&
+        !contextMenuRef.current.contains(e.target as Node)
+      ) {
+        setContextMenu(null);
+      }
       if (
         columnsMenuRef.current &&
         !columnsMenuRef.current.contains(e.target as Node)
@@ -819,6 +865,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        setContextMenu(null);
         setShowColumnsMenu(false);
         setShowFormatMenu(false);
         setShowSavedFiltersMenu(false);
@@ -2627,6 +2674,23 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                             onSelectEntity({ type: 'task', id: linkedItem.id, name: linkedItem.name });
                           }
                         }}
+                        onContextMenu={(e) => {
+                          const resolvedProjectId = isProject
+                            ? linkedProject?.id || row.projectId
+                            : linkedItem?.projectId || row.projectId;
+                          const resolvedReleaseId = isRelease
+                            ? linkedRelease?.id || row.releaseId
+                            : isProject
+                            ? linkedProject?.releaseId
+                            : linkedItem?.releaseId || (resolvedProjectId ? projectById.get(resolvedProjectId)?.releaseId : undefined);
+                          openRowContextMenu(e, {
+                            level: row.level,
+                            label: row.name || row.releaseCode || row.displayId || 'Elemento',
+                            projectId: resolvedProjectId,
+                            releaseId: resolvedReleaseId,
+                            itemId: linkedItem?.id,
+                          });
+                        }}
                         className={`${rowBgClass} ${
                           isSelectedRow
                             ? 'ring-2 ring-inset ring-indigo-500 bg-indigo-50/80 dark:bg-indigo-950/50'
@@ -3252,6 +3316,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                             onSelectEntity({ type: 'release', id: linkedRel.id, name: linkedRel.name || linkedRel.code });
                           }
                         }}
+                        onContextMenu={(e) => {
+                          openRowContextMenu(e, {
+                            level: 'RELEASE',
+                            label: row.name || row.code,
+                            releaseId: linkedRel?.id || row.releaseId,
+                          });
+                        }}
                         className={`${
                           isSelectedRel
                             ? 'ring-2 ring-inset ring-indigo-500 bg-amber-50/70 dark:bg-amber-950/40'
@@ -3392,6 +3463,116 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           <span>100% Sincronizado</span>
         </div>
       </div>
+
+      {/* Right-Click Context Menu for creating projects, tasks, and milestones */}
+      {contextMenu && (
+        <div
+          ref={contextMenuRef}
+          data-testid="report-row-context-menu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          className="fixed z-50 w-60 rounded-[6px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl py-1.5 text-xs select-none"
+        >
+          <div className="px-3 py-1.5 border-b border-[#E2E2DC] dark:border-zinc-800 flex items-center gap-1.5">
+            <span className="px-1.5 py-0.2 rounded-[2px] text-[9px] font-mono font-bold uppercase bg-[#F4F4F1] dark:bg-zinc-800 text-[#6B6B66] dark:text-zinc-300 border border-[#E2E2DC] dark:border-zinc-700 shrink-0">
+              {contextMenu.level}
+            </span>
+            <span className="truncate font-semibold text-[11px] text-[#0C0C09] dark:text-zinc-100">
+              {contextMenu.label}
+            </span>
+          </div>
+
+          <div className="py-1 flex flex-col">
+            {onCreateTask && contextMenu.projectId && (
+              <button
+                type="button"
+                data-testid="report-ctx-create-task"
+                onClick={() => {
+                  onCreateTask(contextMenu.projectId);
+                  setContextMenu(null);
+                }}
+                className="w-full px-3 py-1.5 text-left flex items-center gap-2 text-[#0C0C09] dark:text-zinc-100 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:text-indigo-700 dark:hover:text-indigo-300 cursor-pointer transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                <span>Nueva tarea en este proyecto</span>
+              </button>
+            )}
+
+            {onCreateMilestone && contextMenu.projectId && (
+              <button
+                type="button"
+                data-testid="report-ctx-create-milestone"
+                onClick={() => {
+                  onCreateMilestone(contextMenu.projectId);
+                  setContextMenu(null);
+                }}
+                className="w-full px-3 py-1.5 text-left flex items-center gap-2 text-[#0C0C09] dark:text-zinc-100 hover:bg-amber-50 dark:hover:bg-amber-950/40 hover:text-amber-700 dark:hover:text-amber-300 cursor-pointer transition-colors"
+              >
+                <Flag className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                <span>Nuevo hito en este proyecto</span>
+              </button>
+            )}
+
+            {onCreateProject && (
+              <button
+                type="button"
+                data-testid="report-ctx-create-project"
+                onClick={() => {
+                  onCreateProject(
+                    contextMenu.releaseId ? { releaseId: contextMenu.releaseId } : undefined
+                  );
+                  setContextMenu(null);
+                }}
+                className="w-full px-3 py-1.5 text-left flex items-center gap-2 text-[#0C0C09] dark:text-zinc-100 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:text-emerald-700 dark:hover:text-emerald-300 cursor-pointer transition-colors"
+              >
+                <FolderPlus className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span>
+                  {contextMenu.releaseId
+                    ? 'Nuevo proyecto en esta release'
+                    : 'Nuevo proyecto'}
+                </span>
+              </button>
+            )}
+
+            {onCreateMilestone && (
+              <button
+                type="button"
+                data-testid="report-ctx-create-external-milestone"
+                onClick={() => {
+                  onCreateMilestone(undefined);
+                  setContextMenu(null);
+                }}
+                className="w-full px-3 py-1.5 text-left flex items-center gap-2 text-[#0C0C09] dark:text-zinc-100 hover:bg-amber-50 dark:hover:bg-amber-950/40 hover:text-amber-700 dark:hover:text-amber-300 cursor-pointer transition-colors"
+              >
+                <Flag className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                <span>Nuevo hito externo</span>
+              </button>
+            )}
+          </div>
+
+          {onSelectEntity && (
+            <div className="pt-1 border-t border-[#E2E2DC] dark:border-zinc-800">
+              <button
+                type="button"
+                data-testid="report-ctx-view-details"
+                onClick={() => {
+                  if (contextMenu.level === 'RELEASE' && contextMenu.releaseId) {
+                    onSelectEntity({ type: 'release', id: contextMenu.releaseId, name: contextMenu.label });
+                  } else if (contextMenu.level === 'PROYECTO' && contextMenu.projectId) {
+                    onSelectEntity({ type: 'project', id: contextMenu.projectId, name: contextMenu.label });
+                  } else if (contextMenu.itemId) {
+                    onSelectEntity({ type: 'task', id: contextMenu.itemId, name: contextMenu.label });
+                  }
+                  setContextMenu(null);
+                }}
+                className="w-full px-3 py-1.5 text-left flex items-center gap-2 text-[#6B6B66] dark:text-zinc-400 hover:bg-[#F4F4F1] dark:hover:bg-zinc-800 hover:text-[#0C0C09] dark:hover:text-zinc-100 cursor-pointer transition-colors"
+              >
+                <Eye className="w-3.5 h-3.5 shrink-0" />
+                <span>Ver detalles</span>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

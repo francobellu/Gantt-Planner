@@ -1703,6 +1703,7 @@ export function App({
     };
     const nextItems = [...items, digiTask];
     setItems(nextItems);
+    setSelectedEntity({ type: 'project', id: clean.id, name: clean.name });
 
     recordPlanChange(
       'create_project',
@@ -1803,6 +1804,69 @@ export function App({
       nextItems,
       effectiveProjects,
       newTask.id
+    );
+  };
+
+  const handleCreateMilestoneDirect = (projectId?: string) => {
+    if (!projectId) {
+      handleOpenCreateModal('milestone');
+      return;
+    }
+    const project = guardAppProjectUnlocked(projectId, 'crear un hito');
+    if (!project) return;
+    const targetRelease = project.releaseId
+      ? releases.find((r) => r.id === project.releaseId)
+      : undefined;
+    const projectItems = items.filter((it) => it.projectId === project.id);
+    let dateStr: string;
+    if (projectItems.length > 0) {
+      const latestEnd = projectItems.reduce(
+        (max, it) => ((it.endDate || it.startDate) > max ? it.endDate || it.startDate : max),
+        projectItems[0].endDate || projectItems[0].startDate
+      );
+      dateStr = formatDateISO(addDays(parseDateSafe(latestEnd), 1));
+    } else if (targetRelease) {
+      dateStr = getReleaseDateSpan(targetRelease).endDate;
+    } else {
+      dateStr = formatDateISO(new Date());
+    }
+
+    const nextTaskIndex =
+      projectItems.reduce((max, it, i) => Math.max(max, it.taskIndex || i + 1), 0) + 1;
+
+    const newMilestone: GanttItem = sanitizeGanttItem({
+      id: `m-${Date.now()}`,
+      projectId: project.id,
+      taskIndex: nextTaskIndex,
+      name: 'Nuevo Hito',
+      type: 'milestone',
+      isExternal: false,
+      startDate: dateStr,
+      endDate: dateStr,
+      duration: 0,
+      progress: 0,
+      dependencies: [],
+      slack: 0,
+      color: project.color || 'amber',
+      releaseId: project.releaseId,
+      platform: project.platform,
+    });
+
+    const nextItems = [...items, newMilestone];
+    setItems(nextItems);
+    setSelectedEntity({ type: 'task', id: newMilestone.id, name: newMilestone.name });
+    setShowCommitsSidebar(true);
+    setRightSidebarTab('details');
+    showToast(
+      `Nuevo hito creado en '${project.name}'${targetRelease ? ` (${targetRelease.code})` : ''}`
+    );
+    recordPlanChange(
+      'create_item',
+      'Nuevo Hito',
+      `Crear hito en proyecto '${project.name}'`,
+      nextItems,
+      effectiveProjects,
+      newMilestone.id
     );
   };
 
@@ -3083,6 +3147,21 @@ export function App({
                 prev.map((r) => (r.id === updatedRel.id ? updatedRel : r))
               )
             }
+            onCreateProject={(partial) => {
+              handleCreateProject(partial);
+              setShowCommitsSidebar(true);
+              setRightSidebarTab('details');
+            }}
+            onCreateTask={(projectId) => {
+              if (projectId) {
+                handleCreateTaskDirect(projectId);
+              } else {
+                handleCreateUnassignedTask();
+              }
+              setShowCommitsSidebar(true);
+              setRightSidebarTab('details');
+            }}
+            onCreateMilestone={handleCreateMilestoneDirect}
           />
         ) : (
           <>

@@ -10,10 +10,20 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.11.32',
+    date: '27 Nov 2026',
+    title: 'Menú contextual clic derecho para crear elementos en Informe de Planificación',
+    isLatest: true,
+    features: [
+      'Añade menú contextual con clic derecho sobre filas de Release, Proyecto, Tarea o Hito en el Informe de Planificación',
+      'Permite crear nueva tarea en el proyecto, nuevo hito en el proyecto, nuevo proyecto en la release y nuevo hito externo directamente desde la tabla',
+      'Abre automáticamente el panel de detalles del nuevo elemento creado',
+    ],
+  },
+  {
     version: '1.11.31',
     date: '27 Nov 2026',
     title: 'Ancho mínimo automático de columnas en Informe de Planificación',
-    isLatest: true,
     features: [
       'Calcula por defecto el ancho mínimo óptimo de cada columna según su contenido y cabecera sin desperdiciar espacio horizontal',
       'Usa w-max en las tablas del informe para respetar exactamente los anchos ajustados',
