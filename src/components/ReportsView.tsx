@@ -2206,6 +2206,50 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                         <option value="__none__">Sin formato fijo (solo filtros)</option>
                       </select>
                     </div>
+                    {newFilterFormatChoice === '__current__' && (
+                      <div
+                        data-testid="reports-saved-filter-columns-picker"
+                        className="rounded-[4px] border border-zinc-200 dark:border-zinc-700 bg-[#FAFAF8] dark:bg-zinc-800/50 p-1.5 space-y-1"
+                      >
+                        <div className="flex items-center justify-between px-1">
+                          <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                            Columnas del perfil ({currentVisibleColKeysInOrder.length}/{CRONO_COLUMNS.length})
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => resetReportCols('cronograma')}
+                            className="text-[9px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                          >
+                            Todas
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-0.5 max-h-36 overflow-y-auto">
+                          {getOrderedColumns('cronograma').map((col) => {
+                            const visible = isColVisible('cronograma', col.key);
+                            return (
+                              <button
+                                key={col.key}
+                                type="button"
+                                data-testid={`saved-filter-col-toggle-${col.key}`}
+                                onClick={() => toggleReportCol('cronograma', col.key)}
+                                className="flex items-center gap-1.5 px-1.5 py-0.5 rounded-[2px] text-[10px] text-left hover:bg-zinc-200/70 dark:hover:bg-zinc-700/70 text-zinc-800 dark:text-zinc-200 cursor-pointer"
+                              >
+                                <span
+                                  className={`w-3 h-3 rounded-[2px] border flex items-center justify-center shrink-0 ${
+                                    visible
+                                      ? 'bg-indigo-600 border-indigo-600 text-white'
+                                      : 'border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900'
+                                  }`}
+                                >
+                                  {visible && <Check className="w-2 h-2 stroke-[3]" />}
+                                </span>
+                                <span className="truncate">{col.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                     <div className="flex items-center gap-1.5">
                       <input
                         type="text"
@@ -2558,45 +2602,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     })}
                   </>
                 )}
-
-                {/* Section: Save current format */}
-                <div className="pt-2 mt-1 border-t border-slate-200 dark:border-zinc-800 flex flex-col gap-1.5 px-1">
-                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
-                    + Guardar formato actual
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="text"
-                      data-testid="reports-preset-name-input"
-                      placeholder="Nombre del formato..."
-                      value={newPresetName}
-                      onChange={(e) => setNewPresetName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleSavePreset();
-                        }
-                      }}
-                      className="flex-1 px-2 py-1 text-xs rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 outline-none focus:border-indigo-500"
-                    />
-                    <button
-                      type="button"
-                      data-testid="reports-preset-save-btn"
-                      onClick={handleSavePreset}
-                      disabled={!newPresetName.trim()}
-                      className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition shrink-0"
-                      title="Guardar formato actual"
-                    >
-                      <Plus className="w-3 h-3" />
-                      <span>Guardar</span>
-                    </button>
-                  </div>
-                </div>
                   </div>
                 ) : (
                   <div
                     data-testid="reports-columns-menu"
-                    className="flex flex-col gap-0.5 max-h-72 overflow-y-auto"
+                    className="flex flex-col gap-0.5 max-h-60 overflow-y-auto"
                   >
                     <div className="flex items-center justify-between px-2 py-1 border-b border-slate-200 dark:border-zinc-800 mb-1">
                       <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
@@ -2636,6 +2646,40 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     })}
                   </div>
                 )}
+
+                {/* Always-visible Save current column profile / format bar */}
+                <div className="pt-2 mt-1 border-t border-slate-200 dark:border-zinc-800 flex flex-col gap-1.5 px-1">
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+                    + Guardar formato actual
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      data-testid="reports-preset-name-input"
+                      placeholder="Nombre del perfil / formato..."
+                      value={newPresetName}
+                      onChange={(e) => setNewPresetName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleSavePreset();
+                        }
+                      }}
+                      className="flex-1 px-2 py-1 text-xs rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 outline-none focus:border-indigo-500"
+                    />
+                    <button
+                      type="button"
+                      data-testid="reports-preset-save-btn"
+                      onClick={handleSavePreset}
+                      disabled={!newPresetName.trim()}
+                      className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition shrink-0"
+                      title="Guardar perfil actual de columnas"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>Guardar</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
