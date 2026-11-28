@@ -3152,15 +3152,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                                               onUpdateProject({ ...linkedProject, name: next || linkedProject.name })
                                             }
                                           />
-                                        ) : linkedRelease && onUpdateRelease ? (
-                                          <EditableReportTextCell
-                                            testId={`report-crono-rel-name-${linkedRelease.id}`}
-                                            value={linkedRelease.name}
-                                            className="font-bold text-white dark:text-[#0C0C09]"
-                                            onCommit={(next) =>
-                                              onUpdateRelease({ ...linkedRelease, name: next || linkedRelease.name })
-                                            }
-                                          />
+                                        ) : isRelease ? (
+                                          <span
+                                            data-testid={linkedRelease ? `report-crono-rel-name-${linkedRelease.id}` : undefined}
+                                            className="whitespace-normal break-words leading-snug block px-1.5 font-bold text-white dark:text-[#0C0C09] select-none"
+                                          >
+                                            {linkedRelease?.name || row.name}
+                                          </span>
                                         ) : (
                                           <span className="whitespace-normal break-words leading-snug block px-1.5">{row.name}</span>
                                         )}

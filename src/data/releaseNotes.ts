@@ -10,10 +10,18 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.19.6',
+    date: '28 Nov 2026',
+    title: 'Release de solo lectura en Planificación',
+    isLatest: true,
+    features: [
+      'Desactivada la edición inline del nombre de la Release en la tabla de Planificación para evitar abrir un editor accidental al hacer clic',
+    ],
+  },
+  {
     version: '1.19.5',
     date: '28 Nov 2026',
     title: 'Jerarquía visual estilo Cronograma en Planificación',
-    isLatest: true,
     features: [
       'Añadidas líneas conectoras de árbol continuas en el color de cada proyecto (├ intermedias y └ en la última tarea) en la tabla de Planificación',
       'Añadido badge coloreado con el código de tarea/hito (p. ej. P3T1, con rombo en hitos y etiqueta EXT si es externo) igual que en Cronograma',
