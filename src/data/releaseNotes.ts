@@ -10,10 +10,20 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.16.0',
+    date: '28 Nov 2026',
+    title: 'Plegado jerárquico y expansión bajo demanda (+N) de Releases y Proyectos en Planificación',
+    isLatest: true,
+    features: [
+      'Añade chevron de colapso/expansión en filas de Release y Proyecto en Planificación (colapsar oculta siempre todos los descendientes)',
+      'Muestra píldoras +N proyectos / +N subtareas en resultados filtrados para desplegar hijos ocultos como contexto sin perder el filtro',
+      'Marca las filas de contexto visualmente (borde índigo + etiqueta contexto) y muestra el contador +N de contexto en la barra inferior sticky',
+    ],
+  },
+  {
     version: '1.15.2',
     date: '28 Nov 2026',
     title: 'Barra inferior sticky con parámetros de filtro activos (sin columnas) en Planificación',
-    isLatest: true,
     features: [
       'Añade overflow-hidden a los contenedores flex en vista Planificación para garantizar barra inferior y scroll horizontal siempre fijos',
       'Muestra en la barra inferior sticky todos los parámetros de filtro activos (Contiene, No contiene, En, Tipo, Plat., Alerta, Release, + Subtareas) con cierre individual y botón Limpiar, excluyendo columnas',

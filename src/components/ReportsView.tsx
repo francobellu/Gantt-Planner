@@ -19,6 +19,7 @@ import {
   Sparkles,
   X,
   ChevronDown,
+  ChevronRight,
   Smartphone,
   SlidersHorizontal,
   Check,
@@ -520,6 +521,8 @@ interface ReportsViewProps {
   initialShowAdvancedPanel?: boolean;
   initialContextMenu?: ReportRowContextMenuState | null;
   initialFocusedProjectIds?: string[];
+  initialCollapsedNodes?: string[];
+  initialExpandedFilteredNodes?: string[];
   initialShowWizard?: boolean;
   selectedEntity?: FocusEntity | null;
   onSelectEntity?: (entity: FocusEntity) => void;
@@ -553,6 +556,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   initialShowAdvancedPanel = false,
   initialContextMenu = null,
   initialFocusedProjectIds = [],
+  initialCollapsedNodes = [],
+  initialExpandedFilteredNodes = [],
   initialShowWizard = false,
   selectedEntity = null,
   onSelectEntity,
@@ -565,6 +570,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   onCreateMilestone,
 }) => {
   const [activeTab, setActiveTab] = useState<ReportTab>(initialTab === 'projects' ? 'cronograma' : initialTab);
+  const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(() => new Set(initialCollapsedNodes));
+  const [expandedFilteredNodes, setExpandedFilteredNodes] = useState<Set<string>>(
+    () => new Set(initialExpandedFilteredNodes)
+  );
+  const isFirstFilterRenderRef = useRef(true);
   const [showFormatColumnsMenu, setShowFormatColumnsMenu] = useState<boolean>(
     initialShowFormatMenu || initialShowColumnsMenu
   );
@@ -1879,6 +1889,156 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     });
   }, [cronoRows, focusedProjectIds, selectedType, selectedPlatform, selectedAlert, selectedRelease, searchQuery, excludeQuery, searchFields, showSubtasksOnFilter]);
 
+  // Clear per-node filtered context expansions when filter criteria change (skip initial mount)
+  useEffect(() => {
+    if (isFirstFilterRenderRef.current) {
+      isFirstFilterRenderRef.current = false;
+      return;
+    }
+    setExpandedFilteredNodes(new Set());
+  }, [searchQuery, excludeQuery, selectedType, selectedPlatform, selectedAlert, selectedRelease]);
+
+  // 2b. Hierarchical tree view for Planificación:
+  //     - Supports normal collapse/expand on Releases & Projects (collapse ALWAYS hides descendants)
+  //     - When filters are active, lets user expand hidden children of a specific Release or Project as context (+N)
+  const hasCronoFilters =
+    selectedType !== 'all' ||
+    selectedRelease !== 'all' ||
+    selectedAlert !== 'all' ||
+    selectedPlatform !== 'all' ||
+    Boolean(searchQuery.trim()) ||
+    Boolean(excludeQuery.trim());
+
+  const { displayedCronoRows, contextExpandedCount } = useMemo(() => {
+    const hasFocusFilter = focusedProjectIds.length > 0;
+    const focusedProjectSet = hasFocusFilter ? new Set(focusedProjectIds) : null;
+    const baseRows =
+      hasFocusFilter && focusedProjectSet
+        ? (() => {
+            const allowedReleaseCodes = new Set<string>();
+            for (const r of cronoRows) {
+              if (r.projectId && focusedProjectSet.has(r.projectId) && r.releaseCode && r.releaseCode !== '—') {
+                allowedReleaseCodes.add(r.releaseCode);
+              }
+            }
+            return cronoRows.filter((r) => {
+              if (r.level === 'RELEASE') return allowedReleaseCodes.has(r.releaseCode);
+              return Boolean(r.projectId && focusedProjectSet.has(r.projectId));
+            });
+          })()
+        : cronoRows;
+
+    const matchedRowIdSet = new Set(filteredCronoRows.map((r) => r.rowId));
+
+    // Precompute child presence and hidden child counts per Release & Project
+    const releaseProjectsMap = new Map<string, CronogramaReportRow[]>();
+    const projectItemsMap = new Map<string, CronogramaReportRow[]>();
+    for (const r of baseRows) {
+      if (r.level === 'PROYECTO' && r.releaseCode && r.releaseCode !== '—') {
+        const list = releaseProjectsMap.get(r.releaseCode) || [];
+        list.push(r);
+        releaseProjectsMap.set(r.releaseCode, list);
+      } else if ((r.level === 'TAREA' || r.level === 'HITO') && !r.isDepRow && r.projectId) {
+        const list = projectItemsMap.get(r.projectId) || [];
+        list.push(r);
+        projectItemsMap.set(r.projectId, list);
+      }
+    }
+
+    const visible: {
+      row: CronogramaReportRow;
+      isContext: boolean;
+      nodeKey: string | null;
+      hasChildren: boolean;
+      hiddenChildrenCount: number;
+    }[] = [];
+    let ctxCount = 0;
+
+    for (const row of baseRows) {
+      const relKey = row.releaseCode && row.releaseCode !== '—' ? `rel:${row.releaseCode}` : null;
+      const projKey = row.projectId ? `proj:${row.projectId}` : null;
+
+      // Rule 1: Collapsing a Release or Project ALWAYS hides all its descendants (matched or context)
+      const hiddenByCollapsedRelease = row.level !== 'RELEASE' && relKey && collapsedNodes.has(relKey);
+      const hiddenByCollapsedProject =
+        (row.level === 'TAREA' || row.level === 'HITO') && projKey && collapsedNodes.has(projKey);
+      if (hiddenByCollapsedRelease || hiddenByCollapsedProject) {
+        continue;
+      }
+
+      let include = false;
+      let isContext = false;
+
+      if (!hasCronoFilters) {
+        include = true;
+      } else if (matchedRowIdSet.has(row.rowId)) {
+        include = true;
+      } else if (row.level === 'PROYECTO' && relKey && expandedFilteredNodes.has(relKey)) {
+        include = true;
+        isContext = true;
+      } else if (
+        (row.level === 'TAREA' || row.level === 'HITO') &&
+        projKey &&
+        expandedFilteredNodes.has(projKey)
+      ) {
+        include = true;
+        isContext = true;
+      }
+
+      if (!include) continue;
+      if (isContext) ctxCount += 1;
+
+      const nodeKey = row.level === 'RELEASE' ? relKey : row.level === 'PROYECTO' ? projKey : null;
+      let hasChildren = false;
+      let hiddenChildrenCount = 0;
+
+      if (row.level === 'RELEASE' && row.releaseCode) {
+        const kids = releaseProjectsMap.get(row.releaseCode) || [];
+        hasChildren = kids.length > 0;
+        if (hasCronoFilters) {
+          hiddenChildrenCount = kids.filter((k) => !matchedRowIdSet.has(k.rowId)).length;
+        }
+      } else if (row.level === 'PROYECTO' && row.projectId) {
+        const kids = projectItemsMap.get(row.projectId) || [];
+        hasChildren = kids.length > 0;
+        if (hasCronoFilters) {
+          hiddenChildrenCount = kids.filter((k) => !matchedRowIdSet.has(k.rowId)).length;
+        }
+      }
+
+      visible.push({ row, isContext, nodeKey, hasChildren, hiddenChildrenCount });
+    }
+
+    return { displayedCronoRows: visible, contextExpandedCount: ctxCount };
+  }, [cronoRows, focusedProjectIds, filteredCronoRows, hasCronoFilters, collapsedNodes, expandedFilteredNodes]);
+
+  const toggleCollapseNode = (nodeKey: string) => {
+    setCollapsedNodes((prev) => {
+      const next = new Set(prev);
+      if (next.has(nodeKey)) next.delete(nodeKey);
+      else next.add(nodeKey);
+      return next;
+    });
+  };
+
+  const toggleExpandFilteredNode = (nodeKey: string) => {
+    const isShowing = expandedFilteredNodes.has(nodeKey) && !collapsedNodes.has(nodeKey);
+    setExpandedFilteredNodes((prev) => {
+      const next = new Set(prev);
+      if (isShowing) next.delete(nodeKey);
+      else next.add(nodeKey);
+      return next;
+    });
+    if (!isShowing) {
+      setCollapsedNodes((prev) => {
+        if (!prev.has(nodeKey)) return prev;
+        const next = new Set(prev);
+        next.delete(nodeKey);
+        return next;
+      });
+    }
+  };
+
   // 3. Filter Tab 2: Resumen Proyectos
   const filteredProjectRows = useMemo(() => {
     const matchesProjectText = (row: ProjectSummaryReportRow, q: string): boolean =>
@@ -2190,7 +2350,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E2E2DC] dark:divide-zinc-800 font-mono text-[11px]">
-                {filteredCronoRows.length === 0 ? (
+                {displayedCronoRows.length === 0 ? (
                   <tr>
                     <td
                       colSpan={1 + CRONO_COLUMNS.filter((c) => isColVisible('cronograma', c.key)).length}
@@ -2200,7 +2360,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     </td>
                   </tr>
                 ) : (
-                  filteredCronoRows.map((row, idx) => {
+                  displayedCronoRows.map(({ row, isContext, nodeKey, hasChildren, hiddenChildrenCount }, idx) => {
                     const isRelease = row.level === 'RELEASE';
                     const isProject = row.level === 'PROYECTO';
                     const isMilestone = row.level === 'HITO';
@@ -2212,7 +2372,28 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     const linkedProject = isProject && row.projectId ? projectById.get(row.projectId) : undefined;
                     const linkedRelease = isRelease && row.releaseId ? releaseById.get(row.releaseId) : undefined;
 
-                    const rowBgClass = isRelease
+                    const isNodeCollapsed = Boolean(nodeKey && collapsedNodes.has(nodeKey));
+                    const isShowingHiddenKids = Boolean(
+                      nodeKey && expandedFilteredNodes.has(nodeKey) && !isNodeCollapsed
+                    );
+                    const hasVisibleKids =
+                      nodeKey && hasChildren
+                        ? isRelease
+                          ? displayedCronoRows.some(
+                              (v) => v.row.level === 'PROYECTO' && v.row.releaseCode === row.releaseCode
+                            )
+                          : isProject
+                          ? displayedCronoRows.some(
+                              (v) =>
+                                (v.row.level === 'TAREA' || v.row.level === 'HITO') &&
+                                v.row.projectId === row.projectId
+                            )
+                          : false
+                        : false;
+
+                    const rowBgClass = isContext
+                      ? 'bg-indigo-50/25 dark:bg-indigo-950/15 text-slate-500 dark:text-zinc-400'
+                      : isRelease
                       ? 'bg-slate-100/80 dark:bg-zinc-800/80 font-bold text-[#0C0C09] dark:text-zinc-100'
                       : isProject
                       ? 'bg-indigo-50/40 dark:bg-indigo-950/20 font-semibold text-[#0C0C09] dark:text-zinc-200'
@@ -2230,6 +2411,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                       <tr
                         key={row.rowId}
                         data-report-row={row.rowId}
+                        data-context-row={isContext ? 'true' : undefined}
                         data-selected-report-row={isSelectedRow ? 'true' : undefined}
                         onClick={() => {
                           if (!onSelectEntity) return;
@@ -2259,6 +2441,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                           });
                         }}
                         className={`${rowBgClass} ${
+                          isContext ? 'border-l-2 border-l-indigo-500' : ''
+                        } ${
                           isSelectedRow
                             ? 'ring-2 ring-inset ring-indigo-500 bg-indigo-50/80 dark:bg-indigo-950/50'
                             : 'hover:bg-indigo-50/70 dark:hover:bg-indigo-950/40'
@@ -2305,35 +2489,98 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                               case 'name':
                                 return (
                                   <td key={col.key} className="px-2 py-1 border-r border-[#E2E2DC] dark:border-zinc-800 font-sans text-xs font-medium text-[#0C0C09] dark:text-zinc-100">
-                                    {linkedItem && onUpdateItem && !isDepSubRow ? (
-                                      <EditableReportTextCell
-                                        testId={`report-crono-name-${linkedItem.id}`}
-                                        value={linkedItem.name}
-                                        onCommit={(next) =>
-                                          onUpdateItem({ ...linkedItem, name: next || linkedItem.name }, false)
-                                        }
-                                      />
-                                    ) : linkedProject && onUpdateProject ? (
-                                      <EditableReportTextCell
-                                        testId={`report-crono-proj-name-${linkedProject.id}`}
-                                        value={linkedProject.name}
-                                        className="font-semibold"
-                                        onCommit={(next) =>
-                                          onUpdateProject({ ...linkedProject, name: next || linkedProject.name })
-                                        }
-                                      />
-                                    ) : linkedRelease && onUpdateRelease ? (
-                                      <EditableReportTextCell
-                                        testId={`report-crono-rel-name-${linkedRelease.id}`}
-                                        value={linkedRelease.name}
-                                        className="font-bold"
-                                        onCommit={(next) =>
-                                          onUpdateRelease({ ...linkedRelease, name: next || linkedRelease.name })
-                                        }
-                                      />
-                                    ) : (
-                                      <span className="truncate block px-1.5">{row.name}</span>
-                                    )}
+                                    <div className="flex items-center gap-1 min-w-0">
+                                      {nodeKey && hasChildren && (!hasCronoFilters || hasVisibleKids || isNodeCollapsed) && (
+                                        <button
+                                          type="button"
+                                          data-testid={`report-tree-toggle-${nodeKey}`}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            toggleCollapseNode(nodeKey);
+                                          }}
+                                          className="w-4 h-4 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 flex items-center justify-center text-zinc-500 dark:text-zinc-400 shrink-0 cursor-pointer"
+                                          title={isNodeCollapsed ? 'Expandir hijos' : 'Colapsar hijos'}
+                                        >
+                                          {isNodeCollapsed ? (
+                                            <ChevronRight className="w-3 h-3" />
+                                          ) : (
+                                            <ChevronDown className="w-3 h-3" />
+                                          )}
+                                        </button>
+                                      )}
+                                      <div className="flex-1 min-w-0">
+                                        {linkedItem && onUpdateItem && !isDepSubRow ? (
+                                          <EditableReportTextCell
+                                            testId={`report-crono-name-${linkedItem.id}`}
+                                            value={linkedItem.name}
+                                            className={isContext ? 'text-slate-500 dark:text-zinc-400' : ''}
+                                            onCommit={(next) =>
+                                              onUpdateItem({ ...linkedItem, name: next || linkedItem.name }, false)
+                                            }
+                                          />
+                                        ) : linkedProject && onUpdateProject ? (
+                                          <EditableReportTextCell
+                                            testId={`report-crono-proj-name-${linkedProject.id}`}
+                                            value={linkedProject.name}
+                                            className={`font-semibold ${isContext ? 'text-slate-500 dark:text-zinc-400' : ''}`}
+                                            onCommit={(next) =>
+                                              onUpdateProject({ ...linkedProject, name: next || linkedProject.name })
+                                            }
+                                          />
+                                        ) : linkedRelease && onUpdateRelease ? (
+                                          <EditableReportTextCell
+                                            testId={`report-crono-rel-name-${linkedRelease.id}`}
+                                            value={linkedRelease.name}
+                                            className="font-bold"
+                                            onCommit={(next) =>
+                                              onUpdateRelease({ ...linkedRelease, name: next || linkedRelease.name })
+                                            }
+                                          />
+                                        ) : (
+                                          <span className="truncate block px-1.5">{row.name}</span>
+                                        )}
+                                      </div>
+                                      {hasCronoFilters && nodeKey && hiddenChildrenCount > 0 && (
+                                        <button
+                                          type="button"
+                                          data-testid={`report-expand-hidden-${nodeKey}`}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            toggleExpandFilteredNode(nodeKey);
+                                          }}
+                                          className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full font-mono text-[9.5px] font-semibold shrink-0 cursor-pointer transition ${
+                                            isShowingHiddenKids
+                                              ? 'bg-indigo-600 text-white border border-indigo-600'
+                                              : 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-dashed border-indigo-400 dark:border-indigo-700 hover:bg-indigo-600 hover:text-white hover:border-solid'
+                                          }`}
+                                          title={
+                                            isShowingHiddenKids
+                                              ? 'Ocultar hijos fuera del filtro'
+                                              : 'Expandir hijos ocultos por el filtro'
+                                          }
+                                        >
+                                          {isShowingHiddenKids
+                                            ? `▾ Ocultar ${hiddenChildrenCount}`
+                                            : `▸ +${hiddenChildrenCount} ${
+                                                isRelease
+                                                  ? hiddenChildrenCount === 1
+                                                    ? 'proyecto'
+                                                    : 'proyectos'
+                                                  : hiddenChildrenCount === 1
+                                                  ? 'subtarea'
+                                                  : 'subtareas'
+                                              }`}
+                                        </button>
+                                      )}
+                                      {isContext && (
+                                        <span
+                                          data-testid={`report-context-badge-${row.rowId}`}
+                                          className="px-1.5 py-0 rounded-full bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 font-mono text-[9px] font-semibold shrink-0"
+                                        >
+                                          contexto
+                                        </span>
+                                      )}
+                                    </div>
                                   </td>
                                 );
                               case 'releaseCode':
@@ -3018,6 +3265,14 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 : `${filteredReleaseRows.length} de ${releaseRows.length}`}
             </strong>
           </span>
+          {activeTab === 'cronograma' && contextExpandedCount > 0 && (
+            <span
+              data-testid="reports-status-context-count"
+              className="shrink-0 text-indigo-700 dark:text-indigo-300 font-semibold"
+            >
+              {`+${contextExpandedCount} de contexto`}
+            </span>
+          )}
 
           {/* Active Filter Parameters (all except columns) */}
           {(() => {
