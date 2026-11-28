@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.21.3',
+    date: '28 Nov 2026',
+    title: 'Expansión prioritaria del nombre y tope exacto en el separador de Cronograma',
+    isLatest: true,
+    features: [
+      'Al arrastrar o hacer doble clic en el separador de Cronograma, la columna de nombre se expande con prioridad revelando progresivamente los nombres completos hasta que todos son visibles íntegramente',
+      'El separador hace tope exactamente cuando todos los nombres y columnas visibles caben completos sin espacio sobrante a la derecha',
+    ],
+  },
+  {
     version: '1.21.2',
     date: '28 Nov 2026',
     title: 'Mantener fondo oscuro al seleccionar una Release en Planificación',
-    isLatest: true,
     features: [
       'Corregido el estilo de selección de filas Release en Planificación para conservar el fondo oscuro de alto contraste (#1C1C18) con anillo índigo en lugar de ponerse blanca (bg-indigo-50/80)',
     ],

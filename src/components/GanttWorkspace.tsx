@@ -2733,7 +2733,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   }, [items]);
 
   // Allocate exact snug width for name + team column matching real character widths (~6.2px/char)
-  const nameColumnWidth = useMemo(() => {
+  const DEFAULT_SPLIT_WIDTH = 480;
+
+  const baseNameColumnWidth = useMemo(() => {
     // 1. Task column needs: grip + arrows (32px), WBS (30px), dot (10px), indent (8px), gaps (12px) = 92px.
     // Plus text (~6.2px/char) + CRÍT badge (36px if critical) + team badge (~75px if visible) + 8px padding.
     const maxTeamLength = items.reduce((acc, it) => Math.max(acc, (it.assignee || '').length), 0);
@@ -2744,16 +2746,96 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     return Math.max(120, Math.max(taskColWidth, projColWidth));
   }, [maxTaskNameLength, maxProjectNameLength, hasAnyCritical, visibleColumns.team, items]);
 
-  // Calculates exact minimum content width to guarantee columns NEVER overlap or clip
-  const tableMinWidth = useMemo(() => {
-    let w = nameColumnWidth + 24; // Name column + table px-3 padding
+  // Full width needed so every task, project, and release name is completely visible without truncation
+  const fullNameColumnWidth = useMemo(() => {
+    let measureText = (text: string, font: string) => Math.ceil(text.length * 7.2);
+    if (typeof document !== 'undefined') {
+      try {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          measureText = (text: string, font: string) => {
+            ctx.font = font;
+            return Math.ceil(ctx.measureText(text).width);
+          };
+        }
+      } catch {}
+    }
+
+    const maxTeamLength = items.reduce((acc, it) => Math.max(acc, (it.assignee || '').length), 0);
+    const teamBadgeWidth = visibleColumns.team && maxTeamLength > 0 ? Math.ceil(maxTeamLength * 6.5) + 28 : 0;
+
+    let maxRequired = baseNameColumnWidth;
+    for (const it of items) {
+      if (!it.name) continue;
+      const textPx = measureText(it.name, '500 12px ui-sans-serif, system-ui, sans-serif');
+      const taskReq = 112 + (it.isCritical ? 40 : 0) + (it.alertLevel ? 34 : 0) + teamBadgeWidth + textPx + 20;
+      if (taskReq > maxRequired) maxRequired = taskReq;
+    }
+    if (projects) {
+      for (const p of projects) {
+        if (!p.name) continue;
+        const textPx = measureText(p.name, '600 12px ui-sans-serif, system-ui, sans-serif');
+        const projReq = 148 + (p.alertLevel ? 34 : 0) + textPx + 24;
+        if (projReq > maxRequired) maxRequired = projReq;
+      }
+    }
+    if (releases) {
+      for (const r of releases) {
+        const label = r.name || r.code || '';
+        if (!label) continue;
+        const textPx = measureText(label, '700 12px ui-sans-serif, system-ui, sans-serif');
+        const relReq = 130 + textPx + 24;
+        if (relReq > maxRequired) maxRequired = relReq;
+      }
+    }
+    return Math.ceil(maxRequired);
+  }, [baseNameColumnWidth, items, projects, releases, visibleColumns.team]);
+
+  const otherTableColumnsWidth = useMemo(() => {
+    let w = 24; // table px-3 padding
     if (visibleColumns.dates) w += 176; // w-44 = 176px
     if (visibleColumns.dur) w += 64; // w-16 = 64px
     if (visibleColumns.slack) w += 56; // w-14 = 56px
     if (visibleColumns.deps) w += 80; // w-20 = 80px
     w += 112; // Action/config buttons column w-28 = 112px
     return w;
-  }, [nameColumnWidth, visibleColumns]);
+  }, [visibleColumns]);
+
+  // As the split divider moves right past default width, expand the name column with priority up to fullNameColumnWidth
+  const nameColumnWidth = useMemo(() => {
+    const extraSplitPx = Math.max(0, splitWidth - DEFAULT_SPLIT_WIDTH);
+    return Math.min(fullNameColumnWidth, baseNameColumnWidth + extraSplitPx);
+  }, [baseNameColumnWidth, fullNameColumnWidth, splitWidth]);
+
+  // Dynamic truncation limit that progressively reveals full names as the divider expands the name column
+  const displayTruncateLimit = useMemo(() => {
+    if (splitWidth <= DEFAULT_SPLIT_WIDTH && splitExpandedPrevWidth === null) {
+      return effectiveTruncateLimit;
+    }
+    if (nameColumnWidth >= fullNameColumnWidth) {
+      return Number.POSITIVE_INFINITY;
+    }
+    const extraChars = Math.floor((nameColumnWidth - baseNameColumnWidth) / 6.2);
+    return effectiveTruncateLimit + Math.max(0, extraChars);
+  }, [
+    splitWidth,
+    splitExpandedPrevWidth,
+    effectiveTruncateLimit,
+    nameColumnWidth,
+    fullNameColumnWidth,
+    baseNameColumnWidth,
+  ]);
+
+  // Calculates exact minimum content width to guarantee columns NEVER overlap or clip
+  const tableMinWidth = useMemo(() => {
+    return nameColumnWidth + otherTableColumnsWidth;
+  }, [nameColumnWidth, otherTableColumnsWidth]);
+
+  // Maximum right boundary for the split divider: stops once all names and visible table columns fit completely
+  const fullContentSplitWidth = useMemo(() => {
+    return Math.max(DEFAULT_SPLIT_WIDTH, fullNameColumnWidth + otherTableColumnsWidth);
+  }, [fullNameColumnWidth, otherTableColumnsWidth]);
 
   const [fallbackArrowVisibility, setFallbackArrowVisibility] =
     useState<ArrowVisibility>('all');
@@ -4587,14 +4669,20 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   };
 
   // Handle split pane divider resize
+  const getMaxSplitWidth = () => {
+    const containerW =
+      splitPaneRef.current?.clientWidth ||
+      (typeof window !== 'undefined' ? window.innerWidth : 1200);
+    return Math.max(360, Math.min(fullContentSplitWidth, containerW - 6));
+  };
+
   const handleSplitMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
     isResizingSplitRef.current = true;
     setIsDraggingSplit(true);
     const startX = e.clientX;
     const origWidth = splitWidth;
-    const containerW = splitPaneRef.current?.clientWidth || 1200;
-    const maxW = Math.max(960, containerW - 6);
+    const maxW = getMaxSplitWidth();
 
     const onMove = (me: MouseEvent) => {
       if (!isResizingSplitRef.current) return;
@@ -4624,10 +4712,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       setSplitExpandedPrevWidth(null);
       return;
     }
-    const containerW =
-      splitPaneRef.current?.clientWidth ||
-      (typeof window !== 'undefined' ? window.innerWidth : 1200);
-    const expandedW = Math.max(360, containerW - 6);
+    const expandedW = getMaxSplitWidth();
     setSplitExpandedPrevWidth(splitWidth);
     setSplitWidth(expandedW);
   };
@@ -6597,9 +6682,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                           focusedProjectInputId === group.project.id ||
                           hoveredNameId === group.project.id;
                         const displayProjectName =
-                          isProjectNameExpanded || !group.project.name || group.project.name.length <= effectiveTruncateLimit
+                          isProjectNameExpanded || !group.project.name || group.project.name.length <= displayTruncateLimit
                             ? group.project.name || 'Proyecto'
-                            : group.project.name.slice(0, effectiveTruncateLimit) + '…';
+                            : group.project.name.slice(0, displayTruncateLimit) + '…';
 
                         const isProjectSelected = effectiveSelectedProjectId === group.project.id;
                         const isProjectMultiSelected = multiSelectedProjectIds.has(group.project.id);
@@ -6858,7 +6943,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                     : 'min-w-0 shrink max-w-full'
                                 }`}
                                 data-testid={`project-name-container-${group.project.id}`}
-                                data-name-truncated={group.project.name && group.project.name.length > effectiveTruncateLimit}
+                                data-name-truncated={group.project.name && group.project.name.length > displayTruncateLimit}
                                 data-name-expanded={isProjectNameExpanded}
                                 onMouseEnter={() => setHoveredNameId(group.project.id)}
                                 onMouseLeave={() => setHoveredNameId((prev) => (prev === group.project.id ? null : prev))}
@@ -7453,9 +7538,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 focusedTaskInputId === item.id ||
                                 hoveredNameId === item.id;
                               const displayTaskName =
-                                isTaskNameExpanded || !item.name || item.name.length <= effectiveTruncateLimit
+                                isTaskNameExpanded || !item.name || item.name.length <= displayTruncateLimit
                                   ? item.name || 'Tarea'
-                                  : item.name.slice(0, effectiveTruncateLimit) + '…';
+                                  : item.name.slice(0, displayTruncateLimit) + '…';
 
                             return (
                               <React.Fragment key="task-name-block">
@@ -7466,7 +7551,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                       : 'min-w-0 shrink max-w-full'
                                   }`}
                                   data-testid={`task-name-container-${item.id}`}
-                                  data-name-truncated={item.name && item.name.length > effectiveTruncateLimit}
+                                  data-name-truncated={item.name && item.name.length > displayTruncateLimit}
                                   data-name-expanded={isTaskNameExpanded}
                                   onMouseEnter={() => setHoveredNameId(item.id)}
                                   onMouseLeave={() => setHoveredNameId((prev) => (prev === item.id ? null : prev))}
