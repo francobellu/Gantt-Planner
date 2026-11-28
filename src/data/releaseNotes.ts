@@ -10,10 +10,20 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.18.4',
+    date: '28 Nov 2026',
+    title: 'Rollup automático con subtareas ocultas, desplegable de notas y código de ticket',
+    isLatest: true,
+    features: [
+      'Activado el rollup de Notas de subtareas, Seguimiento y Etiquetas siempre que las subtareas del proyecto estén ocultas (por filtro o por colapso manual)',
+      'Desplegable colapsado por defecto con chevron animado para Notas de subtareas',
+      'Uso automático del código de ticket (HDEV-..., HUAT-..., DIGI-...) en lugar del código P1T2 cuando existe en el nombre de la tarea',
+    ],
+  },
+  {
     version: '1.18.3',
     date: '28 Nov 2026',
     title: 'Ajuste multilínea automático al reducir el ancho de columnas en Planificación',
-    isLatest: true,
     features: [
       'EditableReportTextCell renderiza texto con whitespace-pre-wrap y break-words en modo lectura y cambia a textarea al editar para no truncar al estrechar columnas',
       'Eliminados truncate, whitespace-nowrap y line-clamp-2 en Nombre, Proyecto, Equipo, Dependencia, Cumplimiento y Seguimiento',

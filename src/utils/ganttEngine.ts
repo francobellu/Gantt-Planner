@@ -563,6 +563,13 @@ export function collectProjectRollupComments(
   );
 }
 
+export function extractTicketCode(name?: string): string | undefined {
+  if (!name) return undefined;
+  const match = name.match(/\b([A-Z]{2,10})\s*-\s*(\d+)\b/);
+  if (!match) return undefined;
+  return `${match[1]}-${match[2]}`;
+}
+
 export function collectProjectSubtaskNotes(
   projectItems: ComputedGanttItem[],
   projectIndex?: number
@@ -571,7 +578,9 @@ export function collectProjectSubtaskNotes(
   for (const it of projectItems) {
     const trimmed = (it.notes || '').trim();
     if (!trimmed) continue;
+    const ticketCode = extractTicketCode(it.name);
     const code =
+      ticketCode ||
       it.displayId ||
       (projectIndex ? `P${projectIndex}T${it.taskIndex || it.wbs}` : `T${it.taskIndex || it.wbs}`);
     result.push({

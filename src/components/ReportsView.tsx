@@ -685,6 +685,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(() => new Set(initialCollapsedNodes));
   const [collapsingNodes, setCollapsingNodes] = useState<Set<string>>(() => new Set());
   const [expandingNodes, setExpandingNodes] = useState<Set<string>>(() => new Set());
+  const [expandedSubtaskNotesProjects, setExpandedSubtaskNotesProjects] = useState<Set<string>>(
+    () => new Set()
+  );
   const collapseTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const [expandedFilteredNodes, setExpandedFilteredNodes] = useState<Set<string>>(
     () => new Set(initialExpandedFilteredNodes)
@@ -2733,6 +2736,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                             )
                           : false
                         : false;
+                    const isProjectSubtasksHidden =
+                      isProject && hasChildren && (!hasVisibleKids || isNodeVisuallyCollapsed);
 
                     const rowBgClass = isRelease
                       ? 'bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09] font-bold'
@@ -3453,8 +3458,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                                   </td>
                                 );
                               case 'tags': {
-                                const isProjectRollupMode =
-                                  isProject && selectedType === 'PROYECTO' && !showSubtasksOnFilter;
+                                const isProjectRollupMode = isProjectSubtasksHidden;
                                 if (isRelease) {
                                   return (
                                     <td key={col.key} className="px-2 py-1.5 font-sans text-xs">
@@ -3525,8 +3529,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                                 );
                               }
                               case 'statusComments': {
-                                const isProjectRollupMode =
-                                  isProject && selectedType === 'PROYECTO' && !showSubtasksOnFilter;
+                                const isProjectRollupMode = isProjectSubtasksHidden;
                                 if (isRelease) {
                                   return (
                                     <td key={col.key} className="px-2 py-1.5 font-sans text-xs text-[#6B6B66] dark:text-zinc-400">
@@ -3699,8 +3702,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                                 );
                               }
                               case 'notes': {
-                                const isProjectRollupMode =
-                                  isProject && selectedType === 'PROYECTO' && !showSubtasksOnFilter;
+                                const isProjectRollupMode = isProjectSubtasksHidden;
                                 const subtaskNotes =
                                   isProjectRollupMode && linkedProject
                                     ? collectProjectSubtaskNotes(
@@ -3708,6 +3710,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                                         linkedProject.projectIndex
                                       )
                                     : [];
+                                const isSubtaskNotesExpanded = Boolean(
+                                  linkedProject && expandedSubtaskNotesProjects.has(linkedProject.id)
+                                );
                                 return (
                                   <td key={col.key} className="px-2 py-1.5 font-sans text-xs text-[#6B6B66] dark:text-zinc-400 whitespace-pre-line leading-relaxed align-top">
                                     {linkedItem && onUpdateItem && !isDepSubRow ? (
@@ -3737,22 +3742,54 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                                         {subtaskNotes.length > 0 && (
                                           <div
                                             data-testid={`report-rollup-notes-proj-${linkedProject.id}`}
-                                            className="pt-1.5 border-t border-dashed border-[#E2E2DC] dark:border-zinc-700 space-y-1"
+                                            className="pt-1.5 border-t border-dashed border-[#E2E2DC] dark:border-zinc-700"
+                                            onClick={(e) => e.stopPropagation()}
                                           >
-                                            <div className="font-mono text-[9.5px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
-                                              {`Notas de subtareas (${subtaskNotes.length})`}
-                                            </div>
-                                            {subtaskNotes.map((sn) => (
-                                              <div
-                                                key={sn.itemId}
-                                                className="text-[11px] leading-snug text-[#52525B] dark:text-zinc-400"
-                                              >
-                                                <span className="font-mono font-bold text-[#0C0C09] dark:text-zinc-200 mr-1">
-                                                  {`${sn.code}:`}
-                                                </span>
-                                                <span>{sn.notes}</span>
+                                            <button
+                                              type="button"
+                                              data-testid={`report-rollup-notes-toggle-${linkedProject.id}`}
+                                              data-expanded={isSubtaskNotesExpanded ? 'true' : 'false'}
+                                              onClick={() =>
+                                                setExpandedSubtaskNotesProjects((prev) => {
+                                                  const next = new Set(prev);
+                                                  if (next.has(linkedProject.id)) {
+                                                    next.delete(linkedProject.id);
+                                                  } else {
+                                                    next.add(linkedProject.id);
+                                                  }
+                                                  return next;
+                                                })
+                                              }
+                                              className="inline-flex items-center gap-1 font-mono text-[9.5px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300 hover:text-indigo-900 dark:hover:text-indigo-200 cursor-pointer select-none"
+                                            >
+                                              <ChevronRight
+                                                className={`w-3 h-3 transition-transform duration-[120ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                                                  isSubtaskNotesExpanded ? 'rotate-90' : 'rotate-0'
+                                                }`}
+                                              />
+                                              <span>{`Notas de subtareas (${subtaskNotes.length})`}</span>
+                                            </button>
+                                            <div
+                                              className={`grid transition-[grid-template-rows,opacity] duration-[120ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                                                isSubtaskNotesExpanded
+                                                  ? 'grid-rows-[1fr] opacity-100 mt-1.5'
+                                                  : 'grid-rows-[0fr] opacity-0'
+                                              }`}
+                                            >
+                                              <div className="overflow-hidden space-y-1">
+                                                {subtaskNotes.map((sn) => (
+                                                  <div
+                                                    key={sn.itemId}
+                                                    className="text-[11px] leading-snug text-[#52525B] dark:text-zinc-400 break-words"
+                                                  >
+                                                    <span className="font-mono font-bold text-[#0C0C09] dark:text-zinc-200 mr-1">
+                                                      {`${sn.code}:`}
+                                                    </span>
+                                                    <span>{sn.notes}</span>
+                                                  </div>
+                                                ))}
                                               </div>
-                                            ))}
+                                            </div>
                                           </div>
                                         )}
                                       </div>
