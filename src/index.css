@@ -60,7 +60,7 @@
 }
 
 .animate-gantt-row-expand {
-  animation: ganttRowExpand 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: ganttRowExpand 140ms cubic-bezier(0.22, 1, 0.36, 1) both;
   overflow: hidden;
 }
 
@@ -82,7 +82,7 @@
 }
 
 .animate-gantt-row-collapse {
-  animation: ganttRowCollapse 280ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: ganttRowCollapse 140ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
   overflow: hidden;
   pointer-events: none;
 }
@@ -99,7 +99,7 @@
 }
 
 .animate-gantt-timeline-collapse {
-  animation: ganttTimelineCollapse 280ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: ganttTimelineCollapse 140ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
   pointer-events: none;
 }
 
@@ -115,7 +115,7 @@
 }
 
 .animate-report-row-expand {
-  animation: reportRowExpand 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: reportRowExpand 130ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @keyframes reportRowCollapse {
@@ -130,7 +130,7 @@
 }
 
 .animate-report-row-collapse {
-  animation: reportRowCollapse 240ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: reportRowCollapse 120ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
   pointer-events: none;
 }
 

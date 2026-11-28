@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.18.2',
+    date: '28 Nov 2026',
+    title: 'Reducir a la mitad el tiempo de animación expand/collapse en Cronograma y Planificación',
+    isLatest: true,
+    features: [
+      'Duraciones de keyframes CSS y transiciones de filas/chevrons reducidas al 50% (140ms/130ms/120ms/100ms) en Cronograma y Planificación',
+      'Timers de sincronización de expansión y colapso ajustados a 145ms/150ms/120ms',
+    ],
+  },
+  {
     version: '1.18.1',
     date: '28 Nov 2026',
     title: 'Doble clic en separador de columna para expandir al texto completo y restaurar',
-    isLatest: true,
     features: [
       'Al hacer doble clic en el separador de cualquier columna en Planificación se calcula y aplica el ancho completo para ver todo el texto sin truncar (hasta 960px)',
       'Un segundo doble clic restaura exactamente el tamaño anterior',

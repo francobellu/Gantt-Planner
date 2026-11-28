@@ -877,7 +877,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         return next;
       });
       expandAnimTimersRef.current.delete(parentKey);
-    }, 290);
+    }, 145);
     expandAnimTimersRef.current.set(parentKey, timer);
   };
 
@@ -911,7 +911,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         return next;
       });
       collapseAnimTimersRef.current.delete(parentKey);
-    }, 290);
+    }, 145);
     collapseAnimTimersRef.current.set(parentKey, timer);
   };
 
@@ -6315,7 +6315,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         style={{ height: displayRows.length * ROW_HEIGHT, minWidth: tableMinWidth }}
                         className={`relative ${
                           isCollapseAnimating
-                            ? 'transition-[height] duration-[280ms] ease-[cubic-bezier(0.22,1,0.36,1)]'
+                            ? 'transition-[height] duration-[140ms] ease-[cubic-bezier(0.22,1,0.36,1)]'
                             : ''
                         }`}
                       >
@@ -6327,7 +6327,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       const rowShiftClass = isAnyRowOrProjectDragging
                         ? 'transition-transform duration-200 ease-out'
                         : isCollapseAnimating
-                        ? 'transition-[top] duration-[280ms] ease-[cubic-bezier(0.22,1,0.36,1)]'
+                        ? 'transition-[top] duration-[140ms] ease-[cubic-bezier(0.22,1,0.36,1)]'
                         : '';
 
                       const rowExpandClass = isRowCollapsing(row)
@@ -6362,7 +6362,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 className="p-1 rounded hover:bg-white/10 dark:hover:bg-black/10 transition cursor-pointer shrink-0"
                               >
                                 <ChevronRight
-                                  className={`w-4 h-4 transition-transform duration-200 ease-out ${
+                                  className={`w-4 h-4 transition-transform duration-100 ease-out ${
                                     isCollapsed ? 'rotate-0' : 'rotate-90'
                                   }`}
                                 />
@@ -6648,7 +6648,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 }
                               >
                                 <ChevronRight
-                                  className={`w-4 h-4 transition-transform duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                                  className={`w-4 h-4 transition-transform duration-[120ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
                                     isCollapsed ? 'rotate-0' : 'rotate-90'
                                   }`}
                                 />
@@ -8649,7 +8649,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                 const timelineRowShiftClass = isAnyRowOrProjectDragging
                   ? 'transition-transform duration-200 ease-out'
                   : isCollapseAnimating
-                  ? 'transition-[top] duration-[280ms] ease-[cubic-bezier(0.22,1,0.36,1)]'
+                  ? 'transition-[top] duration-[140ms] ease-[cubic-bezier(0.22,1,0.36,1)]'
                   : '';
                 const timelineRowExpandClass = isRowCollapsing(row)
                   ? 'animate-gantt-timeline-collapse'
@@ -9096,7 +9096,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                         : isAnyRowOrProjectDragging
                         ? 'transition-[transform,opacity] duration-200 ease-out'
                         : isCollapseAnimating
-                        ? 'transition-[top,opacity] duration-[280ms] ease-[cubic-bezier(0.22,1,0.36,1)]'
+                        ? 'transition-[top,opacity] duration-[140ms] ease-[cubic-bezier(0.22,1,0.36,1)]'
                         : 'transition-opacity'
                     } ${timelineRowExpandClass} ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
                   >

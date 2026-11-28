@@ -2260,7 +2260,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         return next;
       });
       collapseTimersRef.current.delete(`exp:${nodeKey}`);
-    }, 300);
+    }, 150);
     collapseTimersRef.current.set(`exp:${nodeKey}`, timer);
   };
 
@@ -2289,7 +2289,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       return;
     }
 
-    // Play 240ms collapse animation before removing descendant rows (same as Cronograma)
+    // Play 120ms collapse animation before removing descendant rows (same as Cronograma)
     setCollapsingNodes((prev) => {
       const next = new Set(prev);
       next.add(nodeKey);
@@ -2308,7 +2308,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         return next;
       });
       collapseTimersRef.current.delete(`col:${nodeKey}`);
-    }, 240);
+    }, 120);
     collapseTimersRef.current.set(`col:${nodeKey}`, timer);
   };
 
@@ -2883,7 +2883,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                                           title={isNodeVisuallyCollapsed ? 'Expandir hijos' : 'Colapsar hijos'}
                                         >
                                           <ChevronRight
-                                            className={`w-4 h-4 transition-transform duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                                            className={`w-4 h-4 transition-transform duration-[120ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
                                               isNodeVisuallyCollapsed ? 'rotate-0' : 'rotate-90'
                                             }`}
                                           />
