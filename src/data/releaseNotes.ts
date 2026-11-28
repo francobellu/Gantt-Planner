@@ -10,10 +10,20 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.19.1',
+    date: '28 Nov 2026',
+    title: 'Columna ID opcional (oculta por defecto) y eliminación de Jerarquía en Planificación',
+    isLatest: true,
+    features: [
+      'Movida la columna ID (displayId) a CRONO_COLUMNS como columna seleccionable, redimensionable y oculta por defecto en Planificación',
+      'Eliminada la columna redundante Jerarquía (duplicada con Tipo y el árbol visual)',
+      'Franja lateral de color de proyecto movida a la fila para mantenerse visible aunque ID esté oculta',
+    ],
+  },
+  {
     version: '1.19.0',
     date: '28 Nov 2026',
     title: 'Cabeceras interactivas en Planificación y panel de Detalles simplificado',
-    isLatest: true,
     features: [
       'Doble clic en cualquier parte de la cabecera de columna en Planificación para expandir al texto completo y restaurar',
       'Menú contextual con clic derecho en cabeceras de columna para mostrar/ocultar columnas sincronizando automáticamente el filtro guardado activo',

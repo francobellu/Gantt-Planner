@@ -4515,7 +4515,7 @@ test('Help page, version control v1.2.0, release selection on project creation, 
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version control consistency
-  assert.equal(pkg.version, '1.19.0', 'package.json version must be 1.9.2');
+  assert.equal(pkg.version, '1.19.1', 'package.json version must be 1.9.2');
   assert.ok(pkg.scripts['version:patch'], 'package.json must contain version:patch script');
   assert.ok(pkg.scripts['version:minor'], 'package.json must contain version:minor script');
   assert.ok(pkg.scripts['release:patch'], 'package.json must contain release:patch script');
@@ -5330,7 +5330,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version Bump Verification
-  assert.equal(pkg.version, '1.19.0', 'package.json version must equal 1.9.2');
+  assert.equal(pkg.version, '1.19.1', 'package.json version must equal 1.9.2');
 
   // Verify scripts/bump-version.mjs works properly
   const bumpScript = await fs.readFile(path.resolve(__dirname, '../scripts/bump-version.mjs'), 'utf8');
@@ -5504,7 +5504,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // A. APP_VERSION equals 1.9.2
-    assert.equal(mod.APP_VERSION, '1.19.0', 'APP_VERSION must be 1.9.2');
+    assert.equal(mod.APP_VERSION, '1.19.1', 'APP_VERSION must be 1.9.2');
 
     // A2. Excel Export Unit Test
     const sampleReleases = [
@@ -6031,8 +6031,8 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
-  // 1. Version Bump Verification v1.19.0
-  assert.equal(pkg.version, '1.19.0', 'package.json version must equal 1.9.2');
+  // 1. Version Bump Verification v1.19.1
+  assert.equal(pkg.version, '1.19.1', 'package.json version must equal 1.9.2');
 
   // 2. SSR Bundle verification for TaskFormModal, App Header, and sanitizeGanttItem
   const tmpFile = path.resolve(__dirname, `tmp_test59_bundle_${Date.now()}.mjs`);
@@ -6130,7 +6130,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.equal(mod.APP_VERSION, '1.19.0', 'mod.APP_VERSION must equal 1.9.2');
+    assert.equal(mod.APP_VERSION, '1.19.1', 'mod.APP_VERSION must equal 1.9.2');
 
     // sanitizeGanttItem preserves platform
     const sanitizedIos = mod.sanitizeGanttItem({
@@ -6193,7 +6193,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     }));
     assert.ok(settingsHtml.includes('data-testid="settings-version-badge"'), 'SettingsModal must contain settings-version-badge');
     assert.ok(settingsHtml.includes('data-testid="force-reload-btn"'), 'SettingsModal must contain force-reload-btn');
-    assert.ok(settingsHtml.includes('v1.19.0') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and v1.19.0');
+    assert.ok(settingsHtml.includes('v1.19.1') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and v1.19.1');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6347,14 +6347,14 @@ test('Test 61: Version button, compiled release notes modal and changelog across
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
 
     // 1. Check RELEASE_NOTES compiled data
-    assert.strictEqual(mod.APP_VERSION, '1.19.0');
+    assert.strictEqual(mod.APP_VERSION, '1.19.1');
     assert.ok(Array.isArray(mod.RELEASE_NOTES), 'RELEASE_NOTES must be an array');
     assert.ok(mod.RELEASE_NOTES.length >= 10, 'RELEASE_NOTES must have at least 10 releases');
 
     const latest = mod.RELEASE_NOTES[0];
-    assert.strictEqual(latest.version, '1.19.0', 'First release note must be 1.9.2');
+    assert.strictEqual(latest.version, '1.19.1', 'First release note must be 1.9.2');
     assert.strictEqual(latest.isLatest, true, 'First release note must be isLatest: true');
-    assert.ok(latest.features.length > 0, 'v1.19.0 must contain features');
+    assert.ok(latest.features.length > 0, 'v1.19.1 must contain features');
 
     // 2. Render App and verify version button exists in dropdown menu and is NOT duplicated in top header
     const appHtml = renderToString(React.createElement(mod.App));
@@ -8189,7 +8189,7 @@ test('Test 73: v1.9.0 project alert level (0-3), workspace toolbar alert filter,
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.strictEqual(mod.APP_VERSION, '1.19.0', 'APP_VERSION must be 1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.19.1', 'APP_VERSION must be 1.9.2');
 
     // 1. Check sanitizeProject and describeProjectStateChanges for alertLevel
     const pSanitized0 = mod.sanitizeProject({ id: 'p-1', name: 'Proj 1', alertLevel: 0 });
@@ -8378,7 +8378,7 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.strictEqual(mod.APP_VERSION, '1.19.0', 'APP_VERSION must be 1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.19.1', 'APP_VERSION must be 1.9.2');
 
     // 1. Verify description format: <descripción del proyecto si existe>\n\n* <nombre> <desc>
     const pWithDesc = {
@@ -8463,8 +8463,8 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
   }
 });
 
-// TEST 75: v1.19.0 Project locking, accidental move guard & unlock prompt modal
-test('Test 75: v1.19.0 project locking, cascade/dependency protection, plan history badge, and unlock alert modal', async () => {
+// TEST 75: v1.19.1 Project locking, accidental move guard & unlock prompt modal
+test('Test 75: v1.19.1 project locking, cascade/dependency protection, plan history badge, and unlock alert modal', async () => {
   const fs = await import('node:fs/promises');
   const path = await import('node:path');
   const { fileURLToPath } = await import('node:url');
@@ -8475,7 +8475,7 @@ test('Test 75: v1.19.0 project locking, cascade/dependency protection, plan hist
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
-  assert.strictEqual(pkg.version, '1.19.0', 'package.json version must equal 1.9.2');
+  assert.strictEqual(pkg.version, '1.19.1', 'package.json version must equal 1.9.2');
 
   const tmpFile = path.resolve(__dirname, `tmp_test75_bundle_${Date.now()}.mjs`);
   try {
@@ -8537,9 +8537,9 @@ test('Test 75: v1.19.0 project locking, cascade/dependency protection, plan hist
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // 1. Version & release notes verification
-    assert.strictEqual(mod.APP_VERSION, '1.19.0', 'APP_VERSION must equal 1.9.2');
-    assert.strictEqual(mod.RELEASE_NOTES[0].version, '1.19.0', 'Latest release note must be 1.9.2');
-    assert.strictEqual(mod.RELEASE_NOTES[0].isLatest, true, 'v1.19.0 release note must be marked isLatest');
+    assert.strictEqual(mod.APP_VERSION, '1.19.1', 'APP_VERSION must equal 1.9.2');
+    assert.strictEqual(mod.RELEASE_NOTES[0].version, '1.19.1', 'Latest release note must be 1.9.2');
+    assert.strictEqual(mod.RELEASE_NOTES[0].isLatest, true, 'v1.19.1 release note must be marked isLatest');
 
     // 2. sanitizeProject, getLockedProjectForItem, describeProjectStateChanges
     const lockedProj = mod.sanitizeProject({
@@ -8736,7 +8736,7 @@ test('Test 75: v1.19.0 project locking, cascade/dependency protection, plan hist
   }
 });
 
-test('Test 76: v1.19.0 automatic Free Slack calculation given successor tasks across engine, table badge, inspector sidebar and task modal', async () => {
+test('Test 76: v1.19.1 automatic Free Slack calculation given successor tasks across engine, table badge, inspector sidebar and task modal', async () => {
   // 1. Engine calculation: FS dependency with multiple successors
   const testItems = [
     {
@@ -12134,11 +12134,35 @@ test('Test 102: Unique IDs (P1, T1, P1T1), colored task ID badge in GanttWorkspa
       React.createElement(mod.ReportsView, { ...sharedReportProps, initialTab: 'cronograma' })
     );
     assert.ok(
-      cronoHtml.includes('data-testid="report-col-id-header"') &&
-        cronoHtml.includes('>ID</th>') &&
-        cronoHtml.includes('data-testid="report-crono-id-t1-0"') &&
-        cronoHtml.includes('>P1T1</td>'),
-      'ReportsView Cronograma Completo must render ID column with unique IDs (P1, P1T1)'
+      cronoHtml.includes('data-testid="reports-panel-col-pill-displayId"') &&
+        !cronoHtml.includes('data-testid="report-crono-id-t1-0"') &&
+        !cronoHtml.includes('data-testid="reports-panel-col-pill-hierarchy"'),
+      'ReportsView Planificación must hide ID by default, expose displayId as toggleable column, and remove redundant Jerarquía column'
+    );
+
+    const cronoWithIdFilter = {
+      id: 'f-with-id',
+      name: 'Con ID',
+      searchQuery: '',
+      selectedType: 'all',
+      selectedPlatform: 'all',
+      selectedAlert: 'all',
+      selectedRelease: 'all',
+      visibleColKeys: ['displayId', 'name'],
+    };
+    const cronoWithIdHtml = renderToString(
+      React.createElement(mod.ReportsView, {
+        ...sharedReportProps,
+        initialTab: 'cronograma',
+        initialSavedFilters: [cronoWithIdFilter],
+        initialActiveSavedFilterId: 'f-with-id',
+      })
+    );
+    assert.ok(
+      cronoWithIdHtml.includes('data-testid="report-col-header-cronograma-displayId"') &&
+        cronoWithIdHtml.includes('data-testid="report-crono-id-t1-0"') &&
+        cronoWithIdHtml.includes('>P1T1</td>'),
+      'When ID column is enabled, ReportsView must render ID header and unique IDs (P1, P1T1)'
     );
 
     const relHtml = renderToString(
@@ -12252,9 +12276,9 @@ test('Test 103: Cronograma Completo consolidates multiple dependencies into 1 ro
       })
     );
 
-    // Count occurrences of P11T3 ID badge in the table
-    const idBadgeMatches = html.match(/data-testid="report-crono-id-p11-t3-0"/g);
-    assert.equal(idBadgeMatches?.length, 1, 'P11T3 ID cell should render exactly once');
+    // Count occurrences of P11T3 row in the table
+    const rowMatches = html.match(/data-report-row="p11-t3-0"/g);
+    assert.equal(rowMatches?.length, 1, 'P11T3 row should render exactly once');
     assert.ok(html.includes('Release SDK ARQ (FS)'), 'Renders badge for predecessor 1');
     assert.ok(html.includes('Actualizar Lib (SS)'), 'Renders badge for predecessor 2');
     assert.ok(!html.includes('└─ Dependencia'), 'No sub-rows labeled └─ Dependencia exist');
@@ -12415,20 +12439,20 @@ test('Test 105: Format selector (presets), saving custom presets, switching view
     assert.ok(relAllPreset, 'Must have preset-releases-all for releases tab');
 
     // 3. Preset computation helpers (visibility + column position)
-    const customOrder = ['progress', 'name', 'hierarchy'];
-    const custom = mod.createColumnPreset('Vista Sprint Review', 'cronograma', ['hierarchy', 'name', 'progress'], customOrder);
+    const customOrder = ['progress', 'name', 'displayId'];
+    const custom = mod.createColumnPreset('Vista Sprint Review', 'cronograma', ['displayId', 'name', 'progress'], customOrder);
     assert.equal(custom.name, 'Vista Sprint Review');
     assert.equal(custom.tab, 'cronograma');
     assert.equal(custom.isCustom, true);
-    assert.deepEqual(custom.visibleColKeys, ['hierarchy', 'name', 'progress']);
+    assert.deepEqual(custom.visibleColKeys, ['displayId', 'name', 'progress']);
     assert.deepEqual(custom.colOrder, customOrder);
 
     const hiddenCustom = mod.computeHiddenColsFromPreset('cronograma', custom);
-    assert.ok(!hiddenCustom.hierarchy && !hiddenCustom.name && !hiddenCustom.progress, 'Custom preset keeps selected columns');
+    assert.ok(!hiddenCustom.displayId && !hiddenCustom.name && !hiddenCustom.progress, 'Custom preset keeps selected columns');
     assert.ok(hiddenCustom.startDate && hiddenCustom.endDate && hiddenCustom.duration, 'Custom preset hides non-selected columns');
 
     const computedOrder = mod.computeColOrderFromPreset('cronograma', custom);
-    assert.deepEqual(computedOrder.slice(0, 3), ['progress', 'name', 'hierarchy'], 'computeColOrderFromPreset must honor saved column positions first');
+    assert.deepEqual(computedOrder.slice(0, 3), ['progress', 'name', 'displayId'], 'computeColOrderFromPreset must honor saved column positions first');
 
     // 4. UI rendering in ReportsView (Default Cronograma)
     const releases = [{ id: 'rel-1', code: 'T_27.3.1', name: 'Release 27.3', milestones: [] }];
@@ -12478,8 +12502,8 @@ test('Test 105: Format selector (presets), saving custom presets, switching view
       id: 'custom-preset-123',
       name: 'Vista Seguimiento Semanal',
       tab: 'cronograma',
-      visibleColKeys: ['hierarchy', 'name', 'progress', 'team'],
-      colOrder: ['team', 'progress', 'name', 'hierarchy'],
+      visibleColKeys: ['displayId', 'name', 'progress', 'team'],
+      colOrder: ['team', 'progress', 'name', 'displayId'],
       isCustom: true,
     };
     const customHtml = mod.renderToString(
@@ -12493,13 +12517,13 @@ test('Test 105: Format selector (presets), saving custom presets, switching view
       })
     );
 
-    // Verify column headers render in customPreset1's colOrder: team before progress before name before hierarchy
+    // Verify column headers render in customPreset1's colOrder: team before progress before name before displayId
     const thTeam = customHtml.indexOf('data-testid="report-col-header-cronograma-team"');
     const thProgress = customHtml.indexOf('data-testid="report-col-header-cronograma-progress"');
     const thName = customHtml.indexOf('data-testid="report-col-header-cronograma-name"');
-    const thHierarchy = customHtml.indexOf('data-testid="report-col-header-cronograma-hierarchy"');
+    const thDisplayId = customHtml.indexOf('data-testid="report-col-header-cronograma-displayId"');
     assert.ok(
-      thTeam > -1 && thTeam < thProgress && thProgress < thName && thName < thHierarchy,
+      thTeam > -1 && thTeam < thProgress && thProgress < thName && thName < thDisplayId,
       'Custom preset colOrder must dictate rendered table column header order'
     );
 

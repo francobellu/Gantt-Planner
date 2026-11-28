@@ -103,7 +103,7 @@ interface ReportColumnDef {
 }
 
 const CRONO_COLUMNS: ReportColumnDef[] = [
-  { key: 'hierarchy', label: 'Jerarquía', defaultWidth: 125 },
+  { key: 'displayId', label: 'ID', defaultWidth: 80, align: 'center' },
   { key: 'name', label: 'Nombre del Elemento', defaultWidth: 250 },
   { key: 'releaseCode', label: 'Release', defaultWidth: 135 },
   { key: 'projectName', label: 'Proyecto', defaultWidth: 185 },
@@ -162,7 +162,7 @@ const REPORT_COL_WIDTH_LIMITS: Record<
   string,
   { min: number; max: number; extraPx: number; maxHeaderPx?: number }
 > = {
-  hierarchy: { min: 76, max: 114, extraPx: 28 },
+  displayId: { min: 64, max: 110, extraPx: 22 },
   name: { min: 140, max: 320, extraPx: 44, maxHeaderPx: 140 },
   releaseCode: { min: 74, max: 130, extraPx: 24 },
   code: { min: 70, max: 130, extraPx: 24 },
@@ -196,8 +196,8 @@ function extractReportCellText(
   key: string
 ): string {
   const r = row as unknown as Record<string, unknown>;
-  if (key === 'hierarchy') {
-    return String(r.level ?? '');
+  if (key === 'displayId') {
+    return String(r.displayId ?? '');
   }
   if (key === 'name') {
     const displayId = typeof r.displayId === 'string' && r.displayId ? `${r.displayId} ` : '';
@@ -836,8 +836,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         const saved = typeof localStorage !== 'undefined' ? localStorage.getItem(REPORT_HIDDEN_COLS_KEY) : null;
         if (saved) {
           const parsed = JSON.parse(saved);
+          const savedCrono = parsed.cronograma || {};
           return {
-            cronograma: parsed.cronograma || {},
+            cronograma:
+              'displayId' in savedCrono ? savedCrono : { displayId: true, ...savedCrono },
             projects: parsed.projects || {},
             releases: parsed.releases || {},
           };
@@ -869,7 +871,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         }
       }
     } catch {}
-    return { cronograma: {}, projects: {}, releases: {} };
+    return { cronograma: { displayId: true }, projects: {}, releases: {} };
   });
 
   const [colWidthsByTab, setColWidthsByTab] = useState<Record<ReportTab, Record<string, number>>>(() => {
@@ -1677,7 +1679,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         if (visibleCount <= 1) return prev; // Keep at least 1 column visible
         tabHidden[key] = true;
       } else {
-        delete tabHidden[key];
+        if (key === 'displayId') tabHidden[key] = false;
+        else delete tabHidden[key];
       }
       const next = { ...prev, [tab]: tabHidden };
       try {
@@ -1716,7 +1719,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const resetReportCols = (tab: ReportTab) => {
     const allKeys = (COLUMNS_BY_TAB[tab] || []).map((c) => c.key);
     setHiddenColsByTab((prev) => {
-      const next = { ...prev, [tab]: {} };
+      const next = { ...prev, [tab]: tab === 'cronograma' ? { displayId: false } : {} };
       try {
         localStorage.setItem(REPORT_HIDDEN_COLS_KEY, JSON.stringify(next));
       } catch {}
@@ -2726,18 +2729,14 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             <table className="min-w-full w-max table-fixed border-collapse text-left text-xs">
               <thead className="sticky top-0 z-10 bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 border-b-2 border-[#0C0C09] dark:border-zinc-700 font-mono text-[11px] font-bold uppercase tracking-wider">
                 <tr>
-                  <th
-                    data-testid="report-col-id-header"
-                    className="px-2.5 py-2 border-r border-[#E2E2DC] dark:border-zinc-700 w-20 text-center bg-[#ECECE8] dark:bg-zinc-900 text-[#0C0C09] dark:text-zinc-200 select-none"
-                  >
-                    ID
-                  </th>
                   {getOrderedColumns('cronograma').map((col) =>
                     renderResizableTh(
                       'cronograma',
                       col,
                       col.key === 'dependency'
                         ? 'bg-amber-50/50 dark:bg-amber-950/20 text-amber-950 dark:text-amber-200'
+                        : col.key === 'displayId'
+                        ? 'bg-[#ECECE8] dark:bg-zinc-900'
                         : ''
                     )
                   )}
@@ -2747,7 +2746,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 {displayedCronoRows.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={1 + CRONO_COLUMNS.filter((c) => isColVisible('cronograma', c.key)).length}
+                      colSpan={Math.max(1, CRONO_COLUMNS.filter((c) => isColVisible('cronograma', c.key)).length)}
                       className="px-4 py-8 text-center text-[#6B6B66] dark:text-zinc-400 font-sans"
                     >
                       No se encontraron elementos en el cronograma que coincidan con los filtros.
@@ -2869,6 +2868,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                             itemId: linkedItem?.id,
                           });
                         }}
+                        style={
+                          isProject && !isContext
+                            ? { boxShadow: `inset 4px 0 0 ${projAccent.hex}` }
+                            : undefined
+                        }
                         className={`${rowBgClass} ${rowAnimClass} ${
                           isContext ? 'border-l-2 border-l-indigo-500' : ''
                         } ${
@@ -2879,61 +2883,22 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                             : 'hover:bg-indigo-50/70 dark:hover:bg-indigo-950/40'
                         } cursor-pointer transition-colors`}
                       >
-                        {/* Unique ID column */}
-                        <td
-                          data-testid={`report-crono-id-${row.rowId}`}
-                          style={
-                            isProject && !isContext
-                              ? { borderLeft: `4px solid ${projAccent.hex}` }
-                              : undefined
-                          }
-                          className={`px-2 py-1.5 border-r select-none whitespace-nowrap text-center text-[10px] font-mono font-bold ${
-                            isRelease
-                              ? 'border-white/15 dark:border-zinc-300 bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09]'
-                              : 'border-[#E2E2DC] dark:border-zinc-800 text-[#0C0C09] dark:text-zinc-200 bg-[#ECECE8]/40 dark:bg-zinc-900/50'
-                          }`}
-                        >
-                          {row.displayId}
-                        </td>
-
                         {getOrderedColumns('cronograma')
                           .filter((c) => isColVisible('cronograma', c.key))
                           .map((col) => {
                             switch (col.key) {
-                              case 'hierarchy':
+                              case 'displayId':
                                 return (
                                   <td
                                     key={col.key}
-                                    className={`px-3 py-1.5 border-r whitespace-nowrap overflow-hidden ${
+                                    data-testid={`report-crono-id-${row.rowId}`}
+                                    className={`px-2 py-1.5 border-r select-none whitespace-nowrap text-center text-[10px] font-mono font-bold ${
                                       isRelease
-                                        ? 'border-white/15 dark:border-zinc-300'
-                                        : 'border-[#E2E2DC] dark:border-zinc-800'
+                                        ? 'border-white/15 dark:border-zinc-300 bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09]'
+                                        : 'border-[#E2E2DC] dark:border-zinc-800 text-[#0C0C09] dark:text-zinc-200 bg-[#ECECE8]/40 dark:bg-zinc-900/50'
                                     }`}
                                   >
-                                    {isRelease ? (
-                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] bg-white/15 text-white dark:bg-black/10 dark:text-[#0C0C09] text-[10px] font-bold">
-                                        <Rocket className="w-2.5 h-2.5" /> RELEASE
-                                      </span>
-                                    ) : isProject ? (
-                                      <span
-                                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] text-white text-[10px] font-bold ml-1.5 ${projAccent.badgeBg}`}
-                                      >
-                                        <FolderKanban className="w-2.5 h-2.5" /> PROYECTO
-                                      </span>
-                                    ) : isMilestone ? (
-                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-400/40 text-[10px] font-semibold ml-4">
-                                        ◆ HITO
-                                      </span>
-                                    ) : isDepSubRow ? (
-                                      <span className="text-slate-400 dark:text-zinc-500 text-[10px] pl-6">
-                                        └─ Dependencia
-                                      </span>
-                                    ) : (
-                                      <span className="inline-flex items-center gap-1 text-slate-600 dark:text-zinc-400 text-[10px] ml-4">
-                                        <span className="text-slate-300 dark:text-zinc-600 font-mono">└</span>
-                                        <span>TAREA</span>
-                                      </span>
-                                    )}
+                                    {row.displayId}
                                   </td>
                                 );
                               case 'name':
