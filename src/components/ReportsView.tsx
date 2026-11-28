@@ -531,6 +531,8 @@ const EditableReportTextCell: React.FC<EditableReportTextCellProps> = ({
   multiline = false,
 }) => {
   const [draft, setDraft] = useState(value);
+  const [isEditing, setIsEditing] = useState(false);
+
   useEffect(() => {
     setDraft(value);
   }, [value]);
@@ -542,47 +544,60 @@ const EditableReportTextCell: React.FC<EditableReportTextCellProps> = ({
     } else {
       setDraft(value);
     }
+    setIsEditing(false);
   };
 
-  if (multiline) {
-    const rowCount = Math.min(6, Math.max(2, (draft || '').split('\n').length));
+  if (isEditing) {
+    const rowCount = multiline
+      ? Math.min(8, Math.max(2, (draft || '').split('\n').length))
+      : Math.min(4, Math.max(1, Math.ceil((draft || '').length / 28)));
     return (
       <textarea
         data-testid={testId}
+        autoFocus
         value={draft}
         rows={rowCount}
         placeholder={placeholder}
+        onClick={(e) => e.stopPropagation()}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => {
           if (e.key === 'Escape') {
             setDraft(value);
-            (e.currentTarget as HTMLTextAreaElement).blur();
+            setIsEditing(false);
+          } else if (!multiline && e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            commit();
           }
         }}
-        className={`w-full bg-transparent px-1.5 py-0.5 rounded-[2px] border border-transparent hover:border-slate-300 dark:hover:border-zinc-700 focus:border-indigo-500 focus:bg-white dark:focus:bg-zinc-900 outline-none resize-y leading-relaxed ${className}`}
+        className={`w-full bg-white dark:bg-zinc-900 px-1.5 py-0.5 rounded-[2px] border border-indigo-500 outline-none resize-y leading-snug whitespace-pre-wrap break-words ${className}`}
       />
     );
   }
 
   return (
-    <input
-      type="text"
+    <div
       data-testid={testId}
-      value={draft}
-      placeholder={placeholder}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={commit}
+      role="textbox"
+      tabIndex={0}
+      onClick={(e) => {
+        e.stopPropagation();
+        setIsEditing(true);
+      }}
       onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          (e.currentTarget as HTMLInputElement).blur();
-        } else if (e.key === 'Escape') {
-          setDraft(value);
-          (e.currentTarget as HTMLInputElement).blur();
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          setIsEditing(true);
         }
       }}
-      className={`w-full bg-transparent px-1.5 py-0.5 rounded-[2px] border border-transparent hover:border-slate-300 dark:hover:border-zinc-700 focus:border-indigo-500 focus:bg-white dark:focus:bg-zinc-900 outline-none truncate ${className}`}
-    />
+      className={`w-full px-1.5 py-0.5 rounded-[2px] border border-transparent hover:border-slate-300 dark:hover:border-zinc-700 whitespace-pre-wrap break-words leading-snug cursor-text ${className}`}
+    >
+      {value ? (
+        value
+      ) : (
+        <span className="opacity-45 font-normal">{placeholder}</span>
+      )}
+    </div>
   );
 };
 
@@ -1803,7 +1818,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
     const onMove = (moveEvent: MouseEvent) => {
       if (Math.abs(moveEvent.clientX - startX) > 2) didMove = true;
-      latestWidth = Math.max(64, Math.min(960, Math.round(startWidth + (moveEvent.clientX - startX))));
+      latestWidth = Math.max(48, Math.min(960, Math.round(startWidth + (moveEvent.clientX - startX))));
       setColWidthsByTab((prev) => ({
         ...prev,
         [tab]: { ...(prev[tab] || {}), [key]: latestWidth },
@@ -2846,14 +2861,14 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                                 return (
                                   <td
                                     key={col.key}
-                                    className={`px-2 py-1 border-r font-sans text-xs font-medium ${
+                                    className={`px-2 py-1 border-r font-sans text-xs font-medium align-top ${
                                       isRelease
                                         ? 'border-white/15 dark:border-zinc-300 text-white dark:text-[#0C0C09]'
                                         : 'border-[#E2E2DC] dark:border-zinc-800 text-[#0C0C09] dark:text-zinc-100'
                                     }`}
                                   >
                                     <div
-                                      className={`flex items-center gap-1.5 min-w-0 ${
+                                      className={`flex items-start gap-1.5 min-w-0 ${
                                         isProject ? 'pl-3' : !isRelease ? 'pl-7' : ''
                                       }`}
                                     >
@@ -2930,7 +2945,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                                             }
                                           />
                                         ) : (
-                                          <span className="truncate block px-1.5">{row.name}</span>
+                                          <span className="whitespace-normal break-words leading-snug block px-1.5">{row.name}</span>
                                         )}
                                       </div>
                                       {hasCronoFilters && nodeKey && hiddenChildrenCount > 0 && (
@@ -3026,9 +3041,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                                 );
                               case 'projectName':
                                 return (
-                                  <td key={col.key} className="px-3 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap font-sans text-xs text-[#0C0C09] dark:text-zinc-200 overflow-hidden">
-                                    <div className="flex items-center gap-1.5 min-w-0">
-                                      <span className="truncate">{row.projectName}</span>
+                                  <td key={col.key} className="px-3 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-normal break-words leading-snug font-sans text-xs text-[#0C0C09] dark:text-zinc-200 align-top">
+                                    <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                                      <span className="break-words">{row.projectName}</span>
                                       {(isProject || (row.alertLevel !== undefined && row.alertLevel > 0)) && row.alertLevel !== undefined && (
                                         <span
                                           data-testid={`cronograma-project-alert-badge-${row.wbsCode}`}
@@ -3118,7 +3133,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                                 );
                               case 'team':
                                 return (
-                                  <td key={col.key} className="px-2 py-1 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap">
+                                  <td key={col.key} className="px-2 py-1 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-normal break-words align-top">
                                     {linkedItem && onUpdateItem && !isDepSubRow ? (
                                       <EditableReportTextCell
                                         testId={`report-crono-team-${linkedItem.id}`}
@@ -3134,7 +3149,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                                     ) : (
                                       <span
                                         data-testid={`report-crono-team-text-${row.rowId}`}
-                                        className="px-1.5 text-[11px] text-slate-600 dark:text-zinc-300 truncate block"
+                                        className="px-1.5 text-[11px] text-slate-600 dark:text-zinc-300 whitespace-normal break-words leading-snug block"
                                         title={row.team}
                                       >
                                         {row.team}
@@ -3378,7 +3393,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                                             className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[3px] bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 border border-amber-300/60 dark:border-amber-700/60 font-medium max-w-full"
                                           >
                                             <Link2 className="w-3 h-3 text-amber-700 dark:text-amber-400 shrink-0" />
-                                            <span className="font-semibold truncate">{depStr}</span>
+                                            <span className="font-semibold whitespace-normal break-words leading-snug">{depStr}</span>
                                           </span>
                                         ))}
                                       </div>
@@ -3424,7 +3439,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                                 );
                               case 'compliance':
                                 return (
-                                  <td key={col.key} className="px-3 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap overflow-hidden">
+                                  <td key={col.key} className="px-3 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-normal break-words align-top">
                                     {row.compliance === 'Conforme' ? (
                                       <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-semibold text-[10px]">
                                         <CheckCircle2 className="w-3 h-3 shrink-0" /> Conforme
@@ -3432,7 +3447,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                                     ) : (
                                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-[10px] font-bold border border-amber-300 dark:border-amber-800">
                                         <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
-                                        <span className="truncate">{row.compliance}</span>
+                                        <span className="whitespace-normal break-words">{row.compliance}</span>
                                       </span>
                                     )}
                                   </td>
@@ -3562,7 +3577,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                                                 {`↳ ${latest.sourceCode}${latest.sourceName ? ` · ${latest.sourceName}` : ''}`}
                                               </div>
                                             )}
-                                            <div className="text-[11.5px] text-[#0C0C09] dark:text-zinc-200 line-clamp-2 leading-snug">
+                                            <div className="text-[11.5px] text-[#0C0C09] dark:text-zinc-200 whitespace-pre-wrap break-words leading-snug">
                                               {latest.text}
                                             </div>
                                             <div className="flex items-center gap-1.5 flex-wrap font-mono text-[9.5px] text-[#6B6B66] dark:text-zinc-400">
@@ -3632,7 +3647,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                                           title="Ver y añadir comentarios de seguimiento"
                                         >
                                           <div className="min-w-0 flex-1 space-y-0.5">
-                                            <div className="text-[11.5px] text-[#0C0C09] dark:text-zinc-200 line-clamp-2 leading-snug">
+                                            <div className="text-[11.5px] text-[#0C0C09] dark:text-zinc-200 whitespace-pre-wrap break-words leading-snug">
                                               {latest.text}
                                             </div>
                                             <div className="flex items-center gap-1.5 flex-wrap font-mono text-[9.5px] text-[#6B6B66] dark:text-zinc-400">

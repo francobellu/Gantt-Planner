@@ -10,10 +10,20 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.18.3',
+    date: '28 Nov 2026',
+    title: 'Ajuste multilínea automático al reducir el ancho de columnas en Planificación',
+    isLatest: true,
+    features: [
+      'EditableReportTextCell renderiza texto con whitespace-pre-wrap y break-words en modo lectura y cambia a textarea al editar para no truncar al estrechar columnas',
+      'Eliminados truncate, whitespace-nowrap y line-clamp-2 en Nombre, Proyecto, Equipo, Dependencia, Cumplimiento y Seguimiento',
+      'Ancho mínimo de redimensionamiento reducido a 48px',
+    ],
+  },
+  {
     version: '1.18.2',
     date: '28 Nov 2026',
     title: 'Reducir a la mitad el tiempo de animación expand/collapse en Cronograma y Planificación',
-    isLatest: true,
     features: [
       'Duraciones de keyframes CSS y transiciones de filas/chevrons reducidas al 50% (140ms/130ms/120ms/100ms) en Cronograma y Planificación',
       'Timers de sincronización de expansión y colapso ajustados a 145ms/150ms/120ms',
