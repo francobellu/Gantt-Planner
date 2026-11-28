@@ -943,6 +943,51 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     onToggleProjectCollapse?.(projectId);
   };
 
+  const getRowAnimDeltaY = (
+    row: { kind: string; group: any },
+    rowIndex: number,
+    activeParentSet: Set<string>,
+    rowsList: Array<{ kind: string; group: any }>
+  ): number => {
+    if (activeParentSet.size === 0) return -ROW_HEIGHT;
+    let targetKind: 'release' | 'project' | null = null;
+    let targetId: string | null = null;
+    if (row.kind === 'project') {
+      const relId = row.group.project.releaseId || '__unassigned__';
+      if (activeParentSet.has(`rel:${relId}`)) {
+        targetKind = 'release';
+        targetId = relId;
+      }
+    } else if (row.kind === 'add-project') {
+      const relId = row.group.release.id;
+      if (activeParentSet.has(`rel:${relId}`)) {
+        targetKind = 'release';
+        targetId = relId;
+      }
+    } else if (row.kind === 'empty-project' || row.kind === 'add-task' || row.kind === 'item') {
+      const relId = row.group.project.releaseId || '__unassigned__';
+      const projId = row.group.project.id;
+      if (activeParentSet.has(`rel:${relId}`)) {
+        targetKind = 'release';
+        targetId = relId;
+      } else if (activeParentSet.has(`proj:${projId}`)) {
+        targetKind = 'project';
+        targetId = projId;
+      }
+    }
+    if (!targetKind || !targetId) return -ROW_HEIGHT;
+    for (let i = rowIndex - 1; i >= 0; i--) {
+      const prev = rowsList[i];
+      if (targetKind === 'release' && prev.kind === 'release' && prev.group.release.id === targetId) {
+        return (i - rowIndex) * ROW_HEIGHT;
+      }
+      if (targetKind === 'project' && prev.kind === 'project' && prev.group.project.id === targetId) {
+        return (i - rowIndex) * ROW_HEIGHT;
+      }
+    }
+    return -ROW_HEIGHT;
+  };
+
   const isRowCollapsing = (row: { kind: string; group: any }): boolean => {
     if (recentlyCollapsedParentIds.size === 0) return false;
     if (row.kind === 'project') {
@@ -6321,19 +6366,32 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                       >
                         {displayRows.map((row, rowIndex) => {
                       const rowShiftY = rowDragShiftYByRowId.get(row.rowId) || 0;
-                      const rowShiftStyle = rowShiftY
-                        ? { transform: `translateY(${rowShiftY}px)` }
-                        : undefined;
+                      const collapsingThisRow = isRowCollapsing(row);
+                      const expandingThisRow = !collapsingThisRow && isRowJustExpanded(row);
+                      const animDeltaY = collapsingThisRow
+                        ? getRowAnimDeltaY(row, rowIndex, recentlyCollapsedParentIds, displayRows)
+                        : expandingThisRow
+                        ? getRowAnimDeltaY(row, rowIndex, recentlyExpandedParentIds, displayRows)
+                        : 0;
+                      const rowShiftStyle: React.CSSProperties | undefined =
+                        rowShiftY || collapsingThisRow || expandingThisRow
+                          ? ({
+                              ...(rowShiftY ? { transform: `translateY(${rowShiftY}px)` } : {}),
+                              ...(collapsingThisRow || expandingThisRow
+                                ? { '--anim-delta-y': `${animDeltaY}px` }
+                                : {}),
+                            } as React.CSSProperties)
+                          : undefined;
                       const rowShiftClass = isAnyRowOrProjectDragging
                         ? 'transition-transform duration-200 ease-out'
                         : isCollapseAnimating
                         ? 'transition-[top] duration-[140ms] ease-[cubic-bezier(0.22,1,0.36,1)]'
                         : '';
 
-                      const rowExpandClass = isRowCollapsing(row)
-                        ? 'animate-gantt-row-collapse'
-                        : isRowJustExpanded(row)
-                        ? 'animate-gantt-row-expand'
+                      const rowExpandClass = collapsingThisRow
+                        ? 'animate-gantt-row-collapse z-[1]'
+                        : expandingThisRow
+                        ? 'animate-gantt-row-expand z-[1]'
                         : '';
 
                       if (row.kind === 'release') {
@@ -6344,7 +6402,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                             key={row.rowId}
                             data-release-group={rGroup.release.id}
                             style={{ top: rowIndex * ROW_HEIGHT, height: ROW_HEIGHT, minWidth: tableMinWidth }}
-                            className={`absolute left-0 right-0 flex items-center justify-start px-3 text-xs font-bold ${rowShiftClass} ${
+                            className={`absolute left-0 right-0 z-20 flex items-center justify-start px-3 text-xs font-bold ${rowShiftClass} ${
                               showRowSeparators
                                 ? 'border-y border-[#0C0C09] dark:border-zinc-700'
                                 : 'border-y-0'
@@ -8643,17 +8701,32 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               {/* Foreground Project Rollup Summary Bars, Task Bars, Slack Ghost Bars & Milestones */}
               {displayRows.map((row, rowIndex) => {
                 const timelineRowShiftY = rowDragShiftYByRowId.get(row.rowId) || 0;
-                const timelineRowShiftStyle = timelineRowShiftY
-                  ? { transform: `translateY(${timelineRowShiftY}px)` }
-                  : undefined;
+                const collapsingTimelineRow = isRowCollapsing(row);
+                const expandingTimelineRow = !collapsingTimelineRow && isRowJustExpanded(row);
+                const timelineAnimDeltaY = collapsingTimelineRow
+                  ? getRowAnimDeltaY(row, rowIndex, recentlyCollapsedParentIds, displayRows)
+                  : expandingTimelineRow
+                  ? getRowAnimDeltaY(row, rowIndex, recentlyExpandedParentIds, displayRows)
+                  : 0;
+                const timelineRowShiftStyle: React.CSSProperties | undefined =
+                  timelineRowShiftY || collapsingTimelineRow || expandingTimelineRow
+                    ? ({
+                        ...(timelineRowShiftY
+                          ? { transform: `translateY(${timelineRowShiftY}px)` }
+                          : {}),
+                        ...(collapsingTimelineRow || expandingTimelineRow
+                          ? { '--anim-delta-y': `${timelineAnimDeltaY}px` }
+                          : {}),
+                      } as React.CSSProperties)
+                    : undefined;
                 const timelineRowShiftClass = isAnyRowOrProjectDragging
                   ? 'transition-transform duration-200 ease-out'
                   : isCollapseAnimating
                   ? 'transition-[top] duration-[140ms] ease-[cubic-bezier(0.22,1,0.36,1)]'
                   : '';
-                const timelineRowExpandClass = isRowCollapsing(row)
+                const timelineRowExpandClass = collapsingTimelineRow
                   ? 'animate-gantt-timeline-collapse'
-                  : isRowJustExpanded(row)
+                  : expandingTimelineRow
                   ? 'animate-gantt-row-expand'
                   : '';
 

@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.19.3',
+    date: '28 Nov 2026',
+    title: 'Desplazamiento exacto hacia la posición Y del padre al expandir/colapsar',
+    isLatest: true,
+    features: [
+      'Calculado --anim-delta-y exacto ((parentRowIndex - rowIndex) * ROW_HEIGHT) para cada fila y barra del timeline en Cronograma de modo que todos los hijos se desplacen limpiamente hasta detrás de su padre sin huecos ni solapamientos',
+      'Elevado z-index de cabeceras Release y ajustado desplazamiento proporcional en Planificación',
+    ],
+  },
+  {
     version: '1.19.2',
     date: '28 Nov 2026',
     title: 'Animación de expand/collapse con desplazamiento real hacia el elemento padre',
-    isLatest: true,
     features: [
       'Las filas hijas ahora se deslizan hacia arriba con scaleY y transform-origin superior metiéndose bajo la cabecera padre (z-index escalonado Release > Proyecto > Tarea) al colapsar, y emergen en cascada desde el padre al expandir en Cronograma y Planificación',
     ],

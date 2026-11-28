@@ -49,95 +49,84 @@
 @keyframes ganttRowExpand {
   from {
     opacity: 0;
-    max-height: 0px;
-    transform: translateY(-20px) scaleY(0.85);
+    transform: translateY(var(--anim-delta-y, -36px));
   }
   to {
     opacity: 1;
-    max-height: 50px;
-    transform: translateY(0) scaleY(1);
+    transform: translateY(0);
   }
 }
 
 .animate-gantt-row-expand {
-  transform-origin: top center;
   animation: ganttRowExpand 140ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  overflow: hidden;
+  will-change: transform, opacity;
 }
 
 @keyframes ganttRowCollapse {
   from {
     opacity: 1;
-    max-height: 50px;
-    transform: translateY(0) scaleY(1);
+    transform: translateY(0);
   }
   to {
     opacity: 0;
-    max-height: 0px;
-    padding-top: 0;
-    padding-bottom: 0;
-    border-top-width: 0;
-    border-bottom-width: 0;
-    transform: translateY(-20px) scaleY(0.85);
+    transform: translateY(var(--anim-delta-y, -36px));
   }
 }
 
 .animate-gantt-row-collapse {
-  transform-origin: top center;
   animation: ganttRowCollapse 140ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
-  overflow: hidden;
   pointer-events: none;
+  will-change: transform, opacity;
 }
 
 @keyframes ganttTimelineCollapse {
   from {
     opacity: 1;
-    transform: translateY(0) scaleY(1);
+    transform: translateY(0);
   }
   to {
     opacity: 0;
-    transform: translateY(-24px) scaleY(0.82);
+    transform: translateY(var(--anim-delta-y, -36px));
   }
 }
 
 .animate-gantt-timeline-collapse {
-  transform-origin: top center;
   animation: ganttTimelineCollapse 140ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
   pointer-events: none;
+  will-change: transform, opacity;
 }
 
 @keyframes reportRowExpand {
   from {
     opacity: 0;
-    transform: translateY(calc(-16px - var(--row-depth-idx, 0) * 10px)) scaleY(0.86);
+    transform: translateY(calc(-36px * (var(--row-depth-idx, 0) + 1)));
   }
   to {
     opacity: 1;
-    transform: translateY(0) scaleY(1);
+    transform: translateY(0);
   }
 }
 
 .animate-report-row-expand {
-  transform-origin: top center;
   animation: reportRowExpand 130ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  animation-delay: calc(var(--row-depth-idx, 0) * 8ms);
+  will-change: transform, opacity;
 }
 
 @keyframes reportRowCollapse {
   from {
     opacity: 1;
-    transform: translateY(0) scaleY(1);
+    transform: translateY(0);
   }
   to {
     opacity: 0;
-    transform: translateY(calc(-16px - var(--row-depth-idx, 0) * 10px)) scaleY(0.86);
+    transform: translateY(calc(-36px * (var(--row-depth-idx, 0) + 1)));
   }
 }
 
 .animate-report-row-collapse {
-  transform-origin: top center;
   animation: reportRowCollapse 120ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
   pointer-events: none;
+  will-change: transform, opacity;
 }
 
 tr[data-report-level="RELEASE"] > td {
