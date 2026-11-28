@@ -208,7 +208,7 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
   const [taskProgress, setTaskProgress] = useState(0);
   const [taskDeps, setTaskDeps] = useState<string[]>([]);
   const [taskNotes, setTaskNotes] = useState('');
-  const [autoCascade, setAutoCascade] = useState(true);
+  const [autoCascade, setAutoCascade] = useState(false);
   const [projName, setProjName] = useState(() => selectedProject?.name || '');
   const [datesSectionExpanded, setDatesSectionExpanded] = useState(false);
   const [depsSectionExpanded, setDepsSectionExpanded] = useState(false);

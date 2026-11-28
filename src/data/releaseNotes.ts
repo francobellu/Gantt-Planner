@@ -10,10 +10,18 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.22.4',
+    date: '28 Nov 2026',
+    title: 'Desmarcar por defecto la reprogramación automática de sucesoras',
+    isLatest: true,
+    features: [
+      'La casilla de reprogramación automática de sucesoras aparece desmarcada por defecto tanto en el panel lateral de Detalles como en el modal de edición de tareas',
+    ],
+  },
+  {
     version: '1.22.3',
     date: '28 Nov 2026',
     title: 'Aplicar cambios al instante en el panel de Detalles sin botón Guardar',
-    isLatest: true,
     features: [
       'Todos los campos de tareas e hitos en el panel lateral de Detalles (nombre, notas, tipo, proyecto, equipo, color, plataforma, release, alerta, fechas, duración, progreso y predecesoras) se guardan automáticamente al editarse',
       'Se elimina el botón manual Guardar Cambios del panel de Detalles',
