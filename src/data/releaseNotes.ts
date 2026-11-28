@@ -10,10 +10,18 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.15.1',
+    date: '28 Nov 2026',
+    title: 'Barra inferior y scroll horizontal fijos (sticky) en Planificación',
+    isLatest: true,
+    features: [
+      'Fija el contenedor raíz de App a h-screen overflow-hidden en la vista Planificación para que la tabla haga scroll interno, manteniendo siempre fijos la cabecera, la barra de scroll horizontal y la barra inferior de estado (sticky bottom-0)',
+    ],
+  },
+  {
     version: '1.15.0',
     date: '28 Nov 2026',
     title: 'Tabla de Planificación a pantalla completa con barra única compacta',
-    isLatest: true,
     features: [
       'Elimina márgenes exteriores y borde de tarjeta en la vista Planificación para ocupar el 100% del ancho y alto disponibles',
       'Fusiona cabecera, pestaña y barra de filtros en una única barra compacta (~120px más de filas visibles)',

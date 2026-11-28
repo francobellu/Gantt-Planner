@@ -2753,14 +2753,16 @@ export function App({
 
   return (
     <div
-      className="min-h-screen flex flex-col bg-[#F4F4F1] dark:bg-[#0C0C09] text-[#0C0C09] dark:text-[#F4F4F1] selection:bg-[#0C0C09]/15 relative font-sans"
+      className={`${
+        currentView === 'reports' ? 'h-screen overflow-hidden' : 'min-h-screen'
+      } flex flex-col bg-[#F4F4F1] dark:bg-[#0C0C09] text-[#0C0C09] dark:text-[#F4F4F1] selection:bg-[#0C0C09]/15 relative font-sans`}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
       {/* Top Navigation Bar — Single Clean 48px Bar */}
-      <header className="sticky top-0 z-50 h-12 px-4 bg-[#F4F4F1] dark:bg-[#0C0C09] border-b border-[#0C0C09] dark:border-zinc-800 flex items-center justify-between gap-3 select-none">
+      <header className="sticky top-0 z-50 shrink-0 h-12 px-4 bg-[#F4F4F1] dark:bg-[#0C0C09] border-b border-[#0C0C09] dark:border-zinc-800 flex items-center justify-between gap-3 select-none">
         
         {/* LEFT: Primary Workflow Controls */}
         <div className="flex items-center gap-2.5 min-w-0 flex-wrap">

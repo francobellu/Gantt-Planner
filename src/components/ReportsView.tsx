@@ -2997,8 +2997,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         )}
       </div>
 
-      {/* Compact Status Bar */}
-      <div className="flex items-center justify-between px-3 py-1 bg-[#F4F4F1] dark:bg-zinc-900 border-t border-[#E2E2DC] dark:border-zinc-800 text-[10px] font-mono text-[#6B6B66] dark:text-zinc-400 shrink-0">
+      {/* Compact Sticky Status Bar */}
+      <div
+        data-testid="reports-status-bar"
+        className="sticky bottom-0 z-20 flex items-center justify-between px-3 py-1 bg-[#F4F4F1] dark:bg-zinc-900 border-t border-[#E2E2DC] dark:border-zinc-800 text-[10px] font-mono text-[#6B6B66] dark:text-zinc-400 shrink-0"
+      >
         <div className="flex items-center gap-4">
           <span className="flex items-center gap-1 font-semibold text-[#0C0C09] dark:text-zinc-300">
             <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
