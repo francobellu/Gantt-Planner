@@ -3169,7 +3169,13 @@ export function App({
 
       {/* Main Content Area + Right Commit History Sidebar */}
       <div className="flex flex-1 min-h-0 w-full">
-        <main className="flex-1 flex flex-col w-full px-2 sm:px-4 py-2 sm:py-3 gap-2 min-h-0 min-w-0">
+        <main
+          className={`flex-1 flex flex-col w-full min-h-0 min-w-0 ${
+            currentView === 'reports'
+              ? 'p-0 gap-0'
+              : 'px-2 sm:px-4 py-2 sm:py-3 gap-2'
+          }`}
+        >
         {currentView === 'help' ? (
           <HelpPage onBackToGantt={() => setCurrentView('gantt')} />
         ) : currentView === 'history' ? (

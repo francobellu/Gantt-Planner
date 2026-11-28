@@ -10,10 +10,20 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.15.0',
+    date: '28 Nov 2026',
+    title: 'Tabla de Planificación a pantalla completa con barra única compacta',
+    isLatest: true,
+    features: [
+      'Elimina márgenes exteriores y borde de tarjeta en la vista Planificación para ocupar el 100% del ancho y alto disponibles',
+      'Fusiona cabecera, pestaña y barra de filtros en una única barra compacta (~120px más de filas visibles)',
+      'Expande la tabla horizontalmente (min-w-full w-max) y compacta la barra de estado inferior',
+    ],
+  },
+  {
     version: '1.14.0',
     date: '27 Nov 2026',
     title: 'Limpieza de barras: elimina botones redundantes Guardar filtro, Filtros guardados y Formato: Completo',
-    isLatest: true,
     features: [
       'Elimina el botón redundante Guardar filtro de Cronograma',
       'Elimina los desplegables redundantes Filtros guardados y Formato: Completo de Planificación',

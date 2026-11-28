@@ -1965,31 +1965,94 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   return (
     <div
       data-testid="reports-view"
-      className="flex flex-col flex-1 bg-white dark:bg-[#0C0C09] border border-[#0C0C09] dark:border-zinc-800 rounded-[4px] shadow-sm overflow-hidden min-h-0"
+      className="flex flex-col flex-1 w-full h-full bg-white dark:bg-[#0C0C09] overflow-hidden min-h-0"
     >
-      {/* Top Header & Navigation Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-[#F4F4F1] dark:bg-zinc-900 border-b border-[#0C0C09] dark:border-zinc-800 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-[3px] bg-emerald-700 text-white shrink-0">
-              <FileSpreadsheet className="w-4 h-4" />
+      {/* Single Compact Full-Width Toolbar (maximizes vertical & horizontal space for the table) */}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 bg-[#F4F4F1] dark:bg-zinc-900 border-b border-[#0C0C09] dark:border-zinc-800 text-xs shrink-0">
+        <div className="flex flex-wrap items-center gap-2 min-w-0 flex-1">
+          {activeTab === 'cronograma' ? (
+            <button
+              type="button"
+              data-testid="reports-tab-cronograma"
+              onClick={() => setActiveTab('cronograma')}
+              className="flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-white dark:bg-zinc-800 border border-[#E2E2DC] dark:border-zinc-700 text-[11px] font-bold text-[#0C0C09] dark:text-zinc-100 shrink-0 h-7 cursor-pointer"
+              title="Vista tabular Planificación"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400 shrink-0" />
+              <span>Planificación</span>
+              <span className="px-1.5 py-0 rounded-full text-[10px] font-mono bg-[#F4F4F1] dark:bg-zinc-900 border border-[#E2E2DC] dark:border-zinc-700 text-[#6B6B66] dark:text-zinc-300">
+                {filteredCronoRows.length}
+              </span>
+            </button>
+          ) : (
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-white dark:bg-zinc-800 border border-[#E2E2DC] dark:border-zinc-700 text-[11px] font-bold text-[#0C0C09] dark:text-zinc-100 shrink-0 h-7">
+              <Layers className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400 shrink-0" />
+              <span>Catálogo Releases</span>
+              <span className="px-1.5 py-0 rounded-full text-[10px] font-mono bg-[#F4F4F1] dark:bg-zinc-900 border border-[#E2E2DC] dark:border-zinc-700 text-[#6B6B66] dark:text-zinc-300">
+                {filteredReleaseRows.length}
+              </span>
             </div>
-            <div>
-              <h1 className="text-sm font-bold font-display text-[#0C0C09] dark:text-zinc-100 leading-tight">
-                Planificación
-              </h1>
-              <p className="text-[11px] text-[#6B6B66] dark:text-zinc-400">
-                Visualización tabular de la planificación con formato Excel y edición directa.
-              </p>
-            </div>
-          </div>
+          )}
+
+          <SearchFilterBar
+            testIdPrefix="reports"
+            searchQuery={searchQuery}
+            onChangeSearchQuery={setSearchQuery}
+            excludeQuery={excludeQuery}
+            onChangeExcludeQuery={setExcludeQuery}
+            searchFields={searchFields}
+            onChangeSearchFields={setSearchFields}
+            selectedType={selectedType}
+            onChangeSelectedType={setSelectedType}
+            showTypeFilter={activeTab === 'cronograma'}
+            selectedPlatform={selectedPlatform}
+            onChangeSelectedPlatform={setSelectedPlatform}
+            selectedAlert={selectedAlert}
+            onChangeSelectedAlert={setSelectedAlert}
+            releases={releases}
+            selectedRelease={selectedRelease}
+            onChangeSelectedRelease={setSelectedRelease}
+            showSubtasksOnFilter={showSubtasksOnFilter}
+            onChangeShowSubtasksOnFilter={setShowSubtasksOnFilter}
+            showSubtasksToggle={activeTab === 'cronograma'}
+            searchInputClassName="w-56 sm:w-64"
+            initialShowSearchFieldsMenu={initialShowSearchFieldsMenu}
+            initialShowAdvancedPanel={initialShowAdvancedPanel}
+            columns={getOrderedColumns(activeTab).map((c) => ({
+              key: c.key,
+              label: c.label,
+              visible: isColVisible(activeTab, c.key),
+            }))}
+            onToggleColumn={(key) => toggleReportCol(activeTab, key)}
+            onResetColumns={() => resetReportCols(activeTab)}
+            enableBuiltInSavedFilters={activeTab === 'cronograma'}
+            externalSavedFilters={activeTab === 'cronograma' ? savedFilters : undefined}
+            externalActiveSavedFilterId={activeTab === 'cronograma' ? activeSavedFilterId : null}
+            onSelectExternalSavedFilter={(f) => applySavedFilter(f as ReportSavedFilter)}
+            onSaveExternalSavedFilter={handleSaveExternalSavedFilter}
+            onDeleteExternalSavedFilter={handleDeleteSavedFilter}
+            onClearFilters={() => {
+              setSearchQuery('');
+              setExcludeQuery('');
+              setSearchFields({ ...DEFAULT_GANTT_SEARCH_FIELDS });
+              setSelectedType('all');
+              setSelectedPlatform('all');
+              setSelectedAlert('all');
+              setSelectedRelease('all');
+              setShowSubtasksOnFilter(false);
+              setActiveSavedFilterId(null);
+              try {
+                localStorage.removeItem(REPORT_ACTIVE_FILTER_KEY);
+              } catch {}
+            }}
+          />
         </div>
 
-        {/* Right Action: Download Excel */}
-        <div className="flex items-center gap-2">
+        {/* Right side: Toast + Project Wizard + Download Excel */}
+        <div className="flex items-center gap-1.5 shrink-0">
           {toastMessage && (
             <span
-              className={`px-2.5 py-1 rounded-[3px] text-xs font-medium animate-fade-in ${
+              className={`px-2 py-0.5 rounded-[3px] text-[11px] font-medium animate-fade-in ${
                 toastMessage.includes('Error')
                   ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300'
                   : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
@@ -1999,106 +2062,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             </span>
           )}
 
-          <button
-            type="button"
-            data-testid="reports-download-excel-btn"
-            onClick={handleDownloadExcel}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition shadow-xs cursor-pointer"
-            title="Exportar libro completo (.xlsx) con las 3 pestañas"
-            aria-label="Descargar Excel (.xlsx)"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>Descargar Excel (.xlsx)</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Sheet Tab Bar */}
-      <div className="flex items-center justify-between px-4 bg-[#EAEAE6] dark:bg-zinc-900/90 border-b border-[#0C0C09] dark:border-zinc-800 shrink-0">
-        <div className="flex items-center gap-1 overflow-x-auto py-1">
-          {/* Tab: Planificación */}
-          <button
-            type="button"
-            data-testid="reports-tab-cronograma"
-            onClick={() => setActiveTab('cronograma')}
-            className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-t-[4px] border-t-2 transition cursor-pointer shrink-0 ${
-              activeTab === 'cronograma'
-                ? 'bg-white dark:bg-[#0C0C09] text-[#0C0C09] dark:text-zinc-100 border-emerald-600 shadow-xs'
-                : 'bg-transparent text-[#6B6B66] dark:text-zinc-400 border-transparent hover:text-[#0C0C09] dark:hover:text-zinc-200'
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-            <span>Planificación</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-[#F4F4F1] dark:bg-zinc-800 border border-[#E2E2DC] dark:border-zinc-700">
-              {cronoRows.length}
-            </span>
-          </button>
-        </div>
-
-        <div className="hidden md:flex items-center gap-2 text-[11px] font-mono text-[#6B6B66] dark:text-zinc-400">
-          <span>Excel View</span>
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-          <span>Sincronizado</span>
-        </div>
-      </div>
-
-      {/* Unified Filter and Search Bar (shared with Cronograma) */}
-      <div className="flex flex-wrap items-center justify-between gap-2.5 px-4 py-2 bg-[#F4F4F1] dark:bg-zinc-900 border-b border-[#E2E2DC] dark:border-zinc-800 text-xs shrink-0">
-        <SearchFilterBar
-          testIdPrefix="reports"
-          searchQuery={searchQuery}
-          onChangeSearchQuery={setSearchQuery}
-          excludeQuery={excludeQuery}
-          onChangeExcludeQuery={setExcludeQuery}
-          searchFields={searchFields}
-          onChangeSearchFields={setSearchFields}
-          selectedType={selectedType}
-          onChangeSelectedType={setSelectedType}
-          showTypeFilter={activeTab === 'cronograma'}
-          selectedPlatform={selectedPlatform}
-          onChangeSelectedPlatform={setSelectedPlatform}
-          selectedAlert={selectedAlert}
-          onChangeSelectedAlert={setSelectedAlert}
-          releases={releases}
-          selectedRelease={selectedRelease}
-          onChangeSelectedRelease={setSelectedRelease}
-          showSubtasksOnFilter={showSubtasksOnFilter}
-          onChangeShowSubtasksOnFilter={setShowSubtasksOnFilter}
-          showSubtasksToggle={activeTab === 'cronograma'}
-          searchInputClassName="w-56 sm:w-64"
-          initialShowSearchFieldsMenu={initialShowSearchFieldsMenu}
-          initialShowAdvancedPanel={initialShowAdvancedPanel}
-          columns={getOrderedColumns(activeTab).map((c) => ({
-            key: c.key,
-            label: c.label,
-            visible: isColVisible(activeTab, c.key),
-          }))}
-          onToggleColumn={(key) => toggleReportCol(activeTab, key)}
-          onResetColumns={() => resetReportCols(activeTab)}
-          enableBuiltInSavedFilters={activeTab === 'cronograma'}
-          externalSavedFilters={activeTab === 'cronograma' ? savedFilters : undefined}
-          externalActiveSavedFilterId={activeTab === 'cronograma' ? activeSavedFilterId : null}
-          onSelectExternalSavedFilter={(f) => applySavedFilter(f as ReportSavedFilter)}
-          onSaveExternalSavedFilter={handleSaveExternalSavedFilter}
-          onDeleteExternalSavedFilter={handleDeleteSavedFilter}
-          onClearFilters={() => {
-            setSearchQuery('');
-            setExcludeQuery('');
-            setSearchFields({ ...DEFAULT_GANTT_SEARCH_FIELDS });
-            setSelectedType('all');
-            setSelectedPlatform('all');
-            setSelectedAlert('all');
-            setSelectedRelease('all');
-            setShowSubtasksOnFilter(false);
-            setActiveSavedFilterId(null);
-            try {
-              localStorage.removeItem(REPORT_ACTIVE_FILTER_KEY);
-            } catch {}
-          }}
-        />
-
-        {/* Right side: Project Wizard + Unified Format & Columns Configurator */}
-        <div className="flex items-center gap-2 shrink-0">
           {activeTab === 'cronograma' && (onCreateProjectFromWizard || onCreateProject) && (
             <button
               type="button"
@@ -2111,14 +2074,25 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 setWizardInitialReleaseId(relMatch);
                 setWizardOpen(true);
               }}
-              className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-[3px] border border-[#0C0C09] dark:border-zinc-600 bg-[#0C0C09] dark:bg-zinc-100 text-white dark:text-[#0C0C09] hover:opacity-90 text-[10px] font-semibold transition cursor-pointer h-6.5"
+              className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-600 bg-[#0C0C09] dark:bg-zinc-100 text-white dark:text-[#0C0C09] hover:opacity-90 text-[11px] font-semibold transition cursor-pointer h-7"
               title="Crear nuevo proyecto con subtareas mediante asistente guiado"
             >
-              <FolderPlus className="w-3 h-3 shrink-0" />
+              <FolderPlus className="w-3.5 h-3.5 shrink-0" />
               <span>Nuevo Proyecto</span>
             </button>
           )}
 
+          <button
+            type="button"
+            data-testid="reports-download-excel-btn"
+            onClick={handleDownloadExcel}
+            className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-[4px] bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-semibold transition shadow-xs cursor-pointer h-7"
+            title="Exportar libro completo (.xlsx) con las 3 pestañas"
+            aria-label="Descargar Excel (.xlsx)"
+          >
+            <Download className="w-3.5 h-3.5 shrink-0" />
+            <span className="hidden sm:inline">Excel</span>
+          </button>
         </div>
       </div>
 
@@ -2192,7 +2166,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       <div className="flex-1 overflow-auto bg-white dark:bg-[#0C0C09] min-h-0 select-text">
         {activeTab === 'cronograma' && (
           <div className="min-w-full inline-block align-middle">
-            <table className="w-max table-fixed border-collapse text-left text-xs">
+            <table className="min-w-full w-max table-fixed border-collapse text-left text-xs">
               <thead className="sticky top-0 z-10 bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 border-b-2 border-[#0C0C09] dark:border-zinc-700 font-mono text-[11px] font-bold uppercase tracking-wider">
                 <tr>
                   <th
@@ -3023,8 +2997,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         )}
       </div>
 
-      {/* Excel Sheet Footer Status Bar */}
-      <div className="flex items-center justify-between px-4 py-1.5 bg-[#F4F4F1] dark:bg-zinc-900 border-t border-[#0C0C09] dark:border-zinc-800 text-[11px] font-mono text-[#6B6B66] dark:text-zinc-400 shrink-0">
+      {/* Compact Status Bar */}
+      <div className="flex items-center justify-between px-3 py-1 bg-[#F4F4F1] dark:bg-zinc-900 border-t border-[#E2E2DC] dark:border-zinc-800 text-[10px] font-mono text-[#6B6B66] dark:text-zinc-400 shrink-0">
         <div className="flex items-center gap-4">
           <span className="flex items-center gap-1 font-semibold text-[#0C0C09] dark:text-zinc-300">
             <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
