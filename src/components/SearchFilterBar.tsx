@@ -121,6 +121,8 @@ export interface SearchFilterBarProps {
   onSelectExternalSavedFilter?: (filter: StoredSavedFilter) => void;
   onSaveExternalSavedFilter?: (name: string, existingId?: string) => void;
   onDeleteExternalSavedFilter?: (id: string) => void;
+  /** Hide inline active filter chips when rendered elsewhere (e.g., sticky status bar) */
+  hideActiveChips?: boolean;
 }
 
 export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
@@ -160,6 +162,7 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
   onSelectExternalSavedFilter,
   onSaveExternalSavedFilter,
   onDeleteExternalSavedFilter,
+  hideActiveChips = false,
 }) => {
   const [panelOpen, setPanelOpen] = useState<boolean>(
     initialShowAdvancedPanel || initialShowSearchFieldsMenu
@@ -1088,7 +1091,7 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
       )}
 
       {/* Active Filter Chips (removable in 1 click) */}
-      {activeChips.length > 0 && (
+      {!hideActiveChips && activeChips.length > 0 && (
         <div
           data-testid={`${testIdPrefix}-active-filter-chips`}
           className="flex items-center gap-1 flex-wrap"

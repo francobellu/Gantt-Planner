@@ -47,6 +47,8 @@ import {
   SearchFilterBar,
   GanttSearchFieldsConfig,
   DEFAULT_GANTT_SEARCH_FIELDS,
+  SEARCH_FIELD_LABELS,
+  isDefaultSearchFields,
 } from './SearchFilterBar';
 import {
   ProjectWizardModal,
@@ -2031,6 +2033,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             onSelectExternalSavedFilter={(f) => applySavedFilter(f as ReportSavedFilter)}
             onSaveExternalSavedFilter={handleSaveExternalSavedFilter}
             onDeleteExternalSavedFilter={handleDeleteSavedFilter}
+            hideActiveChips={true}
             onClearFilters={() => {
               setSearchQuery('');
               setExcludeQuery('');
@@ -2997,25 +3000,17 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         )}
       </div>
 
-      {/* Compact Sticky Status Bar */}
+      {/* Compact Sticky Status Bar with Active Filter Parameters (excluding columns) */}
       <div
         data-testid="reports-status-bar"
-        className="sticky bottom-0 z-20 flex items-center justify-between px-3 py-1 bg-[#F4F4F1] dark:bg-zinc-900 border-t border-[#E2E2DC] dark:border-zinc-800 text-[10px] font-mono text-[#6B6B66] dark:text-zinc-400 shrink-0"
+        className="sticky bottom-0 z-20 flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 bg-[#F4F4F1] dark:bg-zinc-900 border-t border-[#0C0C09] dark:border-zinc-800 text-[10px] font-mono text-[#6B6B66] dark:text-zinc-400 shrink-0"
       >
-        <div className="flex items-center gap-4">
-          <span className="flex items-center gap-1 font-semibold text-[#0C0C09] dark:text-zinc-300">
+        <div className="flex flex-wrap items-center gap-3 min-w-0">
+          <span className="flex items-center gap-1 font-semibold text-[#0C0C09] dark:text-zinc-300 shrink-0">
             <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
             Listo
           </span>
-          <span>
-            Pestaña activa:{' '}
-            <strong className="text-[#0C0C09] dark:text-zinc-200">
-              {activeTab === 'cronograma'
-                ? 'Planificación'
-                : 'Catálogo Releases'}
-            </strong>
-          </span>
-          <span>
+          <span className="shrink-0">
             Registros:{' '}
             <strong className="text-[#0C0C09] dark:text-zinc-200">
               {activeTab === 'cronograma'
@@ -3023,9 +3018,120 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 : `${filteredReleaseRows.length} de ${releaseRows.length}`}
             </strong>
           </span>
+
+          {/* Active Filter Parameters (all except columns) */}
+          {(() => {
+            const statusFilters: { key: string; label: string; onClear: () => void }[] = [];
+            if (searchQuery.trim()) {
+              statusFilters.push({
+                key: 'query',
+                label: `Contiene: "${searchQuery.trim()}"`,
+                onClear: () => setSearchQuery(''),
+              });
+            }
+            if (excludeQuery.trim()) {
+              statusFilters.push({
+                key: 'exclude',
+                label: `No contiene: "${excludeQuery.trim()}"`,
+                onClear: () => setExcludeQuery(''),
+              });
+            }
+            if (!isDefaultSearchFields(searchFields)) {
+              const activeFields = (Object.keys(searchFields) as (keyof GanttSearchFieldsConfig)[])
+                .filter((k) => searchFields[k])
+                .map((k) => SEARCH_FIELD_LABELS[k].split(' / ')[0]);
+              statusFilters.push({
+                key: 'fields',
+                label: `En: ${activeFields.join(', ')}`,
+                onClear: () => setSearchFields({ ...DEFAULT_GANTT_SEARCH_FIELDS }),
+              });
+            }
+            if (activeTab === 'cronograma' && selectedType !== 'all') {
+              statusFilters.push({
+                key: 'type',
+                label: `Tipo: ${selectedType}`,
+                onClear: () => setSelectedType('all'),
+              });
+            }
+            if (selectedPlatform !== 'all') {
+              statusFilters.push({
+                key: 'platform',
+                label: `Plat.: ${selectedPlatform}`,
+                onClear: () => setSelectedPlatform('all'),
+              });
+            }
+            if (selectedAlert !== 'all') {
+              statusFilters.push({
+                key: 'alert',
+                label: `Alerta: Nivel ${selectedAlert}`,
+                onClear: () => setSelectedAlert('all'),
+              });
+            }
+            if (selectedRelease !== 'all') {
+              statusFilters.push({
+                key: 'release',
+                label: `Release: ${selectedRelease}`,
+                onClear: () => setSelectedRelease('all'),
+              });
+            }
+            if (activeTab === 'cronograma' && showSubtasksOnFilter) {
+              statusFilters.push({
+                key: 'subtasks',
+                label: '+ Subtareas',
+                onClear: () => setShowSubtasksOnFilter(false),
+              });
+            }
+
+            if (statusFilters.length === 0) return null;
+
+            return (
+              <div
+                data-testid="reports-status-active-filters"
+                className="flex flex-wrap items-center gap-1 min-w-0"
+              >
+                <span className="text-[#6B6B66] dark:text-zinc-500">Filtros:</span>
+                {statusFilters.map((f) => (
+                  <span
+                    key={f.key}
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 text-[10px] leading-none"
+                  >
+                    <span>{f.label}</span>
+                    <button
+                      type="button"
+                      onClick={f.onClear}
+                      className="hover:text-rose-600 cursor-pointer"
+                      title={`Quitar ${f.label}`}
+                    >
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  </span>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setExcludeQuery('');
+                    setSearchFields({ ...DEFAULT_GANTT_SEARCH_FIELDS });
+                    setSelectedType('all');
+                    setSelectedPlatform('all');
+                    setSelectedAlert('all');
+                    setSelectedRelease('all');
+                    setShowSubtasksOnFilter(false);
+                    setActiveSavedFilterId(null);
+                    try {
+                      localStorage.removeItem(REPORT_ACTIVE_FILTER_KEY);
+                    } catch {}
+                  }}
+                  className="ml-0.5 text-[10px] font-sans font-semibold text-rose-600 dark:text-rose-400 hover:underline cursor-pointer"
+                >
+                  Limpiar
+                </button>
+              </div>
+            );
+          })()}
         </div>
 
-        <div className="hidden sm:flex items-center gap-3">
+        <div className="hidden sm:flex items-center gap-3 shrink-0">
           <span>Formato: XLSX Compatible</span>
           <span>100% Sincronizado</span>
         </div>

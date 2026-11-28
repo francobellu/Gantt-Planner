@@ -3170,11 +3170,15 @@ export function App({
       )}
 
       {/* Main Content Area + Right Commit History Sidebar */}
-      <div className="flex flex-1 min-h-0 w-full">
+      <div
+        className={`flex flex-1 min-h-0 w-full ${
+          currentView === 'reports' ? 'overflow-hidden' : ''
+        }`}
+      >
         <main
           className={`flex-1 flex flex-col w-full min-h-0 min-w-0 ${
             currentView === 'reports'
-              ? 'p-0 gap-0'
+              ? 'p-0 gap-0 overflow-hidden'
               : 'px-2 sm:px-4 py-2 sm:py-3 gap-2'
           }`}
         >

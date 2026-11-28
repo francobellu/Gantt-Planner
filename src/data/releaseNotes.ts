@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.15.2',
+    date: '28 Nov 2026',
+    title: 'Barra inferior sticky con parámetros de filtro activos (sin columnas) en Planificación',
+    isLatest: true,
+    features: [
+      'Añade overflow-hidden a los contenedores flex en vista Planificación para garantizar barra inferior y scroll horizontal siempre fijos',
+      'Muestra en la barra inferior sticky todos los parámetros de filtro activos (Contiene, No contiene, En, Tipo, Plat., Alerta, Release, + Subtareas) con cierre individual y botón Limpiar, excluyendo columnas',
+    ],
+  },
+  {
     version: '1.15.1',
     date: '28 Nov 2026',
     title: 'Barra inferior y scroll horizontal fijos (sticky) en Planificación',
-    isLatest: true,
     features: [
       'Fija el contenedor raíz de App a h-screen overflow-hidden en la vista Planificación para que la tabla haga scroll interno, manteniendo siempre fijos la cabecera, la barra de scroll horizontal y la barra inferior de estado (sticky bottom-0)',
     ],
