@@ -139,3 +139,21 @@ tr[data-report-level="RELEASE"] > td {
   border-right-color: rgba(12, 12, 9, 0.14) !important;
 }
 
+/* Column reorder FLIP slide animation in Planificación */
+.report-col-flip-moving {
+  position: relative;
+  z-index: 15;
+  box-shadow: inset 2px 0 0 rgba(99, 102, 241, 0.45), inset -2px 0 0 rgba(99, 102, 241, 0.45);
+}
+
+thead .report-col-flip-moving {
+  z-index: 25;
+  box-shadow: 0 4px 14px -2px rgba(79, 70, 229, 0.28), inset 0 0 0 1px rgba(99, 102, 241, 0.55);
+}
+
+.report-col-flip-shifted {
+  position: relative;
+  z-index: 2;
+}
+
+

@@ -1,4 +1,7 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useLayoutEffect } from 'react';
+
+const useIsomorphicLayoutEffect =
+  typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 import {
   FileSpreadsheet,
   Download,
@@ -957,6 +960,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   });
   const [draggingCol, setDraggingCol] = useState<{ tab: ReportTab; key: string } | null>(null);
   const [dragOverColKey, setDragOverColKey] = useState<string | null>(null);
+  const activeTableRef = useRef<HTMLTableElement | null>(null);
+  const pendingColFlipRef = useRef<{
+    tab: ReportTab;
+    movedKey: string;
+    prevLeftByKey: Record<string, number>;
+  } | null>(null);
+  const colFlipCleanupRef = useRef<(() => void) | null>(null);
   const [searchQuery, setSearchQuery] = useState(
     initialSearchQuery !== undefined ? initialSearchQuery : (initialMatchedSavedFilter?.searchQuery ?? '')
   );
@@ -1746,6 +1756,23 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
   const reorderReportCols = (tab: ReportTab, fromKey: string, toKey: string) => {
     if (fromKey === toKey) return;
+    const tableEl = activeTableRef.current;
+    if (tableEl && typeof window !== 'undefined') {
+      colFlipCleanupRef.current?.();
+      const headerCells = Array.from(
+        tableEl.querySelectorAll<HTMLTableCellElement>('thead th[data-col-key]')
+      );
+      const prevLeftByKey: Record<string, number> = {};
+      for (const th of headerCells) {
+        const key = th.dataset.colKey;
+        if (key) {
+          prevLeftByKey[key] = th.getBoundingClientRect().left;
+        }
+      }
+      if (Object.keys(prevLeftByKey).length > 0) {
+        pendingColFlipRef.current = { tab, movedKey: fromKey, prevLeftByKey };
+      }
+    }
     setColOrderByTab((prev) => {
       const current = getOrderedColumns(tab).map((c) => c.key);
       const fromIdx = current.indexOf(fromKey);
@@ -1780,6 +1807,85 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       return next;
     });
   };
+
+  useIsomorphicLayoutEffect(() => {
+    const snapshot = pendingColFlipRef.current;
+    if (!snapshot || snapshot.tab !== activeTab) return;
+    pendingColFlipRef.current = null;
+    const tableEl = activeTableRef.current;
+    if (!tableEl || typeof window === 'undefined') return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+
+    const headerRow = tableEl.tHead?.rows?.[0];
+    if (!headerRow) return;
+    const headerCells = Array.from(headerRow.cells);
+    const expectedCellCount = headerCells.length;
+    const bodyRows = Array.from(tableEl.tBodies[0]?.rows || []);
+
+    const animatedCells: Array<{ el: HTMLTableCellElement; isMoved: boolean }> = [];
+
+    headerCells.forEach((th, colIdx) => {
+      const key = th.dataset.colKey;
+      if (!key) return;
+      const prevLeft = snapshot.prevLeftByKey[key];
+      if (prevLeft === undefined) return;
+      const newLeft = th.getBoundingClientRect().left;
+      const deltaX = Math.round(prevLeft - newLeft);
+      if (Math.abs(deltaX) < 1) return;
+
+      const isMoved = key === snapshot.movedKey;
+      const colCells: HTMLTableCellElement[] = [th];
+      for (const row of bodyRows) {
+        if (row.cells.length === expectedCellCount) {
+          const td = row.cells[colIdx];
+          if (td) colCells.push(td);
+        }
+      }
+
+      for (const cell of colCells) {
+        cell.style.transition = 'none';
+        cell.style.transform = `translateX(${deltaX}px)`;
+        cell.style.willChange = 'transform';
+        cell.classList.add(isMoved ? 'report-col-flip-moving' : 'report-col-flip-shifted');
+        animatedCells.push({ el: cell, isMoved });
+      }
+    });
+
+    if (animatedCells.length === 0) return;
+
+    // Force reflow so browser registers inverted translateX before transitioning to 0
+    void tableEl.offsetWidth;
+
+    for (const { el } of animatedCells) {
+      el.style.transition = 'transform 220ms cubic-bezier(0.22, 1, 0.36, 1)';
+      el.style.transform = 'translateX(0px)';
+    }
+
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
+      window.clearTimeout(timerId);
+      for (const { el } of animatedCells) {
+        el.style.transition = '';
+        el.style.transform = '';
+        el.style.willChange = '';
+        el.classList.remove('report-col-flip-moving', 'report-col-flip-shifted');
+      }
+      if (colFlipCleanupRef.current === cleanup) {
+        colFlipCleanupRef.current = null;
+      }
+    };
+
+    const timerId = window.setTimeout(cleanup, 250);
+    colFlipCleanupRef.current = cleanup;
+  }, [colOrderByTab, activeTab]);
+
+  useEffect(() => {
+    return () => {
+      colFlipCleanupRef.current?.();
+    };
+  }, []);
 
   const itemById = useMemo(() => new Map(items.map((it) => [it.id, it])), [items]);
   const projectById = useMemo(() => new Map(projects.map((p) => [p.id, p])), [projects]);
@@ -1941,6 +2047,16 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         : 'text-left';
     const isDragOver = draggingCol?.tab === tab && dragOverColKey === col.key;
     const isDragging = draggingCol?.tab === tab && draggingCol?.key === col.key;
+    let dragOverEdgeClass = '';
+    if (isDragOver && draggingCol) {
+      const orderedKeys = getOrderedColumns(tab).map((c) => c.key);
+      const fromIdx = orderedKeys.indexOf(draggingCol.key);
+      const toIdx = orderedKeys.indexOf(col.key);
+      dragOverEdgeClass =
+        fromIdx !== -1 && toIdx !== -1 && fromIdx < toIdx
+          ? 'border-r-2 border-r-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/40'
+          : 'border-l-2 border-l-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/40';
+    }
     return (
       <th
         key={col.key}
@@ -1997,8 +2113,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         style={{ width, minWidth: width }}
         title="Doble clic: expandir/restaurar texto · Clic derecho: elegir columnas · Arrastra: reordenar"
         className={`relative px-2.5 py-2 border-r border-[#E2E2DC] dark:border-zinc-700 whitespace-nowrap select-none cursor-grab active:cursor-grabbing transition-colors ${alignClass} ${extraClass} ${
-          isDragging ? 'opacity-50' : ''
-        } ${isDragOver ? 'border-l-2 border-l-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/40' : ''}`}
+          isDragging ? 'opacity-45 bg-indigo-50/40 dark:bg-indigo-950/25' : ''
+        } ${dragOverEdgeClass}`}
       >
         <span className="truncate block pr-2">{col.label}</span>
         <div
@@ -2726,7 +2842,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       <div className="flex-1 overflow-auto bg-white dark:bg-[#0C0C09] min-h-0 select-text">
         {activeTab === 'cronograma' && (
           <div className="min-w-full inline-block align-middle">
-            <table className="min-w-full w-max table-fixed border-collapse text-left text-xs">
+            <table ref={activeTableRef} className="min-w-full w-max table-fixed border-collapse text-left text-xs">
               <thead className="sticky top-0 z-10 bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 border-b-2 border-[#0C0C09] dark:border-zinc-700 font-mono text-[11px] font-bold uppercase tracking-wider">
                 <tr>
                   {getOrderedColumns('cronograma').map((col) =>
@@ -3872,7 +3988,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
         {activeTab === 'releases' && (
           <div className="min-w-full inline-block align-middle">
-            <table className="w-max table-fixed border-collapse text-left text-xs">
+            <table ref={activeTableRef} className="w-max table-fixed border-collapse text-left text-xs">
               <thead className="sticky top-0 z-10 bg-[#F4F4F1] dark:bg-zinc-800 text-[#0C0C09] dark:text-zinc-200 border-b-2 border-[#0C0C09] dark:border-zinc-700 font-mono text-[11px] font-bold uppercase tracking-wider">
                 <tr>
                   <th

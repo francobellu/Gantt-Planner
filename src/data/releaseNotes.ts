@@ -10,10 +10,20 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.19.4',
+    date: '28 Nov 2026',
+    title: 'Animación de desplazamiento al reordenar columnas',
+    isLatest: true,
+    features: [
+      'Añadida animación FLIP horizontal exacta al arrastrar y soltar columnas en Planificación (cabecera y todas las celdas sincronizadas)',
+      'La columna movida se desliza por encima con resaltado sutil mientras las columnas intermedias se apartan en dirección opuesta',
+      'Indicador direccional de inserción (borde izquierdo o derecho) según el sentido del arrastre',
+    ],
+  },
+  {
     version: '1.19.3',
     date: '28 Nov 2026',
     title: 'Desplazamiento exacto hacia la posición Y del padre al expandir/colapsar',
-    isLatest: true,
     features: [
       'Calculado --anim-delta-y exacto ((parentRowIndex - rowIndex) * ROW_HEIGHT) para cada fila y barra del timeline en Cronograma de modo que todos los hijos se desplacen limpiamente hasta detrás de su padre sin huecos ni solapamientos',
       'Elevado z-index de cabeceras Release y ajustado desplazamiento proporcional en Planificación',
