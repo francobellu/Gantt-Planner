@@ -10,10 +10,20 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.19.0',
+    date: '28 Nov 2026',
+    title: 'Cabeceras interactivas en Planificación y panel de Detalles simplificado',
+    isLatest: true,
+    features: [
+      'Doble clic en cualquier parte de la cabecera de columna en Planificación para expandir al texto completo y restaurar',
+      'Menú contextual con clic derecho en cabeceras de columna para mostrar/ocultar columnas sincronizando automáticamente el filtro guardado activo',
+      'Panel de Detalles simplificado con Descripción inmediatamente tras el Nombre y secciones expandibles para Fechas/Progreso y Predecesoras',
+    ],
+  },
+  {
     version: '1.18.4',
     date: '28 Nov 2026',
     title: 'Rollup automático con subtareas ocultas, desplegable de notas y código de ticket',
-    isLatest: true,
     features: [
       'Activado el rollup de Notas de subtareas, Seguimiento y Etiquetas siempre que las subtareas del proyecto estén ocultas (por filtro o por colapso manual)',
       'Desplegable colapsado por defecto con chevron animado para Notas de subtareas',

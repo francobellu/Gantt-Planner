@@ -999,6 +999,31 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<ReportRowContextMenuState | null>(initialContextMenu);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+  const [headerColMenu, setHeaderColMenu] = useState<{
+    x: number;
+    y: number;
+    tab: ReportTab;
+    colKey: string;
+  } | null>(null);
+  const headerColMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!headerColMenu) return;
+    const handleOutside = (e: MouseEvent) => {
+      if (headerColMenuRef.current && !headerColMenuRef.current.contains(e.target as Node)) {
+        setHeaderColMenu(null);
+      }
+    };
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setHeaderColMenu(null);
+    };
+    document.addEventListener('mousedown', handleOutside);
+    document.addEventListener('keydown', handleEsc);
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      document.removeEventListener('keydown', handleEsc);
+    };
+  }, [headerColMenu]);
 
   const openRowContextMenu = (
     e: React.MouseEvent,
@@ -1613,7 +1638,36 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     setTimeout(() => setToastMessage(null), 3000);
   };
 
+  const syncActiveSavedFilterColumns = (
+    tab: ReportTab,
+    visibleColKeys: string[],
+    colOrder?: string[]
+  ) => {
+    if (tab !== 'cronograma' || !activeSavedFilterId) return;
+    setSavedFilters((prevFilters) => {
+      const idx = prevFilters.findIndex((f) => f.id === activeSavedFilterId);
+      if (idx < 0) return prevFilters;
+      const updated = prevFilters.map((f, i) =>
+        i === idx
+          ? {
+              ...f,
+              visibleColKeys: [...visibleColKeys],
+              colOrder: colOrder ? [...colOrder] : f.colOrder,
+              formatPresetId: '__current__',
+              formatLabel: `${visibleColKeys.length} cols`,
+            }
+          : f
+      );
+      try {
+        localStorage.setItem(REPORT_SAVED_FILTERS_KEY, JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  };
+
   const toggleReportCol = (tab: ReportTab, key: string) => {
+    let nextVisibleForSync: string[] | null = null;
+    let nextOrderForSync: string[] | undefined;
     setHiddenColsByTab((prev) => {
       const tabHidden = { ...(prev[tab] || {}) };
       const allCols = COLUMNS_BY_TAB[tab] || [];
@@ -1630,9 +1684,12 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         localStorage.setItem(REPORT_HIDDEN_COLS_KEY, JSON.stringify(next));
       } catch {}
 
-      const currentVisibleInOrder = getOrderedColumns(tab)
+      const orderedCols = getOrderedColumns(tab);
+      const currentVisibleInOrder = orderedCols
         .filter((c) => !tabHidden[c.key])
         .map((c) => c.key);
+      nextVisibleForSync = currentVisibleInOrder;
+      nextOrderForSync = orderedCols.map((c) => c.key);
       const allPresets = [
         ...DEFAULT_COLUMN_PRESETS.filter((p) => p.tab === tab),
         ...customPresets.filter((p) => (p.tab || 'cronograma') === tab),
@@ -1651,9 +1708,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
       return next;
     });
+    if (nextVisibleForSync) {
+      syncActiveSavedFilterColumns(tab, nextVisibleForSync, nextOrderForSync);
+    }
   };
 
   const resetReportCols = (tab: ReportTab) => {
+    const allKeys = (COLUMNS_BY_TAB[tab] || []).map((c) => c.key);
     setHiddenColsByTab((prev) => {
       const next = { ...prev, [tab]: {} };
       try {
@@ -1662,7 +1723,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       return next;
     });
     setColOrderByTab((prev) => {
-      const next = { ...prev, [tab]: (COLUMNS_BY_TAB[tab] || []).map((c) => c.key) };
+      const next = { ...prev, [tab]: allKeys };
       try {
         localStorage.setItem(REPORT_COL_ORDER_KEY, JSON.stringify(next));
       } catch {}
@@ -1677,6 +1738,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       } catch {}
       return next;
     });
+    syncActiveSavedFilterColumns(tab, allKeys, allKeys);
   };
 
   const reorderReportCols = (tab: ReportTab, fromKey: string, toKey: string) => {
@@ -1917,8 +1979,20 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           setDraggingCol(null);
           setDragOverColKey(null);
         }}
+        onDoubleClick={() => toggleColWidthFullText(tab, col)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setContextMenu(null);
+          setHeaderColMenu({
+            x: e.clientX,
+            y: e.clientY,
+            tab,
+            colKey: col.key,
+          });
+        }}
         style={{ width, minWidth: width }}
-        title="Arrastra el encabezado para reordenar esta columna"
+        title="Doble clic: expandir/restaurar texto · Clic derecho: elegir columnas · Arrastra: reordenar"
         className={`relative px-2.5 py-2 border-r border-[#E2E2DC] dark:border-zinc-700 whitespace-nowrap select-none cursor-grab active:cursor-grabbing transition-colors ${alignClass} ${extraClass} ${
           isDragging ? 'opacity-50' : ''
         } ${isDragOver ? 'border-l-2 border-l-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/40' : ''}`}
@@ -4263,6 +4337,103 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           )}
         </div>
       )}
+
+      {/* Header Right-Click Column Visibility Menu */}
+      {headerColMenu && (() => {
+        const menuTab = headerColMenu.tab;
+        const orderedCols = getOrderedColumns(menuTab);
+        const visibleCount = orderedCols.filter((c) => isColVisible(menuTab, c.key)).length;
+        const activeSavedObj =
+          menuTab === 'cronograma' && activeSavedFilterId
+            ? savedFilters.find((f) => f.id === activeSavedFilterId)
+            : undefined;
+        const menuLeft =
+          typeof window !== 'undefined'
+            ? Math.min(headerColMenu.x, Math.max(8, window.innerWidth - 260))
+            : headerColMenu.x;
+        const menuTop =
+          typeof window !== 'undefined'
+            ? Math.min(headerColMenu.y, Math.max(8, window.innerHeight - 360))
+            : headerColMenu.y;
+        return (
+          <div
+            ref={headerColMenuRef}
+            data-testid="report-header-col-menu"
+            style={{ top: menuTop, left: menuLeft }}
+            className="fixed z-50 w-60 rounded-[6px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl py-1.5 text-xs font-sans"
+          >
+            <div className="px-3 py-1.5 border-b border-[#E2E2DC] dark:border-zinc-800 space-y-1">
+              <div className="flex items-center justify-between gap-2 text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400">
+                <span>Columnas visibles</span>
+                <span>{`${visibleCount}/${orderedCols.length}`}</span>
+              </div>
+              {activeSavedObj && (
+                <div
+                  data-testid="report-header-col-menu-filter-sync"
+                  className="px-2 py-0.5 rounded-[3px] bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 truncate"
+                >
+                  {`⚡ Actualiza filtro "${activeSavedObj.name}"`}
+                </div>
+              )}
+            </div>
+            <div className="max-h-60 overflow-y-auto py-1">
+              {orderedCols.map((col) => {
+                const vis = isColVisible(menuTab, col.key);
+                const disabled = vis && visibleCount <= 1;
+                return (
+                  <label
+                    key={col.key}
+                    data-testid={`report-header-col-menu-item-${col.key}`}
+                    className={`flex items-center gap-2 px-3 py-1 text-[11.5px] ${
+                      disabled
+                        ? 'opacity-50 cursor-not-allowed'
+                        : 'hover:bg-indigo-50 dark:hover:bg-indigo-950/50 cursor-pointer'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={vis}
+                      disabled={disabled}
+                      onChange={() => toggleReportCol(menuTab, col.key)}
+                      className="w-3.5 h-3.5 rounded accent-indigo-600 cursor-pointer disabled:cursor-not-allowed"
+                    />
+                    <span className="flex-1 truncate text-[#0C0C09] dark:text-zinc-100">
+                      {col.label}
+                    </span>
+                    {col.key === headerColMenu.colKey && (
+                      <span className="font-mono text-[9px] text-indigo-600 dark:text-indigo-400">
+                        actual
+                      </span>
+                    )}
+                  </label>
+                );
+              })}
+            </div>
+            <div className="px-3 pt-1.5 mt-0.5 border-t border-[#E2E2DC] dark:border-zinc-800 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                data-testid="report-header-col-menu-show-all"
+                onClick={() => resetReportCols(menuTab)}
+                className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+              >
+                Mostrar todas
+              </button>
+              <button
+                type="button"
+                data-testid="report-header-col-menu-hide-current"
+                disabled={visibleCount <= 1}
+                onClick={() => {
+                  toggleReportCol(menuTab, headerColMenu.colKey);
+                  setHeaderColMenu(null);
+                }}
+                className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 hover:underline disabled:opacity-40 cursor-pointer"
+              >
+                Ocultar esta
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Status Comments Drawer */}
       {(() => {

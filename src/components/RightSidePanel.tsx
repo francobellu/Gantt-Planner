@@ -216,6 +216,13 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
   const [autoCascade, setAutoCascade] = useState(true);
   const [savedNotice, setSavedNotice] = useState(false);
   const [projName, setProjName] = useState(() => selectedProject?.name || '');
+  const [datesSectionExpanded, setDatesSectionExpanded] = useState(false);
+  const [depsSectionExpanded, setDepsSectionExpanded] = useState(false);
+
+  useEffect(() => {
+    setDatesSectionExpanded(false);
+    setDepsSectionExpanded(false);
+  }, [selectedEntity?.id]);
 
   useEffect(() => {
     if (!selectedProject) return;
@@ -987,6 +994,73 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                   );
                 })()}
 
+                {/* Notes right after Name & URL */}
+                <div data-testid={`sidebar-task-notes-box-${selectedTask.id}`}>
+                  <label className="block text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400 mb-1">
+                    Descripción / Notas
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={taskNotes}
+                    onChange={(e) => setTaskNotes(e.target.value)}
+                    placeholder="Añade detalles, alcance o notas..."
+                    className="w-full px-2.5 py-1.5 rounded-[4px] border border-[#E2E2DC] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs resize-y min-h-[68px]"
+                  />
+                </div>
+
+                {/* Tags / Etiquetas */}
+                <div data-testid={`sidebar-task-tags-box-${selectedTask.id}`}>
+                  <label className="flex items-center gap-1 text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400 mb-1">
+                    <Tag className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+                    <span>Etiquetas</span>
+                  </label>
+                  <TagInput
+                    tags={selectedTask.tags || []}
+                    allTags={allTags}
+                    onChange={(nextTags) =>
+                      onUpdateItem(
+                        { ...selectedTask, tags: nextTags.length > 0 ? nextTags : undefined },
+                        false
+                      )
+                    }
+                    placeholder="#urgente, #requerimiento..."
+                    testIdPrefix={`sidebar-task-tags-${selectedTask.id}`}
+                  />
+                </div>
+
+                {/* Expandable: Fechas, progreso y planificación */}
+                <div
+                  data-testid="sidebar-task-dates-section"
+                  className="rounded-[5px] border border-[#E2E2DC] dark:border-zinc-800 bg-[#FAFAF8] dark:bg-zinc-900/40 overflow-hidden"
+                >
+                  <button
+                    type="button"
+                    data-testid="sidebar-task-dates-toggle"
+                    data-expanded={datesSectionExpanded ? 'true' : 'false'}
+                    onClick={() => setDatesSectionExpanded((prev) => !prev)}
+                    className="w-full px-2.5 py-2 flex items-center justify-between gap-2 text-left hover:bg-[#EFEFEB] dark:hover:bg-zinc-800/70 transition cursor-pointer"
+                  >
+                    <span className="inline-flex items-center gap-1.5 text-[10px] font-mono uppercase font-bold text-[#0C0C09] dark:text-zinc-200 shrink-0">
+                      <ChevronRight
+                        className={`w-3.5 h-3.5 text-[#6B6B66] transition-transform duration-[120ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                          datesSectionExpanded ? 'rotate-90 text-indigo-600' : 'rotate-0'
+                        }`}
+                      />
+                      <span>Fechas y progreso</span>
+                    </span>
+                    <span className="font-mono text-[10px] text-[#6B6B66] dark:text-zinc-400 truncate">
+                      {`${taskStart.slice(5)} → ${(taskType === 'milestone' ? taskStart : taskEnd).slice(5)} · ${
+                        taskType === 'milestone' ? 'Hito' : `${taskDuration}d`
+                      } · ${taskProgress}%`}
+                    </span>
+                  </button>
+                  <div
+                    className={`grid transition-[grid-template-rows,opacity] duration-[120ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                      datesSectionExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+                    }`}
+                  >
+                    <div className="overflow-hidden">
+                      <div className="p-2.5 space-y-2.5 border-t border-[#E2E2DC] dark:border-zinc-800 bg-white dark:bg-zinc-950/40">
                 {/* Type & Project */}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
@@ -1253,9 +1327,42 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                     </span>
                   </div>
                 </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
-                {/* Predecessor & Successor Tasks */}
-                <div className="flex flex-col gap-1.5 p-2.5 rounded-[4px] bg-[#F4F4F1]/40 dark:bg-zinc-900/40 border border-[#E2E2DC] dark:border-zinc-800 text-[11px]">
+                {/* Expandable: Predecessor & Successor Tasks */}
+                <div
+                  data-testid="sidebar-task-deps-section"
+                  className="rounded-[5px] border border-[#E2E2DC] dark:border-zinc-800 bg-[#FAFAF8] dark:bg-zinc-900/40 overflow-hidden text-[11px]"
+                >
+                  <button
+                    type="button"
+                    data-testid="sidebar-task-deps-toggle"
+                    data-expanded={depsSectionExpanded ? 'true' : 'false'}
+                    onClick={() => setDepsSectionExpanded((prev) => !prev)}
+                    className="w-full px-2.5 py-2 flex items-center justify-between gap-2 text-left hover:bg-[#EFEFEB] dark:hover:bg-zinc-800/70 transition cursor-pointer"
+                  >
+                    <span className="inline-flex items-center gap-1.5 text-[10px] font-mono uppercase font-bold text-[#0C0C09] dark:text-zinc-200 shrink-0">
+                      <ChevronRight
+                        className={`w-3.5 h-3.5 text-[#6B6B66] transition-transform duration-[120ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                          depsSectionExpanded ? 'rotate-90 text-indigo-600' : 'rotate-0'
+                        }`}
+                      />
+                      <span>Predecesoras y siguientes</span>
+                    </span>
+                    <span className="font-mono text-[10px] text-[#6B6B66] dark:text-zinc-400 shrink-0">
+                      {`${taskDeps.length} pred · ${selectedTask.successorIds?.length || 0} sig`}
+                    </span>
+                  </button>
+                  <div
+                    className={`grid transition-[grid-template-rows,opacity] duration-[120ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                      depsSectionExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+                    }`}
+                  >
+                    <div className="overflow-hidden">
+                      <div className="flex flex-col gap-1.5 p-2.5 border-t border-[#E2E2DC] dark:border-zinc-800 bg-white dark:bg-zinc-950/40">
                   <span className="text-[10px] font-mono uppercase tracking-wider text-[#6B6B66] dark:text-zinc-400 font-bold">
                     Predecesoras ({taskDeps.length})
                   </span>
@@ -1330,40 +1437,9 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                       Sin tareas siguientes directas.
                     </span>
                   )}
-                </div>
-
-                {/* Tags / Etiquetas */}
-                <div data-testid={`sidebar-task-tags-box-${selectedTask.id}`}>
-                  <label className="flex items-center gap-1 text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400 mb-1">
-                    <Tag className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
-                    <span>Etiquetas</span>
-                  </label>
-                  <TagInput
-                    tags={selectedTask.tags || []}
-                    allTags={allTags}
-                    onChange={(nextTags) =>
-                      onUpdateItem(
-                        { ...selectedTask, tags: nextTags.length > 0 ? nextTags : undefined },
-                        false
-                      )
-                    }
-                    placeholder="#urgente, #requerimiento..."
-                    testIdPrefix={`sidebar-task-tags-${selectedTask.id}`}
-                  />
-                </div>
-
-                {/* Notes */}
-                <div>
-                  <label className="block text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400 mb-1">
-                    Descripción / Notas
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={taskNotes}
-                    onChange={(e) => setTaskNotes(e.target.value)}
-                    placeholder="Añade detalles, alcance o notas..."
-                    className="w-full px-2.5 py-1.5 rounded-[4px] border border-[#E2E2DC] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs resize-y min-h-[68px]"
-                  />
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Status Comments / Seguimiento */}
@@ -1565,6 +1641,76 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                   );
                 })()}
 
+                {/* Project Description right after Name & URL */}
+                <div data-testid={`sidebar-project-notes-box-${selectedProject.id}`}>
+                  <label className="block text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400 mb-1">
+                    Descripción / Notas
+                  </label>
+                  <textarea
+                    rows={3}
+                    readOnly={isProjLocked}
+                    value={selectedProject.description || ''}
+                    onChange={(e) =>
+                      onUpdateProject({ ...selectedProject, description: e.target.value })
+                    }
+                    placeholder="Descripción del proyecto..."
+                    className="w-full px-2.5 py-1.5 rounded-[4px] border border-[#E2E2DC] dark:border-zinc-700 bg-[#FAFAF8] dark:bg-zinc-900 text-xs resize-y min-h-[68px]"
+                  />
+                </div>
+
+                {/* Project Tags / Etiquetas */}
+                <div data-testid={`sidebar-project-tags-box-${selectedProject.id}`}>
+                  <label className="flex items-center gap-1 text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400 mb-1">
+                    <Tag className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+                    <span>Etiquetas</span>
+                  </label>
+                  <TagInput
+                    tags={selectedProject.tags || []}
+                    allTags={allTags}
+                    onChange={(nextTags) =>
+                      onUpdateProject({
+                        ...selectedProject,
+                        tags: nextTags.length > 0 ? nextTags : undefined,
+                      })
+                    }
+                    placeholder="#urgente, #requerimiento..."
+                    testIdPrefix={`sidebar-project-tags-${selectedProject.id}`}
+                  />
+                </div>
+
+                {/* Expandable: Fechas, progreso y configuración del proyecto */}
+                <div
+                  data-testid="sidebar-project-dates-section"
+                  className="rounded-[5px] border border-[#E2E2DC] dark:border-zinc-800 bg-[#FAFAF8] dark:bg-zinc-900/40 overflow-hidden"
+                >
+                  <button
+                    type="button"
+                    data-testid="sidebar-project-dates-toggle"
+                    data-expanded={datesSectionExpanded ? 'true' : 'false'}
+                    onClick={() => setDatesSectionExpanded((prev) => !prev)}
+                    className="w-full px-2.5 py-2 flex items-center justify-between gap-2 text-left hover:bg-[#EFEFEB] dark:hover:bg-zinc-800/70 transition cursor-pointer"
+                  >
+                    <span className="inline-flex items-center gap-1.5 text-[10px] font-mono uppercase font-bold text-[#0C0C09] dark:text-zinc-200 shrink-0">
+                      <ChevronRight
+                        className={`w-3.5 h-3.5 text-[#6B6B66] transition-transform duration-[120ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                          datesSectionExpanded ? 'rotate-90 text-indigo-600' : 'rotate-0'
+                        }`}
+                      />
+                      <span>Fechas y configuración</span>
+                    </span>
+                    <span className="font-mono text-[10px] text-[#6B6B66] dark:text-zinc-400 truncate">
+                      {projectGroup
+                        ? `${projectGroup.duration}d · ${projectGroup.progress}% · ${projectGroup.tasksCount} tareas`
+                        : projRelease?.code || 'Sin release'}
+                    </span>
+                  </button>
+                  <div
+                    className={`grid transition-[grid-template-rows,opacity] duration-[120ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                      datesSectionExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+                    }`}
+                  >
+                    <div className="overflow-hidden">
+                      <div className="p-2.5 space-y-2.5 border-t border-[#E2E2DC] dark:border-zinc-800 bg-white dark:bg-zinc-950/40">
                 {/* Project Color Swatches */}
                 <div>
                   <label className="block text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400 mb-1">
@@ -1697,42 +1843,9 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                     </div>
                   </div>
                 )}
-
-                {/* Project Tags / Etiquetas */}
-                <div data-testid={`sidebar-project-tags-box-${selectedProject.id}`}>
-                  <label className="flex items-center gap-1 text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400 mb-1">
-                    <Tag className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
-                    <span>Etiquetas</span>
-                  </label>
-                  <TagInput
-                    tags={selectedProject.tags || []}
-                    allTags={allTags}
-                    onChange={(nextTags) =>
-                      onUpdateProject({
-                        ...selectedProject,
-                        tags: nextTags.length > 0 ? nextTags : undefined,
-                      })
-                    }
-                    placeholder="#urgente, #requerimiento..."
-                    testIdPrefix={`sidebar-project-tags-${selectedProject.id}`}
-                  />
-                </div>
-
-                {/* Project Description */}
-                <div>
-                  <label className="block text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400 mb-1">
-                    Descripción / Notas
-                  </label>
-                  <textarea
-                    rows={4}
-                    readOnly={isProjLocked}
-                    value={selectedProject.description || ''}
-                    onChange={(e) =>
-                      onUpdateProject({ ...selectedProject, description: e.target.value })
-                    }
-                    placeholder="Descripción del proyecto..."
-                    className="w-full px-2.5 py-1.5 rounded-[4px] border border-[#E2E2DC] dark:border-zinc-700 bg-[#FAFAF8] dark:bg-zinc-900 text-xs resize-y min-h-[68px]"
-                  />
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Project Status Comments / Seguimiento */}
