@@ -186,7 +186,7 @@ function loadInitialWorkspaceState(
           sanitizeProject(
             {
               ...p,
-              releaseId: p.releaseId || DEFAULT_PREDEFINED_RELEASES[0].id,
+              releaseId: p.releaseId || undefined,
               isDemo: false,
             },
             i
@@ -212,7 +212,7 @@ function loadInitialWorkspaceState(
                         sanitizeProject(
                           {
                             ...p,
-                            releaseId: p.releaseId || DEFAULT_PREDEFINED_RELEASES[0].id,
+                            releaseId: p.releaseId || undefined,
                             isDemo: false,
                           },
                           cleanProjects.length
@@ -265,7 +265,7 @@ function loadInitialWorkspaceState(
               sanitizeProject(
                 {
                   ...p,
-                  releaseId: p.releaseId || DEFAULT_PREDEFINED_RELEASES[0].id,
+                  releaseId: p.releaseId || undefined,
                   isDemo: false,
                 },
                 i
@@ -1216,13 +1216,14 @@ export function App({
   );
 
   // Synchronized list of projects (including any auto-recovered orphan project groups)
+  // Preserve explicit unassigned projects (releaseId: undefined) instead of forcing releases[0]
   const effectiveProjects = useMemo(
     () =>
       projectGroups.map((g) => ({
         ...g.project,
-        releaseId: g.project.releaseId || releases[0]?.id || 'rel-t-26-12-1',
+        releaseId: g.project.releaseId || undefined,
       })),
-    [projectGroups, releases]
+    [projectGroups]
   );
 
   // Keep active workspace automatically synced in localStorage
