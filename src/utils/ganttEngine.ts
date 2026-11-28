@@ -595,6 +595,81 @@ export function formatStatusCommentForExport(
     : `${sourcePrefix}${comment.text}`;
 }
 
+export function normalizeTag(raw: string): string {
+  return String(raw || '')
+    .trim()
+    .replace(/^#+/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function sanitizeTags(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  const seen = new Set<string>();
+  const cleaned: string[] = [];
+  for (const entry of raw) {
+    if (typeof entry !== 'string') continue;
+    const norm = normalizeTag(entry);
+    if (!norm) continue;
+    const key = norm.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    cleaned.push(norm);
+  }
+  return cleaned.length > 0 ? cleaned : undefined;
+}
+
+export function collectAllTags(
+  projects: GanttProject[],
+  items: GanttItem[]
+): string[] {
+  const map = new Map<string, string>();
+  for (const p of projects) {
+    for (const t of p.tags || []) {
+      const norm = normalizeTag(t);
+      if (norm && !map.has(norm.toLowerCase())) {
+        map.set(norm.toLowerCase(), norm);
+      }
+    }
+  }
+  for (const it of items) {
+    for (const t of it.tags || []) {
+      const norm = normalizeTag(t);
+      if (norm && !map.has(norm.toLowerCase())) {
+        map.set(norm.toLowerCase(), norm);
+      }
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => a.localeCompare(b, 'es'));
+}
+
+export function collectProjectRollupTags(
+  project: GanttProject,
+  projectItems: GanttItem[]
+): string[] {
+  const map = new Map<string, string>();
+  for (const t of project.tags || []) {
+    const norm = normalizeTag(t);
+    if (norm && !map.has(norm.toLowerCase())) {
+      map.set(norm.toLowerCase(), norm);
+    }
+  }
+  for (const it of projectItems) {
+    for (const t of it.tags || []) {
+      const norm = normalizeTag(t);
+      if (norm && !map.has(norm.toLowerCase())) {
+        map.set(norm.toLowerCase(), norm);
+      }
+    }
+  }
+  return Array.from(map.values());
+}
+
+export function formatTagsForExport(tags?: string[]): string {
+  if (!Array.isArray(tags) || tags.length === 0) return '—';
+  return tags.map((t) => `#${normalizeTag(t)}`).join(', ');
+}
+
 export function sanitizeProject(
   raw: Partial<GanttProject>,
   fallbackIndex = 0
@@ -611,6 +686,7 @@ export function sanitizeProject(
   const platform = normalizePlatform(raw.platform as string | undefined);
 
   const alertLevel = normalizeAlertLevel(raw.alertLevel);
+  const tags = sanitizeTags(raw.tags);
   const statusComments = sanitizeStatusComments(raw.statusComments);
 
   let projectIndex: number | undefined;
@@ -640,6 +716,7 @@ export function sanitizeProject(
     platform,
     ...(alertLevel !== undefined ? { alertLevel } : {}),
     ...(raw.locked ? { locked: true } : {}),
+    ...(tags ? { tags } : {}),
     ...(statusComments ? { statusComments } : {}),
     collapsed: Boolean(raw.collapsed),
     isDemo: isDemoProject({ ...raw, id }),
@@ -972,6 +1049,7 @@ export function sanitizeGanttItem(
   });
 
   const isExternalMilestone = type === 'milestone' && Boolean(raw.isExternal);
+  const tags = sanitizeTags(raw.tags);
   const statusComments = sanitizeStatusComments(raw.statusComments);
   const result: GanttItem = {
     id,
@@ -1006,6 +1084,7 @@ export function sanitizeGanttItem(
       ? { taskIndex: Math.round(raw.taskIndex) }
       : {}),
     ...(resolvedUrl ? { url: resolvedUrl } : {}),
+    ...(tags ? { tags } : {}),
     ...(statusComments ? { statusComments } : {}),
   };
 
@@ -4491,6 +4570,15 @@ export function describeProjectStateChanges(
       after: nextProj.locked ? 'Bloqueado' : 'Desbloqueado',
     });
   }
+  const prevTagsLabel = formatTagsForExport(prevProj.tags);
+  const nextTagsLabel = formatTagsForExport(nextProj.tags);
+  if (prevTagsLabel !== nextTagsLabel) {
+    diffs.push({
+      field: 'Etiquetas',
+      before: prevTagsLabel,
+      after: nextTagsLabel,
+    });
+  }
   const prevCommentsCount = prevProj.statusComments?.length ?? 0;
   const nextCommentsCount = nextProj.statusComments?.length ?? 0;
   const prevLatestId = prevProj.statusComments?.[0]?.id;
@@ -4671,6 +4759,15 @@ export function describeItemStateChanges(
       field: 'Notas',
       before: prevNotes || 'Vacías',
       after: nextNotes || 'Vacías',
+    });
+  }
+  const prevTagsLabel = formatTagsForExport(prevItem.tags);
+  const nextTagsLabel = formatTagsForExport(nextItem.tags);
+  if (prevTagsLabel !== nextTagsLabel) {
+    diffs.push({
+      field: 'Etiquetas',
+      before: prevTagsLabel,
+      after: nextTagsLabel,
     });
   }
   const prevCommentsCount = prevItem.statusComments?.length ?? 0;

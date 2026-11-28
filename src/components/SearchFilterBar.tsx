@@ -9,6 +9,7 @@ import {
   Search,
   SlidersHorizontal,
   Smartphone,
+  Tag,
   Trash2,
   Users,
   X,
@@ -73,6 +74,7 @@ export interface StoredSavedFilter {
   selectedAlert: 'all' | ProjectAlertLevel;
   selectedRelease: string;
   selectedTeam?: string;
+  selectedTag?: string;
   showSubtasksOnFilter?: boolean;
   visibleColKeys?: string[];
   colOrder?: string[];
@@ -103,6 +105,9 @@ export interface SearchFilterBarProps {
   teams?: string[];
   selectedTeam?: string;
   onChangeSelectedTeam?: (next: string) => void;
+  tags?: string[];
+  selectedTag?: string;
+  onChangeSelectedTag?: (next: string) => void;
   showSubtasksOnFilter: boolean;
   onChangeShowSubtasksOnFilter: (next: boolean) => void;
   showSubtasksToggle?: boolean;
@@ -152,6 +157,9 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
   teams = [],
   selectedTeam = 'all',
   onChangeSelectedTeam,
+  tags = [],
+  selectedTag = 'all',
+  onChangeSelectedTag,
   showSubtasksOnFilter,
   onChangeShowSubtasksOnFilter,
   showSubtasksToggle = true,
@@ -270,6 +278,7 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
   if (selectedAlert !== 'all') activeCriteriaCount += 1;
   if (selectedRelease !== 'all') activeCriteriaCount += 1;
   if (selectedTeam && selectedTeam !== 'all') activeCriteriaCount += 1;
+  if (selectedTag && selectedTag !== 'all') activeCriteriaCount += 1;
   if (showSubtasksToggle && showSubtasksOnFilter) activeCriteriaCount += 1;
   if (hasHiddenCols) activeCriteriaCount += 1;
 
@@ -306,6 +315,7 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
     onChangeSelectedAlert(f.selectedAlert ?? 'all');
     onChangeSelectedRelease(f.selectedRelease || 'all');
     onChangeSelectedTeam?.(f.selectedTeam || 'all');
+    onChangeSelectedTag?.(f.selectedTag || 'all');
     onChangeShowSubtasksOnFilter(Boolean(f.showSubtasksOnFilter));
     if (f.visibleColKeys && f.visibleColKeys.length > 0 && onApplySavedColumns) {
       onApplySavedColumns(f.visibleColKeys, f.colOrder);
@@ -341,6 +351,7 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
               selectedAlert,
               selectedRelease,
               selectedTeam,
+              selectedTag,
               showSubtasksOnFilter,
               ...(visibleColKeys ? { visibleColKeys } : {}),
             }
@@ -428,6 +439,13 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
       key: 'team',
       label: `equipo:${selectedTeam}`,
       onRemove: () => onChangeSelectedTeam('all'),
+    });
+  }
+  if (selectedTag && selectedTag !== 'all' && onChangeSelectedTag) {
+    activeChips.push({
+      key: 'tag',
+      label: `#${selectedTag}`,
+      onRemove: () => onChangeSelectedTag('all'),
     });
   }
   if (showSubtasksToggle && showSubtasksOnFilter) {
@@ -889,6 +907,30 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
                 {teams.map((team) => (
                   <option key={team} value={team}>
                     {team}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Row 7c: Etiqueta */}
+          {onChangeSelectedTag && (
+            <div className="grid grid-cols-12 items-center gap-2">
+              <label className="col-span-4 text-[11px] font-medium text-[#6B6B66] dark:text-zinc-400 flex items-center gap-1">
+                <Tag className="w-3 h-3" />
+                <span>Etiqueta</span>
+              </label>
+              <select
+                data-testid={`${testIdPrefix}-tag-select`}
+                value={selectedTag}
+                onChange={(e) => onChangeSelectedTag(e.target.value)}
+                aria-label="Filtrar por etiqueta"
+                className="col-span-8 px-2 py-1 rounded-[4px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs text-zinc-800 dark:text-zinc-200 outline-none cursor-pointer"
+              >
+                <option value="all">Todas las etiquetas</option>
+                {tags.map((tag) => (
+                  <option key={tag} value={tag}>
+                    {`#${tag}`}
                   </option>
                 ))}
               </select>

@@ -42,15 +42,19 @@ import {
 import {
   calculateDurationFromDates,
   calculateEndDateFromDuration,
+  collectAllTags,
   collectProjectRollupComments,
+  collectProjectRollupTags,
   collectProjectSubtaskNotes,
   getLatestStatusComment,
   normalizePlatform,
+  normalizeTag,
 } from '../utils/ganttEngine';
 import {
   StatusCommentsDrawer,
   formatCommentShortDate,
 } from './StatusCommentsPanel';
+import { TagInput } from './TagInput';
 import { AppleIosIcon, AndroidIcon } from './PlatformIcons';
 import {
   SearchFilterBar,
@@ -116,6 +120,7 @@ const CRONO_COLUMNS: ReportColumnDef[] = [
   { key: 'isCritical', label: 'Ruta Crítica', defaultWidth: 105, align: 'center' },
   { key: 'isExternal', label: 'Hito Ext.', defaultWidth: 95, align: 'center' },
   { key: 'compliance', label: 'Cumplimiento Release', defaultWidth: 170 },
+  { key: 'tags', label: 'Etiquetas', defaultWidth: 195 },
   { key: 'statusComments', label: 'Seguimiento', defaultWidth: 250 },
   { key: 'notes', label: 'Notas / Descripción', defaultWidth: 250 },
 ];
@@ -175,6 +180,7 @@ const REPORT_COL_WIDTH_LIMITS: Record<
   isCritical: { min: 76, max: 100, extraPx: 22 },
   isExternal: { min: 68, max: 92, extraPx: 20 },
   compliance: { min: 82, max: 160, extraPx: 26, maxHeaderPx: 112 },
+  tags: { min: 110, max: 230, extraPx: 28, maxHeaderPx: 110 },
   statusComments: { min: 130, max: 270, extraPx: 30, maxHeaderPx: 116 },
   notes: { min: 108, max: 255, extraPx: 26, maxHeaderPx: 116 },
   description: { min: 108, max: 255, extraPx: 26, maxHeaderPx: 116 },
@@ -222,6 +228,9 @@ function extractReportCellText(
   }
   if (key === 'statusComments') {
     return String(r.latestComment ?? '—');
+  }
+  if (key === 'tags') {
+    return String(r.tagsLabel ?? '—');
   }
   const raw = r[key];
   if (raw === undefined || raw === null) return '';
@@ -375,6 +384,7 @@ export interface ReportSavedFilter {
   selectedAlert: 'all' | ProjectAlertLevel;
   selectedRelease: string;
   selectedTeam?: string;
+  selectedTag?: string;
   showSubtasksOnFilter?: boolean;
   formatPresetId?: string;
   visibleColKeys?: string[];
@@ -392,6 +402,7 @@ export function createSavedFilter(params: {
   selectedAlert?: 'all' | ProjectAlertLevel;
   selectedRelease?: string;
   selectedTeam?: string;
+  selectedTag?: string;
   showSubtasksOnFilter?: boolean;
   formatPresetId?: string;
   visibleColKeys?: string[];
@@ -409,6 +420,7 @@ export function createSavedFilter(params: {
     selectedAlert: params.selectedAlert ?? 'all',
     selectedRelease: params.selectedRelease ?? 'all',
     selectedTeam: params.selectedTeam ?? 'all',
+    selectedTag: params.selectedTag ?? 'all',
     showSubtasksOnFilter: params.showSubtasksOnFilter ?? false,
     formatPresetId: params.formatPresetId,
     visibleColKeys: params.visibleColKeys ? [...params.visibleColKeys] : undefined,
@@ -901,6 +913,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const [selectedTeam, setSelectedTeam] = useState<string>(
     initialMatchedSavedFilter?.selectedTeam ?? 'all'
   );
+  const [selectedTag, setSelectedTag] = useState<string>(
+    initialMatchedSavedFilter?.selectedTag ?? 'all'
+  );
   const availableTeams = useMemo(() => {
     const set = new Set<string>();
     for (const it of items) {
@@ -909,6 +924,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     }
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'es'));
   }, [items]);
+  const availableTags = useMemo(() => collectAllTags(projects, items), [projects, items]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<ReportRowContextMenuState | null>(initialContextMenu);
   const contextMenuRef = useRef<HTMLDivElement>(null);
@@ -1277,6 +1293,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     setSelectedAlert(filter.selectedAlert ?? 'all');
     setSelectedRelease(filter.selectedRelease ?? 'all');
     setSelectedTeam(filter.selectedTeam ?? 'all');
+    setSelectedTag(filter.selectedTag ?? 'all');
 
     if (filter.formatPresetId && filter.formatPresetId !== '__none__' && filter.formatPresetId !== '__current__') {
       const matchedPreset = cronoPresetsList.find((p) => p.id === filter.formatPresetId);
@@ -1373,6 +1390,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               selectedAlert,
               selectedRelease,
               selectedTeam,
+              selectedTag,
               ...formatFields,
             }
           : f
@@ -1435,6 +1453,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               selectedAlert,
               selectedRelease,
               selectedTeam,
+              selectedTag,
               ...formatFields,
             }
           : f
@@ -1838,6 +1857,24 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           return false;
         }
       }
+      // Tag filter
+      if (selectedTag !== 'all') {
+        const targetTag = normalizeTag(selectedTag).toLowerCase();
+        let rowTagList = row.tags || [];
+        if (row.level === 'PROYECTO' && row.projectId && selectedType === 'PROYECTO') {
+          const projObj = projects.find((p) => p.id === row.projectId);
+          if (projObj) {
+            rowTagList = collectProjectRollupTags(
+              projObj,
+              items.filter((it) => it.projectId === projObj.id)
+            );
+          }
+        }
+        const hasTag = rowTagList.some((t) => normalizeTag(t).toLowerCase() === targetTag);
+        if (!hasTag) {
+          return false;
+        }
+      }
       // Alert level filter
       if (selectedAlert !== 'all') {
         if (row.alertLevel !== selectedAlert) {
@@ -1971,7 +2008,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       }
       return false;
     });
-  }, [cronoRows, focusedProjectIds, selectedType, selectedPlatform, selectedAlert, selectedRelease, selectedTeam, searchQuery, excludeQuery, searchFields, showSubtasksOnFilter]);
+  }, [cronoRows, focusedProjectIds, selectedType, selectedPlatform, selectedAlert, selectedRelease, selectedTeam, selectedTag, searchQuery, excludeQuery, searchFields, showSubtasksOnFilter, projects, items]);
 
   // Clear per-node filtered context expansions when filter criteria change (skip initial mount)
   useEffect(() => {
@@ -1980,7 +2017,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       return;
     }
     setExpandedFilteredNodes(new Set());
-  }, [searchQuery, excludeQuery, selectedType, selectedPlatform, selectedAlert, selectedRelease, selectedTeam]);
+  }, [searchQuery, excludeQuery, selectedType, selectedPlatform, selectedAlert, selectedRelease, selectedTeam, selectedTag]);
 
   // 2b. Hierarchical tree view for Planificación:
   //     - Supports normal collapse/expand on Releases & Projects (collapse ALWAYS hides descendants)
@@ -1989,6 +2026,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     selectedType !== 'all' ||
     selectedRelease !== 'all' ||
     selectedTeam !== 'all' ||
+    selectedTag !== 'all' ||
     selectedAlert !== 'all' ||
     selectedPlatform !== 'all' ||
     Boolean(searchQuery.trim()) ||
@@ -2324,6 +2362,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             teams={availableTeams}
             selectedTeam={selectedTeam}
             onChangeSelectedTeam={setSelectedTeam}
+            tags={availableTags}
+            selectedTag={selectedTag}
+            onChangeSelectedTag={setSelectedTag}
             showSubtasksOnFilter={showSubtasksOnFilter}
             onChangeShowSubtasksOnFilter={setShowSubtasksOnFilter}
             showSubtasksToggle={activeTab === 'cronograma'}
@@ -2353,6 +2394,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               setSelectedAlert('all');
               setSelectedRelease('all');
               setSelectedTeam('all');
+              setSelectedTag('all');
               setShowSubtasksOnFilter(false);
               setActiveSavedFilterId(null);
               try {
@@ -3286,6 +3328,78 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                                     )}
                                   </td>
                                 );
+                              case 'tags': {
+                                const isProjectRollupMode =
+                                  isProject && selectedType === 'PROYECTO' && !showSubtasksOnFilter;
+                                if (isRelease) {
+                                  return (
+                                    <td key={col.key} className="px-2 py-1.5 font-sans text-xs">
+                                      <span className="px-1">—</span>
+                                    </td>
+                                  );
+                                }
+                                if (linkedProject && isProject) {
+                                  const projItems = items.filter((it) => it.projectId === linkedProject.id);
+                                  const subRollupTags = isProjectRollupMode
+                                    ? collectProjectRollupTags(linkedProject, projItems)
+                                    : [];
+                                  return (
+                                    <td
+                                      key={col.key}
+                                      data-testid={`report-crono-tags-proj-${linkedProject.id}`}
+                                      className="px-2 py-1 border-r border-[#E2E2DC] dark:border-zinc-800 align-top"
+                                    >
+                                      <TagInput
+                                        tags={linkedProject.tags || []}
+                                        allTags={availableTags}
+                                        extraReadOnlyTags={subRollupTags}
+                                        compact
+                                        readOnly={!onUpdateProject}
+                                        placeholder="+ #etiqueta"
+                                        testIdPrefix={`report-tags-proj-${linkedProject.id}`}
+                                        onChange={(nextTags) =>
+                                          onUpdateProject?.({
+                                            ...linkedProject,
+                                            tags: nextTags.length > 0 ? nextTags : undefined,
+                                          })
+                                        }
+                                      />
+                                    </td>
+                                  );
+                                }
+                                if (linkedItem && !isDepSubRow) {
+                                  return (
+                                    <td
+                                      key={col.key}
+                                      data-testid={`report-crono-tags-item-${linkedItem.id}`}
+                                      className="px-2 py-1 border-r border-[#E2E2DC] dark:border-zinc-800 align-top"
+                                    >
+                                      <TagInput
+                                        tags={linkedItem.tags || []}
+                                        allTags={availableTags}
+                                        compact
+                                        readOnly={!onUpdateItem}
+                                        placeholder="+ #etiqueta"
+                                        testIdPrefix={`report-tags-item-${linkedItem.id}`}
+                                        onChange={(nextTags) =>
+                                          onUpdateItem?.(
+                                            {
+                                              ...linkedItem,
+                                              tags: nextTags.length > 0 ? nextTags : undefined,
+                                            },
+                                            false
+                                          )
+                                        }
+                                      />
+                                    </td>
+                                  );
+                                }
+                                return (
+                                  <td key={col.key} className="px-2 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 text-xs text-[#6B6B66]">
+                                    <span className="px-1">—</span>
+                                  </td>
+                                );
+                              }
                               case 'statusComments': {
                                 const isProjectRollupMode =
                                   isProject && selectedType === 'PROYECTO' && !showSubtasksOnFilter;
@@ -3742,6 +3856,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 onClear: () => setSelectedTeam('all'),
               });
             }
+            if (selectedTag !== 'all') {
+              statusFilters.push({
+                key: 'tag',
+                label: `Etiqueta: #${selectedTag}`,
+                onClear: () => setSelectedTag('all'),
+              });
+            }
             if (!isDefaultSearchFields(searchFields)) {
               const activeFields = (Object.keys(searchFields) as (keyof GanttSearchFieldsConfig)[])
                 .filter((k) => searchFields[k])
@@ -4031,6 +4152,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         existingTeams={Array.from(
           new Set(items.map((it) => it.assignee?.trim()).filter((x): x is string => Boolean(x)))
         )}
+        existingTags={availableTags}
         initialReleaseId={wizardInitialReleaseId}
         onCreate={(payload) => {
           if (onCreateProjectFromWizard) {

@@ -4515,7 +4515,7 @@ test('Help page, version control v1.2.0, release selection on project creation, 
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version control consistency
-  assert.equal(pkg.version, '1.17.4', 'package.json version must be 1.9.2');
+  assert.equal(pkg.version, '1.18.0', 'package.json version must be 1.9.2');
   assert.ok(pkg.scripts['version:patch'], 'package.json must contain version:patch script');
   assert.ok(pkg.scripts['version:minor'], 'package.json must contain version:minor script');
   assert.ok(pkg.scripts['release:patch'], 'package.json must contain release:patch script');
@@ -5330,7 +5330,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version Bump Verification
-  assert.equal(pkg.version, '1.17.4', 'package.json version must equal 1.9.2');
+  assert.equal(pkg.version, '1.18.0', 'package.json version must equal 1.9.2');
 
   // Verify scripts/bump-version.mjs works properly
   const bumpScript = await fs.readFile(path.resolve(__dirname, '../scripts/bump-version.mjs'), 'utf8');
@@ -5504,7 +5504,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // A. APP_VERSION equals 1.9.2
-    assert.equal(mod.APP_VERSION, '1.17.4', 'APP_VERSION must be 1.9.2');
+    assert.equal(mod.APP_VERSION, '1.18.0', 'APP_VERSION must be 1.9.2');
 
     // A2. Excel Export Unit Test
     const sampleReleases = [
@@ -6031,8 +6031,8 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
-  // 1. Version Bump Verification v1.17.4
-  assert.equal(pkg.version, '1.17.4', 'package.json version must equal 1.9.2');
+  // 1. Version Bump Verification v1.18.0
+  assert.equal(pkg.version, '1.18.0', 'package.json version must equal 1.9.2');
 
   // 2. SSR Bundle verification for TaskFormModal, App Header, and sanitizeGanttItem
   const tmpFile = path.resolve(__dirname, `tmp_test59_bundle_${Date.now()}.mjs`);
@@ -6130,7 +6130,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.equal(mod.APP_VERSION, '1.17.4', 'mod.APP_VERSION must equal 1.9.2');
+    assert.equal(mod.APP_VERSION, '1.18.0', 'mod.APP_VERSION must equal 1.9.2');
 
     // sanitizeGanttItem preserves platform
     const sanitizedIos = mod.sanitizeGanttItem({
@@ -6193,7 +6193,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     }));
     assert.ok(settingsHtml.includes('data-testid="settings-version-badge"'), 'SettingsModal must contain settings-version-badge');
     assert.ok(settingsHtml.includes('data-testid="force-reload-btn"'), 'SettingsModal must contain force-reload-btn');
-    assert.ok(settingsHtml.includes('v1.17.4') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and v1.17.4');
+    assert.ok(settingsHtml.includes('v1.18.0') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and v1.18.0');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6347,14 +6347,14 @@ test('Test 61: Version button, compiled release notes modal and changelog across
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
 
     // 1. Check RELEASE_NOTES compiled data
-    assert.strictEqual(mod.APP_VERSION, '1.17.4');
+    assert.strictEqual(mod.APP_VERSION, '1.18.0');
     assert.ok(Array.isArray(mod.RELEASE_NOTES), 'RELEASE_NOTES must be an array');
     assert.ok(mod.RELEASE_NOTES.length >= 10, 'RELEASE_NOTES must have at least 10 releases');
 
     const latest = mod.RELEASE_NOTES[0];
-    assert.strictEqual(latest.version, '1.17.4', 'First release note must be 1.9.2');
+    assert.strictEqual(latest.version, '1.18.0', 'First release note must be 1.9.2');
     assert.strictEqual(latest.isLatest, true, 'First release note must be isLatest: true');
-    assert.ok(latest.features.length > 0, 'v1.17.4 must contain features');
+    assert.ok(latest.features.length > 0, 'v1.18.0 must contain features');
 
     // 2. Render App and verify version button exists in dropdown menu and is NOT duplicated in top header
     const appHtml = renderToString(React.createElement(mod.App));
@@ -8189,7 +8189,7 @@ test('Test 73: v1.9.0 project alert level (0-3), workspace toolbar alert filter,
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.strictEqual(mod.APP_VERSION, '1.17.4', 'APP_VERSION must be 1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.18.0', 'APP_VERSION must be 1.9.2');
 
     // 1. Check sanitizeProject and describeProjectStateChanges for alertLevel
     const pSanitized0 = mod.sanitizeProject({ id: 'p-1', name: 'Proj 1', alertLevel: 0 });
@@ -8378,7 +8378,7 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.strictEqual(mod.APP_VERSION, '1.17.4', 'APP_VERSION must be 1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.18.0', 'APP_VERSION must be 1.9.2');
 
     // 1. Verify description format: <descripción del proyecto si existe>\n\n* <nombre> <desc>
     const pWithDesc = {
@@ -8463,8 +8463,8 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
   }
 });
 
-// TEST 75: v1.17.4 Project locking, accidental move guard & unlock prompt modal
-test('Test 75: v1.17.4 project locking, cascade/dependency protection, plan history badge, and unlock alert modal', async () => {
+// TEST 75: v1.18.0 Project locking, accidental move guard & unlock prompt modal
+test('Test 75: v1.18.0 project locking, cascade/dependency protection, plan history badge, and unlock alert modal', async () => {
   const fs = await import('node:fs/promises');
   const path = await import('node:path');
   const { fileURLToPath } = await import('node:url');
@@ -8475,7 +8475,7 @@ test('Test 75: v1.17.4 project locking, cascade/dependency protection, plan hist
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
-  assert.strictEqual(pkg.version, '1.17.4', 'package.json version must equal 1.9.2');
+  assert.strictEqual(pkg.version, '1.18.0', 'package.json version must equal 1.9.2');
 
   const tmpFile = path.resolve(__dirname, `tmp_test75_bundle_${Date.now()}.mjs`);
   try {
@@ -8537,9 +8537,9 @@ test('Test 75: v1.17.4 project locking, cascade/dependency protection, plan hist
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // 1. Version & release notes verification
-    assert.strictEqual(mod.APP_VERSION, '1.17.4', 'APP_VERSION must equal 1.9.2');
-    assert.strictEqual(mod.RELEASE_NOTES[0].version, '1.17.4', 'Latest release note must be 1.9.2');
-    assert.strictEqual(mod.RELEASE_NOTES[0].isLatest, true, 'v1.17.4 release note must be marked isLatest');
+    assert.strictEqual(mod.APP_VERSION, '1.18.0', 'APP_VERSION must equal 1.9.2');
+    assert.strictEqual(mod.RELEASE_NOTES[0].version, '1.18.0', 'Latest release note must be 1.9.2');
+    assert.strictEqual(mod.RELEASE_NOTES[0].isLatest, true, 'v1.18.0 release note must be marked isLatest');
 
     // 2. sanitizeProject, getLockedProjectForItem, describeProjectStateChanges
     const lockedProj = mod.sanitizeProject({
@@ -8736,7 +8736,7 @@ test('Test 75: v1.17.4 project locking, cascade/dependency protection, plan hist
   }
 });
 
-test('Test 76: v1.17.4 automatic Free Slack calculation given successor tasks across engine, table badge, inspector sidebar and task modal', async () => {
+test('Test 76: v1.18.0 automatic Free Slack calculation given successor tasks across engine, table badge, inspector sidebar and task modal', async () => {
   // 1. Engine calculation: FS dependency with multiple successors
   const testItems = [
     {
@@ -15386,6 +15386,174 @@ test('Unassigned projects (releaseId: undefined) remain Sin Release in App and a
       !html.includes('toggle-collapse-release-rel-t-26-12-1'),
       'First predefined release must NOT appear when the only project has releaseId: undefined'
     );
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
+test('Cross-cutting tags (Etiquetas): normalization, sanitization, diffs, Excel export, rollup, RightSidePanel, Wizard & SearchFilterBar filter', async () => {
+  const esbuild = await import('esbuild');
+  const fs = await import('node:fs/promises');
+  const { pathToFileURL } = await import('node:url');
+  const tmpFile = path.join(
+    __dirname,
+    `tmp_tags_feature_${Date.now()}.mjs`
+  );
+
+  try {
+    await esbuild.build({
+      stdin: {
+        contents: `
+          export { default as React } from 'react';
+          export { renderToString } from 'react-dom/server';
+          export { ReportsView } from './src/components/ReportsView';
+          export { RightSidePanel } from './src/components/RightSidePanel';
+          export { ProjectWizardModal } from './src/components/ProjectWizardModal';
+          export {
+            normalizeTag,
+            sanitizeTags,
+            collectAllTags,
+            collectProjectRollupTags,
+            formatTagsForExport,
+            computeGanttMetrics,
+            describeProjectStateChanges,
+            describeItemStateChanges,
+            importGanttData,
+          } from './src/utils/ganttEngine';
+          export {
+            CRONOGRAMA_HEADER,
+            generateCronogramaCompletoRows,
+          } from './src/utils/excelExportEngine';
+        `,
+        resolveDir: path.resolve(__dirname, '..'),
+        loader: 'tsx',
+      },
+      bundle: true,
+      format: 'esm',
+      platform: 'node',
+      packages: 'external',
+      outfile: tmpFile,
+    });
+
+    const mod = await import(pathToFileURL(tmpFile).href);
+
+    // 1. Normalization & deduplication
+    assert.equal(mod.normalizeTag('  #urgente  '), 'urgente');
+    assert.deepEqual(mod.sanitizeTags(['#urgente', 'URGENTE', 'requerimientoXX', '   ']), ['urgente', 'requerimientoXX']);
+    assert.equal(mod.formatTagsForExport(['urgente', 'req42']), '#urgente, #req42');
+
+    // 2. JSON import preserves tags & history diffs detect Etiquetas
+    const baseProj = {
+      id: 'p-1',
+      name: 'OneTrust Banner',
+      releaseId: 'rel-1',
+      platform: 'iOS',
+      color: 'indigo',
+      projectIndex: 1,
+      tags: ['requerimientoXX'],
+    };
+    const baseItem = {
+      id: 't-1',
+      name: 'SDK iOS',
+      type: 'task',
+      projectId: 'p-1',
+      startDate: '2027-02-01',
+      endDate: '2027-02-05',
+      duration: 5,
+      slack: 0,
+      dependencies: [],
+      progress: 20,
+      color: 'indigo',
+      tags: ['urgente'],
+    };
+    const imported = mod.importGanttData({ projects: [baseProj], items: [baseItem] });
+    assert.deepEqual(imported.primaryScenario.projects[0].tags, ['requerimientoXX']);
+    assert.deepEqual(imported.primaryScenario.items[0].tags, ['urgente']);
+
+    const projDiffs = mod.describeProjectStateChanges({ ...baseProj, tags: [] }, baseProj);
+    assert.ok(projDiffs.some((d) => d.field === 'Etiquetas'));
+    const itemDiffs = mod.describeItemStateChanges({ ...baseItem, tags: [] }, baseItem);
+    assert.ok(itemDiffs.some((d) => d.field === 'Etiquetas'));
+
+    // 3. Collect all tags + project rollup + Excel export
+    assert.deepEqual(mod.collectAllTags([baseProj], [baseItem]), ['requerimientoXX', 'urgente']);
+    assert.deepEqual(mod.collectProjectRollupTags(baseProj, [baseItem]), ['requerimientoXX', 'urgente']);
+    assert.ok(mod.CRONOGRAMA_HEADER.includes('Etiquetas'), 'CRONOGRAMA_HEADER must include Etiquetas');
+
+    const releases = [{ id: 'rel-1', code: 'T_27.03.1', name: 'MARZO', color: 'indigo', milestones: [] }];
+    const computedItems = mod.computeGanttMetrics([baseItem]);
+    const excelRows = mod.generateCronogramaCompletoRows(releases, [baseProj], computedItems, {
+      rollupProjectSubtasks: true,
+    });
+    const projExcel = excelRows.find((r) => r.level === 'PROYECTO');
+    assert.ok(projExcel.tagsLabel.includes('#urgente') && projExcel.tagsLabel.includes('#requerimientoXX'));
+
+    // 4. SSR ReportsView: Etiquetas column + rollup + tag filter select
+    const repHtml = mod.renderToString(
+      mod.React.createElement(mod.ReportsView, {
+        releases,
+        projects: [baseProj],
+        items: computedItems,
+        initialTab: 'cronograma',
+        initialTypeFilter: 'PROYECTO',
+        initialShowAdvancedPanel: true,
+        onUpdateProject: () => {},
+        onUpdateItem: () => {},
+      })
+    );
+    assert.ok(repHtml.includes('data-testid="reports-tag-select"'), 'Planificación panel must render Etiqueta filter');
+    assert.ok(repHtml.includes('data-testid="report-crono-tags-proj-p-1"'), 'Planificación must render Etiquetas cell');
+    assert.ok(repHtml.includes('#requerimientoXX'), 'Project own tag must render');
+    assert.ok(repHtml.includes('↳ #urgente'), 'Project rollup must show inherited subtask tag');
+
+    // 5. SSR RightSidePanel & ProjectWizardModal
+    const panelHtml = mod.renderToString(
+      mod.React.createElement(mod.RightSidePanel, {
+        activeTab: 'details',
+        onChangeTab: () => {},
+        onClose: () => {},
+        selectedEntity: { type: 'task', id: 't-1', name: 'SDK iOS' },
+        onSelectEntity: () => {},
+        items: computedItems,
+        projects: [baseProj],
+        releases,
+        onEditTask: () => {},
+        onUpdateItem: () => {},
+        onDeleteTask: () => {},
+        onUpdateProject: () => {},
+        onToggleProjectLock: () => {},
+        isFocusMode: false,
+        focusEntity: null,
+        onSetFocusEntity: () => {},
+        onExitFocusMode: () => {},
+        hiddenReleaseIds: [],
+        onToggleHideRelease: () => {},
+        onOpenReleasesModal: () => {},
+        commits: [],
+        pendingChanges: [],
+        activeBaselineCommitId: null,
+        onToggleBaselineCommit: () => {},
+        onCreateCommit: () => {},
+        onRestoreCommit: () => {},
+        conflictItems: [],
+        onNavigateToConflictItem: () => {},
+        onResolveAllConflicts: () => {},
+      })
+    );
+    assert.ok(panelHtml.includes('data-testid="sidebar-task-tags-box-t-1"'), 'RightSidePanel must render Etiquetas editor');
+    assert.ok(panelHtml.includes('#urgente'), 'RightSidePanel must render task tags');
+
+    const wizHtml = mod.renderToString(
+      mod.React.createElement(mod.ProjectWizardModal, {
+        isOpen: true,
+        onClose: () => {},
+        releases,
+        existingTags: ['urgente', 'requerimientoXX'],
+        initialStep: 1,
+        onCreate: () => {},
+      })
+    );
+    assert.ok(wizHtml.includes('data-testid="wizard-project-tags-container"'), 'Wizard Step 1 must render Etiquetas TagInput');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }

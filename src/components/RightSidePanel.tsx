@@ -19,6 +19,7 @@ import {
   Rocket,
   RotateCcw,
   Save,
+  Tag,
   Trash2,
   Unlock,
   X,
@@ -41,6 +42,7 @@ import {
 import {
   calculateDurationFromDates,
   calculateEndDateFromDuration,
+  collectAllTags,
   formatDateDisplay,
   getTeamColor,
   GroupedEntityHistorySummary,
@@ -55,6 +57,7 @@ import {
 import { getReleaseDateSpan } from '../utils/releaseEngine';
 import { CommitHistorySidebar } from './CommitHistorySidebar';
 import { StatusCommentsSection } from './StatusCommentsPanel';
+import { TagInput } from './TagInput';
 
 export type RightSidebarTab = 'details' | 'changes' | 'commits' | 'conflicts';
 
@@ -241,6 +244,8 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
     setTaskNotes(selectedTask.notes || '');
     setSavedNotice(false);
   }, [selectedTask, projects]);
+
+  const allTags = useMemo(() => collectAllTags(projects, items), [projects, items]);
 
   const existingTeams = useMemo(() => {
     const map = new Map<string, { name: string; color: TaskColor }>();
@@ -1327,6 +1332,26 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                   )}
                 </div>
 
+                {/* Tags / Etiquetas */}
+                <div data-testid={`sidebar-task-tags-box-${selectedTask.id}`}>
+                  <label className="flex items-center gap-1 text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400 mb-1">
+                    <Tag className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+                    <span>Etiquetas</span>
+                  </label>
+                  <TagInput
+                    tags={selectedTask.tags || []}
+                    allTags={allTags}
+                    onChange={(nextTags) =>
+                      onUpdateItem(
+                        { ...selectedTask, tags: nextTags.length > 0 ? nextTags : undefined },
+                        false
+                      )
+                    }
+                    placeholder="#urgente, #requerimiento..."
+                    testIdPrefix={`sidebar-task-tags-${selectedTask.id}`}
+                  />
+                </div>
+
                 {/* Notes */}
                 <div>
                   <label className="block text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400 mb-1">
@@ -1672,6 +1697,26 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                     </div>
                   </div>
                 )}
+
+                {/* Project Tags / Etiquetas */}
+                <div data-testid={`sidebar-project-tags-box-${selectedProject.id}`}>
+                  <label className="flex items-center gap-1 text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400 mb-1">
+                    <Tag className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+                    <span>Etiquetas</span>
+                  </label>
+                  <TagInput
+                    tags={selectedProject.tags || []}
+                    allTags={allTags}
+                    onChange={(nextTags) =>
+                      onUpdateProject({
+                        ...selectedProject,
+                        tags: nextTags.length > 0 ? nextTags : undefined,
+                      })
+                    }
+                    placeholder="#urgente, #requerimiento..."
+                    testIdPrefix={`sidebar-project-tags-${selectedProject.id}`}
+                  />
+                </div>
 
                 {/* Project Description */}
                 <div>

@@ -83,6 +83,7 @@ import {
   calculateEndDateFromDuration,
   canCreateNonDisplacingDependency,
   clampDayWidth,
+  collectAllTags,
   collectTimelineAnchorDates,
   computeFitToProjectScale,
   computeTimelineBounds,
@@ -107,6 +108,7 @@ import {
   MIN_DAY_WIDTH,
   moveDependencyLink,
   normalizePlatform,
+  normalizeTag,
   OrthogonalPoint,
   parseDateSafe,
   removeDependencyLink,
@@ -758,6 +760,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   const [tableTypeFilter, setTableTypeFilter] = useState<UnifiedRowTypeFilter>(initialTypeFilter);
   const [tableReleaseFilter, setTableReleaseFilter] = useState<string>(initialReleaseFilter);
   const [tableTeamFilter, setTableTeamFilter] = useState<string>('all');
+  const [tableTagFilter, setTableTagFilter] = useState<string>('all');
   const availableTeams = useMemo(() => {
     const set = new Set<string>();
     for (const it of items) {
@@ -766,6 +769,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     }
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'es'));
   }, [items]);
+  const availableTags = useMemo(() => collectAllTags(projects, items), [projects, items]);
 
   const [tablePlatformFilter, setTablePlatformFilter] = useState<'all' | ProjectPlatform>('all');
   const [tableAlertFilter, setTableAlertFilter] = useState<'all' | ProjectAlertLevel>(initialAlertFilter);
@@ -3136,6 +3140,15 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       );
     }
 
+    if (tableTagFilter !== 'all') {
+      const targetTag = normalizeTag(tableTagFilter).toLowerCase();
+      filtered = filtered.filter(
+        (g) =>
+          (g.project.tags || []).some((t) => normalizeTag(t).toLowerCase() === targetTag) ||
+          g.items.some((it) => (it.tags || []).some((t) => normalizeTag(t).toLowerCase() === targetTag))
+      );
+    }
+
     const query = tableSearchQuery.trim().toLowerCase();
     if (query) {
       filtered = filtered.filter((g) => {
@@ -3166,6 +3179,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     releases,
     tableReleaseFilter,
     tableTeamFilter,
+    tableTagFilter,
     tableTypeFilter,
     selectedPlatform,
     tablePlatformFilter,
@@ -3242,6 +3256,14 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       if (tableTeamFilter !== 'all') {
         const targetTeam = tableTeamFilter.trim().toLowerCase();
         if ((it.assignee || '').trim().toLowerCase() !== targetTeam) {
+          return false;
+        }
+      }
+      if (tableTagFilter !== 'all') {
+        const targetTag = normalizeTag(tableTagFilter).toLowerCase();
+        const itemHasTag = (it.tags || []).some((t) => normalizeTag(t).toLowerCase() === targetTag);
+        const projHasTag = (proj.tags || []).some((t) => normalizeTag(t).toLowerCase() === targetTag);
+        if (!itemHasTag && !(showSubtasksOnFilter && projHasTag)) {
           return false;
         }
       }
@@ -3450,6 +3472,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     tableTypeFilter,
     tableReleaseFilter,
     tableTeamFilter,
+    tableTagFilter,
     tablePlatformFilter,
     selectedPlatform,
     tableAlertFilter,
@@ -5694,6 +5717,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             teams={availableTeams}
             selectedTeam={tableTeamFilter}
             onChangeSelectedTeam={setTableTeamFilter}
+            tags={availableTags}
+            selectedTag={tableTagFilter}
+            onChangeSelectedTag={setTableTagFilter}
             showSubtasksOnFilter={showSubtasksOnFilter}
             onChangeShowSubtasksOnFilter={setShowSubtasksOnFilter}
             initialShowSearchFieldsMenu={initialShowSearchFieldsMenu}
@@ -5707,6 +5733,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               setTableAlertFilter('all');
               setTableReleaseFilter('all');
               setTableTeamFilter('all');
+              setTableTagFilter('all');
               setShowSubtasksOnFilter(false);
               setSearchFields({ ...DEFAULT_GANTT_SEARCH_FIELDS });
             }}

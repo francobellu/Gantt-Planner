@@ -1,4 +1,4 @@
-export const APP_VERSION = '1.17.4';
+export const APP_VERSION = '1.18.0';
 
 export const DEFAULT_TRUNCATE_CHAR_LIMIT = 37;
 export const TRUNCATE_LIMIT_STORAGE_KEY = 'ganttflow_truncate_char_limit';
@@ -82,6 +82,7 @@ export interface GanttProject {
   alertLevel?: ProjectAlertLevel; // Alert level 0 (Normal), 1 (Baja), 2 (Media), 3 (Alta)
   locked?: boolean; // When true, project items and structure are locked in the schedule against accidental moves/edits
   url?: string; // Auto-generated or linked Jira URL when name starts with DIGI-..., HDEV-..., or HUAT-...
+  tags?: string[]; // Optional temporary / cross-cutting tags (e.g. urgente, requerimientoXX)
   statusComments?: StatusComment[]; // Chronological status update log for this project
 }
 
@@ -108,6 +109,7 @@ export interface GanttItem {
   alertLevel?: ProjectAlertLevel; // Alert level 0 (Normal), 1 (Baja), 2 (Media), 3 (Alta)
   taskIndex?: number; // Unique, fixed task identifier number within its project or standalone (e.g. 1 -> P1T1 or T1)
   url?: string; // Auto-generated or linked Jira URL when name starts with DIGI-..., HDEV-..., or HUAT-...
+  tags?: string[]; // Optional temporary / cross-cutting tags (e.g. urgente, requerimientoXX)
   statusComments?: StatusComment[]; // Chronological status update log for this task/milestone
 }
 

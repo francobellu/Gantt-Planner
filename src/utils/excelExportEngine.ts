@@ -7,8 +7,10 @@ import {
 import { checkTaskReleaseCompliance, getReleaseDateSpan } from './releaseEngine';
 import {
   collectProjectRollupComments,
+  collectProjectRollupTags,
   collectProjectSubtaskNotes,
   formatStatusCommentForExport,
+  formatTagsForExport,
   getLatestStatusComment,
   groupItemsByProject,
   groupItemsByReleaseAndProject,
@@ -41,6 +43,8 @@ export interface CronogramaReportRow {
   isCritical: boolean;
   isExternal: boolean;
   compliance: string;
+  tags?: string[];
+  tagsLabel?: string;
   latestComment?: string;
   latestCommentDate?: string;
   commentsCount?: number;
@@ -99,6 +103,7 @@ export const CRONOGRAMA_HEADER = [
   'Ruta Crítica',
   'Hito Externo',
   'Cumplimiento Release',
+  'Etiquetas',
   'Seguimiento',
   'Notas / Descripción',
 ];
@@ -230,6 +235,8 @@ export function generateCronogramaCompletoRows(
         isCritical: false,
         isExternal: false,
         compliance: 'Conforme',
+        tags: [],
+        tagsLabel: '—',
         latestComment: '—',
         commentsCount: 0,
         notes: '—',
@@ -264,6 +271,14 @@ export function generateCronogramaCompletoRows(
           isCritical: false,
           isExternal: false,
           compliance: 'Conforme',
+          tags: rollupProjectSubtasks
+            ? collectProjectRollupTags(pg.project, pg.items)
+            : pg.project.tags || [],
+          tagsLabel: formatTagsForExport(
+            rollupProjectSubtasks
+              ? collectProjectRollupTags(pg.project, pg.items)
+              : pg.project.tags
+          ),
           latestComment: formatStatusCommentForExport(projCommentInfo.latest),
           latestCommentDate: projCommentInfo.latest?.createdAt,
           commentsCount: projCommentInfo.count,
@@ -325,6 +340,8 @@ export function generateCronogramaCompletoRows(
             isCritical,
             isExternal,
             compliance: complianceLabel,
+            tags: item.tags || [],
+            tagsLabel: formatTagsForExport(item.tags),
             latestComment: formatStatusCommentForExport(getLatestStatusComment(item.statusComments)),
             latestCommentDate: getLatestStatusComment(item.statusComments)?.createdAt,
             commentsCount: item.statusComments?.length ?? 0,
@@ -561,6 +578,7 @@ export function exportFullGanttToWorkbook(
       r.isCritical ? 'SÍ' : 'NO',
       r.isExternal ? 'SÍ' : 'NO',
       r.compliance,
+      r.tagsLabel || '—',
       r.latestComment || '—',
       r.notes,
     ]),
@@ -584,6 +602,7 @@ export function exportFullGanttToWorkbook(
     { wch: 12 }, // Ruta Crítica
     { wch: 12 }, // Hito Externo
     { wch: 30 }, // Cumplimiento Release
+    { wch: 26 }, // Etiquetas
     { wch: 44 }, // Seguimiento
     { wch: 42 }, // Notas / Descripción
   ];

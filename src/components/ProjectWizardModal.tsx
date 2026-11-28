@@ -16,6 +16,7 @@ import {
 } from '../types/gantt';
 import { formatDateISO } from '../utils/ganttEngine';
 import { getReleaseDateSpan } from '../utils/releaseEngine';
+import { TagInput } from './TagInput';
 
 export interface ProjectWizardSubtaskDraft {
   name: string;
@@ -69,6 +70,7 @@ interface ProjectWizardModalProps {
   onClose: () => void;
   releases: Release[];
   existingTeams?: string[];
+  existingTags?: string[];
   initialReleaseId?: string;
   initialStep?: 1 | 2 | 3;
   onCreate: (payload: ProjectWizardPayload) => void;
@@ -89,6 +91,7 @@ export const ProjectWizardModal: React.FC<ProjectWizardModalProps> = ({
   onClose,
   releases,
   existingTeams = [],
+  existingTags = [],
   initialReleaseId,
   initialStep = 1,
   onCreate,
@@ -102,6 +105,7 @@ export const ProjectWizardModal: React.FC<ProjectWizardModalProps> = ({
   const [releaseId, setReleaseId] = useState<string>(defaultReleaseId);
   const [name, setName] = useState<string>('');
   const [description, setDescription] = useState<string>('');
+  const [tags, setTags] = useState<string[]>([]);
   const [platform, setPlatform] = useState<ProjectPlatform>('iOS/Android');
   const [team, setTeam] = useState<string>('MC');
   const [startMode, setStartMode] = useState<'today' | 'custom'>('today');
@@ -120,6 +124,7 @@ export const ProjectWizardModal: React.FC<ProjectWizardModalProps> = ({
     setReleaseId(relId);
     setName('');
     setDescription('');
+    setTags([]);
     setPlatform('iOS/Android');
     setTeam('MC');
     setStartMode('today');
@@ -300,6 +305,7 @@ export const ProjectWizardModal: React.FC<ProjectWizardModalProps> = ({
       project: {
         name: trimmedName,
         description: description.trim() || undefined,
+        tags: tags.length > 0 ? tags : undefined,
         releaseId: releaseId || undefined,
         platform,
         color: 'indigo',
@@ -436,6 +442,19 @@ export const ProjectWizardModal: React.FC<ProjectWizardModalProps> = ({
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Alcance, contexto o notas principales del proyecto..."
                   className="w-full px-2.5 py-1.5 rounded-[4px] border border-[#E2E2DC] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs resize-y min-h-[54px] focus:border-[#0C0C09] dark:focus:border-indigo-400 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400 mb-1">
+                  Etiquetas <span className="font-normal lowercase text-zinc-400">(opcional)</span>
+                </label>
+                <TagInput
+                  tags={tags}
+                  allTags={existingTags}
+                  onChange={setTags}
+                  placeholder="#urgente, #requerimiento..."
+                  testIdPrefix="wizard-project-tags"
                 />
               </div>
 
