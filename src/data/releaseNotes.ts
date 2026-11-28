@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.21.1',
+    date: '28 Nov 2026',
+    title: 'Doble clic en separador de Cronograma para expandir/restaurar panel izquierdo',
+    isLatest: true,
+    features: [
+      'Añadido doble clic en el separador de paneles del Cronograma para expandir el panel izquierdo a todo el ancho disponible manteniendo el separador visible',
+      'Un segundo doble clic restaura suavemente el ancho anterior donde estaba el separador',
+    ],
+  },
+  {
     version: '1.21.0',
     date: '28 Nov 2026',
     title: 'Undo/Redo completo para columnas, layout y releases',
-    isLatest: true,
     features: [
       'Ampliado PlanHistoryEntry.snapshot para guardar y restaurar releases y el layout de columnas de Planificación (orden, visibilidad, anchos y preset activo)',
       'Registrados en Undo/Redo todos los cambios de columnas: mover/reordenar arrastrando (con animación FLIP al deshacer), ocultar/mostrar, mostrar todas, redimensionar, doble clic expandir/restaurar y aplicar presets',

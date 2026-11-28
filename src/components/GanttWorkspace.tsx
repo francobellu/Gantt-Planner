@@ -1585,6 +1585,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   const hasDraggedRef = useRef<boolean>(false);
 
   const [splitWidth, setSplitWidth] = useState<number>(480);
+  const [splitExpandedPrevWidth, setSplitExpandedPrevWidth] = useState<number | null>(null);
+  const [isDraggingSplit, setIsDraggingSplit] = useState<boolean>(false);
   const [internalShowTable, setInternalShowTable] = useState<boolean>(true);
   const showTable = showTableProp !== undefined ? showTableProp : internalShowTable;
 
@@ -4588,23 +4590,46 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   const handleSplitMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
     isResizingSplitRef.current = true;
+    setIsDraggingSplit(true);
     const startX = e.clientX;
     const origWidth = splitWidth;
+    const containerW = splitPaneRef.current?.clientWidth || 1200;
+    const maxW = Math.max(960, containerW - 6);
 
     const onMove = (me: MouseEvent) => {
       if (!isResizingSplitRef.current) return;
-      const nextWidth = Math.max(360, Math.min(960, origWidth + (me.clientX - startX)));
+      if (Math.abs(me.clientX - startX) > 2) {
+        setSplitExpandedPrevWidth(null);
+      }
+      const nextWidth = Math.max(360, Math.min(maxW, origWidth + (me.clientX - startX)));
       setSplitWidth(nextWidth);
     };
 
     const onUp = () => {
       isResizingSplitRef.current = false;
+      setIsDraggingSplit(false);
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
 
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
+  };
+
+  const handleSplitDoubleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (splitExpandedPrevWidth !== null) {
+      setSplitWidth(splitExpandedPrevWidth);
+      setSplitExpandedPrevWidth(null);
+      return;
+    }
+    const containerW =
+      splitPaneRef.current?.clientWidth ||
+      (typeof window !== 'undefined' ? window.innerWidth : 1200);
+    const expandedW = Math.max(360, containerW - 6);
+    setSplitExpandedPrevWidth(splitWidth);
+    setSplitWidth(expandedW);
   };
 
   // Map item ID to display row index and coordinates for SVG dependency lines and bars
@@ -6070,7 +6095,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
           <>
             <div
               style={{ width: splitWidth }}
-              className="relative shrink-0 flex flex-col border-r border-[#0C0C09] dark:border-zinc-800 bg-white dark:bg-[#0C0C09] overflow-hidden select-none"
+              className={`relative shrink-0 flex flex-col border-r border-[#0C0C09] dark:border-zinc-800 bg-white dark:bg-[#0C0C09] overflow-hidden select-none ${
+                isDraggingSplit ? '' : 'transition-[width] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]'
+              }`}
             >
               {/* Botón de Columnas siempre visible a la izquierda del separador */}
               <div
@@ -7940,9 +7967,16 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
             {/* Resizable Split Handle */}
             <div
+              data-testid="gantt-split-handle"
+              data-expanded={splitExpandedPrevWidth !== null ? 'true' : 'false'}
               onMouseDown={handleSplitMouseDown}
-              className="w-1 cursor-col-resize bg-[#0C0C09] dark:bg-zinc-700 hover:bg-[#312C85] dark:hover:bg-[#312C85] transition-colors flex items-center justify-center group shrink-0"
-              title="Arrastra para redimensionar la tabla"
+              onDoubleClick={handleSplitDoubleClick}
+              className="w-1.5 cursor-col-resize bg-[#0C0C09] dark:bg-zinc-700 hover:bg-[#312C85] dark:hover:bg-[#312C85] transition-colors flex items-center justify-center group shrink-0"
+              title={
+                splitExpandedPrevWidth !== null
+                  ? 'Doble clic para restaurar el ancho anterior · Arrastra para redimensionar'
+                  : 'Arrastra para redimensionar · Doble clic para expandir todo el panel izquierdo'
+              }
             >
               <GripHorizontal className="w-3 h-3 text-white rotate-90" />
             </div>
