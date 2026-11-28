@@ -32,6 +32,7 @@ import {
   Pencil,
   Bookmark,
   MessageSquare,
+  Diamond,
 } from 'lucide-react';
 import {
   ComputedGanttItem,
@@ -80,20 +81,20 @@ import {
   ReleaseSummaryReportRow,
 } from '../utils/excelExportEngine';
 
-const PROJECT_ACCENT_COLORS: Record<string, { hex: string; badgeBg: string }> = {
-  indigo: { hex: '#4F46E5', badgeBg: 'bg-indigo-600' },
-  violet: { hex: '#7C3AED', badgeBg: 'bg-violet-600' },
-  emerald: { hex: '#059669', badgeBg: 'bg-emerald-600' },
-  blue: { hex: '#2563EB', badgeBg: 'bg-blue-600' },
-  teal: { hex: '#0D9488', badgeBg: 'bg-teal-600' },
-  amber: { hex: '#D97706', badgeBg: 'bg-amber-600' },
-  orange: { hex: '#EA580C', badgeBg: 'bg-orange-600' },
-  rose: { hex: '#E11D48', badgeBg: 'bg-rose-600' },
-  pink: { hex: '#DB2777', badgeBg: 'bg-pink-600' },
-  cyan: { hex: '#0891B2', badgeBg: 'bg-cyan-600' },
-  sky: { hex: '#0284C7', badgeBg: 'bg-sky-600' },
-  lime: { hex: '#65A30D', badgeBg: 'bg-lime-600' },
-  slate: { hex: '#475569', badgeBg: 'bg-slate-600' },
+const PROJECT_ACCENT_COLORS: Record<string, { hex: string; rgb: string; badgeBg: string }> = {
+  indigo: { hex: '#4F46E5', rgb: '79, 70, 229', badgeBg: 'bg-indigo-600' },
+  violet: { hex: '#7C3AED', rgb: '124, 58, 237', badgeBg: 'bg-violet-600' },
+  emerald: { hex: '#059669', rgb: '5, 150, 105', badgeBg: 'bg-emerald-600' },
+  blue: { hex: '#2563EB', rgb: '37, 99, 235', badgeBg: 'bg-blue-600' },
+  teal: { hex: '#0D9488', rgb: '13, 148, 136', badgeBg: 'bg-teal-600' },
+  amber: { hex: '#D97706', rgb: '217, 119, 6', badgeBg: 'bg-amber-600' },
+  orange: { hex: '#EA580C', rgb: '234, 88, 12', badgeBg: 'bg-orange-600' },
+  rose: { hex: '#E11D48', rgb: '225, 29, 72', badgeBg: 'bg-rose-600' },
+  pink: { hex: '#DB2777', rgb: '219, 39, 119', badgeBg: 'bg-pink-600' },
+  cyan: { hex: '#0891B2', rgb: '8, 145, 178', badgeBg: 'bg-cyan-600' },
+  sky: { hex: '#0284C7', rgb: '2, 132, 199', badgeBg: 'bg-sky-600' },
+  lime: { hex: '#65A30D', rgb: '101, 163, 13', badgeBg: 'bg-lime-600' },
+  slate: { hex: '#475569', rgb: '71, 85, 105', badgeBg: 'bg-slate-600' },
 };
 
 type ReportTab = 'cronograma' | 'projects' | 'releases';
@@ -2927,6 +2928,15 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                         : false;
                     const isProjectSubtasksHidden =
                       isProject && hasChildren && (!hasVisibleKids || isNodeVisuallyCollapsed);
+                    const nextDisplayedRow = displayedCronoRows[idx + 1]?.row;
+                    const isLastChildInProject = Boolean(
+                      !isRelease &&
+                        !isProject &&
+                        (!nextDisplayedRow ||
+                          nextDisplayedRow.level === 'RELEASE' ||
+                          nextDisplayedRow.level === 'PROYECTO' ||
+                          nextDisplayedRow.projectId !== row.projectId)
+                    );
 
                     const rowBgClass = isRelease
                       ? 'bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09] font-bold'
@@ -3038,25 +3048,36 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                                 return (
                                   <td
                                     key={col.key}
-                                    className={`px-2 py-1 border-r font-sans text-xs font-medium align-top ${
+                                    className={`relative px-2 py-1.5 border-r font-sans text-xs font-medium align-top ${
                                       isRelease
                                         ? 'border-white/15 dark:border-zinc-300 text-white dark:text-[#0C0C09]'
                                         : 'border-[#E2E2DC] dark:border-zinc-800 text-[#0C0C09] dark:text-zinc-100'
                                     }`}
                                   >
+                                    {!isRelease && !isProject && (
+                                      <div
+                                        data-testid={`report-tree-rail-${row.rowId}`}
+                                        data-last-in-project={isLastChildInProject ? 'true' : 'false'}
+                                        aria-hidden="true"
+                                        className="pointer-events-none absolute inset-y-0 left-0 w-9"
+                                      >
+                                        <span
+                                          className={`absolute top-0 ${
+                                            isLastChildInProject ? 'h-[17px]' : 'bottom-0'
+                                          } left-[24px] w-[2px]`}
+                                          style={{ backgroundColor: `rgba(${projAccent.rgb}, 0.45)` }}
+                                        />
+                                        <span
+                                          className="absolute top-[15px] left-[24px] w-3 h-[2px]"
+                                          style={{ backgroundColor: `rgba(${projAccent.rgb}, 0.45)` }}
+                                        />
+                                      </div>
+                                    )}
                                     <div
                                       className={`flex items-start gap-1.5 min-w-0 ${
-                                        isProject ? 'pl-3' : !isRelease ? 'pl-7' : ''
+                                        isProject ? 'pl-2' : !isRelease ? 'pl-8' : ''
                                       }`}
                                     >
-                                      {!isRelease && !isProject && (
-                                        <span
-                                          aria-hidden="true"
-                                          className="inline-flex items-center shrink-0 select-none text-zinc-300 dark:text-zinc-600 font-mono text-[11px]"
-                                        >
-                                          └
-                                        </span>
-                                      )}
                                       {nodeKey && hasChildren && (!hasCronoFilters || hasVisibleKids || isNodeVisuallyCollapsed) && (
                                         <button
                                           type="button"
@@ -3086,6 +3107,25 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                                           className={`px-1.5 py-0.5 rounded text-[9.5px] font-mono font-bold text-white shrink-0 ${projAccent.badgeBg}`}
                                         >
                                           {row.displayId}
+                                        </span>
+                                      )}
+                                      {!isRelease && !isProject && row.displayId && (
+                                        <span
+                                          data-testid={`report-task-id-badge-${row.rowId}`}
+                                          className={`px-1.5 py-0.5 rounded text-[9.5px] font-mono font-bold text-white shrink-0 inline-flex items-center gap-0.5 ${projAccent.badgeBg}`}
+                                        >
+                                          {isMilestone && (
+                                            <Diamond className="w-2.5 h-2.5 fill-current shrink-0" />
+                                          )}
+                                          <span>{row.displayId}</span>
+                                        </span>
+                                      )}
+                                      {!isRelease && !isProject && isMilestone && linkedItem?.isExternal && (
+                                        <span
+                                          title="Hito externo (no pertenece a la release)"
+                                          className="px-1 py-0.5 rounded text-[8.5px] font-mono font-bold bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 shrink-0"
+                                        >
+                                          EXT
                                         </span>
                                       )}
                                       {isRelease && (

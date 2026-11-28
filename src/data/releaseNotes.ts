@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.19.5',
+    date: '28 Nov 2026',
+    title: 'Jerarquía visual estilo Cronograma en Planificación',
+    isLatest: true,
+    features: [
+      'Añadidas líneas conectoras de árbol continuas en el color de cada proyecto (├ intermedias y └ en la última tarea) en la tabla de Planificación',
+      'Añadido badge coloreado con el código de tarea/hito (p. ej. P3T1, con rombo en hitos y etiqueta EXT si es externo) igual que en Cronograma',
+    ],
+  },
+  {
     version: '1.19.4',
     date: '28 Nov 2026',
     title: 'Animación de desplazamiento al reordenar columnas',
-    isLatest: true,
     features: [
       'Añadida animación FLIP horizontal exacta al arrastrar y soltar columnas en Planificación (cabecera y todas las celdas sincronizadas)',
       'La columna movida se desliza por encima con resaltado sutil mientras las columnas intermedias se apartan en dirección opuesta',
