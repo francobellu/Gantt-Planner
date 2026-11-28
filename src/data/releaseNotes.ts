@@ -10,10 +10,20 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.18.1',
+    date: '28 Nov 2026',
+    title: 'Doble clic en separador de columna para expandir al texto completo y restaurar',
+    isLatest: true,
+    features: [
+      'Al hacer doble clic en el separador de cualquier columna en Planificación se calcula y aplica el ancho completo para ver todo el texto sin truncar (hasta 960px)',
+      'Un segundo doble clic restaura exactamente el tamaño anterior',
+      'Evitada interferencia de mouseup sin arrastre con el toggle de doble clic',
+    ],
+  },
+  {
     version: '1.18.0',
     date: '28 Nov 2026',
     title: 'Soporte completo de etiquetas (tags) con autocompletado y filtro',
-    isLatest: true,
     features: [
       'Nuevo campo opcional tags en proyectos, tareas e hitos con normalización sin duplicados, sanitización JSON, diffs en Historial y exportación Excel',
       'Componente reutilizable TagInput con pills #etiqueta y autocompletado en Planificación (columna opcional Etiquetas con rollup en proyectos), RightSidePanel y Paso 1 del Wizard',

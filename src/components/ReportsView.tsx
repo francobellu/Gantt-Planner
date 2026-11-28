@@ -276,6 +276,59 @@ export function computeAutoFitReportColumnWidths(
   return result;
 }
 
+/**
+ * Computes the expanded width needed to display the full text of a column
+ * (header + longest line across the provided rows) without truncation.
+ */
+export function computeFullTextColumnWidth(
+  col: ReportColumnDef,
+  rows: Array<CronogramaReportRow | ProjectSummaryReportRow | ReleaseSummaryReportRow>
+): number {
+  const limits = REPORT_COL_WIDTH_LIMITS[col.key] || {
+    min: 68,
+    max: 320,
+    extraPx: 24,
+  };
+  const extraByKey: Record<string, number> = {
+    name: 120, // indentation + chevron + project/release badge + "+N" pill
+    statusComments: 76, // padding + 💬 N badge
+    tags: 64, // #tag pills + inline input
+    notes: 36,
+    dependency: 36,
+  };
+  const extraPx = extraByKey[col.key] ?? Math.max(limits.extraPx, 32);
+
+  let measureTextPx = (text: string): number => Math.ceil(text.length * 7.2);
+  if (typeof document !== 'undefined') {
+    try {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.font = '600 12px -apple-system, BlinkMacSystemFont, Inter, sans-serif';
+        measureTextPx = (text: string) => Math.ceil(ctx.measureText(text).width);
+      }
+    } catch {}
+  }
+
+  const headerPx = Math.ceil(col.label.length * 7.4 + 32);
+  let maxTextPx = 0;
+
+  for (const row of rows) {
+    const text = extractReportCellText(row, col.key).trim();
+    if (!text || text === '—') continue;
+    const lines = text.split(/\r?\n/);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const px = measureTextPx(trimmed);
+      if (px > maxTextPx) maxTextPx = px;
+    }
+  }
+
+  const fullIdeal = Math.max(limits.min, headerPx, maxTextPx + extraPx);
+  return Math.min(960, Math.max(limits.min, fullIdeal));
+}
+
 const REPORT_HIDDEN_COLS_KEY = 'ganttflow_report_hidden_cols_v1';
 const REPORT_COL_WIDTHS_KEY = 'ganttflow_report_col_widths_v1';
 export const REPORT_COL_ORDER_KEY = 'ganttflow_report_col_order_v1';
@@ -1674,15 +1727,61 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     [cronoRows, projectRows, releaseRows]
   );
 
+  const [expandedColToggleMap, setExpandedColToggleMap] = useState<
+    Record<string, { previousWidth: number | undefined; expandedWidth: number }>
+  >({});
+
   const getColWidth = (tab: ReportTab, col: ReportColumnDef): number => {
     return colWidthsByTab[tab]?.[col.key] ?? autoFitColWidths[tab]?.[col.key] ?? col.defaultWidth;
   };
 
-  const resetColWidthToAutoFit = (tab: ReportTab, key: string) => {
+  const toggleColWidthFullText = (tab: ReportTab, col: ReportColumnDef) => {
+    const toggleKey = `${tab}:${col.key}`;
+    const existing = expandedColToggleMap[toggleKey];
+    const currentWidth = getColWidth(tab, col);
+
+    if (existing && Math.abs(currentWidth - existing.expandedWidth) <= 2) {
+      // Second double-click: restore previous width
+      setColWidthsByTab((prev) => {
+        const tabMap = { ...(prev[tab] || {}) };
+        if (existing.previousWidth !== undefined) {
+          tabMap[col.key] = existing.previousWidth;
+        } else {
+          delete tabMap[col.key];
+        }
+        const next = { ...prev, [tab]: tabMap };
+        try {
+          localStorage.setItem(REPORT_COL_WIDTHS_KEY, JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+      setExpandedColToggleMap((prev) => {
+        const next = { ...prev };
+        delete next[toggleKey];
+        return next;
+      });
+      return;
+    }
+
+    // First double-click: save previous width and expand to fit full text
+    const rowsForTab =
+      tab === 'cronograma'
+        ? cronoRows
+        : tab === 'projects'
+        ? projectRows
+        : releaseRows;
+    const expandedWidth = computeFullTextColumnWidth(col, rowsForTab);
+    const previousCustomWidth = colWidthsByTab[tab]?.[col.key];
+
+    setExpandedColToggleMap((prev) => ({
+      ...prev,
+      [toggleKey]: { previousWidth: previousCustomWidth, expandedWidth },
+    }));
     setColWidthsByTab((prev) => {
-      const tabMap = { ...(prev[tab] || {}) };
-      delete tabMap[key];
-      const next = { ...prev, [tab]: tabMap };
+      const next = {
+        ...prev,
+        [tab]: { ...(prev[tab] || {}), [col.key]: expandedWidth },
+      };
       try {
         localStorage.setItem(REPORT_COL_WIDTHS_KEY, JSON.stringify(next));
       } catch {}
@@ -1700,9 +1799,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     e.stopPropagation();
     const startX = e.clientX;
     let latestWidth = startWidth;
+    let didMove = false;
 
     const onMove = (moveEvent: MouseEvent) => {
-      latestWidth = Math.max(64, Math.min(720, Math.round(startWidth + (moveEvent.clientX - startX))));
+      if (Math.abs(moveEvent.clientX - startX) > 2) didMove = true;
+      latestWidth = Math.max(64, Math.min(960, Math.round(startWidth + (moveEvent.clientX - startX))));
       setColWidthsByTab((prev) => ({
         ...prev,
         [tab]: { ...(prev[tab] || {}), [key]: latestWidth },
@@ -1715,6 +1816,14 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       if (typeof document !== 'undefined') {
         document.body.style.cursor = '';
       }
+      if (!didMove) return;
+      const toggleKey = `${tab}:${key}`;
+      setExpandedColToggleMap((prev) => {
+        if (!prev[toggleKey]) return prev;
+        const next = { ...prev };
+        delete next[toggleKey];
+        return next;
+      });
       setColWidthsByTab((prev) => {
         const next = {
           ...prev,
@@ -1805,9 +1914,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           }}
           onDoubleClick={(e) => {
             e.stopPropagation();
-            resetColWidthToAutoFit(tab, col.key);
+            toggleColWidthFullText(tab, col);
           }}
-          title="Arrastra para redimensionar · Doble clic para auto-ajustar al contenido"
+          title="Arrastra para redimensionar · Doble clic para expandir al texto completo o restaurar tamaño anterior"
           className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-indigo-500/60 active:bg-indigo-600 transition-colors z-10"
         />
       </th>
