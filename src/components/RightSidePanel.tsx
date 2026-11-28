@@ -1028,39 +1028,6 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                   />
                 </div>
 
-                {/* Expandable: Fechas, progreso y planificación */}
-                <div
-                  data-testid="sidebar-task-dates-section"
-                  className="rounded-[5px] border border-[#E2E2DC] dark:border-zinc-800 bg-[#FAFAF8] dark:bg-zinc-900/40 overflow-hidden"
-                >
-                  <button
-                    type="button"
-                    data-testid="sidebar-task-dates-toggle"
-                    data-expanded={datesSectionExpanded ? 'true' : 'false'}
-                    onClick={() => setDatesSectionExpanded((prev) => !prev)}
-                    className="w-full px-2.5 py-2 flex items-center justify-between gap-2 text-left hover:bg-[#EFEFEB] dark:hover:bg-zinc-800/70 transition cursor-pointer"
-                  >
-                    <span className="inline-flex items-center gap-1.5 text-[10px] font-mono uppercase font-bold text-[#0C0C09] dark:text-zinc-200 shrink-0">
-                      <ChevronRight
-                        className={`w-3.5 h-3.5 text-[#6B6B66] transition-transform duration-[120ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
-                          datesSectionExpanded ? 'rotate-90 text-indigo-600' : 'rotate-0'
-                        }`}
-                      />
-                      <span>Fechas y progreso</span>
-                    </span>
-                    <span className="font-mono text-[10px] text-[#6B6B66] dark:text-zinc-400 truncate">
-                      {`${taskStart.slice(5)} → ${(taskType === 'milestone' ? taskStart : taskEnd).slice(5)} · ${
-                        taskType === 'milestone' ? 'Hito' : `${taskDuration}d`
-                      } · ${taskProgress}%`}
-                    </span>
-                  </button>
-                  <div
-                    className={`grid transition-[grid-template-rows,opacity] duration-[120ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
-                      datesSectionExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
-                    }`}
-                  >
-                    <div className="overflow-hidden">
-                      <div className="p-2.5 space-y-2.5 border-t border-[#E2E2DC] dark:border-zinc-800 bg-white dark:bg-zinc-950/40">
                 {/* Type & Project */}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
@@ -1250,6 +1217,39 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                   </div>
                 </div>
 
+                {/* Expandable: Fechas y progreso */}
+                <div
+                  data-testid="sidebar-task-dates-section"
+                  className="rounded-[5px] border border-[#E2E2DC] dark:border-zinc-800 bg-[#FAFAF8] dark:bg-zinc-900/40 overflow-hidden"
+                >
+                  <button
+                    type="button"
+                    data-testid="sidebar-task-dates-toggle"
+                    data-expanded={datesSectionExpanded ? 'true' : 'false'}
+                    onClick={() => setDatesSectionExpanded((prev) => !prev)}
+                    className="w-full px-2.5 py-2 flex items-center justify-between gap-2 text-left hover:bg-[#EFEFEB] dark:hover:bg-zinc-800/70 transition cursor-pointer"
+                  >
+                    <span className="inline-flex items-center gap-1.5 text-[10px] font-mono uppercase font-bold text-[#0C0C09] dark:text-zinc-200 shrink-0">
+                      <ChevronRight
+                        className={`w-3.5 h-3.5 text-[#6B6B66] transition-transform duration-[120ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                          datesSectionExpanded ? 'rotate-90 text-indigo-600' : 'rotate-0'
+                        }`}
+                      />
+                      <span>Fechas y progreso</span>
+                    </span>
+                    <span className="font-mono text-[10px] text-[#6B6B66] dark:text-zinc-400 truncate">
+                      {`${taskStart.slice(5)} → ${(taskType === 'milestone' ? taskStart : taskEnd).slice(5)} · ${
+                        taskType === 'milestone' ? 'Hito' : `${taskDuration}d`
+                      } · ${taskProgress}%`}
+                    </span>
+                  </button>
+                  <div
+                    className={`grid transition-[grid-template-rows,opacity] duration-[120ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                      datesSectionExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+                    }`}
+                  >
+                    <div className="overflow-hidden">
+                      <div className="p-2.5 space-y-2.5 border-t border-[#E2E2DC] dark:border-zinc-800 bg-white dark:bg-zinc-950/40">
                 {/* Dates, Duration, Progress & Slack */}
                 <div className="grid grid-cols-2 gap-2 p-2.5 rounded-[4px] bg-[#FAFAF8] dark:bg-zinc-900/40 border border-[#E2E2DC] dark:border-zinc-800 text-[11px]">
                   <div>

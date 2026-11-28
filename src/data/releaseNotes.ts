@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.22.1',
+    date: '28 Nov 2026',
+    title: 'Sacar tipo, equipo, color y metadatos fuera de Fechas y progreso',
+    isLatest: true,
+    features: [
+      'En el panel lateral de detalles de tarea/hito se muestran directamente Tipo, Proyecto, Equipo/Responsable, selector de color, Plataforma, Release y Nivel de Alerta fuera del bloque desplegable Fechas y progreso',
+      'El bloque Fechas y progreso queda dedicado únicamente a fechas, duración, progreso y holgura libre',
+    ],
+  },
+  {
     version: '1.22.0',
     date: '28 Nov 2026',
     title: 'Persistencia de estado al cambiar entre páginas',
-    isLatest: true,
     features: [
       'Cronograma y Planificación recuerdan automáticamente su estructura (nodos colapsados, ancho del panel dividido, pestaña activa y enfoque)',
       'Se conservan la búsqueda, exclusión, filtros activos, filtro guardado seleccionado y selección múltiple al ir y volver entre vistas',
