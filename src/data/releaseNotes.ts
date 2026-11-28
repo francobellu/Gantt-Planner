@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.17.4',
+    date: '28 Nov 2026',
+    title: 'Añadir campo Descripción en el Paso 1 del asistente de proyectos',
+    isLatest: true,
+    features: [
+      'Nuevo campo opcional Descripción en la primera pantalla del ProjectWizardModal',
+      'Se persiste al crear el proyecto y se muestra en el Paso 3 de resumen si se rellena',
+    ],
+  },
+  {
     version: '1.17.3',
     date: '28 Nov 2026',
     title: 'Corregir asignación indebida de release en proyectos creados sin release',
-    isLatest: true,
     features: [
       'Evitado que effectiveProjects y la carga desde localStorage sobrescriban proyectos con releaseId vacío con la primera release disponible',
       'Los proyectos creados con Sin release se mantienen correctamente en Sin Release tras crearlos y al recargar la página',

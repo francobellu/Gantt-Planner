@@ -101,6 +101,7 @@ export const ProjectWizardModal: React.FC<ProjectWizardModalProps> = ({
   const [step, setStep] = useState<1 | 2 | 3>(initialStep);
   const [releaseId, setReleaseId] = useState<string>(defaultReleaseId);
   const [name, setName] = useState<string>('');
+  const [description, setDescription] = useState<string>('');
   const [platform, setPlatform] = useState<ProjectPlatform>('iOS/Android');
   const [team, setTeam] = useState<string>('MC');
   const [startMode, setStartMode] = useState<'today' | 'custom'>('today');
@@ -118,6 +119,7 @@ export const ProjectWizardModal: React.FC<ProjectWizardModalProps> = ({
     setStep(initialStep);
     setReleaseId(relId);
     setName('');
+    setDescription('');
     setPlatform('iOS/Android');
     setTeam('MC');
     setStartMode('today');
@@ -297,6 +299,7 @@ export const ProjectWizardModal: React.FC<ProjectWizardModalProps> = ({
     onCreate({
       project: {
         name: trimmedName,
+        description: description.trim() || undefined,
         releaseId: releaseId || undefined,
         platform,
         color: 'indigo',
@@ -420,6 +423,20 @@ export const ProjectWizardModal: React.FC<ProjectWizardModalProps> = ({
                     className="w-full px-2.5 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-medium"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400 mb-1">
+                  Descripción <span className="font-normal lowercase text-zinc-400">(opcional)</span>
+                </label>
+                <textarea
+                  rows={2}
+                  data-testid="wizard-project-description-input"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Alcance, contexto o notas principales del proyecto..."
+                  className="w-full px-2.5 py-1.5 rounded-[4px] border border-[#E2E2DC] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs resize-y min-h-[54px] focus:border-[#0C0C09] dark:focus:border-indigo-400 outline-none"
+                />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -716,6 +733,18 @@ export const ProjectWizardModal: React.FC<ProjectWizardModalProps> = ({
                   <div className="font-bold font-mono mt-0.5">{diffCalendarDays(startDate, endDate)}d</div>
                 </div>
               </div>
+
+              {description.trim() && (
+                <div
+                  data-testid="wizard-summary-description"
+                  className="p-2.5 rounded-[5px] bg-[#FAFAF8] dark:bg-zinc-800/40 border border-[#E2E2DC] dark:border-zinc-800"
+                >
+                  <div className="text-[10px] font-mono uppercase text-[#6B6B66] dark:text-zinc-400">Descripción</div>
+                  <div className="text-xs text-[#0C0C09] dark:text-zinc-200 mt-0.5 whitespace-pre-wrap leading-relaxed">
+                    {description.trim()}
+                  </div>
+                </div>
+              )}
 
               {/* Mini Gantt preview */}
               <div className="p-3 rounded-[6px] border border-[#E2E2DC] dark:border-zinc-800 bg-[#FAFAF8] dark:bg-zinc-900/60 space-y-2">
