@@ -53,6 +53,7 @@ import {
   collectProjectRollupComments,
   collectProjectRollupTags,
   collectProjectSubtaskNotes,
+  getItemEffectiveColor,
   getLatestStatusComment,
   normalizePlatform,
   normalizeTag,
@@ -3287,6 +3288,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     const projAccent =
                       PROJECT_ACCENT_COLORS[rowProjectObj?.color || 'indigo'] ||
                       PROJECT_ACCENT_COLORS.indigo;
+                    const itemEffectiveColor =
+                      !isRelease && !isProject && linkedItem
+                        ? getItemEffectiveColor(linkedItem)
+                        : undefined;
+                    const itemAccent =
+                      (itemEffectiveColor && PROJECT_ACCENT_COLORS[itemEffectiveColor]) ||
+                      projAccent;
                     const isShowingHiddenKids = Boolean(
                       nodeKey && expandedFilteredNodes.has(nodeKey) && !isNodeVisuallyCollapsed
                     );
@@ -3645,7 +3653,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                                       {!isRelease && !isProject && row.displayId && (
                                         <span
                                           data-testid={`report-task-id-badge-${row.rowId}`}
-                                          className={`px-1.5 py-0.5 rounded text-[9.5px] font-mono font-bold text-white shrink-0 inline-flex items-center gap-0.5 ${projAccent.badgeBg}`}
+                                          data-task-color={itemEffectiveColor}
+                                          className={`px-1.5 py-0.5 rounded text-[9.5px] font-mono font-bold text-white shrink-0 inline-flex items-center gap-0.5 ${itemAccent.badgeBg}`}
                                         >
                                           {isMilestone && (
                                             <Diamond className="w-2.5 h-2.5 fill-current shrink-0" />

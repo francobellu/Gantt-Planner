@@ -10,10 +10,18 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.22.2',
+    date: '28 Nov 2026',
+    title: 'Respetar color individual de tareas e hitos en Planificación',
+    isLatest: true,
+    features: [
+      'Los badges de ID de tareas e hitos en Planificación ahora usan el color efectivo de cada tarea/hito (getItemEffectiveColor) en lugar del color del proyecto padre, manteniéndose sincronizados con Cronograma',
+    ],
+  },
+  {
     version: '1.22.1',
     date: '28 Nov 2026',
     title: 'Sacar tipo, equipo, color y metadatos fuera de Fechas y progreso',
-    isLatest: true,
     features: [
       'En el panel lateral de detalles de tarea/hito se muestran directamente Tipo, Proyecto, Equipo/Responsable, selector de color, Plataforma, Release y Nivel de Alerta fuera del bloque desplegable Fechas y progreso',
       'El bloque Fechas y progreso queda dedicado únicamente a fechas, duración, progreso y holgura libre',
