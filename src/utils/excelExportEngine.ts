@@ -5,7 +5,15 @@ import {
   Release,
 } from '../types/gantt';
 import { checkTaskReleaseCompliance, getReleaseDateSpan } from './releaseEngine';
-import { groupItemsByProject, groupItemsByReleaseAndProject, normalizePlatform } from './ganttEngine';
+import {
+  collectProjectRollupComments,
+  collectProjectSubtaskNotes,
+  formatStatusCommentForExport,
+  getLatestStatusComment,
+  groupItemsByProject,
+  groupItemsByReleaseAndProject,
+  normalizePlatform,
+} from './ganttEngine';
 
 export interface CronogramaReportRow {
   rowId: string;
@@ -33,6 +41,9 @@ export interface CronogramaReportRow {
   isCritical: boolean;
   isExternal: boolean;
   compliance: string;
+  latestComment?: string;
+  latestCommentDate?: string;
+  commentsCount?: number;
   notes: string;
   isDepRow?: boolean;
 }
@@ -88,6 +99,7 @@ export const CRONOGRAMA_HEADER = [
   'Ruta Crítica',
   'Hito Externo',
   'Cumplimiento Release',
+  'Seguimiento',
   'Notas / Descripción',
 ];
 
@@ -152,9 +164,42 @@ export function collectProjectTeams(items: ComputedGanttItem[]): string {
 export function generateCronogramaCompletoRows(
   releases: Release[],
   projects: GanttProject[],
-  items: ComputedGanttItem[]
+  items: ComputedGanttItem[],
+  options?: { rollupProjectSubtasks?: boolean }
 ): CronogramaReportRow[] {
   const rows: CronogramaReportRow[] = [];
+  const rollupProjectSubtasks = Boolean(options?.rollupProjectSubtasks);
+
+  const buildProjectNotesForRow = (
+    proj: GanttProject,
+    pgItems: ComputedGanttItem[],
+    projectIndex: number
+  ): string => {
+    const base = proj.description?.trim() || '';
+    if (!rollupProjectSubtasks) return base || '—';
+    const subNotes = collectProjectSubtaskNotes(pgItems, projectIndex);
+    if (subNotes.length === 0) return base || '—';
+    const subBlock = subNotes.map((s) => `${s.code}: ${s.notes}`).join('\n');
+    return base ? `${base}\n\n${subBlock}` : subBlock;
+  };
+
+  const buildProjectLatestComment = (
+    proj: GanttProject,
+    pgItems: ComputedGanttItem[],
+    projectIndex: number
+  ) => {
+    if (rollupProjectSubtasks) {
+      const rollup = collectProjectRollupComments(proj, pgItems, projectIndex);
+      return {
+        latest: rollup[0],
+        count: rollup.length,
+      };
+    }
+    return {
+      latest: getLatestStatusComment(proj.statusComments),
+      count: proj.statusComments?.length ?? 0,
+    };
+  };
 
   if (releases && releases.length > 0) {
     const releaseGroups = groupItemsByReleaseAndProject(items, projects, releases);
@@ -185,11 +230,14 @@ export function generateCronogramaCompletoRows(
         isCritical: false,
         isExternal: false,
         compliance: 'Conforme',
+        latestComment: '—',
+        commentsCount: 0,
         notes: '—',
       });
 
       for (const pg of rg.projectGroups) {
         const platformLabel = normalizePlatform(pg.project.platform) || 'iOS/Android';
+        const projCommentInfo = buildProjectLatestComment(pg.project, pg.items, pg.projectIndex);
         // Project Row
         rows.push({
           rowId: `proj-${pg.project.id}`,
@@ -216,7 +264,10 @@ export function generateCronogramaCompletoRows(
           isCritical: false,
           isExternal: false,
           compliance: 'Conforme',
-          notes: pg.project.description?.trim() || '—',
+          latestComment: formatStatusCommentForExport(projCommentInfo.latest),
+          latestCommentDate: projCommentInfo.latest?.createdAt,
+          commentsCount: projCommentInfo.count,
+          notes: buildProjectNotesForRow(pg.project, pg.items, pg.projectIndex),
         });
 
         for (const item of pg.items) {
@@ -274,6 +325,9 @@ export function generateCronogramaCompletoRows(
             isCritical,
             isExternal,
             compliance: complianceLabel,
+            latestComment: formatStatusCommentForExport(getLatestStatusComment(item.statusComments)),
+            latestCommentDate: getLatestStatusComment(item.statusComments)?.createdAt,
+            commentsCount: item.statusComments?.length ?? 0,
             notes: item.notes?.trim() || '—',
             isDepRow: false,
           });
@@ -285,6 +339,7 @@ export function generateCronogramaCompletoRows(
     const projectGroups = groupItemsByProject(items, projects);
     for (const pg of projectGroups) {
       const platformLabel = normalizePlatform(pg.project.platform) || 'iOS/Android';
+      const projLatestComment = getLatestStatusComment(pg.project.statusComments);
       rows.push({
         rowId: `proj-${pg.project.id}`,
         level: 'PROYECTO',
@@ -309,6 +364,9 @@ export function generateCronogramaCompletoRows(
         isCritical: false,
         isExternal: false,
         compliance: 'Conforme',
+        latestComment: formatStatusCommentForExport(projLatestComment),
+        latestCommentDate: projLatestComment?.createdAt,
+        commentsCount: pg.project.statusComments?.length ?? 0,
         notes: pg.project.description?.trim() || '—',
       });
 
@@ -359,6 +417,9 @@ export function generateCronogramaCompletoRows(
           isCritical,
           isExternal,
           compliance: 'Conforme',
+          latestComment: formatStatusCommentForExport(getLatestStatusComment(item.statusComments)),
+          latestCommentDate: getLatestStatusComment(item.statusComments)?.createdAt,
+          commentsCount: item.statusComments?.length ?? 0,
           notes: item.notes?.trim() || '—',
           isDepRow: false,
         });
@@ -473,12 +534,13 @@ export function generateReleaseSummaryRows(
 export function exportFullGanttToWorkbook(
   releases: Release[],
   projects: GanttProject[],
-  items: ComputedGanttItem[]
+  items: ComputedGanttItem[],
+  options?: { rollupProjectSubtasks?: boolean }
 ): XLSX.WorkBook {
   const wb = XLSX.utils.book_new();
 
   // 1. SHEET 1: Cronograma Completo
-  const cronoRows = generateCronogramaCompletoRows(releases, projects, items);
+  const cronoRows = generateCronogramaCompletoRows(releases, projects, items, options);
   const cronoAoa: (string | number)[][] = [
     CRONOGRAMA_HEADER,
     ...cronoRows.map((r) => [
@@ -499,6 +561,7 @@ export function exportFullGanttToWorkbook(
       r.isCritical ? 'SÍ' : 'NO',
       r.isExternal ? 'SÍ' : 'NO',
       r.compliance,
+      r.latestComment || '—',
       r.notes,
     ]),
   ];
@@ -521,6 +584,7 @@ export function exportFullGanttToWorkbook(
     { wch: 12 }, // Ruta Crítica
     { wch: 12 }, // Hito Externo
     { wch: 30 }, // Cumplimiento Release
+    { wch: 44 }, // Seguimiento
     { wch: 42 }, // Notas / Descripción
   ];
   XLSX.utils.book_append_sheet(wb, wsHierarchy, 'Informe Planificación');
@@ -565,8 +629,9 @@ export function downloadGanttExcelFile(
   releases: Release[],
   projects: GanttProject[],
   items: ComputedGanttItem[],
-  filename = 'GanttFlow_Cronograma_Completo.xlsx'
+  filename = 'GanttFlow_Cronograma_Completo.xlsx',
+  options?: { rollupProjectSubtasks?: boolean }
 ): void {
-  const wb = exportFullGanttToWorkbook(releases, projects, items);
+  const wb = exportFullGanttToWorkbook(releases, projects, items, options);
   XLSX.writeFile(wb, filename);
 }

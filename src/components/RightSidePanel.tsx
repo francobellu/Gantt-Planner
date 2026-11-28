@@ -15,6 +15,7 @@ import {
   History,
   Info,
   Lock,
+  MessageSquare,
   Rocket,
   RotateCcw,
   Save,
@@ -53,6 +54,7 @@ import {
 } from '../utils/ganttEngine';
 import { getReleaseDateSpan } from '../utils/releaseEngine';
 import { CommitHistorySidebar } from './CommitHistorySidebar';
+import { StatusCommentsSection } from './StatusCommentsPanel';
 
 export type RightSidebarTab = 'details' | 'changes' | 'commits' | 'conflicts';
 
@@ -1339,6 +1341,25 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                   />
                 </div>
 
+                {/* Status Comments / Seguimiento */}
+                <div
+                  data-testid={`sidebar-task-comments-${selectedTask.id}`}
+                  className="pt-2 border-t border-[#E2E2DC] dark:border-zinc-800 space-y-1.5"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-1.5 text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400">
+                      <MessageSquare className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+                      <span>{`Seguimiento (${selectedTask.statusComments?.length ?? 0})`}</span>
+                    </span>
+                  </div>
+                  <StatusCommentsSection
+                    entityType="item"
+                    item={selectedTask}
+                    onUpdateItem={onUpdateItem}
+                    compact
+                  />
+                </div>
+
                 <label className="flex items-center gap-1.5 text-[11px] text-[#6B6B66] dark:text-zinc-400 cursor-pointer">
                   <input
                     type="checkbox"
@@ -1666,6 +1687,29 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                     }
                     placeholder="Descripción del proyecto..."
                     className="w-full px-2.5 py-1.5 rounded-[4px] border border-[#E2E2DC] dark:border-zinc-700 bg-[#FAFAF8] dark:bg-zinc-900 text-xs resize-y min-h-[68px]"
+                  />
+                </div>
+
+                {/* Project Status Comments / Seguimiento */}
+                <div
+                  data-testid={`sidebar-project-comments-${selectedProject.id}`}
+                  className="pt-2 border-t border-[#E2E2DC] dark:border-zinc-800 space-y-1.5"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-1.5 text-[10px] font-mono uppercase font-bold text-[#6B6B66] dark:text-zinc-400">
+                      <MessageSquare className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+                      <span>{`Seguimiento (${selectedProject.statusComments?.length ?? 0})`}</span>
+                    </span>
+                  </div>
+                  <StatusCommentsSection
+                    entityType="project"
+                    project={selectedProject}
+                    projectItems={projItems}
+                    projectIndex={projCode}
+                    defaultScope="all"
+                    onUpdateProject={onUpdateProject}
+                    onUpdateItem={onUpdateItem}
+                    compact
                   />
                 </div>
 

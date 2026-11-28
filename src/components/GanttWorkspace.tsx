@@ -34,6 +34,7 @@ import {
   GripVertical,
   Lock,
   Maximize2,
+  MessageSquare,
   Minus,
   MoreHorizontal,
   MousePointer,
@@ -130,6 +131,7 @@ import {
 export type { GanttSearchFieldsConfig };
 export { DEFAULT_GANTT_SEARCH_FIELDS };
 import { ProjectLockedAlertModal } from './ProjectLockedAlertModal';
+import { StatusCommentsDrawer } from './StatusCommentsPanel';
 
 
 function computePolylineMidpoint(pts: OrthogonalPoint[]): OrthogonalPoint {
@@ -1303,6 +1305,11 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   const [depFeedback, setDepFeedback] = useState<{
     message: string;
     tone: 'success' | 'error' | 'info';
+  } | null>(null);
+  const [commentsDrawerTarget, setCommentsDrawerTarget] = useState<{
+    entityType: 'project' | 'item';
+    id: string;
+    code?: string;
   } | null>(null);
   const [lockedAlertState, setLockedAlertState] = useState<{
     project: GanttProject;
@@ -3015,8 +3022,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     q: string
   ): boolean => {
     if (searchFields.name && proj.name.toLowerCase().includes(q)) return true;
-    if (searchFields.description && proj.description && proj.description.toLowerCase().includes(q)) {
-      return true;
+    if (searchFields.description) {
+      if (proj.description && proj.description.toLowerCase().includes(q)) return true;
+      if (proj.statusComments?.some((c) => c.text.toLowerCase().includes(q))) return true;
     }
     if (searchFields.platform && proj.platform && proj.platform.toLowerCase().includes(q)) {
       return true;
@@ -3033,7 +3041,10 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
 
   const doesItemMatchQuery = (it: ComputedGanttItem, q: string): boolean => {
     if (searchFields.name && it.name.toLowerCase().includes(q)) return true;
-    if (searchFields.description && it.notes && it.notes.toLowerCase().includes(q)) return true;
+    if (searchFields.description) {
+      if (it.notes && it.notes.toLowerCase().includes(q)) return true;
+      if (it.statusComments?.some((c) => c.text.toLowerCase().includes(q))) return true;
+    }
     if (searchFields.assignee && it.assignee && it.assignee.toLowerCase().includes(q)) return true;
     if (searchFields.platform && it.platform && it.platform.toLowerCase().includes(q)) return true;
     if (searchFields.predecessors && matchesPredecessorText(it, q)) return true;
@@ -6668,6 +6679,38 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 );
                               })()}
 
+                              {(() => {
+                                const commentsCount = group.project.statusComments?.length ?? 0;
+                                return (
+                                  <button
+                                    type="button"
+                                    data-testid={`project-comments-badge-${group.project.id}`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setCommentsDrawerTarget({
+                                        entityType: 'project',
+                                        id: group.project.id,
+                                        code: `P${group.projectIndex}`,
+                                      });
+                                    }}
+                                    className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-mono font-bold shrink-0 border cursor-pointer transition ${
+                                      commentsCount > 0
+                                        ? 'bg-indigo-50 dark:bg-indigo-950/60 border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100'
+                                        : 'opacity-0 group-hover:opacity-75 hover:!opacity-100 bg-white/80 dark:bg-zinc-900 border-[#E2E2DC] dark:border-zinc-700 text-[#6B6B66] dark:text-zinc-400 hover:text-indigo-700 hover:border-indigo-300'
+                                    }`}
+                                    title={
+                                      commentsCount > 0
+                                        ? `${commentsCount} comentarios de seguimiento (clic para abrir)`
+                                        : 'Añadir comentario de seguimiento'
+                                    }
+                                    aria-label="Seguimiento del proyecto"
+                                  >
+                                    <MessageSquare className="w-2.5 h-2.5 shrink-0" />
+                                    {commentsCount > 0 && <span>{commentsCount}</span>}
+                                  </button>
+                                );
+                              })()}
+
                               <div
                                 className={`inline-grid items-center transition-all duration-150 ${
                                   isProjectNameExpanded
@@ -7231,6 +7274,37 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                                 >
                                   <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${alertCfg.dotColor}`} />
                                   <span>{alertCfg.label}</span>
+                                </button>
+                              );
+                            })()}
+                            {(() => {
+                              const commentsCount = item.statusComments?.length ?? 0;
+                              return (
+                                <button
+                                  type="button"
+                                  data-testid={`task-comments-badge-${item.id}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setCommentsDrawerTarget({
+                                      entityType: 'item',
+                                      id: item.id,
+                                      code: item.displayId || item.wbsCode || String(item.wbs),
+                                    });
+                                  }}
+                                  className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-mono font-bold shrink-0 border cursor-pointer transition ${
+                                    commentsCount > 0
+                                      ? 'bg-indigo-50 dark:bg-indigo-950/60 border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100'
+                                      : 'opacity-0 group-hover:opacity-75 hover:!opacity-100 bg-white/80 dark:bg-zinc-900 border-[#E2E2DC] dark:border-zinc-700 text-[#6B6B66] dark:text-zinc-400 hover:text-indigo-700 hover:border-indigo-300'
+                                  }`}
+                                  title={
+                                    commentsCount > 0
+                                      ? `${commentsCount} comentarios de seguimiento (clic para abrir)`
+                                      : 'Añadir comentario de seguimiento'
+                                  }
+                                  aria-label="Seguimiento del elemento"
+                                >
+                                  <MessageSquare className="w-2.5 h-2.5 shrink-0" />
+                                  {commentsCount > 0 && <span>{commentsCount}</span>}
                                 </button>
                               );
                             })()}
@@ -10922,6 +10996,46 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
                 <span>Eliminar ítem</span>
               </button>
             </div>
+          );
+        })()}
+
+        {(() => {
+          if (!commentsDrawerTarget) return null;
+          if (commentsDrawerTarget.entityType === 'project') {
+            const targetProj = projects.find((p) => p.id === commentsDrawerTarget.id);
+            if (!targetProj) return null;
+            const projItems = items.filter((it) => it.projectId === targetProj.id);
+            const avgProg =
+              projItems.length > 0
+                ? Math.round(projItems.reduce((acc, it) => acc + (it.progress || 0), 0) / projItems.length)
+                : 0;
+            return (
+              <StatusCommentsDrawer
+                isOpen={true}
+                onClose={() => setCommentsDrawerTarget(null)}
+                entityType="project"
+                code={commentsDrawerTarget.code}
+                project={targetProj}
+                projectItems={projItems}
+                projectIndex={targetProj.projectIndex}
+                projectProgress={avgProg}
+                defaultScope="all"
+                onUpdateProject={onUpdateProject}
+                onUpdateItem={onUpdateItem}
+              />
+            );
+          }
+          const targetItem = items.find((it) => it.id === commentsDrawerTarget.id);
+          if (!targetItem) return null;
+          return (
+            <StatusCommentsDrawer
+              isOpen={true}
+              onClose={() => setCommentsDrawerTarget(null)}
+              entityType="item"
+              code={commentsDrawerTarget.code}
+              item={targetItem}
+              onUpdateItem={onUpdateItem}
+            />
           );
         })()}
 

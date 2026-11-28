@@ -4515,7 +4515,7 @@ test('Help page, version control v1.2.0, release selection on project creation, 
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version control consistency
-  assert.equal(pkg.version, '1.16.0', 'package.json version must be 1.9.2');
+  assert.equal(pkg.version, '1.17.0', 'package.json version must be 1.9.2');
   assert.ok(pkg.scripts['version:patch'], 'package.json must contain version:patch script');
   assert.ok(pkg.scripts['version:minor'], 'package.json must contain version:minor script');
   assert.ok(pkg.scripts['release:patch'], 'package.json must contain release:patch script');
@@ -5330,7 +5330,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version Bump Verification
-  assert.equal(pkg.version, '1.16.0', 'package.json version must equal 1.9.2');
+  assert.equal(pkg.version, '1.17.0', 'package.json version must equal 1.9.2');
 
   // Verify scripts/bump-version.mjs works properly
   const bumpScript = await fs.readFile(path.resolve(__dirname, '../scripts/bump-version.mjs'), 'utf8');
@@ -5504,7 +5504,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // A. APP_VERSION equals 1.9.2
-    assert.equal(mod.APP_VERSION, '1.16.0', 'APP_VERSION must be 1.9.2');
+    assert.equal(mod.APP_VERSION, '1.17.0', 'APP_VERSION must be 1.9.2');
 
     // A2. Excel Export Unit Test
     const sampleReleases = [
@@ -6031,8 +6031,8 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
-  // 1. Version Bump Verification v1.16.0
-  assert.equal(pkg.version, '1.16.0', 'package.json version must equal 1.9.2');
+  // 1. Version Bump Verification v1.17.0
+  assert.equal(pkg.version, '1.17.0', 'package.json version must equal 1.9.2');
 
   // 2. SSR Bundle verification for TaskFormModal, App Header, and sanitizeGanttItem
   const tmpFile = path.resolve(__dirname, `tmp_test59_bundle_${Date.now()}.mjs`);
@@ -6130,7 +6130,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.equal(mod.APP_VERSION, '1.16.0', 'mod.APP_VERSION must equal 1.9.2');
+    assert.equal(mod.APP_VERSION, '1.17.0', 'mod.APP_VERSION must equal 1.9.2');
 
     // sanitizeGanttItem preserves platform
     const sanitizedIos = mod.sanitizeGanttItem({
@@ -6193,7 +6193,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     }));
     assert.ok(settingsHtml.includes('data-testid="settings-version-badge"'), 'SettingsModal must contain settings-version-badge');
     assert.ok(settingsHtml.includes('data-testid="force-reload-btn"'), 'SettingsModal must contain force-reload-btn');
-    assert.ok(settingsHtml.includes('v1.16.0') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and v1.16.0');
+    assert.ok(settingsHtml.includes('v1.17.0') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and v1.17.0');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6347,14 +6347,14 @@ test('Test 61: Version button, compiled release notes modal and changelog across
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
 
     // 1. Check RELEASE_NOTES compiled data
-    assert.strictEqual(mod.APP_VERSION, '1.16.0');
+    assert.strictEqual(mod.APP_VERSION, '1.17.0');
     assert.ok(Array.isArray(mod.RELEASE_NOTES), 'RELEASE_NOTES must be an array');
     assert.ok(mod.RELEASE_NOTES.length >= 10, 'RELEASE_NOTES must have at least 10 releases');
 
     const latest = mod.RELEASE_NOTES[0];
-    assert.strictEqual(latest.version, '1.16.0', 'First release note must be 1.9.2');
+    assert.strictEqual(latest.version, '1.17.0', 'First release note must be 1.9.2');
     assert.strictEqual(latest.isLatest, true, 'First release note must be isLatest: true');
-    assert.ok(latest.features.length > 0, 'v1.16.0 must contain features');
+    assert.ok(latest.features.length > 0, 'v1.17.0 must contain features');
 
     // 2. Render App and verify version button exists in dropdown menu and is NOT duplicated in top header
     const appHtml = renderToString(React.createElement(mod.App));
@@ -8189,7 +8189,7 @@ test('Test 73: v1.9.0 project alert level (0-3), workspace toolbar alert filter,
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.strictEqual(mod.APP_VERSION, '1.16.0', 'APP_VERSION must be 1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.17.0', 'APP_VERSION must be 1.9.2');
 
     // 1. Check sanitizeProject and describeProjectStateChanges for alertLevel
     const pSanitized0 = mod.sanitizeProject({ id: 'p-1', name: 'Proj 1', alertLevel: 0 });
@@ -8378,7 +8378,7 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.strictEqual(mod.APP_VERSION, '1.16.0', 'APP_VERSION must be 1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.17.0', 'APP_VERSION must be 1.9.2');
 
     // 1. Verify description format: <descripción del proyecto si existe>\n\n* <nombre> <desc>
     const pWithDesc = {
@@ -8463,8 +8463,8 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
   }
 });
 
-// TEST 75: v1.16.0 Project locking, accidental move guard & unlock prompt modal
-test('Test 75: v1.16.0 project locking, cascade/dependency protection, plan history badge, and unlock alert modal', async () => {
+// TEST 75: v1.17.0 Project locking, accidental move guard & unlock prompt modal
+test('Test 75: v1.17.0 project locking, cascade/dependency protection, plan history badge, and unlock alert modal', async () => {
   const fs = await import('node:fs/promises');
   const path = await import('node:path');
   const { fileURLToPath } = await import('node:url');
@@ -8475,7 +8475,7 @@ test('Test 75: v1.16.0 project locking, cascade/dependency protection, plan hist
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
-  assert.strictEqual(pkg.version, '1.16.0', 'package.json version must equal 1.9.2');
+  assert.strictEqual(pkg.version, '1.17.0', 'package.json version must equal 1.9.2');
 
   const tmpFile = path.resolve(__dirname, `tmp_test75_bundle_${Date.now()}.mjs`);
   try {
@@ -8537,9 +8537,9 @@ test('Test 75: v1.16.0 project locking, cascade/dependency protection, plan hist
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // 1. Version & release notes verification
-    assert.strictEqual(mod.APP_VERSION, '1.16.0', 'APP_VERSION must equal 1.9.2');
-    assert.strictEqual(mod.RELEASE_NOTES[0].version, '1.16.0', 'Latest release note must be 1.9.2');
-    assert.strictEqual(mod.RELEASE_NOTES[0].isLatest, true, 'v1.16.0 release note must be marked isLatest');
+    assert.strictEqual(mod.APP_VERSION, '1.17.0', 'APP_VERSION must equal 1.9.2');
+    assert.strictEqual(mod.RELEASE_NOTES[0].version, '1.17.0', 'Latest release note must be 1.9.2');
+    assert.strictEqual(mod.RELEASE_NOTES[0].isLatest, true, 'v1.17.0 release note must be marked isLatest');
 
     // 2. sanitizeProject, getLockedProjectForItem, describeProjectStateChanges
     const lockedProj = mod.sanitizeProject({
@@ -8736,7 +8736,7 @@ test('Test 75: v1.16.0 project locking, cascade/dependency protection, plan hist
   }
 });
 
-test('Test 76: v1.16.0 automatic Free Slack calculation given successor tasks across engine, table badge, inspector sidebar and task modal', async () => {
+test('Test 76: v1.17.0 automatic Free Slack calculation given successor tasks across engine, table badge, inspector sidebar and task modal', async () => {
   // 1. Engine calculation: FS dependency with multiple successors
   const testItems = [
     {
@@ -15106,6 +15106,207 @@ test('ReportsView tree collapse/expand and on-demand context expansion (+N) of R
     assert.ok(!collapsedHtml.includes('Migración Xcode 27'), 'Collapsing release must hide matched child project');
     assert.ok(!collapsedHtml.includes('OneTrust Consent'), 'Collapsing release must hide context child project');
     assert.ok(!collapsedHtml.includes('Compilación Xcode Beta'), 'Collapsing release must hide matched child tasks');
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
+});
+
+test('Status comments (Seguimiento): atomic updates, sanitization, diffs, Excel export, and project rollup in Planificación & RightSidePanel', async () => {
+  const esbuild = await import('esbuild');
+  const fs = await import('node:fs/promises');
+  const { pathToFileURL } = await import('node:url');
+  const tmpFile = path.join(
+    __dirname,
+    `tmp_status_comments_${Date.now()}.mjs`
+  );
+
+  try {
+    await esbuild.build({
+      stdin: {
+        contents: `
+          export { default as React } from 'react';
+          export { renderToString } from 'react-dom/server';
+          export { ReportsView } from './src/components/ReportsView';
+          export { RightSidePanel } from './src/components/RightSidePanel';
+          export {
+            addStatusCommentToItem,
+            addStatusCommentToProject,
+            deleteStatusCommentFromEntity,
+            collectProjectRollupComments,
+            collectProjectSubtaskNotes,
+            computeGanttMetrics,
+            describeItemStateChanges,
+            describeProjectStateChanges,
+            importGanttData,
+          } from './src/utils/ganttEngine';
+          export {
+            CRONOGRAMA_HEADER,
+            generateCronogramaCompletoRows,
+          } from './src/utils/excelExportEngine';
+        `,
+        resolveDir: path.resolve(__dirname, '..'),
+        loader: 'tsx',
+      },
+      bundle: true,
+      format: 'esm',
+      platform: 'node',
+      packages: 'external',
+      outfile: tmpFile,
+    });
+
+    const mod = await import(pathToFileURL(tmpFile).href);
+
+    // 1. Atomic item comment with progress & alertLevel deltas
+    const baseItem = {
+      id: 't-1',
+      name: 'Integración SDK iOS',
+      type: 'task',
+      projectId: 'p-1',
+      startDate: '2027-02-01',
+      endDate: '2027-02-10',
+      duration: 10,
+      slack: 0,
+      dependencies: [],
+      progress: 40,
+      alertLevel: 1,
+      color: 'indigo',
+      notes: 'Usar versión SPM 202611',
+    };
+    const updatedItem = mod.addStatusCommentToItem(baseItem, {
+      text: 'Banner listo en simulador, falta deep-links',
+      nextProgress: 75,
+      nextAlertLevel: 2,
+      now: new Date('2026-11-28T15:00:00Z'),
+    });
+    assert.equal(updatedItem.progress, 75, 'Item progress must update atomically');
+    assert.equal(updatedItem.alertLevel, 2, 'Item alertLevel must update atomically');
+    assert.equal(updatedItem.statusComments.length, 1);
+    assert.equal(updatedItem.statusComments[0].progressBefore, 40);
+    assert.equal(updatedItem.statusComments[0].progressAfter, 75);
+    assert.equal(updatedItem.statusComments[0].alertLevelBefore, 1);
+    assert.equal(updatedItem.statusComments[0].alertLevelAfter, 2);
+
+    // 2. Pure text comment without deltas
+    const updatedItem2 = mod.addStatusCommentToItem(updatedItem, {
+      text: 'Revisión rápida con QA sin cambios de estado',
+      now: new Date('2026-11-28T16:00:00Z'),
+    });
+    assert.equal(updatedItem2.statusComments.length, 2);
+    assert.equal(updatedItem2.statusComments[0].progressAfter, undefined);
+    assert.equal(updatedItem2.statusComments[0].alertLevelAfter, undefined);
+
+    // 3. Delete comment does NOT revert progress/alertLevel
+    const afterDelete = mod.deleteStatusCommentFromEntity(updatedItem2, updatedItem2.statusComments[0].id);
+    assert.equal(afterDelete.statusComments.length, 1);
+    assert.equal(afterDelete.progress, 75);
+    assert.equal(afterDelete.alertLevel, 2);
+
+    // 4. Project comment + history diffs
+    const baseProj = {
+      id: 'p-1',
+      name: 'OneTrust Banner',
+      releaseId: 'rel-1',
+      platform: 'iOS',
+      alertLevel: 1,
+      description: 'Proyecto principal de consentimiento',
+      color: 'indigo',
+      projectIndex: 1,
+    };
+    const updatedProj = mod.addStatusCommentToProject(baseProj, {
+      text: 'Kickoff realizado con Privacidad',
+      nextAlertLevel: 0,
+      now: new Date('2026-11-27T10:00:00Z'),
+    });
+    assert.equal(updatedProj.alertLevel, 0);
+    assert.equal(updatedProj.statusComments.length, 1);
+    const projDiffs = mod.describeProjectStateChanges(baseProj, updatedProj);
+    assert.ok(projDiffs.some((d) => d.field === 'Seguimiento'), 'Project diff must include Seguimiento');
+    const itemDiffs = mod.describeItemStateChanges(baseItem, updatedItem);
+    assert.ok(itemDiffs.some((d) => d.field === 'Seguimiento'), 'Item diff must include Seguimiento');
+
+    // 5. JSON import sanitization preserves statusComments
+    const imported = mod.importGanttData({
+      projects: [updatedProj],
+      items: [updatedItem],
+    });
+    assert.equal(imported.primaryScenario.projects[0].statusComments?.length, 1);
+    assert.equal(imported.primaryScenario.items[0].statusComments?.length, 1);
+
+    // 6. Rollup comments & subtask notes + Excel export header
+    const releases = [
+      { id: 'rel-1', code: 'T_27.03.1', name: 'MARZO', color: 'indigo', milestones: [] },
+    ];
+    const computedItems = mod.computeGanttMetrics([updatedItem]);
+    const rollup = mod.collectProjectRollupComments(updatedProj, computedItems, 1);
+    assert.equal(rollup.length, 2, 'Rollup must combine project + subtask comments');
+    assert.equal(rollup[0].ownerType, 'item', 'Most recent comment from subtask must come first');
+    assert.ok(rollup[0].sourceCode, 'Subtask rollup comment must carry sourceCode');
+    const subNotes = mod.collectProjectSubtaskNotes(computedItems, 1);
+    assert.equal(subNotes.length, 1);
+    assert.ok(subNotes[0].notes.includes('SPM 202611'));
+    assert.ok(mod.CRONOGRAMA_HEADER.includes('Seguimiento'), 'CRONOGRAMA_HEADER must include Seguimiento');
+
+    const rollupRows = mod.generateCronogramaCompletoRows(releases, [updatedProj], computedItems, {
+      rollupProjectSubtasks: true,
+    });
+    const projExcelRow = rollupRows.find((r) => r.level === 'PROYECTO');
+    assert.ok(projExcelRow.latestComment.includes('Banner listo en simulador'), 'Excel project rollup must include latest subtask comment');
+    assert.ok(projExcelRow.notes.includes('SPM 202611'), 'Excel project rollup must include subtask notes');
+
+    // 7. SSR ReportsView in Tipo: PROYECTO rollup mode
+    const repHtml = mod.renderToString(
+      mod.React.createElement(mod.ReportsView, {
+        releases,
+        projects: [updatedProj],
+        items: computedItems,
+        initialTab: 'cronograma',
+        initialTypeFilter: 'PROYECTO',
+        onUpdateProject: () => {},
+        onUpdateItem: () => {},
+      })
+    );
+    assert.ok(repHtml.includes('data-testid="report-crono-comments-proj-p-1"'), 'Planificación must render Seguimiento cell');
+    assert.ok(repHtml.includes('data-testid="report-rollup-origin-proj-p-1"'), 'Project rollup must show subtask origin pill');
+    assert.ok(repHtml.includes('Banner listo en simulador'), 'Project rollup must preview latest subtask comment');
+    assert.ok(repHtml.includes('data-testid="report-rollup-notes-proj-p-1"'), 'Project rollup must render subtask notes block');
+    assert.ok(repHtml.includes('Usar versión SPM 202611'), 'Project rollup must display subtask note text');
+
+    // 8. SSR RightSidePanel shows Seguimiento for selected task
+    const panelHtml = mod.renderToString(
+      mod.React.createElement(mod.RightSidePanel, {
+        activeTab: 'details',
+        onChangeTab: () => {},
+        onClose: () => {},
+        selectedEntity: { type: 'task', id: 't-1', name: 'Integración SDK iOS' },
+        onSelectEntity: () => {},
+        items: computedItems,
+        projects: [updatedProj],
+        releases,
+        onEditTask: () => {},
+        onUpdateItem: () => {},
+        onDeleteTask: () => {},
+        onUpdateProject: () => {},
+        onToggleProjectLock: () => {},
+        isFocusMode: false,
+        focusEntity: null,
+        onSetFocusEntity: () => {},
+        onExitFocusMode: () => {},
+        hiddenReleaseIds: [],
+        onToggleHideRelease: () => {},
+        onOpenReleasesModal: () => {},
+        commits: [],
+        pendingChanges: [],
+        activeBaselineCommitId: null,
+        onToggleBaselineCommit: () => {},
+        onCreateCommit: () => {},
+        onRestoreCommit: () => {},
+        conflictItems: [],
+        onNavigateToConflictItem: () => {},
+        onResolveAllConflicts: () => {},
+      })
+    );
+    assert.ok(panelHtml.includes('data-testid="sidebar-task-comments-t-1"'), 'RightSidePanel must render Seguimiento section');
+    assert.ok(panelHtml.includes('Banner listo en simulador'), 'RightSidePanel must render task comments');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }

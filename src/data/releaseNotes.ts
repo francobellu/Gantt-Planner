@@ -10,10 +10,20 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.17.0',
+    date: '28 Nov 2026',
+    title: 'Bitácora de seguimiento por comentarios con rollup en proyectos',
+    isLatest: true,
+    features: [
+      'Nuevo campo Seguimiento (hilo cronológico de comentarios) en proyectos, tareas e hitos con actualización atómica opcional de Nivel de Alerta y Progreso %',
+      'Drawer rápido y columna Seguimiento en Planificación + badge 💬 en Cronograma y sección integrada en RightSidePanel',
+      'Agregación automática (rollup) de seguimiento y notas de subtareas en la fila del proyecto al filtrar por Tipo: Proyecto y en la exportación Excel',
+    ],
+  },
+  {
     version: '1.16.0',
     date: '28 Nov 2026',
     title: 'Plegado jerárquico y expansión bajo demanda (+N) de Releases y Proyectos en Planificación',
-    isLatest: true,
     features: [
       'Añade chevron de colapso/expansión en filas de Release y Proyecto en Planificación (colapsar oculta siempre todos los descendientes)',
       'Muestra píldoras +N proyectos / +N subtareas en resultados filtrados para desplegar hijos ocultos como contexto sin perder el filtro',

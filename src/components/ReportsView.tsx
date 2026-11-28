@@ -28,6 +28,7 @@ import {
   Trash2,
   Pencil,
   Bookmark,
+  MessageSquare,
 } from 'lucide-react';
 import {
   ComputedGanttItem,
@@ -41,8 +42,15 @@ import {
 import {
   calculateDurationFromDates,
   calculateEndDateFromDuration,
+  collectProjectRollupComments,
+  collectProjectSubtaskNotes,
+  getLatestStatusComment,
   normalizePlatform,
 } from '../utils/ganttEngine';
+import {
+  StatusCommentsDrawer,
+  formatCommentShortDate,
+} from './StatusCommentsPanel';
 import { AppleIosIcon, AndroidIcon } from './PlatformIcons';
 import {
   SearchFilterBar,
@@ -92,6 +100,7 @@ const CRONO_COLUMNS: ReportColumnDef[] = [
   { key: 'isCritical', label: 'Ruta Crítica', defaultWidth: 105, align: 'center' },
   { key: 'isExternal', label: 'Hito Ext.', defaultWidth: 95, align: 'center' },
   { key: 'compliance', label: 'Cumplimiento Release', defaultWidth: 170 },
+  { key: 'statusComments', label: 'Seguimiento', defaultWidth: 250 },
   { key: 'notes', label: 'Notas / Descripción', defaultWidth: 250 },
 ];
 
@@ -150,6 +159,7 @@ const REPORT_COL_WIDTH_LIMITS: Record<
   isCritical: { min: 76, max: 100, extraPx: 22 },
   isExternal: { min: 68, max: 92, extraPx: 20 },
   compliance: { min: 82, max: 160, extraPx: 26, maxHeaderPx: 112 },
+  statusComments: { min: 130, max: 270, extraPx: 30, maxHeaderPx: 116 },
   notes: { min: 108, max: 255, extraPx: 26, maxHeaderPx: 116 },
   description: { min: 108, max: 255, extraPx: 26, maxHeaderPx: 116 },
   tasksCount: { min: 62, max: 84, extraPx: 20 },
@@ -193,6 +203,9 @@ function extractReportCellText(
   }
   if (key === 'isExternal') {
     return r.isExternal ? 'Ext.' : '—';
+  }
+  if (key === 'statusComments') {
+    return String(r.latestComment ?? '—');
   }
   const raw = r[key];
   if (raw === undefined || raw === null) return '';
@@ -584,6 +597,12 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const formatColumnsMenuRef = useRef<HTMLDivElement>(null);
   const [focusedProjectIds, setFocusedProjectIds] = useState<string[]>(initialFocusedProjectIds);
   const [wizardOpen, setWizardOpen] = useState<boolean>(initialShowWizard);
+  const [commentsDrawerTarget, setCommentsDrawerTarget] = useState<{
+    entityType: 'project' | 'item';
+    id: string;
+    code?: string;
+    defaultScope?: 'all' | 'own';
+  } | null>(null);
   const [wizardInitialReleaseId, setWizardInitialReleaseId] = useState<string | undefined>(undefined);
   const [newPresetName, setNewPresetName] = useState<string>('');
 
@@ -1736,7 +1755,17 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const filteredCronoRows = useMemo(() => {
     const matchesSearchQuery = (row: CronogramaReportRow, q: string): boolean => {
       if (searchFields.name && row.name.toLowerCase().includes(q)) return true;
-      if (searchFields.description && row.notes.toLowerCase().includes(q)) return true;
+      if (searchFields.description) {
+        if (row.notes.toLowerCase().includes(q)) return true;
+        if (row.latestComment && row.latestComment.toLowerCase().includes(q)) return true;
+        if (row.itemId) {
+          const it = items.find((x) => x.id === row.itemId);
+          if (it?.statusComments?.some((c) => c.text.toLowerCase().includes(q))) return true;
+        } else if (row.level === 'PROYECTO' && row.projectId) {
+          const proj = projects.find((p) => p.id === row.projectId);
+          if (proj?.statusComments?.some((c) => c.text.toLowerCase().includes(q))) return true;
+        }
+      }
       if (searchFields.assignee && row.team.toLowerCase().includes(q)) return true;
       if (searchFields.platform && row.platform.toLowerCase().includes(q)) return true;
       if (searchFields.predecessors && row.dependency.toLowerCase().includes(q)) return true;
@@ -2115,7 +2144,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
   const handleDownloadExcel = () => {
     try {
-      downloadGanttExcelFile(releases, projects, items);
+      downloadGanttExcelFile(releases, projects, items, undefined, {
+        rollupProjectSubtasks: selectedType === 'PROYECTO' && !showSubtasksOnFilter,
+      });
       setToastMessage('Archivo Excel descargado correctamente (Informe Planificación y Catálogo Releases).');
       setTimeout(() => setToastMessage(null), 3500);
     } catch {
@@ -3042,9 +3073,192 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                                     )}
                                   </td>
                                 );
-                              case 'notes':
+                              case 'statusComments': {
+                                const isProjectRollupMode =
+                                  isProject && selectedType === 'PROYECTO' && !showSubtasksOnFilter;
+                                if (isRelease) {
+                                  return (
+                                    <td key={col.key} className="px-2 py-1.5 font-sans text-xs text-[#6B6B66] dark:text-zinc-400">
+                                      <span className="px-1">—</span>
+                                    </td>
+                                  );
+                                }
+                                if (linkedProject && isProject) {
+                                  const projItems = items.filter((it) => it.projectId === linkedProject.id);
+                                  const rollupComments = isProjectRollupMode
+                                    ? collectProjectRollupComments(linkedProject, projItems, linkedProject.projectIndex)
+                                    : (linkedProject.statusComments || []).map((c) => ({
+                                        ...c,
+                                        ownerType: 'project' as const,
+                                        ownerId: linkedProject.id,
+                                        sourceCode: undefined,
+                                        sourceName: undefined,
+                                      }));
+                                  const latest = rollupComments[0];
+                                  const count = rollupComments.length;
+                                  return (
+                                    <td
+                                      key={col.key}
+                                      data-testid={`report-crono-comments-proj-${linkedProject.id}`}
+                                      className="px-2 py-1.5 font-sans text-xs align-top"
+                                    >
+                                      {latest ? (
+                                        <button
+                                          type="button"
+                                          data-testid={`report-open-comments-proj-${linkedProject.id}`}
+                                          onClick={() =>
+                                            setCommentsDrawerTarget({
+                                              entityType: 'project',
+                                              id: linkedProject.id,
+                                              code: row.displayId,
+                                              defaultScope: isProjectRollupMode ? 'all' : 'own',
+                                            })
+                                          }
+                                          className="w-full text-left flex items-start justify-between gap-2 px-1.5 py-1 rounded-[4px] border border-transparent hover:border-indigo-200 dark:hover:border-indigo-800 hover:bg-indigo-50/70 dark:hover:bg-indigo-950/30 transition cursor-pointer"
+                                          title="Ver y añadir comentarios de seguimiento"
+                                        >
+                                          <div className="min-w-0 flex-1 space-y-0.5">
+                                            {latest.sourceCode && (
+                                              <div
+                                                data-testid={`report-rollup-origin-proj-${linkedProject.id}`}
+                                                className="inline-flex items-center px-1 py-0 rounded-[2px] bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-[9px] font-mono font-bold text-indigo-700 dark:text-indigo-300 max-w-full truncate"
+                                              >
+                                                {`↳ ${latest.sourceCode}${latest.sourceName ? ` · ${latest.sourceName}` : ''}`}
+                                              </div>
+                                            )}
+                                            <div className="text-[11.5px] text-[#0C0C09] dark:text-zinc-200 line-clamp-2 leading-snug">
+                                              {latest.text}
+                                            </div>
+                                            <div className="flex items-center gap-1.5 flex-wrap font-mono text-[9.5px] text-[#6B6B66] dark:text-zinc-400">
+                                              <span>{formatCommentShortDate(latest.createdAt)}</span>
+                                              {latest.progressAfter !== undefined && (
+                                                <span className="px-1 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-bold">
+                                                  {`${latest.progressBefore ?? 0}%→${latest.progressAfter}%`}
+                                                </span>
+                                              )}
+                                              {latest.alertLevelAfter !== undefined && (
+                                                <span className="px-1 rounded bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 font-bold">
+                                                  {`N${latest.alertLevelBefore ?? 0}→N${latest.alertLevelAfter}`}
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
+                                          <span
+                                            data-testid={`report-comments-count-proj-${linkedProject.id}`}
+                                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 font-mono text-[10px] font-bold shrink-0"
+                                          >
+                                            <MessageSquare className="w-2.5 h-2.5" />
+                                            <span>{count}</span>
+                                          </span>
+                                        </button>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          data-testid={`report-open-comments-proj-${linkedProject.id}`}
+                                          onClick={() =>
+                                            setCommentsDrawerTarget({
+                                              entityType: 'project',
+                                              id: linkedProject.id,
+                                              code: row.displayId,
+                                              defaultScope: isProjectRollupMode ? 'all' : 'own',
+                                            })
+                                          }
+                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[4px] border border-dashed border-[#E2E2DC] dark:border-zinc-700 text-[11px] text-[#6B6B66] dark:text-zinc-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/30 transition cursor-pointer"
+                                        >
+                                          <MessageSquare className="w-3 h-3" />
+                                          <span>+ Comentar</span>
+                                        </button>
+                                      )}
+                                    </td>
+                                  );
+                                }
+                                if (linkedItem && !isDepSubRow) {
+                                  const latest = getLatestStatusComment(linkedItem.statusComments);
+                                  const count = linkedItem.statusComments?.length ?? 0;
+                                  return (
+                                    <td
+                                      key={col.key}
+                                      data-testid={`report-crono-comments-item-${linkedItem.id}`}
+                                      className="px-2 py-1.5 font-sans text-xs align-top"
+                                    >
+                                      {latest ? (
+                                        <button
+                                          type="button"
+                                          data-testid={`report-open-comments-item-${linkedItem.id}`}
+                                          onClick={() =>
+                                            setCommentsDrawerTarget({
+                                              entityType: 'item',
+                                              id: linkedItem.id,
+                                              code: row.displayId,
+                                            })
+                                          }
+                                          className="w-full text-left flex items-start justify-between gap-2 px-1.5 py-1 rounded-[4px] border border-transparent hover:border-indigo-200 dark:hover:border-indigo-800 hover:bg-indigo-50/70 dark:hover:bg-indigo-950/30 transition cursor-pointer"
+                                          title="Ver y añadir comentarios de seguimiento"
+                                        >
+                                          <div className="min-w-0 flex-1 space-y-0.5">
+                                            <div className="text-[11.5px] text-[#0C0C09] dark:text-zinc-200 line-clamp-2 leading-snug">
+                                              {latest.text}
+                                            </div>
+                                            <div className="flex items-center gap-1.5 flex-wrap font-mono text-[9.5px] text-[#6B6B66] dark:text-zinc-400">
+                                              <span>{formatCommentShortDate(latest.createdAt)}</span>
+                                              {latest.progressAfter !== undefined && (
+                                                <span className="px-1 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-bold">
+                                                  {`${latest.progressBefore ?? 0}%→${latest.progressAfter}%`}
+                                                </span>
+                                              )}
+                                              {latest.alertLevelAfter !== undefined && (
+                                                <span className="px-1 rounded bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 font-bold">
+                                                  {`N${latest.alertLevelBefore ?? 0}→N${latest.alertLevelAfter}`}
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
+                                          <span
+                                            data-testid={`report-comments-count-item-${linkedItem.id}`}
+                                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 font-mono text-[10px] font-bold shrink-0"
+                                          >
+                                            <MessageSquare className="w-2.5 h-2.5" />
+                                            <span>{count}</span>
+                                          </span>
+                                        </button>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          data-testid={`report-open-comments-item-${linkedItem.id}`}
+                                          onClick={() =>
+                                            setCommentsDrawerTarget({
+                                              entityType: 'item',
+                                              id: linkedItem.id,
+                                              code: row.displayId,
+                                            })
+                                          }
+                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[4px] border border-dashed border-[#E2E2DC] dark:border-zinc-700 text-[11px] text-[#6B6B66] dark:text-zinc-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/30 transition cursor-pointer"
+                                        >
+                                          <MessageSquare className="w-3 h-3" />
+                                          <span>+ Comentar</span>
+                                        </button>
+                                      )}
+                                    </td>
+                                  );
+                                }
                                 return (
-                                  <td key={col.key} className="px-2 py-1.5 font-sans text-xs text-[#6B6B66] dark:text-zinc-400 whitespace-pre-line leading-relaxed">
+                                  <td key={col.key} className="px-2 py-1.5 font-sans text-xs text-[#6B6B66] dark:text-zinc-400">
+                                    <span className="px-1">—</span>
+                                  </td>
+                                );
+                              }
+                              case 'notes': {
+                                const isProjectRollupMode =
+                                  isProject && selectedType === 'PROYECTO' && !showSubtasksOnFilter;
+                                const subtaskNotes =
+                                  isProjectRollupMode && linkedProject
+                                    ? collectProjectSubtaskNotes(
+                                        items.filter((it) => it.projectId === linkedProject.id),
+                                        linkedProject.projectIndex
+                                      )
+                                    : [];
+                                return (
+                                  <td key={col.key} className="px-2 py-1.5 font-sans text-xs text-[#6B6B66] dark:text-zinc-400 whitespace-pre-line leading-relaxed align-top">
                                     {linkedItem && onUpdateItem && !isDepSubRow ? (
                                       <EditableReportTextCell
                                         testId={`report-crono-notes-${linkedItem.id}`}
@@ -3059,20 +3273,44 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                                         }
                                       />
                                     ) : linkedProject && onUpdateProject ? (
-                                      <EditableReportTextCell
-                                        testId={`report-crono-proj-desc-${linkedProject.id}`}
-                                        value={linkedProject.description || ''}
-                                        placeholder="Añadir descripción..."
-                                        multiline
-                                        onCommit={(next) =>
-                                          onUpdateProject({ ...linkedProject, description: next })
-                                        }
-                                      />
+                                      <div className="space-y-1.5">
+                                        <EditableReportTextCell
+                                          testId={`report-crono-proj-desc-${linkedProject.id}`}
+                                          value={linkedProject.description || ''}
+                                          placeholder="Añadir descripción..."
+                                          multiline
+                                          onCommit={(next) =>
+                                            onUpdateProject({ ...linkedProject, description: next })
+                                          }
+                                        />
+                                        {subtaskNotes.length > 0 && (
+                                          <div
+                                            data-testid={`report-rollup-notes-proj-${linkedProject.id}`}
+                                            className="pt-1.5 border-t border-dashed border-[#E2E2DC] dark:border-zinc-700 space-y-1"
+                                          >
+                                            <div className="font-mono text-[9.5px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
+                                              {`Notas de subtareas (${subtaskNotes.length})`}
+                                            </div>
+                                            {subtaskNotes.map((sn) => (
+                                              <div
+                                                key={sn.itemId}
+                                                className="text-[11px] leading-snug text-[#52525B] dark:text-zinc-400"
+                                              >
+                                                <span className="font-mono font-bold text-[#0C0C09] dark:text-zinc-200 mr-1">
+                                                  {`${sn.code}:`}
+                                                </span>
+                                                <span>{sn.notes}</span>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
                                     ) : (
                                       <span className="px-1">{row.notes || '—'}</span>
                                     )}
                                   </td>
                                 );
+                              }
                               default:
                                 return null;
                             }
@@ -3530,6 +3768,47 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           )}
         </div>
       )}
+
+      {/* Status Comments Drawer */}
+      {(() => {
+        if (!commentsDrawerTarget) return null;
+        if (commentsDrawerTarget.entityType === 'project') {
+          const targetProj = projects.find((p) => p.id === commentsDrawerTarget.id);
+          if (!targetProj) return null;
+          const projItems = items.filter((it) => it.projectId === targetProj.id);
+          const avgProg =
+            projItems.length > 0
+              ? Math.round(projItems.reduce((acc, it) => acc + (it.progress || 0), 0) / projItems.length)
+              : 0;
+          return (
+            <StatusCommentsDrawer
+              isOpen={true}
+              onClose={() => setCommentsDrawerTarget(null)}
+              entityType="project"
+              code={commentsDrawerTarget.code}
+              project={targetProj}
+              projectItems={projItems}
+              projectIndex={targetProj.projectIndex}
+              projectProgress={avgProg}
+              defaultScope={commentsDrawerTarget.defaultScope || 'own'}
+              onUpdateProject={onUpdateProject}
+              onUpdateItem={onUpdateItem}
+            />
+          );
+        }
+        const targetItem = items.find((it) => it.id === commentsDrawerTarget.id);
+        if (!targetItem) return null;
+        return (
+          <StatusCommentsDrawer
+            isOpen={true}
+            onClose={() => setCommentsDrawerTarget(null)}
+            entityType="item"
+            code={commentsDrawerTarget.code}
+            item={targetItem}
+            onUpdateItem={onUpdateItem}
+          />
+        );
+      })()}
 
       {/* 3-Step Project Creation Wizard Modal */}
       <ProjectWizardModal

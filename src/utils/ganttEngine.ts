@@ -25,6 +25,7 @@ import {
   ProjectTemplate,
   Release,
   SavedScenario,
+  StatusComment,
   TaskColor,
   WorkCalendarConfig,
   ZoomLevel,
@@ -362,6 +363,238 @@ export function normalizeAlertLevel(rawVal: unknown): ProjectAlertLevel | undefi
   return undefined;
 }
 
+export interface ProjectRollupComment extends StatusComment {
+  ownerType: 'project' | 'item';
+  ownerId: string;
+  sourceCode?: string;
+  sourceName?: string;
+}
+
+export interface ProjectSubtaskNoteSummary {
+  itemId: string;
+  code: string;
+  name: string;
+  notes: string;
+}
+
+export function sanitizeStatusComments(raw: unknown): StatusComment[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  const cleaned: StatusComment[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    const entry = raw[i];
+    if (!entry || typeof entry !== 'object') continue;
+    const obj = entry as Record<string, unknown>;
+    const text = typeof obj.text === 'string' ? obj.text.trim() : '';
+    if (!text) continue;
+    const rawDate = typeof obj.createdAt === 'string' && obj.createdAt.trim()
+      ? obj.createdAt.trim()
+      : new Date().toISOString();
+    const id =
+      typeof obj.id === 'string' && obj.id.trim()
+        ? obj.id.trim()
+        : `sc-${i + 1}-${Date.now()}`;
+    const comment: StatusComment = {
+      id,
+      text,
+      createdAt: rawDate,
+    };
+    const pBefore = typeof obj.progressBefore === 'number' && Number.isFinite(obj.progressBefore)
+      ? Math.min(100, Math.max(0, Math.round(obj.progressBefore)))
+      : undefined;
+    const pAfter = typeof obj.progressAfter === 'number' && Number.isFinite(obj.progressAfter)
+      ? Math.min(100, Math.max(0, Math.round(obj.progressAfter)))
+      : undefined;
+    if (pBefore !== undefined && pAfter !== undefined) {
+      comment.progressBefore = pBefore;
+      comment.progressAfter = pAfter;
+    }
+    const aBefore = normalizeAlertLevel(obj.alertLevelBefore);
+    const aAfter = normalizeAlertLevel(obj.alertLevelAfter);
+    if (aBefore !== undefined && aAfter !== undefined) {
+      comment.alertLevelBefore = aBefore;
+      comment.alertLevelAfter = aAfter;
+    }
+    cleaned.push(comment);
+  }
+  if (cleaned.length === 0) return undefined;
+  cleaned.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  return cleaned;
+}
+
+export function getLatestStatusComment(
+  comments?: StatusComment[]
+): StatusComment | undefined {
+  if (!Array.isArray(comments) || comments.length === 0) return undefined;
+  let latest = comments[0];
+  let latestTs = new Date(latest.createdAt).getTime();
+  for (let i = 1; i < comments.length; i++) {
+    const ts = new Date(comments[i].createdAt).getTime();
+    if (ts > latestTs) {
+      latest = comments[i];
+      latestTs = ts;
+    }
+  }
+  return latest;
+}
+
+export function addStatusCommentToItem(
+  item: GanttItem,
+  payload: {
+    text: string;
+    nextProgress?: number;
+    nextAlertLevel?: ProjectAlertLevel;
+    now?: Date;
+  }
+): GanttItem {
+  const trimmed = payload.text.trim();
+  if (!trimmed) return item;
+  const now = payload.now ?? new Date();
+  const currentProgress = Math.min(100, Math.max(0, Math.round(item.progress ?? 0)));
+  const currentAlert: ProjectAlertLevel = (item.alertLevel ?? 0) as ProjectAlertLevel;
+
+  const comment: StatusComment = {
+    id: `sc-${now.getTime()}-${Math.random().toString(36).slice(2, 7)}`,
+    text: trimmed,
+    createdAt: now.toISOString(),
+  };
+
+  let resolvedProgress = currentProgress;
+  if (payload.nextProgress !== undefined) {
+    const clamped = Math.min(100, Math.max(0, Math.round(payload.nextProgress)));
+    if (clamped !== currentProgress) {
+      comment.progressBefore = currentProgress;
+      comment.progressAfter = clamped;
+      resolvedProgress = clamped;
+    }
+  }
+
+  let resolvedAlert = item.alertLevel;
+  if (payload.nextAlertLevel !== undefined && payload.nextAlertLevel !== currentAlert) {
+    comment.alertLevelBefore = currentAlert;
+    comment.alertLevelAfter = payload.nextAlertLevel;
+    resolvedAlert = payload.nextAlertLevel;
+  }
+
+  const prevComments = Array.isArray(item.statusComments) ? item.statusComments : [];
+  return {
+    ...item,
+    progress: resolvedProgress,
+    ...(resolvedAlert !== undefined ? { alertLevel: resolvedAlert } : {}),
+    statusComments: [comment, ...prevComments],
+  };
+}
+
+export function addStatusCommentToProject(
+  project: GanttProject,
+  payload: {
+    text: string;
+    nextAlertLevel?: ProjectAlertLevel;
+    now?: Date;
+  }
+): GanttProject {
+  const trimmed = payload.text.trim();
+  if (!trimmed) return project;
+  const now = payload.now ?? new Date();
+  const currentAlert: ProjectAlertLevel = (project.alertLevel ?? 0) as ProjectAlertLevel;
+
+  const comment: StatusComment = {
+    id: `sc-${now.getTime()}-${Math.random().toString(36).slice(2, 7)}`,
+    text: trimmed,
+    createdAt: now.toISOString(),
+  };
+
+  let resolvedAlert = project.alertLevel;
+  if (payload.nextAlertLevel !== undefined && payload.nextAlertLevel !== currentAlert) {
+    comment.alertLevelBefore = currentAlert;
+    comment.alertLevelAfter = payload.nextAlertLevel;
+    resolvedAlert = payload.nextAlertLevel;
+  }
+
+  const prevComments = Array.isArray(project.statusComments) ? project.statusComments : [];
+  return {
+    ...project,
+    ...(resolvedAlert !== undefined ? { alertLevel: resolvedAlert } : {}),
+    statusComments: [comment, ...prevComments],
+  };
+}
+
+export function deleteStatusCommentFromEntity<T extends { statusComments?: StatusComment[] }>(
+  entity: T,
+  commentId: string
+): T {
+  const prev = Array.isArray(entity.statusComments) ? entity.statusComments : [];
+  const next = prev.filter((c) => c.id !== commentId);
+  return {
+    ...entity,
+    statusComments: next.length > 0 ? next : undefined,
+  };
+}
+
+export function collectProjectRollupComments(
+  project: GanttProject,
+  projectItems: ComputedGanttItem[],
+  projectIndex?: number
+): ProjectRollupComment[] {
+  const own: ProjectRollupComment[] = (project.statusComments || []).map((c) => ({
+    ...c,
+    ownerType: 'project',
+    ownerId: project.id,
+  }));
+
+  const children: ProjectRollupComment[] = [];
+  for (const it of projectItems) {
+    if (!Array.isArray(it.statusComments) || it.statusComments.length === 0) continue;
+    const code =
+      it.displayId ||
+      (projectIndex ? `P${projectIndex}T${it.taskIndex || it.wbs}` : `T${it.taskIndex || it.wbs}`);
+    for (const c of it.statusComments) {
+      children.push({
+        ...c,
+        ownerType: 'item',
+        ownerId: it.id,
+        sourceCode: code,
+        sourceName: it.name,
+      });
+    }
+  }
+
+  return [...own, ...children].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+}
+
+export function collectProjectSubtaskNotes(
+  projectItems: ComputedGanttItem[],
+  projectIndex?: number
+): ProjectSubtaskNoteSummary[] {
+  const result: ProjectSubtaskNoteSummary[] = [];
+  for (const it of projectItems) {
+    const trimmed = (it.notes || '').trim();
+    if (!trimmed) continue;
+    const code =
+      it.displayId ||
+      (projectIndex ? `P${projectIndex}T${it.taskIndex || it.wbs}` : `T${it.taskIndex || it.wbs}`);
+    result.push({
+      itemId: it.id,
+      code,
+      name: it.name,
+      notes: trimmed,
+    });
+  }
+  return result;
+}
+
+export function formatStatusCommentForExport(
+  comment: (StatusComment & { sourceCode?: string; sourceName?: string }) | undefined
+): string {
+  if (!comment) return '—';
+  const datePrefix = comment.createdAt ? comment.createdAt.slice(0, 10) : '';
+  const sourcePrefix = comment.sourceCode ? `${comment.sourceCode}: ` : '';
+  return datePrefix
+    ? `[${datePrefix}] ${sourcePrefix}${comment.text}`
+    : `${sourcePrefix}${comment.text}`;
+}
+
 export function sanitizeProject(
   raw: Partial<GanttProject>,
   fallbackIndex = 0
@@ -378,6 +611,7 @@ export function sanitizeProject(
   const platform = normalizePlatform(raw.platform as string | undefined);
 
   const alertLevel = normalizeAlertLevel(raw.alertLevel);
+  const statusComments = sanitizeStatusComments(raw.statusComments);
 
   let projectIndex: number | undefined;
   if (
@@ -406,6 +640,7 @@ export function sanitizeProject(
     platform,
     ...(alertLevel !== undefined ? { alertLevel } : {}),
     ...(raw.locked ? { locked: true } : {}),
+    ...(statusComments ? { statusComments } : {}),
     collapsed: Boolean(raw.collapsed),
     isDemo: isDemoProject({ ...raw, id }),
   };
@@ -737,6 +972,7 @@ export function sanitizeGanttItem(
   });
 
   const isExternalMilestone = type === 'milestone' && Boolean(raw.isExternal);
+  const statusComments = sanitizeStatusComments(raw.statusComments);
   const result: GanttItem = {
     id,
     name: resolvedName,
@@ -770,6 +1006,7 @@ export function sanitizeGanttItem(
       ? { taskIndex: Math.round(raw.taskIndex) }
       : {}),
     ...(resolvedUrl ? { url: resolvedUrl } : {}),
+    ...(statusComments ? { statusComments } : {}),
   };
 
   if (!isExternalMilestone && raw.projectId != null && String(raw.projectId).trim()) {
@@ -4254,6 +4491,20 @@ export function describeProjectStateChanges(
       after: nextProj.locked ? 'Bloqueado' : 'Desbloqueado',
     });
   }
+  const prevCommentsCount = prevProj.statusComments?.length ?? 0;
+  const nextCommentsCount = nextProj.statusComments?.length ?? 0;
+  const prevLatestId = prevProj.statusComments?.[0]?.id;
+  const nextLatest = nextProj.statusComments?.[0];
+  if (prevCommentsCount !== nextCommentsCount || prevLatestId !== nextLatest?.id) {
+    diffs.push({
+      field: 'Seguimiento',
+      before: `${prevCommentsCount} ${prevCommentsCount === 1 ? 'comentario' : 'comentarios'}`,
+      after:
+        nextCommentsCount > prevCommentsCount && nextLatest
+          ? `+1: "${nextLatest.text.slice(0, 60)}${nextLatest.text.length > 60 ? '…' : ''}"`
+          : `${nextCommentsCount} ${nextCommentsCount === 1 ? 'comentario' : 'comentarios'}`,
+    });
+  }
   return diffs;
 }
 
@@ -4420,6 +4671,20 @@ export function describeItemStateChanges(
       field: 'Notas',
       before: prevNotes || 'Vacías',
       after: nextNotes || 'Vacías',
+    });
+  }
+  const prevCommentsCount = prevItem.statusComments?.length ?? 0;
+  const nextCommentsCount = nextItem.statusComments?.length ?? 0;
+  const prevLatestId = prevItem.statusComments?.[0]?.id;
+  const nextLatest = nextItem.statusComments?.[0];
+  if (prevCommentsCount !== nextCommentsCount || prevLatestId !== nextLatest?.id) {
+    diffs.push({
+      field: 'Seguimiento',
+      before: `${prevCommentsCount} ${prevCommentsCount === 1 ? 'comentario' : 'comentarios'}`,
+      after:
+        nextCommentsCount > prevCommentsCount && nextLatest
+          ? `+1: "${nextLatest.text.slice(0, 60)}${nextLatest.text.length > 60 ? '…' : ''}"`
+          : `${nextCommentsCount} ${nextCommentsCount === 1 ? 'comentario' : 'comentarios'}`,
     });
   }
   return diffs;
