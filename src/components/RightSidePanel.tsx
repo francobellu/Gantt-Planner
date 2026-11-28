@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
-  Check,
   ChevronDown,
   ChevronRight,
   Crosshair,
@@ -18,7 +17,6 @@ import {
   MessageSquare,
   Rocket,
   RotateCcw,
-  Save,
   Tag,
   Trash2,
   Unlock,
@@ -26,7 +24,6 @@ import {
 } from 'lucide-react';
 import {
   ComputedGanttItem,
-  DependencyType,
   FocusEntity,
   GanttItem,
   GanttProject,
@@ -209,12 +206,9 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
   const [taskEnd, setTaskEnd] = useState('');
   const [taskDuration, setTaskDuration] = useState(1);
   const [taskProgress, setTaskProgress] = useState(0);
-  const [taskSlack, setTaskSlack] = useState(0);
   const [taskDeps, setTaskDeps] = useState<string[]>([]);
-  const [taskDepTypes, setTaskDepTypes] = useState<Record<string, DependencyType>>({});
   const [taskNotes, setTaskNotes] = useState('');
   const [autoCascade, setAutoCascade] = useState(true);
-  const [savedNotice, setSavedNotice] = useState(false);
   const [projName, setProjName] = useState(() => selectedProject?.name || '');
   const [datesSectionExpanded, setDatesSectionExpanded] = useState(false);
   const [depsSectionExpanded, setDepsSectionExpanded] = useState(false);
@@ -245,11 +239,8 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
     setTaskEnd(selectedTask.endDate);
     setTaskDuration(selectedTask.type === 'milestone' ? 0 : Math.max(1, selectedTask.duration));
     setTaskProgress(selectedTask.progress ?? 0);
-    setTaskSlack(selectedTask.slack ?? 0);
     setTaskDeps(selectedTask.dependencies || []);
-    setTaskDepTypes(selectedTask.dependencyTypes || {});
     setTaskNotes(selectedTask.notes || '');
-    setSavedNotice(false);
   }, [selectedTask, projects]);
 
   const allTags = useMemo(() => collectAllTags(projects, items), [projects, items]);
@@ -856,44 +847,18 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
               isFocusMode && focusEntity?.type === 'task' && focusEntity.id === selectedTask.id;
             const isLocked = Boolean(itemProj?.locked);
 
-            const handleSaveTaskEdits = (e: React.FormEvent) => {
-              e.preventDefault();
-              const trimmed = taskName.trim() || selectedTask.name;
-              const effectiveIsExternal = taskType === 'milestone' && taskIsExternal;
-              const updated: GanttItem = {
-                ...selectedTask,
-                name: trimmed,
-                type: taskType,
-                isExternal: effectiveIsExternal,
-                projectId: effectiveIsExternal
-                  ? undefined
-                  : taskProjectId || selectedTask.projectId || projects[0]?.id,
-                assignee: taskAssignee.trim() || undefined,
-                color: taskColor,
-                customColor: true,
-                platform: taskPlatform || undefined,
-                releaseId: effectiveIsExternal ? undefined : taskReleaseId || undefined,
-                alertLevel: taskAlertLevel,
-                startDate: taskStart,
-                endDate: taskType === 'milestone' ? taskStart : taskEnd,
-                duration: taskType === 'milestone' ? 0 : Math.max(1, taskDuration),
-                progress: Math.min(100, Math.max(0, taskProgress)),
-                slack: Math.max(0, taskSlack),
-                dependencies: taskDeps,
-                dependencyTypes: taskDepTypes,
-                notes: taskNotes.trim() || undefined,
-                url: resolveElementUrl({ name: trimmed, url: selectedTask.url }),
-              };
-              onUpdateItem(updated, autoCascade);
-              if (!isLocked) {
-                setSavedNotice(true);
-                setTimeout(() => setSavedNotice(false), 1800);
-              }
+            const applyTaskUpdate = (patch: Partial<GanttItem>, cascade = false) => {
+              onUpdateItem(
+                {
+                  ...selectedTask,
+                  ...patch,
+                },
+                cascade
+              );
             };
 
             return (
-              <form
-                onSubmit={handleSaveTaskEdits}
+              <div
                 data-testid={`sidebar-task-details-${selectedTask.id}`}
                 className="flex flex-col gap-3"
               >
@@ -965,7 +930,37 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                     type="text"
                     data-testid={`sidebar-edit-name-${selectedTask.id}`}
                     value={taskName}
-                    onChange={(e) => setTaskName(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setTaskName(val);
+                      if (val.trim()) {
+                        applyTaskUpdate(
+                          {
+                            name: val,
+                            url: resolveElementUrl({ name: val, url: selectedTask.url }),
+                          },
+                          false
+                        );
+                      }
+                    }}
+                    onBlur={() => {
+                      const trimmed = taskName.trim() || selectedTask.name;
+                      setTaskName(trimmed);
+                      if (trimmed !== selectedTask.name) {
+                        applyTaskUpdate(
+                          {
+                            name: trimmed,
+                            url: resolveElementUrl({ name: trimmed, url: selectedTask.url }),
+                          },
+                          false
+                        );
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        (e.currentTarget as HTMLInputElement).blur();
+                      }
+                    }}
                     className="w-full px-2.5 py-1.5 rounded-[4px] border border-[#0C0C09] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-semibold text-[#0C0C09] dark:text-zinc-100 outline-none focus:ring-1 focus:ring-indigo-500"
                   />
                 </div>
@@ -1002,7 +997,18 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                   <textarea
                     rows={3}
                     value={taskNotes}
-                    onChange={(e) => setTaskNotes(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setTaskNotes(val);
+                      applyTaskUpdate({ notes: val || undefined }, false);
+                    }}
+                    onBlur={() => {
+                      const trimmed = taskNotes.trim();
+                      if (trimmed !== taskNotes) {
+                        setTaskNotes(trimmed);
+                        applyTaskUpdate({ notes: trimmed || undefined }, false);
+                      }
+                    }}
                     placeholder="Añade detalles, alcance o notas..."
                     className="w-full px-2.5 py-1.5 rounded-[4px] border border-[#E2E2DC] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs resize-y min-h-[68px]"
                   />
@@ -1046,14 +1052,37 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                           setTaskIsExternal(true);
                           setTaskProjectId('');
                           setTaskReleaseId('');
+                          applyTaskUpdate(
+                            {
+                              type: 'milestone',
+                              duration: 0,
+                              endDate: taskStart,
+                              isExternal: true,
+                              projectId: undefined,
+                              releaseId: undefined,
+                            },
+                            autoCascade
+                          );
                         } else {
                           const nd = Math.max(1, taskDuration || 3);
+                          const nextEnd = calculateEndDateFromDuration(taskStart, nd, 'task', workCalendar);
+                          const nextProjId = taskProjectId || selectedTask.projectId || projects[0]?.id || '';
                           setTaskDuration(nd);
-                          setTaskEnd(calculateEndDateFromDuration(taskStart, nd, 'task', workCalendar));
+                          setTaskEnd(nextEnd);
                           setTaskIsExternal(false);
-                          if (!taskProjectId) {
-                            setTaskProjectId(selectedTask.projectId || projects[0]?.id || '');
+                          if (!taskProjectId && nextProjId) {
+                            setTaskProjectId(nextProjId);
                           }
+                          applyTaskUpdate(
+                            {
+                              type: 'task',
+                              duration: nd,
+                              endDate: nextEnd,
+                              isExternal: false,
+                              projectId: nextProjId || undefined,
+                            },
+                            autoCascade
+                          );
                         }
                       }}
                       className="w-full px-2 py-1.5 rounded-[4px] border border-[#E2E2DC] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs"
@@ -1070,7 +1099,11 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                       data-testid="sidebar-task-project-select"
                       value={taskType === 'milestone' && taskIsExternal ? '' : taskProjectId}
                       disabled={taskType === 'milestone' && taskIsExternal}
-                      onChange={(e) => setTaskProjectId(e.target.value)}
+                      onChange={(e) => {
+                        const nextProjId = e.target.value;
+                        setTaskProjectId(nextProjId);
+                        applyTaskUpdate({ projectId: nextProjId || undefined }, false);
+                      }}
                       className="w-full px-2 py-1.5 rounded-[4px] border border-[#E2E2DC] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs disabled:opacity-55 disabled:cursor-not-allowed"
                     >
                       {taskType === 'milestone' && taskIsExternal ? (
@@ -1099,8 +1132,19 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                         if (checked) {
                           setTaskProjectId('');
                           setTaskReleaseId('');
-                        } else if (!taskProjectId) {
-                          setTaskProjectId(selectedTask.projectId || projects[0]?.id || '');
+                          applyTaskUpdate(
+                            { isExternal: true, projectId: undefined, releaseId: undefined },
+                            false
+                          );
+                        } else {
+                          const nextProjId = taskProjectId || selectedTask.projectId || projects[0]?.id || '';
+                          if (!taskProjectId && nextProjId) {
+                            setTaskProjectId(nextProjId);
+                          }
+                          applyTaskUpdate(
+                            { isExternal: false, projectId: nextProjId || undefined },
+                            false
+                          );
                         }
                       }}
                       className="mt-0.5 rounded border-amber-400 text-amber-600 focus:ring-0 cursor-pointer"
@@ -1131,8 +1175,28 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                       const match = existingTeams.find(
                         (t) => t.name.toLowerCase() === val.trim().toLowerCase()
                       );
-                      if (match && taskType === 'task') setTaskColor(match.color);
-                      else if (taskType === 'task') setTaskColor(getTeamColor(val));
+                      let nextColor = taskColor;
+                      if (match && taskType === 'task') {
+                        nextColor = match.color;
+                        setTaskColor(nextColor);
+                      } else if (taskType === 'task') {
+                        nextColor = getTeamColor(val);
+                        setTaskColor(nextColor);
+                      }
+                      applyTaskUpdate(
+                        {
+                          assignee: val || undefined,
+                          ...(taskType === 'task' ? { color: nextColor, customColor: false } : {}),
+                        },
+                        false
+                      );
+                    }}
+                    onBlur={() => {
+                      const trimmed = taskAssignee.trim();
+                      if (trimmed !== taskAssignee) {
+                        setTaskAssignee(trimmed);
+                        applyTaskUpdate({ assignee: trimmed || undefined }, false);
+                      }
                     }}
                     placeholder="Ej. Frontend, DIGI..."
                     className="w-full px-2.5 py-1.5 rounded-[4px] border border-[#E2E2DC] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs"
@@ -1147,7 +1211,10 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                       <button
                         key={c.value}
                         type="button"
-                        onClick={() => setTaskColor(c.value)}
+                        onClick={() => {
+                          setTaskColor(c.value);
+                          applyTaskUpdate({ color: c.value, customColor: true }, false);
+                        }}
                         className={`w-4 h-4 rounded-full ${c.bg} transition cursor-pointer ${
                           taskColor === c.value ? 'ring-2 ring-offset-1 ring-[#0C0C09] scale-110' : 'opacity-70 hover:opacity-100'
                         }`}
@@ -1165,7 +1232,11 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                     </label>
                     <select
                       value={taskPlatform}
-                      onChange={(e) => setTaskPlatform(e.target.value as ProjectPlatform | '')}
+                      onChange={(e) => {
+                        const nextPlat = e.target.value as ProjectPlatform | '';
+                        setTaskPlatform(nextPlat);
+                        applyTaskUpdate({ platform: nextPlat || undefined }, false);
+                      }}
                       className="w-full px-2 py-1.5 rounded-[4px] border border-[#E2E2DC] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs"
                     >
                       <option value="">Heredar</option>
@@ -1181,7 +1252,11 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                     <select
                       value={taskType === 'milestone' && taskIsExternal ? '' : taskReleaseId}
                       disabled={taskType === 'milestone' && taskIsExternal}
-                      onChange={(e) => setTaskReleaseId(e.target.value)}
+                      onChange={(e) => {
+                        const nextRelId = e.target.value;
+                        setTaskReleaseId(nextRelId);
+                        applyTaskUpdate({ releaseId: nextRelId || undefined }, false);
+                      }}
                       className="w-full px-2 py-1.5 rounded-[4px] border border-[#E2E2DC] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs disabled:opacity-55 disabled:cursor-not-allowed"
                     >
                       <option value="">
@@ -1259,9 +1334,14 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                       value={taskStart}
                       onChange={(e) => {
                         const ns = e.target.value;
+                        if (!ns) return;
+                        const ne =
+                          taskType === 'milestone'
+                            ? ns
+                            : calculateEndDateFromDuration(ns, taskDuration, 'task', workCalendar);
                         setTaskStart(ns);
-                        if (taskType === 'milestone') setTaskEnd(ns);
-                        else setTaskEnd(calculateEndDateFromDuration(ns, taskDuration, 'task', workCalendar));
+                        setTaskEnd(ne);
+                        applyTaskUpdate({ startDate: ns, endDate: ne }, autoCascade);
                       }}
                       className="w-full px-1.5 py-1 rounded border border-[#E2E2DC] dark:border-zinc-700 bg-white dark:bg-zinc-900 font-mono text-[11px]"
                     />
@@ -1273,9 +1353,13 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                       value={taskType === 'milestone' ? taskStart : taskEnd}
                       disabled={taskType === 'milestone'}
                       onChange={(e) => {
-                        const ne = e.target.value < taskStart ? taskStart : e.target.value;
+                        const raw = e.target.value;
+                        if (!raw) return;
+                        const ne = raw < taskStart ? taskStart : raw;
+                        const nd = calculateDurationFromDates(taskStart, ne, 'task', workCalendar);
                         setTaskEnd(ne);
-                        setTaskDuration(calculateDurationFromDates(taskStart, ne, 'task', workCalendar));
+                        setTaskDuration(nd);
+                        applyTaskUpdate({ endDate: ne, duration: nd }, autoCascade);
                       }}
                       className="w-full px-1.5 py-1 rounded border border-[#E2E2DC] dark:border-zinc-700 bg-white dark:bg-zinc-900 font-mono text-[11px] disabled:opacity-50"
                     />
@@ -1290,8 +1374,10 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                       value={taskType === 'milestone' ? 0 : taskDuration}
                       onChange={(e) => {
                         const nd = Math.max(1, Number(e.target.value) || 1);
+                        const ne = calculateEndDateFromDuration(taskStart, nd, 'task', workCalendar);
                         setTaskDuration(nd);
-                        setTaskEnd(calculateEndDateFromDuration(taskStart, nd, 'task', workCalendar));
+                        setTaskEnd(ne);
+                        applyTaskUpdate({ duration: nd, endDate: ne }, autoCascade);
                       }}
                       className="w-full px-1.5 py-1 rounded border border-[#E2E2DC] dark:border-zinc-700 bg-white dark:bg-zinc-900 font-mono text-[11px] disabled:opacity-50"
                     />
@@ -1304,9 +1390,11 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                       max={100}
                       step={5}
                       value={taskProgress}
-                      onChange={(e) =>
-                        setTaskProgress(Math.min(100, Math.max(0, Number(e.target.value) || 0)))
-                      }
+                      onChange={(e) => {
+                        const np = Math.min(100, Math.max(0, Number(e.target.value) || 0));
+                        setTaskProgress(np);
+                        applyTaskUpdate({ progress: np }, false);
+                      }}
                       className="w-full px-1.5 py-1 rounded border border-[#E2E2DC] dark:border-zinc-700 bg-white dark:bg-zinc-900 font-mono text-[11px]"
                     />
                   </div>
@@ -1381,11 +1469,11 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                               type="checkbox"
                               checked={checked}
                               onChange={() => {
-                                setTaskDeps((prev) =>
-                                  prev.includes(cand.id)
-                                    ? prev.filter((id) => id !== cand.id)
-                                    : [...prev, cand.id]
-                                );
+                                const nextDeps = taskDeps.includes(cand.id)
+                                  ? taskDeps.filter((id) => id !== cand.id)
+                                  : [...taskDeps, cand.id];
+                                setTaskDeps(nextDeps);
+                                applyTaskUpdate({ dependencies: nextDeps }, autoCascade);
                               }}
                               className="rounded-[2px]"
                             />
@@ -1468,18 +1556,8 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                     onChange={(e) => setAutoCascade(e.target.checked)}
                     className="rounded-[2px]"
                   />
-                  <span>Reprogramar sucesoras automáticamente al guardar</span>
+                  <span>Reprogramar sucesoras automáticamente al cambiar fechas</span>
                 </label>
-
-                {/* Primary Save + Quick Actions */}
-                <button
-                  type="submit"
-                  data-testid="sidebar-save-task-btn"
-                  className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-[4px] bg-[#0C0C09] hover:bg-[#312C85] dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-[#0C0C09] font-semibold text-xs transition cursor-pointer"
-                >
-                  {savedNotice ? <Check className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}
-                  <span>{savedNotice ? 'Cambios guardados' : 'Guardar Cambios'}</span>
-                </button>
 
                 <div className="flex items-center justify-between gap-1.5 pt-2 border-t border-[#E2E2DC] dark:border-zinc-800 flex-wrap">
                   <div className="flex items-center gap-1.5">
@@ -1521,7 +1599,7 @@ export const RightSidePanel: React.FC<RightSidePanelProps> = ({
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
-              </form>
+              </div>
             );
           })()}
 

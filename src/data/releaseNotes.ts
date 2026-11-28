@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.22.3',
+    date: '28 Nov 2026',
+    title: 'Aplicar cambios al instante en el panel de Detalles sin botón Guardar',
+    isLatest: true,
+    features: [
+      'Todos los campos de tareas e hitos en el panel lateral de Detalles (nombre, notas, tipo, proyecto, equipo, color, plataforma, release, alerta, fechas, duración, progreso y predecesoras) se guardan automáticamente al editarse',
+      'Se elimina el botón manual Guardar Cambios del panel de Detalles',
+    ],
+  },
+  {
     version: '1.22.2',
     date: '28 Nov 2026',
     title: 'Respetar color individual de tareas e hitos en Planificación',
-    isLatest: true,
     features: [
       'Los badges de ID de tareas e hitos en Planificación ahora usan el color efectivo de cada tarea/hito (getItemEffectiveColor) en lugar del color del proyecto padre, manteniéndose sincronizados con Cronograma',
     ],
