@@ -4515,7 +4515,7 @@ test('Help page, version control v1.2.0, release selection on project creation, 
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version control consistency
-  assert.equal(pkg.version, '1.21.3', 'package.json version must be 1.9.2');
+  assert.equal(pkg.version, '1.22.0', 'package.json version must be 1.9.2');
   assert.ok(pkg.scripts['version:patch'], 'package.json must contain version:patch script');
   assert.ok(pkg.scripts['version:minor'], 'package.json must contain version:minor script');
   assert.ok(pkg.scripts['release:patch'], 'package.json must contain release:patch script');
@@ -5330,7 +5330,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version Bump Verification
-  assert.equal(pkg.version, '1.21.3', 'package.json version must equal 1.9.2');
+  assert.equal(pkg.version, '1.22.0', 'package.json version must equal 1.9.2');
 
   // Verify scripts/bump-version.mjs works properly
   const bumpScript = await fs.readFile(path.resolve(__dirname, '../scripts/bump-version.mjs'), 'utf8');
@@ -5504,7 +5504,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // A. APP_VERSION equals 1.9.2
-    assert.equal(mod.APP_VERSION, '1.21.3', 'APP_VERSION must be 1.9.2');
+    assert.equal(mod.APP_VERSION, '1.22.0', 'APP_VERSION must be 1.9.2');
 
     // A2. Excel Export Unit Test
     const sampleReleases = [
@@ -6031,8 +6031,8 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
-  // 1. Version Bump Verification v1.21.3
-  assert.equal(pkg.version, '1.21.3', 'package.json version must equal 1.9.2');
+  // 1. Version Bump Verification v1.22.0
+  assert.equal(pkg.version, '1.22.0', 'package.json version must equal 1.9.2');
 
   // 2. SSR Bundle verification for TaskFormModal, App Header, and sanitizeGanttItem
   const tmpFile = path.resolve(__dirname, `tmp_test59_bundle_${Date.now()}.mjs`);
@@ -6130,7 +6130,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.equal(mod.APP_VERSION, '1.21.3', 'mod.APP_VERSION must equal 1.9.2');
+    assert.equal(mod.APP_VERSION, '1.22.0', 'mod.APP_VERSION must equal 1.9.2');
 
     // sanitizeGanttItem preserves platform
     const sanitizedIos = mod.sanitizeGanttItem({
@@ -6193,7 +6193,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     }));
     assert.ok(settingsHtml.includes('data-testid="settings-version-badge"'), 'SettingsModal must contain settings-version-badge');
     assert.ok(settingsHtml.includes('data-testid="force-reload-btn"'), 'SettingsModal must contain force-reload-btn');
-    assert.ok(settingsHtml.includes('v1.21.3') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and v1.21.3');
+    assert.ok(settingsHtml.includes('v1.22.0') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and v1.22.0');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6347,14 +6347,14 @@ test('Test 61: Version button, compiled release notes modal and changelog across
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
 
     // 1. Check RELEASE_NOTES compiled data
-    assert.strictEqual(mod.APP_VERSION, '1.21.3');
+    assert.strictEqual(mod.APP_VERSION, '1.22.0');
     assert.ok(Array.isArray(mod.RELEASE_NOTES), 'RELEASE_NOTES must be an array');
     assert.ok(mod.RELEASE_NOTES.length >= 10, 'RELEASE_NOTES must have at least 10 releases');
 
     const latest = mod.RELEASE_NOTES[0];
-    assert.strictEqual(latest.version, '1.21.3', 'First release note must be 1.9.2');
+    assert.strictEqual(latest.version, '1.22.0', 'First release note must be 1.9.2');
     assert.strictEqual(latest.isLatest, true, 'First release note must be isLatest: true');
-    assert.ok(latest.features.length > 0, 'v1.21.3 must contain features');
+    assert.ok(latest.features.length > 0, 'v1.22.0 must contain features');
 
     // 2. Render App and verify version button exists in dropdown menu and is NOT duplicated in top header
     const appHtml = renderToString(React.createElement(mod.App));
@@ -8189,7 +8189,7 @@ test('Test 73: v1.9.0 project alert level (0-3), workspace toolbar alert filter,
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.strictEqual(mod.APP_VERSION, '1.21.3', 'APP_VERSION must be 1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.22.0', 'APP_VERSION must be 1.9.2');
 
     // 1. Check sanitizeProject and describeProjectStateChanges for alertLevel
     const pSanitized0 = mod.sanitizeProject({ id: 'p-1', name: 'Proj 1', alertLevel: 0 });
@@ -8378,7 +8378,7 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.strictEqual(mod.APP_VERSION, '1.21.3', 'APP_VERSION must be 1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.22.0', 'APP_VERSION must be 1.9.2');
 
     // 1. Verify description format: <descripción del proyecto si existe>\n\n* <nombre> <desc>
     const pWithDesc = {
@@ -8463,8 +8463,8 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
   }
 });
 
-// TEST 75: v1.21.3 Project locking, accidental move guard & unlock prompt modal
-test('Test 75: v1.21.3 project locking, cascade/dependency protection, plan history badge, and unlock alert modal', async () => {
+// TEST 75: v1.22.0 Project locking, accidental move guard & unlock prompt modal
+test('Test 75: v1.22.0 project locking, cascade/dependency protection, plan history badge, and unlock alert modal', async () => {
   const fs = await import('node:fs/promises');
   const path = await import('node:path');
   const { fileURLToPath } = await import('node:url');
@@ -8475,7 +8475,7 @@ test('Test 75: v1.21.3 project locking, cascade/dependency protection, plan hist
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
-  assert.strictEqual(pkg.version, '1.21.3', 'package.json version must equal 1.9.2');
+  assert.strictEqual(pkg.version, '1.22.0', 'package.json version must equal 1.9.2');
 
   const tmpFile = path.resolve(__dirname, `tmp_test75_bundle_${Date.now()}.mjs`);
   try {
@@ -8537,9 +8537,9 @@ test('Test 75: v1.21.3 project locking, cascade/dependency protection, plan hist
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // 1. Version & release notes verification
-    assert.strictEqual(mod.APP_VERSION, '1.21.3', 'APP_VERSION must equal 1.9.2');
-    assert.strictEqual(mod.RELEASE_NOTES[0].version, '1.21.3', 'Latest release note must be 1.9.2');
-    assert.strictEqual(mod.RELEASE_NOTES[0].isLatest, true, 'v1.21.3 release note must be marked isLatest');
+    assert.strictEqual(mod.APP_VERSION, '1.22.0', 'APP_VERSION must equal 1.9.2');
+    assert.strictEqual(mod.RELEASE_NOTES[0].version, '1.22.0', 'Latest release note must be 1.9.2');
+    assert.strictEqual(mod.RELEASE_NOTES[0].isLatest, true, 'v1.22.0 release note must be marked isLatest');
 
     // 2. sanitizeProject, getLockedProjectForItem, describeProjectStateChanges
     const lockedProj = mod.sanitizeProject({
@@ -8736,7 +8736,7 @@ test('Test 75: v1.21.3 project locking, cascade/dependency protection, plan hist
   }
 });
 
-test('Test 76: v1.21.3 automatic Free Slack calculation given successor tasks across engine, table badge, inspector sidebar and task modal', async () => {
+test('Test 76: v1.22.0 automatic Free Slack calculation given successor tasks across engine, table badge, inspector sidebar and task modal', async () => {
   // 1. Engine calculation: FS dependency with multiple successors
   const testItems = [
     {
@@ -16042,6 +16042,151 @@ test('132. Cronograma split-pane divider expands full left panel on double-click
   assert.ok(wsSrc.includes('fullNameColumnWidth'), 'GanttWorkspace must compute fullNameColumnWidth so names expand with priority');
   assert.ok(wsSrc.includes('fullContentSplitWidth'), 'Split divider drag & double-click must cap at fullContentSplitWidth once all names fit completely');
   assert.ok(wsSrc.includes('displayTruncateLimit'), 'Task/project truncation must progressively expand to full names as divider moves right');
+});
+
+test('133. Cross-page state persistence restores structure, search filters, selection, and scroll across Cronograma, Planificación, History and Help', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const { fileURLToPath } = await import('node:url');
+  const { build } = await import('esbuild');
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+  const tmpFile = path.resolve(__dirname, `tmp_page_state_persist_${Date.now()}.mjs`);
+  try {
+    await build({
+      stdin: {
+        contents: `
+          import React from 'react';
+          import { renderToString } from 'react-dom/server';
+          import { GanttWorkspace } from './src/components/GanttWorkspace.tsx';
+          import { ReportsView } from './src/components/ReportsView.tsx';
+          import { computeGanttMetrics } from './src/utils/ganttEngine.ts';
+          import { DEFAULT_PREDEFINED_RELEASES } from './src/utils/releaseEngine.ts';
+          export { React, renderToString, GanttWorkspace, ReportsView, computeGanttMetrics, DEFAULT_PREDEFINED_RELEASES };
+        `,
+        resolveDir: path.resolve(__dirname, '..'),
+        loader: 'tsx',
+      },
+      bundle: true,
+      platform: 'node',
+      format: 'esm',
+      packages: 'external',
+      outfile: tmpFile,
+      logLevel: 'silent',
+    });
+
+    const mod = await import(`file://${tmpFile}`);
+    const rel = mod.DEFAULT_PREDEFINED_RELEASES[0];
+    const projects = [
+      { id: 'p-1', name: 'Pagos Móvil', color: 'indigo', releaseId: rel.id, platform: 'iOS', alertLevel: 2 },
+      { id: 'p-2', name: 'Onboarding Web', color: 'emerald', releaseId: rel.id, platform: 'Android', alertLevel: 0 },
+    ];
+    const items = mod.computeGanttMetrics([
+      {
+        id: 't-1',
+        name: 'Pasarela Pago iOS',
+        type: 'task',
+        projectId: 'p-1',
+        startDate: '2026-11-01',
+        endDate: '2026-11-05',
+        duration: 5,
+        slack: 0,
+        dependencies: [],
+        progress: 50,
+        color: 'indigo',
+        platform: 'iOS',
+        assignee: 'Equipo Pagos',
+        releaseId: rel.id,
+      },
+      {
+        id: 't-2',
+        name: 'Pantalla Registro',
+        type: 'task',
+        projectId: 'p-2',
+        startDate: '2026-11-06',
+        endDate: '2026-11-10',
+        duration: 5,
+        slack: 0,
+        dependencies: [],
+        progress: 20,
+        color: 'emerald',
+        platform: 'Android',
+        assignee: 'Equipo Core',
+        releaseId: rel.id,
+      },
+    ]);
+
+    // 1. GanttWorkspace restores persisted search query, platform/type filters, and split width
+    const ganttHtml = mod.renderToString(
+      mod.React.createElement(mod.GanttWorkspace, {
+        items,
+        projects,
+        releases: [rel],
+        groupingMode: 'release',
+        zoom: 'day',
+        showCriticalPath: false,
+        showCpmFloat: false,
+        autoCascade: false,
+        onUpdateItem: () => {},
+        onEditModal: () => {},
+        onDeleteItem: () => {},
+        onDuplicateItem: () => {},
+        onQuickAdd: () => {},
+        scrollContainerRef: { current: null },
+        persistedState: {
+          tableSearchQuery: 'Pasarela',
+          tablePlatformFilter: 'iOS',
+          splitWidth: 612,
+        },
+      })
+    );
+    assert.ok(ganttHtml.includes('value="Pasarela"'), 'GanttWorkspace must restore persisted search query in input');
+    assert.ok(ganttHtml.includes('Pasarela Pago iOS'), 'GanttWorkspace must show matching task for persisted filter');
+    assert.ok(!ganttHtml.includes('Pantalla Registro'), 'GanttWorkspace must hide non-matching task for persisted filter');
+    assert.ok(ganttHtml.includes('612px'), 'GanttWorkspace must restore persisted splitWidth');
+
+    // 2. ReportsView restores persisted search filter AND collapsed tree structure
+    const reportsFilteredHtml = mod.renderToString(
+      mod.React.createElement(mod.ReportsView, {
+        releases: [rel],
+        projects,
+        items,
+        persistedState: {
+          searchQuery: 'Registro',
+          selectedPlatform: 'Android',
+        },
+      })
+    );
+    assert.ok(reportsFilteredHtml.includes('value="Registro"'), 'ReportsView must restore persisted search query');
+    assert.ok(reportsFilteredHtml.includes('Pantalla Registro'), 'ReportsView must show matching task');
+    assert.ok(!reportsFilteredHtml.includes('Pasarela Pago iOS'), 'ReportsView must filter out non-matching task');
+
+    const reportsCollapsedHtml = mod.renderToString(
+      mod.React.createElement(mod.ReportsView, {
+        releases: [rel],
+        projects,
+        items,
+        persistedState: {
+          collapsedNodes: ['proj:p-1'],
+        },
+      })
+    );
+    assert.ok(reportsCollapsedHtml.includes('Pagos Móvil'), 'Collapsed project row itself remains visible');
+    assert.ok(!reportsCollapsedHtml.includes('Pasarela Pago iOS'), 'Tasks inside persisted collapsed project remain hidden');
+    assert.ok(reportsCollapsedHtml.includes('Pantalla Registro'), 'Tasks inside expanded project remain visible');
+
+    // 3. App wires persistedState + onPersistState + sessionStorage across all views
+    const appSrc = await fs.readFile(path.resolve(__dirname, '../src/App.tsx'), 'utf8');
+    assert.ok(appSrc.includes('VIEW_STATE_SESSION_STORAGE_KEY'), 'App must persist view states to sessionStorage');
+    assert.ok(appSrc.includes('persistedState={pageViewStateRef.current.gantt}'), 'App must pass persistedState to GanttWorkspace');
+    assert.ok(appSrc.includes('onPersistState={handlePersistGanttViewState}'), 'App must pass onPersistState to GanttWorkspace');
+    assert.ok(appSrc.includes('persistedState={pageViewStateRef.current.reports}'), 'App must pass persistedState to ReportsView');
+    assert.ok(appSrc.includes('onPersistState={handlePersistReportsViewState}'), 'App must pass onPersistState to ReportsView');
+    assert.ok(appSrc.includes('persistedState={pageViewStateRef.current.history}'), 'App must pass persistedState to PlanHistoryPage');
+    assert.ok(appSrc.includes('persistedState={pageViewStateRef.current.help}'), 'App must pass persistedState to HelpPage');
+  } finally {
+    await fs.unlink(tmpFile).catch(() => {});
+  }
 });
 
 

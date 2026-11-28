@@ -44,6 +44,7 @@ import {
   ProjectPlatform,
   ProjectAlertLevel,
   ReportsLayoutSnapshot,
+  ReportsViewStateSnapshot,
 } from '../types/gantt';
 import {
   calculateDurationFromDates,
@@ -659,6 +660,8 @@ interface ReportsViewProps {
     prevLayout: ReportsLayoutSnapshot
   ) => void;
   externalLayoutSync?: { version: number; layout: ReportsLayoutSnapshot } | null;
+  persistedState?: Partial<ReportsViewStateSnapshot>;
+  onPersistState?: (snapshot: ReportsViewStateSnapshot) => void;
 }
 
 export const ReportsView: React.FC<ReportsViewProps> = ({
@@ -698,17 +701,34 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   onMoveProject,
   onRecordLayoutChange,
   externalLayoutSync,
+  persistedState,
+  onPersistState,
 }) => {
-  const [activeTab, setActiveTab] = useState<ReportTab>(initialTab === 'projects' ? 'cronograma' : initialTab);
-  const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(() => new Set(initialCollapsedNodes));
+  const [activeTab, setActiveTab] = useState<ReportTab>(() => {
+    const base = persistedState?.activeTab ?? initialTab;
+    return base === 'projects' ? 'cronograma' : base;
+  });
+  const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(
+    () =>
+      new Set(
+        initialCollapsedNodes.length > 0
+          ? initialCollapsedNodes
+          : persistedState?.collapsedNodes ?? []
+      )
+  );
   const [collapsingNodes, setCollapsingNodes] = useState<Set<string>>(() => new Set());
   const [expandingNodes, setExpandingNodes] = useState<Set<string>>(() => new Set());
   const [expandedSubtaskNotesProjects, setExpandedSubtaskNotesProjects] = useState<Set<string>>(
-    () => new Set()
+    () => new Set(persistedState?.expandedSubtaskNotesProjects ?? [])
   );
   const collapseTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const [expandedFilteredNodes, setExpandedFilteredNodes] = useState<Set<string>>(
-    () => new Set(initialExpandedFilteredNodes)
+    () =>
+      new Set(
+        initialExpandedFilteredNodes.length > 0
+          ? initialExpandedFilteredNodes
+          : persistedState?.expandedFilteredNodes ?? []
+      )
   );
 
   useEffect(() => {
@@ -726,7 +746,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     initialShowColumnsMenu && !initialShowFormatMenu ? 'columns' : 'format'
   );
   const formatColumnsMenuRef = useRef<HTMLDivElement>(null);
-  const [focusedProjectIds, setFocusedProjectIds] = useState<string[]>(initialFocusedProjectIds);
+  const [focusedProjectIds, setFocusedProjectIds] = useState<string[]>(
+    initialFocusedProjectIds.length > 0
+      ? initialFocusedProjectIds
+      : persistedState?.focusedProjectIds ?? []
+  );
   const [wizardOpen, setWizardOpen] = useState<boolean>(initialShowWizard);
   const [commentsDrawerTarget, setCommentsDrawerTarget] = useState<{
     entityType: 'project' | 'item';
@@ -760,6 +784,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
   const [activeSavedFilterId, setActiveSavedFilterId] = useState<string | null>(() => {
     if (initialActiveSavedFilterId) return initialActiveSavedFilterId;
+    if (persistedState && 'activeSavedFilterId' in persistedState) {
+      return persistedState.activeSavedFilterId ?? null;
+    }
     try {
       return typeof localStorage !== 'undefined' ? localStorage.getItem(REPORT_ACTIVE_FILTER_KEY) : null;
     } catch {}
@@ -999,36 +1026,47 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   } | null>(null);
   const rowFlipCleanupRef = useRef<(() => void) | null>(null);
   const [searchQuery, setSearchQuery] = useState(
-    initialSearchQuery !== undefined ? initialSearchQuery : (initialMatchedSavedFilter?.searchQuery ?? '')
+    initialSearchQuery !== undefined
+      ? initialSearchQuery
+      : persistedState?.searchQuery ?? initialMatchedSavedFilter?.searchQuery ?? ''
   );
   const [excludeQuery, setExcludeQuery] = useState(
-    initialExcludeQuery !== undefined ? initialExcludeQuery : (initialMatchedSavedFilter?.excludeQuery ?? '')
+    initialExcludeQuery !== undefined
+      ? initialExcludeQuery
+      : persistedState?.excludeQuery ?? initialMatchedSavedFilter?.excludeQuery ?? ''
   );
   const [searchFields, setSearchFields] = useState<GanttSearchFieldsConfig>(() => ({
     ...DEFAULT_GANTT_SEARCH_FIELDS,
     ...(initialMatchedSavedFilter?.searchFields || {}),
+    ...(persistedState?.searchFields || {}),
     ...(initialSearchFields || {}),
   }));
   const [showSubtasksOnFilter, setShowSubtasksOnFilter] = useState<boolean>(
-    initialShowSubtasksOnFilter || Boolean(initialMatchedSavedFilter?.showSubtasksOnFilter)
+    initialShowSubtasksOnFilter ||
+      Boolean(
+        persistedState?.showSubtasksOnFilter ??
+          initialMatchedSavedFilter?.showSubtasksOnFilter
+      )
   );
   const [selectedType, setSelectedType] = useState<ReportRowTypeFilter>(
-    initialTypeFilter !== 'all' ? initialTypeFilter : (initialMatchedSavedFilter?.selectedType ?? 'all')
+    initialTypeFilter !== 'all'
+      ? initialTypeFilter
+      : persistedState?.selectedType ?? initialMatchedSavedFilter?.selectedType ?? 'all'
   );
   const [selectedPlatform, setSelectedPlatform] = useState<'all' | ProjectPlatform>(
-    initialMatchedSavedFilter?.selectedPlatform ?? 'all'
+    persistedState?.selectedPlatform ?? initialMatchedSavedFilter?.selectedPlatform ?? 'all'
   );
   const [selectedAlert, setSelectedAlert] = useState<'all' | ProjectAlertLevel>(
-    initialMatchedSavedFilter?.selectedAlert ?? 'all'
+    persistedState?.selectedAlert ?? initialMatchedSavedFilter?.selectedAlert ?? 'all'
   );
   const [selectedRelease, setSelectedRelease] = useState<string>(
-    initialMatchedSavedFilter?.selectedRelease ?? 'all'
+    persistedState?.selectedRelease ?? initialMatchedSavedFilter?.selectedRelease ?? 'all'
   );
   const [selectedTeam, setSelectedTeam] = useState<string>(
-    initialMatchedSavedFilter?.selectedTeam ?? 'all'
+    persistedState?.selectedTeam ?? initialMatchedSavedFilter?.selectedTeam ?? 'all'
   );
   const [selectedTag, setSelectedTag] = useState<string>(
-    initialMatchedSavedFilter?.selectedTag ?? 'all'
+    persistedState?.selectedTag ?? initialMatchedSavedFilter?.selectedTag ?? 'all'
   );
   const availableTeams = useMemo(() => {
     const set = new Set<string>();
@@ -2117,7 +2155,128 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
   const [expandedColToggleMap, setExpandedColToggleMap] = useState<
     Record<string, { previousWidth: number | undefined; expandedWidth: number }>
-  >({});
+  >(() => persistedState?.expandedColToggleMap ?? {});
+
+  const tableScrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const onPersistStateRef = useRef(onPersistState);
+  onPersistStateRef.current = onPersistState;
+  const lastTableScrollRef = useRef<{ top: number; left: number }>({
+    top: persistedState?.tableScrollTop ?? 0,
+    left: persistedState?.tableScrollLeft ?? 0,
+  });
+
+  const currentReportsStateRef = useRef<ReportsViewStateSnapshot>({
+    activeTab,
+    collapsedNodes: Array.from(collapsedNodes),
+    expandedSubtaskNotesProjects: Array.from(expandedSubtaskNotesProjects),
+    expandedFilteredNodes: Array.from(expandedFilteredNodes),
+    focusedProjectIds,
+    expandedColToggleMap,
+    searchQuery,
+    excludeQuery,
+    searchFields,
+    showSubtasksOnFilter,
+    selectedType,
+    selectedPlatform,
+    selectedAlert,
+    selectedRelease,
+    selectedTeam,
+    selectedTag,
+    activeSavedFilterId,
+    tableScrollTop: lastTableScrollRef.current.top,
+    tableScrollLeft: lastTableScrollRef.current.left,
+  });
+
+  useEffect(() => {
+    const snapshot: ReportsViewStateSnapshot = {
+      activeTab,
+      collapsedNodes: Array.from(collapsedNodes),
+      expandedSubtaskNotesProjects: Array.from(expandedSubtaskNotesProjects),
+      expandedFilteredNodes: Array.from(expandedFilteredNodes),
+      focusedProjectIds: [...focusedProjectIds],
+      expandedColToggleMap: { ...expandedColToggleMap },
+      searchQuery,
+      excludeQuery,
+      searchFields: { ...searchFields },
+      showSubtasksOnFilter,
+      selectedType,
+      selectedPlatform,
+      selectedAlert,
+      selectedRelease,
+      selectedTeam,
+      selectedTag,
+      activeSavedFilterId,
+      tableScrollTop:
+        tableScrollContainerRef.current?.scrollTop ?? lastTableScrollRef.current.top,
+      tableScrollLeft:
+        tableScrollContainerRef.current?.scrollLeft ?? lastTableScrollRef.current.left,
+    };
+    currentReportsStateRef.current = snapshot;
+    onPersistStateRef.current?.(snapshot);
+  }, [
+    activeTab,
+    collapsedNodes,
+    expandedSubtaskNotesProjects,
+    expandedFilteredNodes,
+    focusedProjectIds,
+    expandedColToggleMap,
+    searchQuery,
+    excludeQuery,
+    searchFields,
+    showSubtasksOnFilter,
+    selectedType,
+    selectedPlatform,
+    selectedAlert,
+    selectedRelease,
+    selectedTeam,
+    selectedTag,
+    activeSavedFilterId,
+  ]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const scroller = tableScrollContainerRef.current;
+    if (!scroller) return;
+
+    const savedTop = persistedState?.tableScrollTop;
+    const savedLeft = persistedState?.tableScrollLeft;
+    const restoreScroll = () => {
+      if (typeof savedTop === 'number' && savedTop > 0) {
+        scroller.scrollTop = savedTop;
+      }
+      if (typeof savedLeft === 'number' && savedLeft > 0) {
+        scroller.scrollLeft = savedLeft;
+      }
+    };
+
+    restoreScroll();
+    const rafId = window.requestAnimationFrame(restoreScroll);
+
+    const handleScroll = () => {
+      const nextTop = scroller.scrollTop;
+      const nextLeft = scroller.scrollLeft;
+      lastTableScrollRef.current = { top: nextTop, left: nextLeft };
+      const nextSnap: ReportsViewStateSnapshot = {
+        ...currentReportsStateRef.current,
+        tableScrollTop: nextTop,
+        tableScrollLeft: nextLeft,
+      };
+      currentReportsStateRef.current = nextSnap;
+      onPersistStateRef.current?.(nextSnap);
+    };
+
+    scroller.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      scroller.removeEventListener('scroll', handleScroll);
+      onPersistStateRef.current?.({
+        ...currentReportsStateRef.current,
+        tableScrollTop: scroller.scrollTop ?? lastTableScrollRef.current.top,
+        tableScrollLeft: scroller.scrollLeft ?? lastTableScrollRef.current.left,
+      });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const getColWidth = (tab: ReportTab, col: ReportColumnDef): number => {
     return colWidthsByTab[tab]?.[col.key] ?? autoFitColWidths[tab]?.[col.key] ?? col.defaultWidth;
@@ -3056,7 +3215,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       )}
 
       {/* Main Table Content (Spreadsheet View) */}
-      <div className="flex-1 overflow-auto bg-white dark:bg-[#0C0C09] min-h-0 select-text">
+      <div
+        ref={tableScrollContainerRef}
+        className="flex-1 overflow-auto bg-white dark:bg-[#0C0C09] min-h-0 select-text"
+      >
         {activeTab === 'cronograma' && (
           <div className="min-w-full inline-block align-middle">
             <table ref={activeTableRef} className="min-w-full w-max table-fixed border-collapse text-left text-xs">

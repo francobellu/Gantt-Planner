@@ -124,6 +124,9 @@ export interface SearchFilterBarProps {
   savedFiltersSlot?: React.ReactNode;
   /** Enables built-in Gmail-style saved filter pills + full create/edit inside panel */
   enableBuiltInSavedFilters?: boolean;
+  /** Optional initial & change callback for built-in active saved filter id */
+  initialBuiltInActiveFilterId?: string | null;
+  onBuiltInActiveFilterIdChange?: (id: string | null) => void;
   /** Optional callback when a saved filter with visibleColKeys is applied */
   onApplySavedColumns?: (visibleColKeys: string[], colOrder?: string[]) => void;
   /** Optional external saved filters list (syncs with ReportsView) */
@@ -173,6 +176,8 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
   onResetColumns,
   savedFiltersSlot,
   enableBuiltInSavedFilters = false,
+  initialBuiltInActiveFilterId = null,
+  onBuiltInActiveFilterIdChange,
   onApplySavedColumns,
   externalSavedFilters,
   externalActiveSavedFilterId,
@@ -187,7 +192,13 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
   const [columnsExpanded, setColumnsExpanded] = useState<boolean>(false);
   const [showSaveRow, setShowSaveRow] = useState<boolean>(false);
   const [newFilterName, setNewFilterName] = useState<string>('');
-  const [builtInActiveId, setBuiltInActiveId] = useState<string | null>(null);
+  const [builtInActiveId, setBuiltInActiveIdState] = useState<string | null>(
+    initialBuiltInActiveFilterId
+  );
+  const setBuiltInActiveId = (nextId: string | null) => {
+    setBuiltInActiveIdState(nextId);
+    onBuiltInActiveFilterIdChange?.(nextId);
+  };
   const [builtInFilters, setBuiltInFilters] = useState<StoredSavedFilter[]>(() => {
     if (!enableBuiltInSavedFilters || externalSavedFilters) return [];
     try {

@@ -43,7 +43,9 @@ import {
   GanttImportResult,
   GanttItem,
   GanttProject,
+  GanttViewStateSnapshot,
   GroupingMode,
+  HelpViewStateSnapshot,
   PROJECT_COLORS,
   ProjectAlertLevel,
   ProjectPlatform,
@@ -51,13 +53,16 @@ import {
   PlanCommit,
   PlanHistoryActionType,
   PlanHistoryEntry,
+  PlanHistoryViewStateSnapshot,
   ReportsLayoutSnapshot,
+  ReportsViewStateSnapshot,
   Release,
   ReleaseGuideVisibility,
   SavedScenario,
   TaskColor,
   TaskType,
   TRUNCATE_LIMIT_STORAGE_KEY,
+  VIEW_STATE_SESSION_STORAGE_KEY,
   WORK_CALENDAR_STORAGE_KEY,
   WorkCalendarConfig,
   ZoomLevel,
@@ -305,9 +310,40 @@ function loadInitialWorkspaceState(
   };
 }
 
+interface PersistedPageViewStates {
+  lastView?: 'gantt' | 'history' | 'projects' | 'reports' | 'help';
+  gantt?: GanttViewStateSnapshot;
+  reports?: ReportsViewStateSnapshot;
+  history?: PlanHistoryViewStateSnapshot;
+  help?: HelpViewStateSnapshot;
+}
+
+function loadPersistedPageViewStates(): PersistedPageViewStates {
+  try {
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      const raw = window.sessionStorage.getItem(VIEW_STATE_SESSION_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          return parsed as PersistedPageViewStates;
+        }
+      }
+    }
+  } catch {}
+  return {};
+}
+
+function savePersistedPageViewStates(states: PersistedPageViewStates): void {
+  try {
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      window.sessionStorage.setItem(VIEW_STATE_SESSION_STORAGE_KEY, JSON.stringify(states));
+    }
+  } catch {}
+}
+
 export function App({
   initialScenarioId,
-  initialView = 'gantt',
+  initialView,
   initialSelectedProjectIds,
   initialShowTable = true,
   initialProjectMenuOpen = false,
@@ -324,7 +360,7 @@ export function App({
   initialRightSidebarTab = 'commits',
 }: {
   initialScenarioId?: string;
-  initialView?: 'gantt' | 'history' | 'projects';
+  initialView?: 'gantt' | 'history' | 'projects' | 'reports' | 'help';
   initialSelectedProjectIds?: string[];
   initialShowTable?: boolean;
   initialProjectMenuOpen?: boolean;
@@ -348,9 +384,51 @@ export function App({
     [templates, defaultScenarios, initialScenarioId]
   );
 
+  const pageViewStateRef = useRef<PersistedPageViewStates>(loadPersistedPageViewStates());
+
   const [currentView, setCurrentView] = useState<'gantt' | 'history' | 'projects' | 'reports' | 'help'>(
-    initialView || 'gantt'
+    () => initialView || pageViewStateRef.current.lastView || 'gantt'
   );
+
+  useEffect(() => {
+    pageViewStateRef.current = {
+      ...pageViewStateRef.current,
+      lastView: currentView,
+    };
+    savePersistedPageViewStates(pageViewStateRef.current);
+  }, [currentView]);
+
+  const handlePersistGanttViewState = (snapshot: GanttViewStateSnapshot) => {
+    pageViewStateRef.current = {
+      ...pageViewStateRef.current,
+      gantt: snapshot,
+    };
+    savePersistedPageViewStates(pageViewStateRef.current);
+  };
+
+  const handlePersistReportsViewState = (snapshot: ReportsViewStateSnapshot) => {
+    pageViewStateRef.current = {
+      ...pageViewStateRef.current,
+      reports: snapshot,
+    };
+    savePersistedPageViewStates(pageViewStateRef.current);
+  };
+
+  const handlePersistHistoryViewState = (snapshot: PlanHistoryViewStateSnapshot) => {
+    pageViewStateRef.current = {
+      ...pageViewStateRef.current,
+      history: snapshot,
+    };
+    savePersistedPageViewStates(pageViewStateRef.current);
+  };
+
+  const handlePersistHelpViewState = (snapshot: HelpViewStateSnapshot) => {
+    pageViewStateRef.current = {
+      ...pageViewStateRef.current,
+      help: snapshot,
+    };
+    savePersistedPageViewStates(pageViewStateRef.current);
+  };
   const [projectName, setProjectName] = useState<string>(
     () => initialState.projectName
   );
@@ -3346,7 +3424,11 @@ export function App({
           }`}
         >
         {currentView === 'help' ? (
-          <HelpPage onBackToGantt={() => setCurrentView('gantt')} />
+          <HelpPage
+            onBackToGantt={() => setCurrentView('gantt')}
+            persistedState={pageViewStateRef.current.help}
+            onPersistState={handlePersistHelpViewState}
+          />
         ) : currentView === 'history' ? (
           <PlanHistoryPage
             history={history}
@@ -3359,6 +3441,8 @@ export function App({
             onBackToGantt={() => setCurrentView('gantt')}
             onClearHistory={handleClearHistory}
             releases={releases}
+            persistedState={pageViewStateRef.current.history}
+            onPersistState={handlePersistHistoryViewState}
           />
         ) : currentView === 'reports' ? (
           <ReportsView
@@ -3400,6 +3484,8 @@ export function App({
             onMoveProject={handleMoveProject}
             onRecordLayoutChange={handleRecordReportsLayoutChange}
             externalLayoutSync={externalReportsLayout}
+            persistedState={pageViewStateRef.current.reports}
+            onPersistState={handlePersistReportsViewState}
           />
         ) : (
           <>
@@ -3543,6 +3629,8 @@ export function App({
               onChangeSelectedPlatform={setSelectedPlatform}
               baselineSnapshot={baselineSnapshot}
               workCalendar={workCalendar}
+              persistedState={pageViewStateRef.current.gantt}
+              onPersistState={handlePersistGanttViewState}
             />
           </>
         )}

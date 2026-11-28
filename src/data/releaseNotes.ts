@@ -10,10 +10,20 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.22.0',
+    date: '28 Nov 2026',
+    title: 'Persistencia de estado al cambiar entre páginas',
+    isLatest: true,
+    features: [
+      'Cronograma y Planificación recuerdan automáticamente su estructura (nodos colapsados, ancho del panel dividido, pestaña activa y enfoque)',
+      'Se conservan la búsqueda, exclusión, filtros activos, filtro guardado seleccionado y selección múltiple al ir y volver entre vistas',
+      'Se restaura la posición de scroll horizontal y vertical en cada vista (y en Historial y Ayuda) durante la sesión',
+    ],
+  },
+  {
     version: '1.21.3',
     date: '28 Nov 2026',
     title: 'Expansión prioritaria del nombre y tope exacto en el separador de Cronograma',
-    isLatest: true,
     features: [
       'Al arrastrar o hacer doble clic en el separador de Cronograma, la columna de nombre se expande con prioridad revelando progresivamente los nombres completos hasta que todos son visibles íntegramente',
       'El separador hace tope exactamente cuando todos los nombres y columnas visibles caben completos sin espacio sobrante a la derecha',

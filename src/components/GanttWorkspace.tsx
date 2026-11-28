@@ -64,6 +64,7 @@ import {
   FocusEntity,
   GanttItem,
   GanttProject,
+  GanttViewStateSnapshot,
   GroupingMode,
   PROJECT_COLORS,
   ProjectAlertLevel,
@@ -297,6 +298,8 @@ interface GanttWorkspaceProps {
   initialSearchFields?: Partial<GanttSearchFieldsConfig>;
   initialShowSearchFieldsMenu?: boolean;
   initialShowAdvancedPanel?: boolean;
+  persistedState?: Partial<GanttViewStateSnapshot>;
+  onPersistState?: (snapshot: GanttViewStateSnapshot) => void;
 }
 
 
@@ -748,19 +751,43 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   initialSearchFields,
   initialShowSearchFieldsMenu = false,
   initialShowAdvancedPanel = false,
+  persistedState,
+  onPersistState,
 }) => {
   const [focusedProjectInputId, setFocusedProjectInputId] = useState<string | null>(null);
-  const [tableSearchQuery, setTableSearchQuery] = useState<string>(initialSearchQuery);
-  const [tableExcludeQuery, setTableExcludeQuery] = useState<string>(initialExcludeQuery);
-  const [showSubtasksOnFilter, setShowSubtasksOnFilter] = useState<boolean>(initialShowSubtasksOnFilter);
+  const [tableSearchQuery, setTableSearchQuery] = useState<string>(
+    initialSearchQuery || persistedState?.tableSearchQuery || ''
+  );
+  const [tableExcludeQuery, setTableExcludeQuery] = useState<string>(
+    initialExcludeQuery || persistedState?.tableExcludeQuery || ''
+  );
+  const [showSubtasksOnFilter, setShowSubtasksOnFilter] = useState<boolean>(
+    initialShowSubtasksOnFilter || Boolean(persistedState?.showSubtasksOnFilter)
+  );
   const [searchFields, setSearchFields] = useState<GanttSearchFieldsConfig>(() => ({
     ...DEFAULT_GANTT_SEARCH_FIELDS,
+    ...(persistedState?.searchFields || {}),
     ...(initialSearchFields || {}),
   }));
-  const [tableTypeFilter, setTableTypeFilter] = useState<UnifiedRowTypeFilter>(initialTypeFilter);
-  const [tableReleaseFilter, setTableReleaseFilter] = useState<string>(initialReleaseFilter);
-  const [tableTeamFilter, setTableTeamFilter] = useState<string>('all');
-  const [tableTagFilter, setTableTagFilter] = useState<string>('all');
+  const [tableTypeFilter, setTableTypeFilter] = useState<UnifiedRowTypeFilter>(
+    initialTypeFilter !== 'all'
+      ? initialTypeFilter
+      : persistedState?.tableTypeFilter ?? 'all'
+  );
+  const [tableReleaseFilter, setTableReleaseFilter] = useState<string>(
+    initialReleaseFilter !== 'all'
+      ? initialReleaseFilter
+      : persistedState?.tableReleaseFilter ?? 'all'
+  );
+  const [tableTeamFilter, setTableTeamFilter] = useState<string>(
+    persistedState?.tableTeamFilter ?? 'all'
+  );
+  const [tableTagFilter, setTableTagFilter] = useState<string>(
+    persistedState?.tableTagFilter ?? 'all'
+  );
+  const [activeSavedFilterId, setActiveSavedFilterId] = useState<string | null>(
+    persistedState?.activeSavedFilterId ?? null
+  );
   const availableTeams = useMemo(() => {
     const set = new Set<string>();
     for (const it of items) {
@@ -771,8 +798,14 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   }, [items]);
   const availableTags = useMemo(() => collectAllTags(projects, items), [projects, items]);
 
-  const [tablePlatformFilter, setTablePlatformFilter] = useState<'all' | ProjectPlatform>('all');
-  const [tableAlertFilter, setTableAlertFilter] = useState<'all' | ProjectAlertLevel>(initialAlertFilter);
+  const [tablePlatformFilter, setTablePlatformFilter] = useState<'all' | ProjectPlatform>(
+    persistedState?.tablePlatformFilter ?? 'all'
+  );
+  const [tableAlertFilter, setTableAlertFilter] = useState<'all' | ProjectAlertLevel>(
+    initialAlertFilter !== 'all'
+      ? initialAlertFilter
+      : persistedState?.tableAlertFilter ?? 'all'
+  );
 
   const activePlatformFilter: 'all' | ProjectPlatform =
     tablePlatformFilter !== 'all'
@@ -788,6 +821,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   const [hoveredNameId, setHoveredNameId] = useState<string | null>(null);
   const [activeColorPickerProjId, setActiveColorPickerProjId] = useState<string | null>(null);
   const [collapsedReleaseIds, setCollapsedReleaseIds] = useState<Set<string>>(() => {
+    if (Array.isArray(persistedState?.collapsedReleaseIds)) {
+      return new Set(persistedState.collapsedReleaseIds);
+    }
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
         const saved = window.localStorage.getItem('ganttflow_collapsed_releases');
@@ -1123,17 +1159,21 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     initialHoveredItemId || null
   );
   const [selectedItemId, setSelectedItemId] = useState<string | null>(
-    initialSelectedItemId || null
+    initialSelectedItemId || persistedState?.selectedItemId || null
   );
-  const [selectedDiagramProjectId, setSelectedDiagramProjectId] = useState<string | null>(null);
-  const [selectedDiagramReleaseId, setSelectedDiagramReleaseId] = useState<string | null>(null);
+  const [selectedDiagramProjectId, setSelectedDiagramProjectId] = useState<string | null>(
+    persistedState?.selectedDiagramProjectId ?? null
+  );
+  const [selectedDiagramReleaseId, setSelectedDiagramReleaseId] = useState<string | null>(
+    persistedState?.selectedDiagramReleaseId ?? null
+  );
 
   // Multi-selection state for tasks/milestones and projects (move together on timeline)
   const [multiSelectedItemIds, setMultiSelectedItemIds] = useState<Set<string>>(
-    () => new Set(initialMultiSelectedItemIds || [])
+    () => new Set(initialMultiSelectedItemIds ?? persistedState?.multiSelectedItemIds ?? [])
   );
   const [multiSelectedProjectIds, setMultiSelectedProjectIds] = useState<Set<string>>(
-    () => new Set(initialMultiSelectedProjectIds || [])
+    () => new Set(initialMultiSelectedProjectIds ?? persistedState?.multiSelectedProjectIds ?? [])
   );
   const lastMultiAnchorRef = useRef<{ kind: 'item' | 'project'; id: string } | null>(null);
 
@@ -1584,8 +1624,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   } | null>(initialCursorScrubber || null);
   const hasDraggedRef = useRef<boolean>(false);
 
-  const [splitWidth, setSplitWidth] = useState<number>(480);
-  const [splitExpandedPrevWidth, setSplitExpandedPrevWidth] = useState<number | null>(null);
+  const [splitWidth, setSplitWidth] = useState<number>(
+    typeof persistedState?.splitWidth === 'number' ? persistedState.splitWidth : 480
+  );
+  const [splitExpandedPrevWidth, setSplitExpandedPrevWidth] = useState<number | null>(
+    persistedState?.splitExpandedPrevWidth ?? null
+  );
   const [isDraggingSplit, setIsDraggingSplit] = useState<boolean>(false);
   const [internalShowTable, setInternalShowTable] = useState<boolean>(true);
   const showTable = showTableProp !== undefined ? showTableProp : internalShowTable;
@@ -1633,7 +1677,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     };
   }, [showTable, items.length, projects.length]);
 
-  const [wheelZoomEnabled, setWheelZoomEnabled] = useState<boolean>(true);
+  const [wheelZoomEnabled, setWheelZoomEnabled] = useState<boolean>(
+    persistedState?.wheelZoomEnabled ?? true
+  );
   const [visibleColumns, setVisibleColumns] = useState<{
     team: boolean;
     dates: boolean;
@@ -3032,6 +3078,165 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       scrollContainerRef.current.scrollLeft = virtualScrollLeftRef.current;
     }
   }, [dayWidth]);
+
+  // Persist & restore Cronograma view state across page navigation
+  const onPersistStateRef = useRef(onPersistState);
+  onPersistStateRef.current = onPersistState;
+  const lastScrollSnapshotRef = useRef<{
+    timelineScrollLeft: number;
+    timelineScrollTop: number;
+    windowScrollY: number;
+  }>({
+    timelineScrollLeft: persistedState?.timelineScrollLeft ?? 0,
+    timelineScrollTop: persistedState?.timelineScrollTop ?? 0,
+    windowScrollY: persistedState?.windowScrollY ?? 0,
+  });
+
+  const currentViewStateRef = useRef<GanttViewStateSnapshot>({
+    tableSearchQuery,
+    tableExcludeQuery,
+    searchFields,
+    tableTypeFilter,
+    tablePlatformFilter,
+    tableAlertFilter,
+    tableReleaseFilter,
+    tableTeamFilter,
+    tableTagFilter,
+    showSubtasksOnFilter,
+    activeSavedFilterId,
+    collapsedReleaseIds: Array.from(collapsedReleaseIds),
+    splitWidth,
+    splitExpandedPrevWidth,
+    wheelZoomEnabled,
+    selectedItemId,
+    selectedDiagramProjectId,
+    selectedDiagramReleaseId,
+    multiSelectedItemIds: Array.from(multiSelectedItemIds),
+    multiSelectedProjectIds: Array.from(multiSelectedProjectIds),
+    timelineScrollLeft: lastScrollSnapshotRef.current.timelineScrollLeft,
+    timelineScrollTop: lastScrollSnapshotRef.current.timelineScrollTop,
+    windowScrollY: lastScrollSnapshotRef.current.windowScrollY,
+  });
+
+  useEffect(() => {
+    const snapshot: GanttViewStateSnapshot = {
+      tableSearchQuery,
+      tableExcludeQuery,
+      searchFields: { ...searchFields },
+      tableTypeFilter,
+      tablePlatformFilter,
+      tableAlertFilter,
+      tableReleaseFilter,
+      tableTeamFilter,
+      tableTagFilter,
+      showSubtasksOnFilter,
+      activeSavedFilterId,
+      collapsedReleaseIds: Array.from(collapsedReleaseIds),
+      splitWidth,
+      splitExpandedPrevWidth,
+      wheelZoomEnabled,
+      selectedItemId,
+      selectedDiagramProjectId,
+      selectedDiagramReleaseId,
+      multiSelectedItemIds: Array.from(multiSelectedItemIds),
+      multiSelectedProjectIds: Array.from(multiSelectedProjectIds),
+      timelineScrollLeft:
+        scrollContainerRef.current?.scrollLeft ?? lastScrollSnapshotRef.current.timelineScrollLeft,
+      timelineScrollTop:
+        scrollContainerRef.current?.scrollTop ?? lastScrollSnapshotRef.current.timelineScrollTop,
+      windowScrollY:
+        typeof window !== 'undefined'
+          ? window.scrollY
+          : lastScrollSnapshotRef.current.windowScrollY,
+    };
+    currentViewStateRef.current = snapshot;
+    onPersistStateRef.current?.(snapshot);
+  }, [
+    tableSearchQuery,
+    tableExcludeQuery,
+    searchFields,
+    tableTypeFilter,
+    tablePlatformFilter,
+    tableAlertFilter,
+    tableReleaseFilter,
+    tableTeamFilter,
+    tableTagFilter,
+    showSubtasksOnFilter,
+    activeSavedFilterId,
+    collapsedReleaseIds,
+    splitWidth,
+    splitExpandedPrevWidth,
+    wheelZoomEnabled,
+    selectedItemId,
+    selectedDiagramProjectId,
+    selectedDiagramReleaseId,
+    multiSelectedItemIds,
+    multiSelectedProjectIds,
+    scrollContainerRef,
+  ]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const container = scrollContainerRef.current;
+
+    const savedLeft = persistedState?.timelineScrollLeft;
+    const savedTop = persistedState?.timelineScrollTop;
+    const savedWindowY = persistedState?.windowScrollY;
+
+    const restoreScroll = () => {
+      if (container) {
+        if (typeof savedLeft === 'number' && savedLeft > 0) {
+          container.scrollLeft = savedLeft;
+          virtualScrollLeftRef.current = savedLeft;
+        }
+        if (typeof savedTop === 'number' && savedTop > 0) {
+          container.scrollTop = savedTop;
+        }
+      }
+      if (typeof savedWindowY === 'number' && savedWindowY > 0) {
+        window.scrollTo(window.scrollX, savedWindowY);
+      }
+    };
+
+    restoreScroll();
+    const rafId = window.requestAnimationFrame(restoreScroll);
+
+    const handleScrollCapture = () => {
+      const nextLeft = container?.scrollLeft ?? lastScrollSnapshotRef.current.timelineScrollLeft;
+      const nextTop = container?.scrollTop ?? lastScrollSnapshotRef.current.timelineScrollTop;
+      const nextWinY = window.scrollY;
+      lastScrollSnapshotRef.current = {
+        timelineScrollLeft: nextLeft,
+        timelineScrollTop: nextTop,
+        windowScrollY: nextWinY,
+      };
+      const nextSnap: GanttViewStateSnapshot = {
+        ...currentViewStateRef.current,
+        timelineScrollLeft: nextLeft,
+        timelineScrollTop: nextTop,
+        windowScrollY: nextWinY,
+      };
+      currentViewStateRef.current = nextSnap;
+      onPersistStateRef.current?.(nextSnap);
+    };
+
+    container?.addEventListener('scroll', handleScrollCapture, { passive: true });
+    window.addEventListener('scroll', handleScrollCapture, { passive: true });
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      container?.removeEventListener('scroll', handleScrollCapture);
+      window.removeEventListener('scroll', handleScrollCapture);
+      onPersistStateRef.current?.({
+        ...currentViewStateRef.current,
+        timelineScrollLeft:
+          container?.scrollLeft ?? lastScrollSnapshotRef.current.timelineScrollLeft,
+        timelineScrollTop:
+          container?.scrollTop ?? lastScrollSnapshotRef.current.timelineScrollTop,
+        windowScrollY: lastScrollSnapshotRef.current.windowScrollY,
+      });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Apply live drag preview delta to items so project summary bars and rolled-up dates update in real time while dragging
   const effectiveItems = useMemo(() => {
@@ -5880,6 +6085,8 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             initialShowSearchFieldsMenu={initialShowSearchFieldsMenu}
             initialShowAdvancedPanel={initialShowAdvancedPanel}
             enableBuiltInSavedFilters={true}
+            initialBuiltInActiveFilterId={activeSavedFilterId}
+            onBuiltInActiveFilterIdChange={setActiveSavedFilterId}
             onClearFilters={() => {
               setTableSearchQuery('');
               setTableExcludeQuery('');
@@ -5891,6 +6098,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               setTableTagFilter('all');
               setShowSubtasksOnFilter(false);
               setSearchFields({ ...DEFAULT_GANTT_SEARCH_FIELDS });
+              setActiveSavedFilterId(null);
             }}
           />
         </div>

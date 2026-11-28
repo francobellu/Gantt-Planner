@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Calendar,
@@ -16,7 +16,12 @@ import {
   Trash2,
   Undo2,
 } from 'lucide-react';
-import { PlanHistoryActionType, PlanHistoryEntry, Release } from '../types/gantt';
+import {
+  PlanHistoryActionType,
+  PlanHistoryEntry,
+  PlanHistoryViewStateSnapshot,
+  Release,
+} from '../types/gantt';
 import {
   computeHistoryEntryDiff,
   GroupedEntityHistorySummary,
@@ -37,6 +42,8 @@ export interface PlanHistoryPageProps {
   initialViewMode?: 'chronological' | 'grouped';
   releases?: Release[];
   embedded?: boolean;
+  persistedState?: Partial<PlanHistoryViewStateSnapshot>;
+  onPersistState?: (snapshot: PlanHistoryViewStateSnapshot) => void;
 }
 
 const ACTION_BADGE_CONFIG: Record<
@@ -173,14 +180,89 @@ export const PlanHistoryPage: React.FC<PlanHistoryPageProps> = ({
   initialViewMode = 'chronological',
   releases,
   embedded = false,
+  persistedState,
+  onPersistState,
 }) => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterType, setFilterType] = useState<string>('all');
-  const [expandedEntryId, setExpandedEntryId] = useState<string | null>(initialExpandedEntryId);
-  const [viewMode, setViewMode] = useState<'chronological' | 'grouped'>(initialViewMode);
-  const [collapsedReleaseKeys, setCollapsedReleaseKeys] = useState<Set<string>>(() => new Set());
-  const [collapsedProjectKeys, setCollapsedProjectKeys] = useState<Set<string>>(() => new Set());
-  const [expandedEntityKeys, setExpandedEntityKeys] = useState<Set<string>>(() => new Set());
+  const [searchQuery, setSearchQuery] = useState(persistedState?.searchQuery ?? '');
+  const [filterType, setFilterType] = useState<string>(persistedState?.filterType ?? 'all');
+  const [expandedEntryId, setExpandedEntryId] = useState<string | null>(
+    initialExpandedEntryId ?? persistedState?.expandedEntryId ?? null
+  );
+  const [viewMode, setViewMode] = useState<'chronological' | 'grouped'>(
+    persistedState?.viewMode ?? initialViewMode
+  );
+  const [collapsedReleaseKeys, setCollapsedReleaseKeys] = useState<Set<string>>(
+    () => new Set(persistedState?.collapsedReleaseKeys ?? [])
+  );
+  const [collapsedProjectKeys, setCollapsedProjectKeys] = useState<Set<string>>(
+    () => new Set(persistedState?.collapsedProjectKeys ?? [])
+  );
+  const [expandedEntityKeys, setExpandedEntityKeys] = useState<Set<string>>(
+    () => new Set(persistedState?.expandedEntityKeys ?? [])
+  );
+
+  const onPersistStateRef = useRef(onPersistState);
+  onPersistStateRef.current = onPersistState;
+  const lastScrollYRef = useRef<number>(persistedState?.windowScrollY ?? 0);
+  const currentHistoryStateRef = useRef<PlanHistoryViewStateSnapshot>({
+    searchQuery,
+    filterType,
+    expandedEntryId,
+    viewMode,
+    collapsedReleaseKeys: Array.from(collapsedReleaseKeys),
+    collapsedProjectKeys: Array.from(collapsedProjectKeys),
+    expandedEntityKeys: Array.from(expandedEntityKeys),
+    windowScrollY: lastScrollYRef.current,
+  });
+
+  useEffect(() => {
+    const snap: PlanHistoryViewStateSnapshot = {
+      searchQuery,
+      filterType,
+      expandedEntryId,
+      viewMode,
+      collapsedReleaseKeys: Array.from(collapsedReleaseKeys),
+      collapsedProjectKeys: Array.from(collapsedProjectKeys),
+      expandedEntityKeys: Array.from(expandedEntityKeys),
+      windowScrollY: typeof window !== 'undefined' ? window.scrollY : lastScrollYRef.current,
+    };
+    currentHistoryStateRef.current = snap;
+    onPersistStateRef.current?.(snap);
+  }, [
+    searchQuery,
+    filterType,
+    expandedEntryId,
+    viewMode,
+    collapsedReleaseKeys,
+    collapsedProjectKeys,
+    expandedEntityKeys,
+  ]);
+
+  useEffect(() => {
+    if (embedded || typeof window === 'undefined') return;
+    const savedY = persistedState?.windowScrollY;
+    if (typeof savedY === 'number' && savedY > 0) {
+      window.scrollTo(window.scrollX, savedY);
+    }
+    const handleScroll = () => {
+      lastScrollYRef.current = window.scrollY;
+      const snap: PlanHistoryViewStateSnapshot = {
+        ...currentHistoryStateRef.current,
+        windowScrollY: window.scrollY,
+      };
+      currentHistoryStateRef.current = snap;
+      onPersistStateRef.current?.(snap);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      onPersistStateRef.current?.({
+        ...currentHistoryStateRef.current,
+        windowScrollY: lastScrollYRef.current,
+      });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [embedded]);
 
   const toggleSetKey = (
     setter: React.Dispatch<React.SetStateAction<Set<string>>>,

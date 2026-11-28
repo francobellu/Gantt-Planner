@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   BookOpen,
@@ -26,11 +26,13 @@ import {
   Undo2,
   Upload,
 } from 'lucide-react';
-import { APP_VERSION } from '../types/gantt';
+import { APP_VERSION, HelpViewStateSnapshot } from '../types/gantt';
 
 export interface HelpPageProps {
   onBackToGantt: () => void;
   embedded?: boolean;
+  persistedState?: Partial<HelpViewStateSnapshot>;
+  onPersistState?: (snapshot: HelpViewStateSnapshot) => void;
 }
 
 interface HelpSection {
@@ -42,9 +44,60 @@ interface HelpSection {
   content: React.ReactNode;
 }
 
-export const HelpPage: React.FC<HelpPageProps> = ({ onBackToGantt, embedded = false }) => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+export const HelpPage: React.FC<HelpPageProps> = ({
+  onBackToGantt,
+  embedded = false,
+  persistedState,
+  onPersistState,
+}) => {
+  const [searchQuery, setSearchQuery] = useState(persistedState?.searchQuery ?? '');
+  const [selectedCategory, setSelectedCategory] = useState<string>(
+    persistedState?.selectedCategory ?? 'all'
+  );
+  const onPersistStateRef = useRef(onPersistState);
+  onPersistStateRef.current = onPersistState;
+  const lastScrollYRef = useRef<number>(persistedState?.windowScrollY ?? 0);
+  const currentHelpStateRef = useRef<HelpViewStateSnapshot>({
+    searchQuery,
+    selectedCategory,
+    windowScrollY: lastScrollYRef.current,
+  });
+
+  useEffect(() => {
+    const snap: HelpViewStateSnapshot = {
+      searchQuery,
+      selectedCategory,
+      windowScrollY: typeof window !== 'undefined' ? window.scrollY : lastScrollYRef.current,
+    };
+    currentHelpStateRef.current = snap;
+    onPersistStateRef.current?.(snap);
+  }, [searchQuery, selectedCategory]);
+
+  useEffect(() => {
+    if (embedded || typeof window === 'undefined') return;
+    const savedY = persistedState?.windowScrollY;
+    if (typeof savedY === 'number' && savedY > 0) {
+      window.scrollTo(window.scrollX, savedY);
+    }
+    const handleScroll = () => {
+      lastScrollYRef.current = window.scrollY;
+      const snap: HelpViewStateSnapshot = {
+        ...currentHelpStateRef.current,
+        windowScrollY: window.scrollY,
+      };
+      currentHelpStateRef.current = snap;
+      onPersistStateRef.current?.(snap);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      onPersistStateRef.current?.({
+        ...currentHelpStateRef.current,
+        windowScrollY: lastScrollYRef.current,
+      });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [embedded]);
 
   const sections: HelpSection[] = useMemo(
     () => [

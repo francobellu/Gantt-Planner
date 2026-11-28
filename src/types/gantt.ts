@@ -1,4 +1,4 @@
-export const APP_VERSION = '1.21.3';
+export const APP_VERSION = '1.22.0';
 
 export const DEFAULT_TRUNCATE_CHAR_LIMIT = 37;
 export const TRUNCATE_LIMIT_STORAGE_KEY = 'ganttflow_truncate_char_limit';
@@ -286,5 +286,83 @@ export interface WorkCalendarConfig {
 }
 
 export const WORK_CALENDAR_STORAGE_KEY = 'ganttflow_work_calendar_v1';
+export const VIEW_STATE_SESSION_STORAGE_KEY = 'ganttflow_page_view_state_v1';
+
+export interface SearchFieldsSnapshot {
+  name: boolean;
+  description: boolean;
+  assignee: boolean;
+  platform: boolean;
+  predecessors: boolean;
+  displayId: boolean;
+}
+
+export type UnifiedRowTypeFilterValue = 'all' | 'RELEASE' | 'PROYECTO' | 'TAREA' | 'HITO';
+
+export interface GanttViewStateSnapshot {
+  tableSearchQuery: string;
+  tableExcludeQuery: string;
+  searchFields: SearchFieldsSnapshot;
+  tableTypeFilter: UnifiedRowTypeFilterValue;
+  tablePlatformFilter: 'all' | ProjectPlatform;
+  tableAlertFilter: 'all' | ProjectAlertLevel;
+  tableReleaseFilter: string;
+  tableTeamFilter: string;
+  tableTagFilter: string;
+  showSubtasksOnFilter: boolean;
+  activeSavedFilterId: string | null;
+  collapsedReleaseIds: string[];
+  splitWidth: number;
+  splitExpandedPrevWidth: number | null;
+  wheelZoomEnabled: boolean;
+  selectedItemId: string | null;
+  selectedDiagramProjectId: string | null;
+  selectedDiagramReleaseId: string | null;
+  multiSelectedItemIds: string[];
+  multiSelectedProjectIds: string[];
+  timelineScrollLeft: number;
+  timelineScrollTop: number;
+  windowScrollY: number;
+}
+
+export interface ReportsViewStateSnapshot {
+  activeTab: 'cronograma' | 'projects' | 'releases';
+  collapsedNodes: string[];
+  expandedSubtaskNotesProjects: string[];
+  expandedFilteredNodes: string[];
+  focusedProjectIds: string[];
+  expandedColToggleMap: Record<string, { previousWidth: number | undefined; expandedWidth: number }>;
+  searchQuery: string;
+  excludeQuery: string;
+  searchFields: SearchFieldsSnapshot;
+  showSubtasksOnFilter: boolean;
+  selectedType: UnifiedRowTypeFilterValue;
+  selectedPlatform: 'all' | ProjectPlatform;
+  selectedAlert: 'all' | ProjectAlertLevel;
+  selectedRelease: string;
+  selectedTeam: string;
+  selectedTag: string;
+  activeSavedFilterId: string | null;
+  tableScrollTop: number;
+  tableScrollLeft: number;
+}
+
+export interface PlanHistoryViewStateSnapshot {
+  searchQuery: string;
+  filterType: string;
+  expandedEntryId: string | null;
+  viewMode: 'chronological' | 'grouped';
+  collapsedReleaseKeys: string[];
+  collapsedProjectKeys: string[];
+  expandedEntityKeys: string[];
+  windowScrollY: number;
+}
+
+export interface HelpViewStateSnapshot {
+  searchQuery: string;
+  selectedCategory: string;
+  windowScrollY: number;
+}
+
 
 
