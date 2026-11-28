@@ -10,10 +10,18 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.19.2',
+    date: '28 Nov 2026',
+    title: 'Animación de expand/collapse con desplazamiento real hacia el elemento padre',
+    isLatest: true,
+    features: [
+      'Las filas hijas ahora se deslizan hacia arriba con scaleY y transform-origin superior metiéndose bajo la cabecera padre (z-index escalonado Release > Proyecto > Tarea) al colapsar, y emergen en cascada desde el padre al expandir en Cronograma y Planificación',
+    ],
+  },
+  {
     version: '1.19.1',
     date: '28 Nov 2026',
     title: 'Columna ID opcional (oculta por defecto) y eliminación de Jerarquía en Planificación',
-    isLatest: true,
     features: [
       'Movida la columna ID (displayId) a CRONO_COLUMNS como columna seleccionable, redimensionable y oculta por defecto en Planificación',
       'Eliminada la columna redundante Jerarquía (duplicada con Tipo y el árbol visual)',

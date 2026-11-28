@@ -2827,6 +2827,16 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                       : isRowExpanding
                       ? 'animate-report-row-expand'
                       : '';
+                    let childDepthIdx = 0;
+                    if (isRowCollapsing || isRowExpanding) {
+                      for (let prevI = idx - 1; prevI >= 0; prevI--) {
+                        const prevRow = displayedCronoRows[prevI].row;
+                        if (isProject && prevRow.level === 'RELEASE') break;
+                        if (!isRelease && !isProject && (prevRow.level === 'PROYECTO' || prevRow.level === 'RELEASE')) break;
+                        childDepthIdx++;
+                      }
+                      childDepthIdx = Math.min(6, childDepthIdx);
+                    }
 
                     const isSelectedRow = Boolean(
                       (isRelease && linkedRelease && selectedEntity?.type === 'release' && selectedEntity.id === linkedRelease.id) ||
@@ -2869,11 +2879,18 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                           });
                         }}
                         style={
-                          isProject && !isContext
-                            ? { boxShadow: `inset 4px 0 0 ${projAccent.hex}` }
-                            : undefined
+                          {
+                            ...(isProject && !isContext
+                              ? { boxShadow: `inset 4px 0 0 ${projAccent.hex}` }
+                              : {}),
+                            ...(isRowCollapsing || isRowExpanding
+                              ? { '--row-depth-idx': childDepthIdx }
+                              : {}),
+                          } as React.CSSProperties
                         }
                         className={`${rowBgClass} ${rowAnimClass} ${
+                          isRelease ? 'relative z-[3]' : isProject ? 'relative z-[2]' : 'relative z-[1]'
+                        } ${
                           isContext ? 'border-l-2 border-l-indigo-500' : ''
                         } ${
                           isSelectedRow
