@@ -3371,7 +3371,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                             : ''
                         } ${
                           isSelectedRow
-                            ? 'ring-2 ring-inset ring-indigo-500 bg-indigo-50/80 dark:bg-indigo-950/50'
+                            ? isRelease
+                              ? 'ring-2 ring-inset ring-indigo-400 bg-[#1C1C18] dark:bg-zinc-200'
+                              : 'ring-2 ring-inset ring-indigo-500 bg-indigo-50/80 dark:bg-indigo-950/50'
                             : isRelease
                             ? 'hover:bg-[#1C1C18] dark:hover:bg-zinc-200'
                             : 'hover:bg-indigo-50/70 dark:hover:bg-indigo-950/40'

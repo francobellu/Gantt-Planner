@@ -10,10 +10,18 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.21.2',
+    date: '28 Nov 2026',
+    title: 'Mantener fondo oscuro al seleccionar una Release en Planificación',
+    isLatest: true,
+    features: [
+      'Corregido el estilo de selección de filas Release en Planificación para conservar el fondo oscuro de alto contraste (#1C1C18) con anillo índigo en lugar de ponerse blanca (bg-indigo-50/80)',
+    ],
+  },
+  {
     version: '1.21.1',
     date: '28 Nov 2026',
     title: 'Doble clic en separador de Cronograma para expandir/restaurar panel izquierdo',
-    isLatest: true,
     features: [
       'Añadido doble clic en el separador de paneles del Cronograma para expandir el panel izquierdo a todo el ancho disponible manteniendo el separador visible',
       'Un segundo doble clic restaura suavemente el ancho anterior donde estaba el separador',
