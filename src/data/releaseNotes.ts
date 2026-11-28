@@ -10,10 +10,20 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.20.0',
+    date: '28 Nov 2026',
+    title: 'Arrastrar y soltar elementos en Planificación',
+    isLatest: true,
+    features: [
+      'Añadido drag-and-drop con tirador (GripVertical) para reordenar tareas/hitos y moverlos entre proyectos en Planificación',
+      'Arrastra proyectos para reordenarlos dentro de su Release o soltarlos sobre otra Release para reasignarlos',
+      'Animación FLIP vertical suave al soltar e indicadores visuales de destino (antes/después/dentro)',
+    ],
+  },
+  {
     version: '1.19.6',
     date: '28 Nov 2026',
     title: 'Release de solo lectura en Planificación',
-    isLatest: true,
     features: [
       'Desactivada la edición inline del nombre de la Release en la tabla de Planificación para evitar abrir un editor accidental al hacer clic',
     ],

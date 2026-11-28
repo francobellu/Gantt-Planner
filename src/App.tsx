@@ -3233,6 +3233,8 @@ export function App({
               setRightSidebarTab('details');
             }}
             onCreateMilestone={handleCreateMilestoneDirect}
+            onMoveItem={handleMoveItem}
+            onMoveProject={handleMoveProject}
           />
         ) : (
           <>

@@ -33,6 +33,7 @@ import {
   Bookmark,
   MessageSquare,
   Diamond,
+  GripVertical,
 } from 'lucide-react';
 import {
   ComputedGanttItem,
@@ -649,6 +650,8 @@ interface ReportsViewProps {
   onCreateProjectFromWizard?: (payload: ProjectWizardPayload) => void;
   onCreateTask?: (projectId?: string) => void;
   onCreateMilestone?: (projectId?: string) => void;
+  onMoveItem?: (sourceId: string, targetId: string, position: 'before' | 'after') => void;
+  onMoveProject?: (sourceProjectId: string, targetProjectId: string, position: 'before' | 'after') => void;
 }
 
 export const ReportsView: React.FC<ReportsViewProps> = ({
@@ -684,6 +687,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   onCreateProjectFromWizard,
   onCreateTask,
   onCreateMilestone,
+  onMoveItem,
+  onMoveProject,
 }) => {
   const [activeTab, setActiveTab] = useState<ReportTab>(initialTab === 'projects' ? 'cronograma' : initialTab);
   const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(() => new Set(initialCollapsedNodes));
@@ -961,6 +966,17 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   });
   const [draggingCol, setDraggingCol] = useState<{ tab: ReportTab; key: string } | null>(null);
   const [dragOverColKey, setDragOverColKey] = useState<string | null>(null);
+  const [draggingRow, setDraggingRow] = useState<{
+    kind: 'item' | 'project';
+    id: string;
+    rowId: string;
+    projectId?: string;
+    releaseId?: string;
+  } | null>(null);
+  const [dragOverRow, setDragOverRow] = useState<{
+    rowId: string;
+    mode: 'before' | 'after' | 'into';
+  } | null>(null);
   const activeTableRef = useRef<HTMLTableElement | null>(null);
   const pendingColFlipRef = useRef<{
     tab: ReportTab;
@@ -968,6 +984,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     prevLeftByKey: Record<string, number>;
   } | null>(null);
   const colFlipCleanupRef = useRef<(() => void) | null>(null);
+  const pendingRowFlipRef = useRef<{
+    movedRowId: string;
+    prevTopByRowId: Record<string, number>;
+  } | null>(null);
+  const rowFlipCleanupRef = useRef<(() => void) | null>(null);
   const [searchQuery, setSearchQuery] = useState(
     initialSearchQuery !== undefined ? initialSearchQuery : (initialMatchedSavedFilter?.searchQuery ?? '')
   );
@@ -1882,9 +1903,83 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     colFlipCleanupRef.current = cleanup;
   }, [colOrderByTab, activeTab]);
 
+  const captureRowFlipSnapshot = (movedRowId: string) => {
+    const tableEl = activeTableRef.current;
+    if (!tableEl || typeof window === 'undefined') return;
+    rowFlipCleanupRef.current?.();
+    const rowEls = Array.from(tableEl.querySelectorAll<HTMLTableRowElement>('tbody tr[data-report-row]'));
+    const prevTopByRowId: Record<string, number> = {};
+    for (const tr of rowEls) {
+      const id = tr.dataset.reportRow;
+      if (id) prevTopByRowId[id] = tr.getBoundingClientRect().top;
+    }
+    if (Object.keys(prevTopByRowId).length > 0) {
+      pendingRowFlipRef.current = { movedRowId, prevTopByRowId };
+    }
+  };
+
+  useIsomorphicLayoutEffect(() => {
+    const snapshot = pendingRowFlipRef.current;
+    if (!snapshot || activeTab !== 'cronograma') return;
+    pendingRowFlipRef.current = null;
+    const tableEl = activeTableRef.current;
+    if (!tableEl || typeof window === 'undefined') return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+
+    const rowEls = Array.from(tableEl.querySelectorAll<HTMLTableRowElement>('tbody tr[data-report-row]'));
+    const animatedRows: HTMLTableRowElement[] = [];
+
+    for (const tr of rowEls) {
+      const id = tr.dataset.reportRow;
+      if (!id) continue;
+      const prevTop = snapshot.prevTopByRowId[id];
+      if (prevTop === undefined) continue;
+      const newTop = tr.getBoundingClientRect().top;
+      const deltaY = Math.round(prevTop - newTop);
+      if (Math.abs(deltaY) < 1) continue;
+
+      tr.style.transition = 'none';
+      tr.style.transform = `translateY(${deltaY}px)`;
+      tr.style.willChange = 'transform';
+      if (id === snapshot.movedRowId) {
+        tr.classList.add('report-row-flip-moving');
+      }
+      animatedRows.push(tr);
+    }
+
+    if (animatedRows.length === 0) return;
+
+    void tableEl.offsetHeight;
+
+    for (const tr of animatedRows) {
+      tr.style.transition = 'transform 220ms cubic-bezier(0.22, 1, 0.36, 1)';
+      tr.style.transform = 'translateY(0px)';
+    }
+
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
+      window.clearTimeout(timerId);
+      for (const tr of animatedRows) {
+        tr.style.transition = '';
+        tr.style.transform = '';
+        tr.style.willChange = '';
+        tr.classList.remove('report-row-flip-moving');
+      }
+      if (rowFlipCleanupRef.current === cleanup) {
+        rowFlipCleanupRef.current = null;
+      }
+    };
+
+    const timerId = window.setTimeout(cleanup, 250);
+    rowFlipCleanupRef.current = cleanup;
+  }, [items, projects, activeTab]);
+
   useEffect(() => {
     return () => {
       colFlipCleanupRef.current?.();
+      rowFlipCleanupRef.current?.();
     };
   }, []);
 
@@ -2970,6 +3065,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                         (!isRelease && !isProject && linkedItem && selectedEntity?.type === 'task' && selectedEntity.id === linkedItem.id)
                     );
 
+                    const canDragRow = Boolean(
+                      (isProject && linkedProject && (onMoveProject || onUpdateProject)) ||
+                        (!isRelease && !isProject && linkedItem && !isDepSubRow && onMoveItem)
+                    );
+                    const isDraggingThisRow = draggingRow?.rowId === row.rowId;
+                    const rowDropMode = dragOverRow?.rowId === row.rowId ? dragOverRow.mode : null;
+
                     return (
                       <tr
                         key={row.rowId}
@@ -2977,6 +3079,124 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                         data-report-level={row.level}
                         data-context-row={isContext ? 'true' : undefined}
                         data-selected-report-row={isSelectedRow ? 'true' : undefined}
+                        draggable={canDragRow}
+                        onDragStart={(e) => {
+                          if (!canDragRow || draggingCol) {
+                            e.preventDefault();
+                            return;
+                          }
+                          const targetEl = e.target as HTMLElement | null;
+                          if (targetEl?.closest('input, textarea, select, button, a')) {
+                            e.preventDefault();
+                            return;
+                          }
+                          if (isProject && linkedProject) {
+                            setDraggingRow({
+                              kind: 'project',
+                              id: linkedProject.id,
+                              rowId: row.rowId,
+                              releaseId: linkedProject.releaseId,
+                            });
+                          } else if (linkedItem) {
+                            setDraggingRow({
+                              kind: 'item',
+                              id: linkedItem.id,
+                              rowId: row.rowId,
+                              projectId: linkedItem.projectId,
+                            });
+                          }
+                          if (e.dataTransfer) {
+                            e.dataTransfer.effectAllowed = 'move';
+                            try {
+                              e.dataTransfer.setData('application/x-report-row', row.rowId);
+                            } catch {}
+                          }
+                        }}
+                        onDragOver={(e) => {
+                          if (!draggingRow || draggingCol) return;
+                          if (draggingRow.rowId === row.rowId) return;
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const pos: 'before' | 'after' =
+                            e.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
+
+                          if (draggingRow.kind === 'item') {
+                            if (!isRelease && !isProject && linkedItem && linkedItem.id !== draggingRow.id) {
+                              e.preventDefault();
+                              if (dragOverRow?.rowId !== row.rowId || dragOverRow.mode !== pos) {
+                                setDragOverRow({ rowId: row.rowId, mode: pos });
+                              }
+                            } else if (isProject && linkedProject) {
+                              e.preventDefault();
+                              if (dragOverRow?.rowId !== row.rowId || dragOverRow.mode !== 'into') {
+                                setDragOverRow({ rowId: row.rowId, mode: 'into' });
+                              }
+                            }
+                          } else if (draggingRow.kind === 'project') {
+                            if (isProject && linkedProject && linkedProject.id !== draggingRow.id) {
+                              e.preventDefault();
+                              const sameRelease =
+                                (draggingRow.releaseId || '') === (linkedProject.releaseId || '');
+                              const nextMode: 'before' | 'after' | 'into' = sameRelease ? pos : 'into';
+                              if (dragOverRow?.rowId !== row.rowId || dragOverRow.mode !== nextMode) {
+                                setDragOverRow({ rowId: row.rowId, mode: nextMode });
+                              }
+                            } else if (isRelease && linkedRelease && onUpdateProject) {
+                              e.preventDefault();
+                              if (dragOverRow?.rowId !== row.rowId || dragOverRow.mode !== 'into') {
+                                setDragOverRow({ rowId: row.rowId, mode: 'into' });
+                              }
+                            }
+                          }
+                        }}
+                        onDragLeave={(e) => {
+                          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                            if (dragOverRow?.rowId === row.rowId) {
+                              setDragOverRow(null);
+                            }
+                          }
+                        }}
+                        onDrop={(e) => {
+                          if (!draggingRow || draggingCol) return;
+                          e.preventDefault();
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const pos: 'before' | 'after' =
+                            e.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
+
+                          if (draggingRow.kind === 'item' && onMoveItem) {
+                            if (!isRelease && !isProject && linkedItem && linkedItem.id !== draggingRow.id) {
+                              captureRowFlipSnapshot(draggingRow.rowId);
+                              onMoveItem(draggingRow.id, linkedItem.id, pos);
+                            } else if (isProject && linkedProject) {
+                              captureRowFlipSnapshot(draggingRow.rowId);
+                              onMoveItem(draggingRow.id, `project:${linkedProject.id}`, 'after');
+                            }
+                          } else if (draggingRow.kind === 'project') {
+                            const sourceProj = projectById.get(draggingRow.id);
+                            if (isProject && linkedProject && linkedProject.id !== draggingRow.id) {
+                              const sameRelease =
+                                (draggingRow.releaseId || '') === (linkedProject.releaseId || '');
+                              if (sameRelease && onMoveProject) {
+                                captureRowFlipSnapshot(draggingRow.rowId);
+                                onMoveProject(draggingRow.id, linkedProject.id, pos);
+                              } else if (!sameRelease && sourceProj && onUpdateProject) {
+                                captureRowFlipSnapshot(draggingRow.rowId);
+                                onUpdateProject({ ...sourceProj, releaseId: linkedProject.releaseId });
+                              }
+                            } else if (isRelease && linkedRelease && sourceProj && onUpdateProject) {
+                              if (sourceProj.releaseId !== linkedRelease.id) {
+                                captureRowFlipSnapshot(draggingRow.rowId);
+                                onUpdateProject({ ...sourceProj, releaseId: linkedRelease.id });
+                              }
+                            }
+                          }
+
+                          setDraggingRow(null);
+                          setDragOverRow(null);
+                        }}
+                        onDragEnd={() => {
+                          setDraggingRow(null);
+                          setDragOverRow(null);
+                        }}
                         onClick={() => {
                           if (!onSelectEntity) return;
                           if (isRelease && linkedRelease) {
@@ -3018,6 +3238,16 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                           isRelease ? 'relative z-[3]' : isProject ? 'relative z-[2]' : 'relative z-[1]'
                         } ${
                           isContext ? 'border-l-2 border-l-indigo-500' : ''
+                        } ${
+                          isDraggingThisRow ? 'opacity-45' : ''
+                        } ${
+                          rowDropMode === 'before'
+                            ? 'border-t-2 border-t-indigo-500'
+                            : rowDropMode === 'after'
+                            ? 'border-b-2 border-b-indigo-500'
+                            : rowDropMode === 'into'
+                            ? 'ring-2 ring-inset ring-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/50'
+                            : ''
                         } ${
                           isSelectedRow
                             ? 'ring-2 ring-inset ring-indigo-500 bg-indigo-50/80 dark:bg-indigo-950/50'
@@ -3102,11 +3332,29 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                                           />
                                         </button>
                                       )}
+                                      {isProject && canDragRow && (
+                                        <span
+                                          data-testid={`report-row-drag-handle-${row.rowId}`}
+                                          title="Arrastra para mover o reordenar el proyecto"
+                                          className="cursor-grab active:cursor-grabbing p-0.5 text-[#6B6B66] dark:text-zinc-500 hover:text-[#0C0C09] dark:hover:text-zinc-200 rounded shrink-0 self-center"
+                                        >
+                                          <GripVertical className="w-3.5 h-3.5" />
+                                        </span>
+                                      )}
                                       {isProject && (
                                         <span
                                           className={`px-1.5 py-0.5 rounded text-[9.5px] font-mono font-bold text-white shrink-0 ${projAccent.badgeBg}`}
                                         >
                                           {row.displayId}
+                                        </span>
+                                      )}
+                                      {!isRelease && !isProject && canDragRow && (
+                                        <span
+                                          data-testid={`report-row-drag-handle-${row.rowId}`}
+                                          title="Arrastra para mover o reordenar la tarea"
+                                          className="cursor-grab active:cursor-grabbing p-0.5 text-[#6B6B66] dark:text-zinc-500 hover:text-[#0C0C09] dark:hover:text-zinc-200 rounded shrink-0 self-center"
+                                        >
+                                          <GripVertical className="w-3.5 h-3.5" />
                                         </span>
                                       )}
                                       {!isRelease && !isProject && row.displayId && (
