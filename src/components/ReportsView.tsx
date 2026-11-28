@@ -73,6 +73,22 @@ import {
   ReleaseSummaryReportRow,
 } from '../utils/excelExportEngine';
 
+const PROJECT_ACCENT_COLORS: Record<string, { hex: string; badgeBg: string }> = {
+  indigo: { hex: '#4F46E5', badgeBg: 'bg-indigo-600' },
+  violet: { hex: '#7C3AED', badgeBg: 'bg-violet-600' },
+  emerald: { hex: '#059669', badgeBg: 'bg-emerald-600' },
+  blue: { hex: '#2563EB', badgeBg: 'bg-blue-600' },
+  teal: { hex: '#0D9488', badgeBg: 'bg-teal-600' },
+  amber: { hex: '#D97706', badgeBg: 'bg-amber-600' },
+  orange: { hex: '#EA580C', badgeBg: 'bg-orange-600' },
+  rose: { hex: '#E11D48', badgeBg: 'bg-rose-600' },
+  pink: { hex: '#DB2777', badgeBg: 'bg-pink-600' },
+  cyan: { hex: '#0891B2', badgeBg: 'bg-cyan-600' },
+  sky: { hex: '#0284C7', badgeBg: 'bg-sky-600' },
+  lime: { hex: '#65A30D', badgeBg: 'bg-lime-600' },
+  slate: { hex: '#475569', badgeBg: 'bg-slate-600' },
+};
+
 type ReportTab = 'cronograma' | 'projects' | 'releases';
 
 interface ReportColumnDef {
@@ -584,9 +600,20 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<ReportTab>(initialTab === 'projects' ? 'cronograma' : initialTab);
   const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(() => new Set(initialCollapsedNodes));
+  const [collapsingNodes, setCollapsingNodes] = useState<Set<string>>(() => new Set());
+  const [expandingNodes, setExpandingNodes] = useState<Set<string>>(() => new Set());
+  const collapseTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const [expandedFilteredNodes, setExpandedFilteredNodes] = useState<Set<string>>(
     () => new Set(initialExpandedFilteredNodes)
   );
+
+  useEffect(() => {
+    const timers = collapseTimersRef.current;
+    return () => {
+      timers.forEach((t) => clearTimeout(t));
+      timers.clear();
+    };
+  }, []);
   const isFirstFilterRenderRef = useRef(true);
   const [showFormatColumnsMenu, setShowFormatColumnsMenu] = useState<boolean>(
     initialShowFormatMenu || initialShowColumnsMenu
@@ -2041,13 +2068,72 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     return { displayedCronoRows: visible, contextExpandedCount: ctxCount };
   }, [cronoRows, focusedProjectIds, filteredCronoRows, hasCronoFilters, collapsedNodes, expandedFilteredNodes]);
 
-  const toggleCollapseNode = (nodeKey: string) => {
-    setCollapsedNodes((prev) => {
+  const triggerExpandingAnimation = (nodeKey: string) => {
+    setExpandingNodes((prev) => {
       const next = new Set(prev);
-      if (next.has(nodeKey)) next.delete(nodeKey);
-      else next.add(nodeKey);
+      next.add(nodeKey);
       return next;
     });
+    const existing = collapseTimersRef.current.get(`exp:${nodeKey}`);
+    if (existing) clearTimeout(existing);
+    const timer = setTimeout(() => {
+      setExpandingNodes((prev) => {
+        if (!prev.has(nodeKey)) return prev;
+        const next = new Set(prev);
+        next.delete(nodeKey);
+        return next;
+      });
+      collapseTimersRef.current.delete(`exp:${nodeKey}`);
+    }, 300);
+    collapseTimersRef.current.set(`exp:${nodeKey}`, timer);
+  };
+
+  const toggleCollapseNode = (nodeKey: string) => {
+    const existingCollapseTimer = collapseTimersRef.current.get(`col:${nodeKey}`);
+    if (existingCollapseTimer) {
+      clearTimeout(existingCollapseTimer);
+      collapseTimersRef.current.delete(`col:${nodeKey}`);
+    }
+
+    if (collapsedNodes.has(nodeKey) || collapsingNodes.has(nodeKey)) {
+      // Expand immediately with smooth slide-in animation (same as Cronograma)
+      setCollapsingNodes((prev) => {
+        if (!prev.has(nodeKey)) return prev;
+        const next = new Set(prev);
+        next.delete(nodeKey);
+        return next;
+      });
+      setCollapsedNodes((prev) => {
+        if (!prev.has(nodeKey)) return prev;
+        const next = new Set(prev);
+        next.delete(nodeKey);
+        return next;
+      });
+      triggerExpandingAnimation(nodeKey);
+      return;
+    }
+
+    // Play 240ms collapse animation before removing descendant rows (same as Cronograma)
+    setCollapsingNodes((prev) => {
+      const next = new Set(prev);
+      next.add(nodeKey);
+      return next;
+    });
+    const timer = setTimeout(() => {
+      setCollapsedNodes((prev) => {
+        const next = new Set(prev);
+        next.add(nodeKey);
+        return next;
+      });
+      setCollapsingNodes((prev) => {
+        if (!prev.has(nodeKey)) return prev;
+        const next = new Set(prev);
+        next.delete(nodeKey);
+        return next;
+      });
+      collapseTimersRef.current.delete(`col:${nodeKey}`);
+    }, 240);
+    collapseTimersRef.current.set(`col:${nodeKey}`, timer);
   };
 
   const toggleExpandFilteredNode = (nodeKey: string) => {
@@ -2065,6 +2151,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         next.delete(nodeKey);
         return next;
       });
+      triggerExpandingAnimation(nodeKey);
     }
   };
 
@@ -2404,8 +2491,34 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     const linkedRelease = isRelease && row.releaseId ? releaseById.get(row.releaseId) : undefined;
 
                     const isNodeCollapsed = Boolean(nodeKey && collapsedNodes.has(nodeKey));
+                    const isNodeVisuallyCollapsed = Boolean(
+                      nodeKey && (collapsedNodes.has(nodeKey) || collapsingNodes.has(nodeKey))
+                    );
+                    const rowRelKey = row.releaseCode && row.releaseCode !== '—' ? `rel:${row.releaseCode}` : null;
+                    const rowProjKey = row.projectId ? `proj:${row.projectId}` : null;
+                    const isRowCollapsing = Boolean(
+                      (!isRelease && rowRelKey && collapsingNodes.has(rowRelKey)) ||
+                        ((row.level === 'TAREA' || row.level === 'HITO') &&
+                          rowProjKey &&
+                          collapsingNodes.has(rowProjKey))
+                    );
+                    const isRowExpanding = Boolean(
+                      (!isRelease && rowRelKey && expandingNodes.has(rowRelKey)) ||
+                        ((row.level === 'TAREA' || row.level === 'HITO') &&
+                          rowProjKey &&
+                          expandingNodes.has(rowProjKey))
+                    );
+                    const rowProjectObj =
+                      isProject && linkedProject
+                        ? linkedProject
+                        : row.projectId
+                        ? projectById.get(row.projectId)
+                        : undefined;
+                    const projAccent =
+                      PROJECT_ACCENT_COLORS[rowProjectObj?.color || 'indigo'] ||
+                      PROJECT_ACCENT_COLORS.indigo;
                     const isShowingHiddenKids = Boolean(
-                      nodeKey && expandedFilteredNodes.has(nodeKey) && !isNodeCollapsed
+                      nodeKey && expandedFilteredNodes.has(nodeKey) && !isNodeVisuallyCollapsed
                     );
                     const hasVisibleKids =
                       nodeKey && hasChildren
@@ -2422,15 +2535,21 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                           : false
                         : false;
 
-                    const rowBgClass = isContext
+                    const rowBgClass = isRelease
+                      ? 'bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09] font-bold'
+                      : isContext
                       ? 'bg-indigo-50/25 dark:bg-indigo-950/15 text-slate-500 dark:text-zinc-400'
-                      : isRelease
-                      ? 'bg-slate-100/80 dark:bg-zinc-800/80 font-bold text-[#0C0C09] dark:text-zinc-100'
                       : isProject
-                      ? 'bg-indigo-50/40 dark:bg-indigo-950/20 font-semibold text-[#0C0C09] dark:text-zinc-200'
+                      ? 'bg-[#F4F4F1]/90 dark:bg-zinc-800/75 font-semibold text-[#0C0C09] dark:text-zinc-100'
                       : idx % 2 === 0
                       ? 'bg-white dark:bg-[#0C0C09]'
                       : 'bg-[#FAFAF8] dark:bg-zinc-900/30';
+
+                    const rowAnimClass = isRowCollapsing
+                      ? 'animate-report-row-collapse'
+                      : isRowExpanding
+                      ? 'animate-report-row-expand'
+                      : '';
 
                     const isSelectedRow = Boolean(
                       (isRelease && linkedRelease && selectedEntity?.type === 'release' && selectedEntity.id === linkedRelease.id) ||
@@ -2442,6 +2561,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                       <tr
                         key={row.rowId}
                         data-report-row={row.rowId}
+                        data-report-level={row.level}
                         data-context-row={isContext ? 'true' : undefined}
                         data-selected-report-row={isSelectedRow ? 'true' : undefined}
                         onClick={() => {
@@ -2471,18 +2591,29 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                             itemId: linkedItem?.id,
                           });
                         }}
-                        className={`${rowBgClass} ${
+                        className={`${rowBgClass} ${rowAnimClass} ${
                           isContext ? 'border-l-2 border-l-indigo-500' : ''
                         } ${
                           isSelectedRow
                             ? 'ring-2 ring-inset ring-indigo-500 bg-indigo-50/80 dark:bg-indigo-950/50'
+                            : isRelease
+                            ? 'hover:bg-[#1C1C18] dark:hover:bg-zinc-200'
                             : 'hover:bg-indigo-50/70 dark:hover:bg-indigo-950/40'
                         } cursor-pointer transition-colors`}
                       >
                         {/* Unique ID column */}
                         <td
                           data-testid={`report-crono-id-${row.rowId}`}
-                          className="px-2 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 text-center text-[10px] font-mono font-bold text-[#0C0C09] dark:text-zinc-200 bg-[#ECECE8]/40 dark:bg-zinc-900/50 select-none whitespace-nowrap"
+                          style={
+                            isProject && !isContext
+                              ? { borderLeft: `4px solid ${projAccent.hex}` }
+                              : undefined
+                          }
+                          className={`px-2 py-1.5 border-r select-none whitespace-nowrap text-center text-[10px] font-mono font-bold ${
+                            isRelease
+                              ? 'border-white/15 dark:border-zinc-300 bg-[#0C0C09] text-white dark:bg-zinc-100 dark:text-[#0C0C09]'
+                              : 'border-[#E2E2DC] dark:border-zinc-800 text-[#0C0C09] dark:text-zinc-200 bg-[#ECECE8]/40 dark:bg-zinc-900/50'
+                          }`}
                         >
                           {row.displayId}
                         </td>
@@ -2493,51 +2624,98 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                             switch (col.key) {
                               case 'hierarchy':
                                 return (
-                                  <td key={col.key} className="px-3 py-1.5 border-r border-[#E2E2DC] dark:border-zinc-800 whitespace-nowrap overflow-hidden">
+                                  <td
+                                    key={col.key}
+                                    className={`px-3 py-1.5 border-r whitespace-nowrap overflow-hidden ${
+                                      isRelease
+                                        ? 'border-white/15 dark:border-zinc-300'
+                                        : 'border-[#E2E2DC] dark:border-zinc-800'
+                                    }`}
+                                  >
                                     {isRelease ? (
-                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] bg-slate-800 text-white dark:bg-zinc-100 dark:text-[#0C0C09] text-[10px] font-bold">
+                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] bg-white/15 text-white dark:bg-black/10 dark:text-[#0C0C09] text-[10px] font-bold">
                                         <Rocket className="w-2.5 h-2.5" /> RELEASE
                                       </span>
                                     ) : isProject ? (
-                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] bg-indigo-700 text-white text-[10px] font-bold">
+                                      <span
+                                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] text-white text-[10px] font-bold ml-1.5 ${projAccent.badgeBg}`}
+                                      >
                                         <FolderKanban className="w-2.5 h-2.5" /> PROYECTO
                                       </span>
                                     ) : isMilestone ? (
-                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-400/40 text-[10px] font-semibold">
+                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-400/40 text-[10px] font-semibold ml-4">
                                         ◆ HITO
                                       </span>
                                     ) : isDepSubRow ? (
-                                      <span className="text-slate-400 dark:text-zinc-500 text-[10px] pl-4">
+                                      <span className="text-slate-400 dark:text-zinc-500 text-[10px] pl-6">
                                         └─ Dependencia
                                       </span>
                                     ) : (
-                                      <span className="text-slate-600 dark:text-zinc-400 text-[10px]">
-                                        TAREA
+                                      <span className="inline-flex items-center gap-1 text-slate-600 dark:text-zinc-400 text-[10px] ml-4">
+                                        <span className="text-slate-300 dark:text-zinc-600 font-mono">└</span>
+                                        <span>TAREA</span>
                                       </span>
                                     )}
                                   </td>
                                 );
                               case 'name':
                                 return (
-                                  <td key={col.key} className="px-2 py-1 border-r border-[#E2E2DC] dark:border-zinc-800 font-sans text-xs font-medium text-[#0C0C09] dark:text-zinc-100">
-                                    <div className="flex items-center gap-1 min-w-0">
-                                      {nodeKey && hasChildren && (!hasCronoFilters || hasVisibleKids || isNodeCollapsed) && (
+                                  <td
+                                    key={col.key}
+                                    className={`px-2 py-1 border-r font-sans text-xs font-medium ${
+                                      isRelease
+                                        ? 'border-white/15 dark:border-zinc-300 text-white dark:text-[#0C0C09]'
+                                        : 'border-[#E2E2DC] dark:border-zinc-800 text-[#0C0C09] dark:text-zinc-100'
+                                    }`}
+                                  >
+                                    <div
+                                      className={`flex items-center gap-1.5 min-w-0 ${
+                                        isProject ? 'pl-3' : !isRelease ? 'pl-7' : ''
+                                      }`}
+                                    >
+                                      {!isRelease && !isProject && (
+                                        <span
+                                          aria-hidden="true"
+                                          className="inline-flex items-center shrink-0 select-none text-zinc-300 dark:text-zinc-600 font-mono text-[11px]"
+                                        >
+                                          └
+                                        </span>
+                                      )}
+                                      {nodeKey && hasChildren && (!hasCronoFilters || hasVisibleKids || isNodeVisuallyCollapsed) && (
                                         <button
                                           type="button"
                                           data-testid={`report-tree-toggle-${nodeKey}`}
+                                          data-collapsed={isNodeVisuallyCollapsed ? 'true' : 'false'}
                                           onClick={(e) => {
                                             e.stopPropagation();
                                             toggleCollapseNode(nodeKey);
                                           }}
-                                          className="w-4 h-4 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 flex items-center justify-center text-zinc-500 dark:text-zinc-400 shrink-0 cursor-pointer"
-                                          title={isNodeCollapsed ? 'Expandir hijos' : 'Colapsar hijos'}
+                                          style={isProject ? { color: projAccent.hex } : undefined}
+                                          className={`p-0.5 rounded flex items-center justify-center shrink-0 cursor-pointer transition-colors ${
+                                            isRelease
+                                              ? 'hover:bg-white/15 dark:hover:bg-black/10 text-white dark:text-[#0C0C09]'
+                                              : 'hover:bg-black/5 dark:hover:bg-white/10'
+                                          }`}
+                                          title={isNodeVisuallyCollapsed ? 'Expandir hijos' : 'Colapsar hijos'}
                                         >
-                                          {isNodeCollapsed ? (
-                                            <ChevronRight className="w-3 h-3" />
-                                          ) : (
-                                            <ChevronDown className="w-3 h-3" />
-                                          )}
+                                          <ChevronRight
+                                            className={`w-4 h-4 transition-transform duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                                              isNodeVisuallyCollapsed ? 'rotate-0' : 'rotate-90'
+                                            }`}
+                                          />
                                         </button>
+                                      )}
+                                      {isProject && (
+                                        <span
+                                          className={`px-1.5 py-0.5 rounded text-[9.5px] font-mono font-bold text-white shrink-0 ${projAccent.badgeBg}`}
+                                        >
+                                          {row.displayId}
+                                        </span>
+                                      )}
+                                      {isRelease && (
+                                        <span className="px-1.5 py-0.5 rounded bg-white/20 dark:bg-black/10 font-mono text-[10px] font-bold shrink-0">
+                                          {row.releaseCode}
+                                        </span>
                                       )}
                                       <div className="flex-1 min-w-0">
                                         {linkedItem && onUpdateItem && !isDepSubRow ? (
@@ -2562,7 +2740,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                                           <EditableReportTextCell
                                             testId={`report-crono-rel-name-${linkedRelease.id}`}
                                             value={linkedRelease.name}
-                                            className="font-bold"
+                                            className="font-bold text-white dark:text-[#0C0C09]"
                                             onCommit={(next) =>
                                               onUpdateRelease({ ...linkedRelease, name: next || linkedRelease.name })
                                             }
@@ -2582,6 +2760,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                                           className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full font-mono text-[9.5px] font-semibold shrink-0 cursor-pointer transition ${
                                             isShowingHiddenKids
                                               ? 'bg-indigo-600 text-white border border-indigo-600'
+                                              : isRelease
+                                              ? 'bg-white/15 text-white dark:bg-black/10 dark:text-[#0C0C09] border border-dashed border-white/50 dark:border-black/30 hover:bg-indigo-600 hover:text-white hover:border-solid hover:border-indigo-500'
                                               : 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-dashed border-indigo-400 dark:border-indigo-700 hover:bg-indigo-600 hover:text-white hover:border-solid'
                                           }`}
                                           title={

@@ -10,10 +10,19 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.17.1',
+    date: '28 Nov 2026',
+    title: 'Estilo y animación de expand/collapse en Planificación igual que Cronograma',
+    isLatest: true,
+    features: [
+      'Chevron rotatorio de 240ms cubic-bezier(0.22,1,0.36,1) y animaciones suaves de expansión/colapso de filas en Planificación',
+      'Jerarquía visual clara idéntica a Cronograma con cabeceras oscuras para Releases, borde lateral y badge de color por Proyecto, e indentación con conector └ para tareas e hitos',
+    ],
+  },
+  {
     version: '1.17.0',
     date: '28 Nov 2026',
     title: 'Bitácora de seguimiento por comentarios con rollup en proyectos',
-    isLatest: true,
     features: [
       'Nuevo campo Seguimiento (hilo cronológico de comentarios) en proyectos, tareas e hitos con actualización atómica opcional de Nivel de Alerta y Progreso %',
       'Drawer rápido y columna Seguimiento en Planificación + badge 💬 en Cronograma y sección integrada en RightSidePanel',
