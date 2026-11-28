@@ -4515,7 +4515,7 @@ test('Help page, version control v1.2.0, release selection on project creation, 
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version control consistency
-  assert.equal(pkg.version, '1.20.0', 'package.json version must be 1.9.2');
+  assert.equal(pkg.version, '1.21.0', 'package.json version must be 1.9.2');
   assert.ok(pkg.scripts['version:patch'], 'package.json must contain version:patch script');
   assert.ok(pkg.scripts['version:minor'], 'package.json must contain version:minor script');
   assert.ok(pkg.scripts['release:patch'], 'package.json must contain release:patch script');
@@ -5330,7 +5330,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
   // 1. Version Bump Verification
-  assert.equal(pkg.version, '1.20.0', 'package.json version must equal 1.9.2');
+  assert.equal(pkg.version, '1.21.0', 'package.json version must equal 1.9.2');
 
   // Verify scripts/bump-version.mjs works properly
   const bumpScript = await fs.readFile(path.resolve(__dirname, '../scripts/bump-version.mjs'), 'utf8');
@@ -5504,7 +5504,7 @@ test('Version 1.4.0, unclipped diagram project names, release hiding, focus mode
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // A. APP_VERSION equals 1.9.2
-    assert.equal(mod.APP_VERSION, '1.20.0', 'APP_VERSION must be 1.9.2');
+    assert.equal(mod.APP_VERSION, '1.21.0', 'APP_VERSION must be 1.9.2');
 
     // A2. Excel Export Unit Test
     const sampleReleases = [
@@ -6031,8 +6031,8 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
 
-  // 1. Version Bump Verification v1.20.0
-  assert.equal(pkg.version, '1.20.0', 'package.json version must equal 1.9.2');
+  // 1. Version Bump Verification v1.21.0
+  assert.equal(pkg.version, '1.21.0', 'package.json version must equal 1.9.2');
 
   // 2. SSR Bundle verification for TaskFormModal, App Header, and sanitizeGanttItem
   const tmpFile = path.resolve(__dirname, `tmp_test59_bundle_${Date.now()}.mjs`);
@@ -6130,7 +6130,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.equal(mod.APP_VERSION, '1.20.0', 'mod.APP_VERSION must equal 1.9.2');
+    assert.equal(mod.APP_VERSION, '1.21.0', 'mod.APP_VERSION must equal 1.9.2');
 
     // sanitizeGanttItem preserves platform
     const sanitizedIos = mod.sanitizeGanttItem({
@@ -6193,7 +6193,7 @@ test('Header overflow more-menu, Task platform field in creation/edition modal, 
     }));
     assert.ok(settingsHtml.includes('data-testid="settings-version-badge"'), 'SettingsModal must contain settings-version-badge');
     assert.ok(settingsHtml.includes('data-testid="force-reload-btn"'), 'SettingsModal must contain force-reload-btn');
-    assert.ok(settingsHtml.includes('v1.20.0') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and v1.20.0');
+    assert.ok(settingsHtml.includes('v1.21.0') && settingsHtml.includes('GanttFlow'), 'SettingsModal must display GanttFlow and v1.21.0');
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
@@ -6347,14 +6347,14 @@ test('Test 61: Version button, compiled release notes modal and changelog across
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
 
     // 1. Check RELEASE_NOTES compiled data
-    assert.strictEqual(mod.APP_VERSION, '1.20.0');
+    assert.strictEqual(mod.APP_VERSION, '1.21.0');
     assert.ok(Array.isArray(mod.RELEASE_NOTES), 'RELEASE_NOTES must be an array');
     assert.ok(mod.RELEASE_NOTES.length >= 10, 'RELEASE_NOTES must have at least 10 releases');
 
     const latest = mod.RELEASE_NOTES[0];
-    assert.strictEqual(latest.version, '1.20.0', 'First release note must be 1.9.2');
+    assert.strictEqual(latest.version, '1.21.0', 'First release note must be 1.9.2');
     assert.strictEqual(latest.isLatest, true, 'First release note must be isLatest: true');
-    assert.ok(latest.features.length > 0, 'v1.20.0 must contain features');
+    assert.ok(latest.features.length > 0, 'v1.21.0 must contain features');
 
     // 2. Render App and verify version button exists in dropdown menu and is NOT duplicated in top header
     const appHtml = renderToString(React.createElement(mod.App));
@@ -8189,7 +8189,7 @@ test('Test 73: v1.9.0 project alert level (0-3), workspace toolbar alert filter,
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.strictEqual(mod.APP_VERSION, '1.20.0', 'APP_VERSION must be 1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.21.0', 'APP_VERSION must be 1.9.2');
 
     // 1. Check sanitizeProject and describeProjectStateChanges for alertLevel
     const pSanitized0 = mod.sanitizeProject({ id: 'p-1', name: 'Proj 1', alertLevel: 0 });
@@ -8378,7 +8378,7 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
     const mod = await import(`${tmpFile}?t=${Date.now()}`);
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
-    assert.strictEqual(mod.APP_VERSION, '1.20.0', 'APP_VERSION must be 1.9.2');
+    assert.strictEqual(mod.APP_VERSION, '1.21.0', 'APP_VERSION must be 1.9.2');
 
     // 1. Verify description format: <descripción del proyecto si existe>\n\n* <nombre> <desc>
     const pWithDesc = {
@@ -8463,8 +8463,8 @@ test('Test 74: v1.9.1 unified platform & alert filters across all reports and bu
   }
 });
 
-// TEST 75: v1.20.0 Project locking, accidental move guard & unlock prompt modal
-test('Test 75: v1.20.0 project locking, cascade/dependency protection, plan history badge, and unlock alert modal', async () => {
+// TEST 75: v1.21.0 Project locking, accidental move guard & unlock prompt modal
+test('Test 75: v1.21.0 project locking, cascade/dependency protection, plan history badge, and unlock alert modal', async () => {
   const fs = await import('node:fs/promises');
   const path = await import('node:path');
   const { fileURLToPath } = await import('node:url');
@@ -8475,7 +8475,7 @@ test('Test 75: v1.20.0 project locking, cascade/dependency protection, plan hist
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
-  assert.strictEqual(pkg.version, '1.20.0', 'package.json version must equal 1.9.2');
+  assert.strictEqual(pkg.version, '1.21.0', 'package.json version must equal 1.9.2');
 
   const tmpFile = path.resolve(__dirname, `tmp_test75_bundle_${Date.now()}.mjs`);
   try {
@@ -8537,9 +8537,9 @@ test('Test 75: v1.20.0 project locking, cascade/dependency protection, plan hist
     const { renderToString } = ReactDOMServer.default || ReactDOMServer;
 
     // 1. Version & release notes verification
-    assert.strictEqual(mod.APP_VERSION, '1.20.0', 'APP_VERSION must equal 1.9.2');
-    assert.strictEqual(mod.RELEASE_NOTES[0].version, '1.20.0', 'Latest release note must be 1.9.2');
-    assert.strictEqual(mod.RELEASE_NOTES[0].isLatest, true, 'v1.20.0 release note must be marked isLatest');
+    assert.strictEqual(mod.APP_VERSION, '1.21.0', 'APP_VERSION must equal 1.9.2');
+    assert.strictEqual(mod.RELEASE_NOTES[0].version, '1.21.0', 'Latest release note must be 1.9.2');
+    assert.strictEqual(mod.RELEASE_NOTES[0].isLatest, true, 'v1.21.0 release note must be marked isLatest');
 
     // 2. sanitizeProject, getLockedProjectForItem, describeProjectStateChanges
     const lockedProj = mod.sanitizeProject({
@@ -8736,7 +8736,7 @@ test('Test 75: v1.20.0 project locking, cascade/dependency protection, plan hist
   }
 });
 
-test('Test 76: v1.20.0 automatic Free Slack calculation given successor tasks across engine, table badge, inspector sidebar and task modal', async () => {
+test('Test 76: v1.21.0 automatic Free Slack calculation given successor tasks across engine, table badge, inspector sidebar and task modal', async () => {
   // 1. Engine calculation: FS dependency with multiple successors
   const testItems = [
     {
@@ -15985,6 +15985,37 @@ test('130. Planificación rows support drag-and-drop reordering for projects and
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }
+});
+
+test('131. Undo/Redo history covers column layout changes (reorder, visibility, resize, presets) and releases', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const { fileURLToPath } = await import('node:url');
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+  const typesSrc = await fs.readFile(path.resolve(__dirname, '../src/types/gantt.ts'), 'utf8');
+  assert.ok(typesSrc.includes("'layout_columns'"), 'PlanHistoryActionType must include layout_columns');
+  assert.ok(typesSrc.includes("'edit_release'"), 'PlanHistoryActionType must include edit_release');
+  assert.ok(typesSrc.includes('export interface ReportsLayoutSnapshot'), 'gantt.ts must export ReportsLayoutSnapshot');
+  assert.ok(typesSrc.includes('reportsLayout?: ReportsLayoutSnapshot'), 'PlanHistoryEntry snapshot must store reportsLayout');
+  assert.ok(typesSrc.includes('releases?: Release[]'), 'PlanHistoryEntry snapshot must store releases');
+
+  const appSrc = await fs.readFile(path.resolve(__dirname, '../src/App.tsx'), 'utf8');
+  assert.ok(appSrc.includes('handleRecordReportsLayoutChange'), 'App must provide handleRecordReportsLayoutChange');
+  assert.ok(appSrc.includes('handleUpdateReleasesWithHistory'), 'App must provide handleUpdateReleasesWithHistory');
+  assert.ok(appSrc.includes('persistAndSyncReportsLayout(target.snapshot.reportsLayout)'), 'handleUndo/handleRedo must restore reportsLayout');
+  assert.ok(appSrc.includes('onRecordLayoutChange={handleRecordReportsLayoutChange}'), 'App must wire onRecordLayoutChange into ReportsView');
+  assert.ok(appSrc.includes('externalLayoutSync={externalReportsLayout}'), 'App must wire externalLayoutSync into ReportsView');
+
+  const reportsSrc = await fs.readFile(path.resolve(__dirname, '../src/components/ReportsView.tsx'), 'utf8');
+  assert.ok(reportsSrc.includes("`Mover columna '${movedLabel}'`"), 'reorderReportCols must record undo history');
+  assert.ok(reportsSrc.includes("`${currentlyHidden ? 'Mostrar' : 'Ocultar'} columna '${colDef?.label || key}'`"), 'toggleColVisibility must record undo history');
+  assert.ok(reportsSrc.includes("`Redimensionar columna '${colLabel}'`"), 'startColResize must record undo history');
+  assert.ok(reportsSrc.includes("`Expandir ancho de columna '${col.label}'`"), 'toggleColWidthFullText must record undo history');
+  assert.ok(reportsSrc.includes("'Mostrar todas las columnas'"), 'resetReportCols must record undo history');
+
+  const historyPageSrc = await fs.readFile(path.resolve(__dirname, '../src/components/PlanHistoryPage.tsx'), 'utf8');
+  assert.ok(historyPageSrc.includes('layout_columns:') && historyPageSrc.includes('edit_release:'), 'PlanHistoryPage must configure badges for layout_columns and edit_release');
 });
 
 

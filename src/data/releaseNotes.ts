@@ -10,10 +10,20 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.21.0',
+    date: '28 Nov 2026',
+    title: 'Undo/Redo completo para columnas, layout y releases',
+    isLatest: true,
+    features: [
+      'Ampliado PlanHistoryEntry.snapshot para guardar y restaurar releases y el layout de columnas de Planificación (orden, visibilidad, anchos y preset activo)',
+      'Registrados en Undo/Redo todos los cambios de columnas: mover/reordenar arrastrando (con animación FLIP al deshacer), ocultar/mostrar, mostrar todas, redimensionar, doble clic expandir/restaurar y aplicar presets',
+      'Registrados en Undo/Redo los cambios del catálogo de Releases y añadidos badges en el historial',
+    ],
+  },
+  {
     version: '1.20.0',
     date: '28 Nov 2026',
     title: 'Arrastrar y soltar elementos en Planificación',
-    isLatest: true,
     features: [
       'Añadido drag-and-drop con tirador (GripVertical) para reordenar tareas/hitos y moverlos entre proyectos en Planificación',
       'Arrastra proyectos para reordenarlos dentro de su Release o soltarlos sobre otra Release para reasignarlos',

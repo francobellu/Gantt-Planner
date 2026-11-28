@@ -51,6 +51,7 @@ import {
   PlanCommit,
   PlanHistoryActionType,
   PlanHistoryEntry,
+  ReportsLayoutSnapshot,
   Release,
   ReleaseGuideVisibility,
   SavedScenario,
@@ -544,6 +545,70 @@ export function App({
   }, [history, historyIndex]);
 
   const lastEditRef = useRef<{ id: string; time: number; type: string } | null>(null);
+  const latestReportsLayoutRef = useRef<ReportsLayoutSnapshot | undefined>(undefined);
+  const [externalReportsLayout, setExternalReportsLayout] = useState<{
+    version: number;
+    layout: ReportsLayoutSnapshot;
+  } | null>(null);
+
+  const cloneReportsLayout = (
+    layout?: ReportsLayoutSnapshot
+  ): ReportsLayoutSnapshot | undefined => {
+    if (!layout) return undefined;
+    return {
+      colOrderByTab: Object.fromEntries(
+        Object.entries(layout.colOrderByTab || {}).map(([k, v]) => [k, [...v]])
+      ),
+      hiddenColsByTab: Object.fromEntries(
+        Object.entries(layout.hiddenColsByTab || {}).map(([k, v]) => [k, { ...v }])
+      ),
+      colWidthsByTab: Object.fromEntries(
+        Object.entries(layout.colWidthsByTab || {}).map(([k, v]) => [k, { ...v }])
+      ),
+      activePresetByTab: { ...(layout.activePresetByTab || {}) },
+    };
+  };
+
+  const cloneReleases = (list?: Release[]): Release[] | undefined => {
+    if (!list) return undefined;
+    return list.map((r) => ({
+      ...r,
+      milestones: Array.isArray(r.milestones)
+        ? r.milestones.map((m) => ({ ...m }))
+        : [],
+      projectIds: Array.isArray(r.projectIds) ? [...r.projectIds] : undefined,
+    }));
+  };
+
+  const persistAndSyncReportsLayout = (layout: ReportsLayoutSnapshot) => {
+    const cloned = cloneReportsLayout(layout);
+    if (!cloned) return;
+    latestReportsLayoutRef.current = cloned;
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(
+          'ganttflow_reports_col_order_v1',
+          JSON.stringify(cloned.colOrderByTab)
+        );
+        window.localStorage.setItem(
+          'ganttflow_reports_hidden_cols_v1',
+          JSON.stringify(cloned.hiddenColsByTab)
+        );
+        window.localStorage.setItem(
+          'ganttflow_reports_col_widths_v1',
+          JSON.stringify(cloned.colWidthsByTab)
+        );
+        const activeCronoPreset = cloned.activePresetByTab?.cronograma;
+        if (activeCronoPreset) {
+          window.localStorage.setItem('ganttflow_reports_active_preset_v1', activeCronoPreset);
+        }
+      }
+    } catch {}
+    setExternalReportsLayout({
+      version: Date.now() + Math.random(),
+      layout: cloned,
+    });
+  };
 
   const recordPlanChange = (
     actionType: PlanHistoryActionType,
@@ -551,7 +616,13 @@ export function App({
     description: string,
     nextItems: GanttItem[],
     nextProjects: GanttProject[],
-    targetId?: string
+    targetId?: string,
+    options?: {
+      releases?: Release[];
+      prevReleases?: Release[];
+      reportsLayout?: ReportsLayoutSnapshot;
+      prevReportsLayout?: ReportsLayoutSnapshot;
+    }
   ) => {
     const now = Date.now();
     const nowDate = new Date(now);
@@ -563,6 +634,14 @@ export function App({
       minute: '2-digit',
       second: '2-digit',
     });
+
+    const snapshotReleases = cloneReleases(options?.releases ?? releases);
+    const snapshotLayout = cloneReportsLayout(
+      options?.reportsLayout ?? latestReportsLayoutRef.current
+    );
+    if (options?.reportsLayout) {
+      latestReportsLayoutRef.current = cloneReportsLayout(options.reportsLayout);
+    }
 
     if (
       targetId &&
@@ -584,6 +663,8 @@ export function App({
             snapshot: {
               items: nextItems.map(sanitizeGanttItem),
               projects: nextProjects.map((p) => ({ ...p })),
+              ...(snapshotReleases ? { releases: snapshotReleases } : {}),
+              ...(snapshotLayout ? { reportsLayout: snapshotLayout } : {}),
             },
           };
         }
@@ -610,11 +691,34 @@ export function App({
       snapshot: {
         items: nextItems.map(sanitizeGanttItem),
         projects: nextProjects.map((p) => ({ ...p })),
+        ...(snapshotReleases ? { releases: snapshotReleases } : {}),
+        ...(snapshotLayout ? { reportsLayout: snapshotLayout } : {}),
       },
     };
 
     setHistory((prev) => {
       const base = prev.slice(0, historyIndex + 1);
+      if (base.length > 0) {
+        const prevEntry = base[base.length - 1];
+        const needsLayoutBaseline =
+          options?.prevReportsLayout && !prevEntry.snapshot.reportsLayout;
+        const needsReleasesBaseline =
+          options?.prevReleases && !prevEntry.snapshot.releases;
+        if (needsLayoutBaseline || needsReleasesBaseline) {
+          base[base.length - 1] = {
+            ...prevEntry,
+            snapshot: {
+              ...prevEntry.snapshot,
+              ...(needsReleasesBaseline
+                ? { releases: cloneReleases(options?.prevReleases) }
+                : {}),
+              ...(needsLayoutBaseline
+                ? { reportsLayout: cloneReportsLayout(options?.prevReportsLayout) }
+                : {}),
+            },
+          };
+        }
+      }
       const next = [...base, newEntry];
       if (next.length > 80) {
         return next.slice(next.length - 80);
@@ -622,6 +726,46 @@ export function App({
       return next;
     });
     setHistoryIndex((prev) => Math.min(prev + 1, 79));
+  };
+
+  const handleRecordReportsLayoutChange = (
+    description: string,
+    nextLayout: ReportsLayoutSnapshot,
+    prevLayout: ReportsLayoutSnapshot
+  ) => {
+    recordPlanChange(
+      'layout_columns',
+      'Columnas',
+      description,
+      items,
+      effectiveProjects,
+      undefined,
+      {
+        reportsLayout: nextLayout,
+        prevReportsLayout: prevLayout,
+      }
+    );
+  };
+
+  const handleUpdateReleasesWithHistory = (
+    nextOrUpdater: React.SetStateAction<Release[]>,
+    description = 'Actualizar catálogo de releases'
+  ) => {
+    const nextReleases =
+      typeof nextOrUpdater === 'function' ? nextOrUpdater(releases) : nextOrUpdater;
+    setReleases(nextReleases);
+    recordPlanChange(
+      'edit_release',
+      'Releases',
+      description,
+      items,
+      effectiveProjects,
+      undefined,
+      {
+        releases: nextReleases,
+        prevReleases: releases,
+      }
+    );
   };
 
   const canUndo = historyIndex > 0;
@@ -635,6 +779,12 @@ export function App({
 
     setItems(target.snapshot.items.map(sanitizeGanttItem));
     setProjects(target.snapshot.projects.map((p) => ({ ...p })));
+    if (target.snapshot.releases) {
+      setReleases(cloneReleases(target.snapshot.releases) || releases);
+    }
+    if (target.snapshot.reportsLayout) {
+      persistAndSyncReportsLayout(target.snapshot.reportsLayout);
+    }
     setHistoryIndex(targetIndex);
     const currentDesc = history[historyIndex]?.description || 'Modificación';
     showToast(`Deshecho: ${currentDesc}`);
@@ -648,6 +798,12 @@ export function App({
 
     setItems(target.snapshot.items.map(sanitizeGanttItem));
     setProjects(target.snapshot.projects.map((p) => ({ ...p })));
+    if (target.snapshot.releases) {
+      setReleases(cloneReleases(target.snapshot.releases) || releases);
+    }
+    if (target.snapshot.reportsLayout) {
+      persistAndSyncReportsLayout(target.snapshot.reportsLayout);
+    }
     setHistoryIndex(targetIndex);
     showToast(`Rehecho: ${target.description}`);
   };
@@ -655,6 +811,12 @@ export function App({
   const handleRestoreSnapshot = (entry: PlanHistoryEntry, index: number) => {
     setItems(entry.snapshot.items.map(sanitizeGanttItem));
     setProjects(entry.snapshot.projects.map((p) => ({ ...p })));
+    if (entry.snapshot.releases) {
+      setReleases(cloneReleases(entry.snapshot.releases) || releases);
+    }
+    if (entry.snapshot.reportsLayout) {
+      persistAndSyncReportsLayout(entry.snapshot.reportsLayout);
+    }
     setHistoryIndex(index);
     showToast(`Plan restaurado a la versión #${index + 1} (${entry.formattedDate})`);
   };
@@ -3213,8 +3375,9 @@ export function App({
             onUpdateItem={handleUpdateInline}
             onUpdateProject={handleUpdateProject}
             onUpdateRelease={(updatedRel) =>
-              setReleases((prev) =>
-                prev.map((r) => (r.id === updatedRel.id ? updatedRel : r))
+              handleUpdateReleasesWithHistory(
+                (prev) => prev.map((r) => (r.id === updatedRel.id ? updatedRel : r)),
+                `Editar release '${updatedRel.code || updatedRel.name}'`
               )
             }
             onCreateProject={(partial) => {
@@ -3235,6 +3398,8 @@ export function App({
             onCreateMilestone={handleCreateMilestoneDirect}
             onMoveItem={handleMoveItem}
             onMoveProject={handleMoveProject}
+            onRecordLayoutChange={handleRecordReportsLayoutChange}
+            externalLayoutSync={externalReportsLayout}
           />
         ) : (
           <>
@@ -3616,7 +3781,7 @@ export function App({
         isOpen={showReleasesModal}
         onClose={() => setShowReleasesModal(false)}
         releases={releases}
-        onUpdateReleases={setReleases}
+        onUpdateReleases={handleUpdateReleasesWithHistory}
         projects={effectiveProjects}
         items={computedItems}
         onAssignProjectToRelease={handleAssignProjectToRelease}
@@ -3648,7 +3813,7 @@ export function App({
         items={computedItems}
         guideVisibility={releaseGuideVisibility}
         onChangeGuideVisibility={setReleaseGuideVisibility}
-        onUpdateReleases={setReleases}
+        onUpdateReleases={handleUpdateReleasesWithHistory}
         onAssignProjectToRelease={handleAssignProjectToRelease}
         history={history}
         historyIndex={historyIndex}

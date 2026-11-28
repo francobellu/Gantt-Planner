@@ -43,6 +43,7 @@ import {
   Release,
   ProjectPlatform,
   ProjectAlertLevel,
+  ReportsLayoutSnapshot,
 } from '../types/gantt';
 import {
   calculateDurationFromDates,
@@ -652,6 +653,12 @@ interface ReportsViewProps {
   onCreateMilestone?: (projectId?: string) => void;
   onMoveItem?: (sourceId: string, targetId: string, position: 'before' | 'after') => void;
   onMoveProject?: (sourceProjectId: string, targetProjectId: string, position: 'before' | 'after') => void;
+  onRecordLayoutChange?: (
+    description: string,
+    nextLayout: ReportsLayoutSnapshot,
+    prevLayout: ReportsLayoutSnapshot
+  ) => void;
+  externalLayoutSync?: { version: number; layout: ReportsLayoutSnapshot } | null;
 }
 
 export const ReportsView: React.FC<ReportsViewProps> = ({
@@ -689,6 +696,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   onCreateMilestone,
   onMoveItem,
   onMoveProject,
+  onRecordLayoutChange,
+  externalLayoutSync,
 }) => {
   const [activeTab, setActiveTab] = useState<ReportTab>(initialTab === 'projects' ? 'cronograma' : initialTab);
   const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(() => new Set(initialCollapsedNodes));
@@ -1231,7 +1240,66 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     setEditingPresetName('');
   };
 
+  const buildLayoutSnapshot = (
+    overrides?: Partial<ReportsLayoutSnapshot>
+  ): ReportsLayoutSnapshot => ({
+    colOrderByTab: overrides?.colOrderByTab ?? {
+      cronograma: [...(colOrderByTab.cronograma || [])],
+      projects: [...(colOrderByTab.projects || [])],
+      releases: [...(colOrderByTab.releases || [])],
+    },
+    hiddenColsByTab: overrides?.hiddenColsByTab ?? {
+      cronograma: { ...(hiddenColsByTab.cronograma || {}) },
+      projects: { ...(hiddenColsByTab.projects || {}) },
+      releases: { ...(hiddenColsByTab.releases || {}) },
+    },
+    colWidthsByTab: overrides?.colWidthsByTab ?? {
+      cronograma: { ...(colWidthsByTab.cronograma || {}) },
+      projects: { ...(colWidthsByTab.projects || {}) },
+      releases: { ...(colWidthsByTab.releases || {}) },
+    },
+    activePresetByTab: overrides?.activePresetByTab ?? { ...activePresetByTab },
+  });
+
+  useEffect(() => {
+    if (!externalLayoutSync?.layout) return;
+    const incoming = externalLayoutSync.layout;
+    // Capture FLIP positions so Undo/Redo of column reorder animates smoothly too
+    const tableEl = activeTableRef.current;
+    if (tableEl && typeof window !== 'undefined') {
+      const prevOrder = colOrderByTab[activeTab] || [];
+      const nextOrder = incoming.colOrderByTab?.[activeTab] || [];
+      if (prevOrder.join(',') !== nextOrder.join(',')) {
+        colFlipCleanupRef.current?.();
+        const headerCells = Array.from(
+          tableEl.querySelectorAll<HTMLTableCellElement>('thead th[data-col-key]')
+        );
+        const prevLeftByKey: Record<string, number> = {};
+        for (const th of headerCells) {
+          const k = th.dataset.colKey;
+          if (k) prevLeftByKey[k] = th.getBoundingClientRect().left;
+        }
+        if (Object.keys(prevLeftByKey).length > 0) {
+          pendingColFlipRef.current = { tab: activeTab, movedKey: '', prevLeftByKey };
+        }
+      }
+    }
+    if (incoming.colOrderByTab) {
+      setColOrderByTab(incoming.colOrderByTab as Record<ReportTab, string[]>);
+    }
+    if (incoming.hiddenColsByTab) {
+      setHiddenColsByTab(incoming.hiddenColsByTab as Record<ReportTab, Record<string, boolean>>);
+    }
+    if (incoming.colWidthsByTab) {
+      setColWidthsByTab(incoming.colWidthsByTab as Record<ReportTab, Record<string, number>>);
+    }
+    if (incoming.activePresetByTab) {
+      setActivePresetByTab(incoming.activePresetByTab as Record<ReportTab, string>);
+    }
+  }, [externalLayoutSync]);
+
   const applyPreset = (preset: ReportColumnPreset) => {
+    const prevLayout = buildLayoutSnapshot();
     const visibleSet = new Set(preset.visibleColKeys);
     const newHidden: Record<string, boolean> = {};
     for (const col of COLUMNS_BY_TAB[preset.tab] || []) {
@@ -1239,28 +1307,37 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         newHidden[col.key] = true;
       }
     }
-    setHiddenColsByTab((prev) => {
-      const next = { ...prev, [preset.tab]: newHidden };
+    const nextHiddenAll = { ...hiddenColsByTab, [preset.tab]: newHidden };
+    setHiddenColsByTab(() => {
       try {
-        localStorage.setItem(REPORT_HIDDEN_COLS_KEY, JSON.stringify(next));
+        localStorage.setItem(REPORT_HIDDEN_COLS_KEY, JSON.stringify(nextHiddenAll));
       } catch {}
-      return next;
+      return nextHiddenAll;
     });
     const nextOrder = computeColOrderFromPreset(preset.tab, preset);
-    setColOrderByTab((prev) => {
-      const next = { ...prev, [preset.tab]: nextOrder };
+    const nextOrderAll = { ...colOrderByTab, [preset.tab]: nextOrder };
+    setColOrderByTab(() => {
       try {
-        localStorage.setItem(REPORT_COL_ORDER_KEY, JSON.stringify(next));
+        localStorage.setItem(REPORT_COL_ORDER_KEY, JSON.stringify(nextOrderAll));
       } catch {}
-      return next;
+      return nextOrderAll;
     });
-    setActivePresetByTab((prev) => {
-      const next = { ...prev, [preset.tab]: preset.id };
+    const nextPresetAll = { ...activePresetByTab, [preset.tab]: preset.id };
+    setActivePresetByTab(() => {
       try {
         localStorage.setItem(REPORT_ACTIVE_PRESET_KEY, preset.id);
       } catch {}
-      return next;
+      return nextPresetAll;
     });
+    onRecordLayoutChange?.(
+      `Aplicar vista de columnas '${getPresetDisplayName(preset)}'`,
+      buildLayoutSnapshot({
+        hiddenColsByTab: nextHiddenAll,
+        colOrderByTab: nextOrderAll,
+        activePresetByTab: nextPresetAll,
+      }),
+      prevLayout
+    );
     setShowFormatColumnsMenu(false);
   };
 
@@ -1700,84 +1777,104 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   };
 
   const toggleReportCol = (tab: ReportTab, key: string) => {
-    let nextVisibleForSync: string[] | null = null;
-    let nextOrderForSync: string[] | undefined;
-    setHiddenColsByTab((prev) => {
-      const tabHidden = { ...(prev[tab] || {}) };
-      const allCols = COLUMNS_BY_TAB[tab] || [];
-      const currentlyHidden = Boolean(tabHidden[key]);
-      if (!currentlyHidden) {
-        const visibleCount = allCols.filter((c) => !tabHidden[c.key]).length;
-        if (visibleCount <= 1) return prev; // Keep at least 1 column visible
-        tabHidden[key] = true;
-      } else {
-        if (key === 'displayId') tabHidden[key] = false;
-        else delete tabHidden[key];
-      }
-      const next = { ...prev, [tab]: tabHidden };
-      try {
-        localStorage.setItem(REPORT_HIDDEN_COLS_KEY, JSON.stringify(next));
-      } catch {}
-
-      const orderedCols = getOrderedColumns(tab);
-      const currentVisibleInOrder = orderedCols
-        .filter((c) => !tabHidden[c.key])
-        .map((c) => c.key);
-      nextVisibleForSync = currentVisibleInOrder;
-      nextOrderForSync = orderedCols.map((c) => c.key);
-      const allPresets = [
-        ...DEFAULT_COLUMN_PRESETS.filter((p) => p.tab === tab),
-        ...customPresets.filter((p) => (p.tab || 'cronograma') === tab),
-      ];
-      const matched = allPresets.find((p) =>
-        doesPresetMatchLayout(tab, p, currentVisibleInOrder)
-      );
-      const newPresetId = matched ? matched.id : 'custom';
-      setActivePresetByTab((old) => {
-        const updated = { ...old, [tab]: newPresetId };
-        try {
-          localStorage.setItem(REPORT_ACTIVE_PRESET_KEY, newPresetId);
-        } catch {}
-        return updated;
-      });
-
-      return next;
-    });
-    if (nextVisibleForSync) {
-      syncActiveSavedFilterColumns(tab, nextVisibleForSync, nextOrderForSync);
+    const prevLayout = buildLayoutSnapshot();
+    const tabHidden = { ...(hiddenColsByTab[tab] || {}) };
+    const allCols = COLUMNS_BY_TAB[tab] || [];
+    const colDef = allCols.find((c) => c.key === key);
+    const currentlyHidden = Boolean(tabHidden[key]);
+    if (!currentlyHidden) {
+      const visibleCount = allCols.filter((c) => !tabHidden[c.key]).length;
+      if (visibleCount <= 1) return; // Keep at least 1 column visible
+      tabHidden[key] = true;
+    } else {
+      if (key === 'displayId') tabHidden[key] = false;
+      else delete tabHidden[key];
     }
+    const nextHiddenAll = { ...hiddenColsByTab, [tab]: tabHidden };
+    setHiddenColsByTab(() => {
+      try {
+        localStorage.setItem(REPORT_HIDDEN_COLS_KEY, JSON.stringify(nextHiddenAll));
+      } catch {}
+      return nextHiddenAll;
+    });
+
+    const orderedCols = getOrderedColumns(tab);
+    const currentVisibleInOrder = orderedCols
+      .filter((c) => !tabHidden[c.key])
+      .map((c) => c.key);
+    const allPresets = [
+      ...DEFAULT_COLUMN_PRESETS.filter((p) => p.tab === tab),
+      ...customPresets.filter((p) => (p.tab || 'cronograma') === tab),
+    ];
+    const matched = allPresets.find((p) =>
+      doesPresetMatchLayout(tab, p, currentVisibleInOrder)
+    );
+    const newPresetId = matched ? matched.id : 'custom';
+    const nextPresetAll = { ...activePresetByTab, [tab]: newPresetId };
+    setActivePresetByTab(() => {
+      try {
+        localStorage.setItem(REPORT_ACTIVE_PRESET_KEY, newPresetId);
+      } catch {}
+      return nextPresetAll;
+    });
+
+    onRecordLayoutChange?.(
+      `${currentlyHidden ? 'Mostrar' : 'Ocultar'} columna '${colDef?.label || key}'`,
+      buildLayoutSnapshot({
+        hiddenColsByTab: nextHiddenAll,
+        activePresetByTab: nextPresetAll,
+      }),
+      prevLayout
+    );
+    syncActiveSavedFilterColumns(tab, currentVisibleInOrder, orderedCols.map((c) => c.key));
   };
 
   const resetReportCols = (tab: ReportTab) => {
+    const prevLayout = buildLayoutSnapshot();
     const allKeys = (COLUMNS_BY_TAB[tab] || []).map((c) => c.key);
-    setHiddenColsByTab((prev) => {
-      const next = { ...prev, [tab]: tab === 'cronograma' ? { displayId: false } : {} };
+    const nextHiddenAll = { ...hiddenColsByTab, [tab]: tab === 'cronograma' ? { displayId: false } : {} };
+    setHiddenColsByTab(() => {
       try {
-        localStorage.setItem(REPORT_HIDDEN_COLS_KEY, JSON.stringify(next));
+        localStorage.setItem(REPORT_HIDDEN_COLS_KEY, JSON.stringify(nextHiddenAll));
       } catch {}
-      return next;
+      return nextHiddenAll;
     });
-    setColOrderByTab((prev) => {
-      const next = { ...prev, [tab]: allKeys };
+    const nextOrderAll = { ...colOrderByTab, [tab]: allKeys };
+    setColOrderByTab(() => {
       try {
-        localStorage.setItem(REPORT_COL_ORDER_KEY, JSON.stringify(next));
+        localStorage.setItem(REPORT_COL_ORDER_KEY, JSON.stringify(nextOrderAll));
       } catch {}
-      return next;
+      return nextOrderAll;
     });
     const defaultAllPreset = DEFAULT_COLUMN_PRESETS.find((p) => p.tab === tab && (p.id === 'preset-all' || p.id === 'preset-releases-all'));
     const allId = defaultAllPreset ? defaultAllPreset.id : 'preset-all';
-    setActivePresetByTab((prev) => {
-      const next = { ...prev, [tab]: allId };
+    const nextPresetAll = { ...activePresetByTab, [tab]: allId };
+    setActivePresetByTab(() => {
       try {
         localStorage.setItem(REPORT_ACTIVE_PRESET_KEY, allId);
       } catch {}
-      return next;
+      return nextPresetAll;
     });
+    onRecordLayoutChange?.(
+      'Mostrar todas las columnas',
+      buildLayoutSnapshot({
+        hiddenColsByTab: nextHiddenAll,
+        colOrderByTab: nextOrderAll,
+        activePresetByTab: nextPresetAll,
+      }),
+      prevLayout
+    );
     syncActiveSavedFilterColumns(tab, allKeys, allKeys);
   };
 
   const reorderReportCols = (tab: ReportTab, fromKey: string, toKey: string) => {
     if (fromKey === toKey) return;
+    const prevLayout = buildLayoutSnapshot();
+    const current = getOrderedColumns(tab).map((c) => c.key);
+    const fromIdx = current.indexOf(fromKey);
+    const toIdx = current.indexOf(toKey);
+    if (fromIdx === -1 || toIdx === -1) return;
+
     const tableEl = activeTableRef.current;
     if (tableEl && typeof window !== 'undefined') {
       colFlipCleanupRef.current?.();
@@ -1795,39 +1892,45 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         pendingColFlipRef.current = { tab, movedKey: fromKey, prevLeftByKey };
       }
     }
-    setColOrderByTab((prev) => {
-      const current = getOrderedColumns(tab).map((c) => c.key);
-      const fromIdx = current.indexOf(fromKey);
-      const toIdx = current.indexOf(toKey);
-      if (fromIdx === -1 || toIdx === -1) return prev;
-      const nextOrder = [...current];
-      const [moved] = nextOrder.splice(fromIdx, 1);
-      nextOrder.splice(toIdx, 0, moved);
-      const next = { ...prev, [tab]: nextOrder };
+
+    const nextOrder = [...current];
+    const [moved] = nextOrder.splice(fromIdx, 1);
+    nextOrder.splice(toIdx, 0, moved);
+    const nextOrderAll = { ...colOrderByTab, [tab]: nextOrder };
+    setColOrderByTab(() => {
       try {
-        localStorage.setItem(REPORT_COL_ORDER_KEY, JSON.stringify(next));
+        localStorage.setItem(REPORT_COL_ORDER_KEY, JSON.stringify(nextOrderAll));
       } catch {}
-
-      const tabHidden = hiddenColsByTab[tab] || {};
-      const nextVisibleInOrder = nextOrder.filter((k) => !tabHidden[k]);
-      const allPresets = [
-        ...DEFAULT_COLUMN_PRESETS.filter((p) => p.tab === tab),
-        ...customPresets.filter((p) => (p.tab || 'cronograma') === tab),
-      ];
-      const matched = allPresets.find((p) =>
-        doesPresetMatchLayout(tab, p, nextVisibleInOrder)
-      );
-      const newPresetId = matched ? matched.id : 'custom';
-      setActivePresetByTab((old) => {
-        const updated = { ...old, [tab]: newPresetId };
-        try {
-          localStorage.setItem(REPORT_ACTIVE_PRESET_KEY, newPresetId);
-        } catch {}
-        return updated;
-      });
-
-      return next;
+      return nextOrderAll;
     });
+
+    const tabHidden = hiddenColsByTab[tab] || {};
+    const nextVisibleInOrder = nextOrder.filter((k) => !tabHidden[k]);
+    const allPresets = [
+      ...DEFAULT_COLUMN_PRESETS.filter((p) => p.tab === tab),
+      ...customPresets.filter((p) => (p.tab || 'cronograma') === tab),
+    ];
+    const matched = allPresets.find((p) =>
+      doesPresetMatchLayout(tab, p, nextVisibleInOrder)
+    );
+    const newPresetId = matched ? matched.id : 'custom';
+    const nextPresetAll = { ...activePresetByTab, [tab]: newPresetId };
+    setActivePresetByTab(() => {
+      try {
+        localStorage.setItem(REPORT_ACTIVE_PRESET_KEY, newPresetId);
+      } catch {}
+      return nextPresetAll;
+    });
+
+    const movedLabel = (COLUMNS_BY_TAB[tab] || []).find((c) => c.key === fromKey)?.label || fromKey;
+    onRecordLayoutChange?.(
+      `Mover columna '${movedLabel}'`,
+      buildLayoutSnapshot({
+        colOrderByTab: nextOrderAll,
+        activePresetByTab: nextPresetAll,
+      }),
+      prevLayout
+    );
   };
 
   useIsomorphicLayoutEffect(() => {
@@ -2021,30 +2124,36 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   };
 
   const toggleColWidthFullText = (tab: ReportTab, col: ReportColumnDef) => {
+    const prevLayout = buildLayoutSnapshot();
     const toggleKey = `${tab}:${col.key}`;
     const existing = expandedColToggleMap[toggleKey];
     const currentWidth = getColWidth(tab, col);
 
     if (existing && Math.abs(currentWidth - existing.expandedWidth) <= 2) {
       // Second double-click: restore previous width
-      setColWidthsByTab((prev) => {
-        const tabMap = { ...(prev[tab] || {}) };
-        if (existing.previousWidth !== undefined) {
-          tabMap[col.key] = existing.previousWidth;
-        } else {
-          delete tabMap[col.key];
-        }
-        const next = { ...prev, [tab]: tabMap };
+      const tabMap = { ...(colWidthsByTab[tab] || {}) };
+      if (existing.previousWidth !== undefined) {
+        tabMap[col.key] = existing.previousWidth;
+      } else {
+        delete tabMap[col.key];
+      }
+      const nextWidthsAll = { ...colWidthsByTab, [tab]: tabMap };
+      setColWidthsByTab(() => {
         try {
-          localStorage.setItem(REPORT_COL_WIDTHS_KEY, JSON.stringify(next));
+          localStorage.setItem(REPORT_COL_WIDTHS_KEY, JSON.stringify(nextWidthsAll));
         } catch {}
-        return next;
+        return nextWidthsAll;
       });
       setExpandedColToggleMap((prev) => {
         const next = { ...prev };
         delete next[toggleKey];
         return next;
       });
+      onRecordLayoutChange?.(
+        `Restaurar ancho de columna '${col.label}'`,
+        buildLayoutSnapshot({ colWidthsByTab: nextWidthsAll }),
+        prevLayout
+      );
       return;
     }
 
@@ -2062,16 +2171,21 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       ...prev,
       [toggleKey]: { previousWidth: previousCustomWidth, expandedWidth },
     }));
-    setColWidthsByTab((prev) => {
-      const next = {
-        ...prev,
-        [tab]: { ...(prev[tab] || {}), [col.key]: expandedWidth },
-      };
+    const nextWidthsAll = {
+      ...colWidthsByTab,
+      [tab]: { ...(colWidthsByTab[tab] || {}), [col.key]: expandedWidth },
+    };
+    setColWidthsByTab(() => {
       try {
-        localStorage.setItem(REPORT_COL_WIDTHS_KEY, JSON.stringify(next));
+        localStorage.setItem(REPORT_COL_WIDTHS_KEY, JSON.stringify(nextWidthsAll));
       } catch {}
-      return next;
+      return nextWidthsAll;
     });
+    onRecordLayoutChange?.(
+      `Expandir ancho de columna '${col.label}'`,
+      buildLayoutSnapshot({ colWidthsByTab: nextWidthsAll }),
+      prevLayout
+    );
   };
 
   const startColResize = (
@@ -2082,6 +2196,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   ) => {
     e.preventDefault();
     e.stopPropagation();
+    const prevLayout = buildLayoutSnapshot();
     const startX = e.clientX;
     let latestWidth = startWidth;
     let didMove = false;
@@ -2109,16 +2224,22 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         delete next[toggleKey];
         return next;
       });
-      setColWidthsByTab((prev) => {
-        const next = {
-          ...prev,
-          [tab]: { ...(prev[tab] || {}), [key]: latestWidth },
-        };
+      const nextWidthsAll = {
+        ...colWidthsByTab,
+        [tab]: { ...(colWidthsByTab[tab] || {}), [key]: latestWidth },
+      };
+      setColWidthsByTab(() => {
         try {
-          localStorage.setItem(REPORT_COL_WIDTHS_KEY, JSON.stringify(next));
+          localStorage.setItem(REPORT_COL_WIDTHS_KEY, JSON.stringify(nextWidthsAll));
         } catch {}
-        return next;
+        return nextWidthsAll;
       });
+      const colLabel = (COLUMNS_BY_TAB[tab] || []).find((c) => c.key === key)?.label || key;
+      onRecordLayoutChange?.(
+        `Redimensionar columna '${colLabel}'`,
+        buildLayoutSnapshot({ colWidthsByTab: nextWidthsAll }),
+        prevLayout
+      );
     };
 
     if (typeof document !== 'undefined') {

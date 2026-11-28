@@ -133,6 +133,18 @@ const ACTION_BADGE_CONFIG: Record<
     text: 'text-orange-700 dark:text-orange-300',
     border: 'border-orange-200 dark:border-orange-800',
   },
+  edit_release: {
+    label: 'Releases',
+    bg: 'bg-sky-50 dark:bg-sky-950/60',
+    text: 'text-sky-700 dark:text-sky-300',
+    border: 'border-sky-200 dark:border-sky-800',
+  },
+  layout_columns: {
+    label: 'Columnas',
+    bg: 'bg-indigo-50 dark:bg-indigo-950/60',
+    text: 'text-indigo-700 dark:text-indigo-300',
+    border: 'border-indigo-200 dark:border-indigo-800',
+  },
   restore_snapshot: {
     label: 'Restauración',
     bg: 'bg-zinc-100 dark:bg-zinc-800',

@@ -1,4 +1,4 @@
-export const APP_VERSION = '1.20.0';
+export const APP_VERSION = '1.21.0';
 
 export const DEFAULT_TRUNCATE_CHAR_LIMIT = 37;
 export const TRUNCATE_LIMIT_STORAGE_KEY = 'ganttflow_truncate_char_limit';
@@ -189,8 +189,17 @@ export type PlanHistoryActionType =
   | 'delete_project'
   | 'dependency_change'
   | 'resolve_conflicts'
+  | 'edit_release'
+  | 'layout_columns'
   | 'restore_snapshot'
   | 'initial_state';
+
+export interface ReportsLayoutSnapshot {
+  colOrderByTab: Record<string, string[]>;
+  hiddenColsByTab: Record<string, Record<string, boolean>>;
+  colWidthsByTab: Record<string, Record<string, number>>;
+  activePresetByTab: Record<string, string>;
+}
 
 export interface PlanHistoryEntry {
   id: string;
@@ -204,6 +213,8 @@ export interface PlanHistoryEntry {
   snapshot: {
     items: GanttItem[];
     projects: GanttProject[];
+    releases?: Release[];
+    reportsLayout?: ReportsLayoutSnapshot;
   };
 }
 
