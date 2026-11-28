@@ -10,10 +10,20 @@ export interface ReleaseNoteEntry {
 
 export const RELEASE_NOTES: ReleaseNoteEntry[] = [
   {
+    version: '1.17.2',
+    date: '28 Nov 2026',
+    title: 'Ordenar panel de filtros: filtro Equipo, sin No contiene y Columnas colapsadas',
+    isLatest: true,
+    features: [
+      'Eliminado el campo No contiene del panel de búsqueda avanzada',
+      'Añadido selector de Equipo en Planificación y Cronograma (integrado también en filtros guardados y barra inferior)',
+      'Sección de Columnas visibles colapsada por defecto con despliegue animado al hacer clic',
+    ],
+  },
+  {
     version: '1.17.1',
     date: '28 Nov 2026',
     title: 'Estilo y animación de expand/collapse en Planificación igual que Cronograma',
-    isLatest: true,
     features: [
       'Chevron rotatorio de 240ms cubic-bezier(0.22,1,0.36,1) y animaciones suaves de expansión/colapso de filas en Planificación',
       'Jerarquía visual clara idéntica a Cronograma con cabeceras oscuras para Releases, borde lateral y badge de color por Proyecto, e indentación con conector └ para tareas e hitos',

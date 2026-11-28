@@ -757,6 +757,15 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
   }));
   const [tableTypeFilter, setTableTypeFilter] = useState<UnifiedRowTypeFilter>(initialTypeFilter);
   const [tableReleaseFilter, setTableReleaseFilter] = useState<string>(initialReleaseFilter);
+  const [tableTeamFilter, setTableTeamFilter] = useState<string>('all');
+  const availableTeams = useMemo(() => {
+    const set = new Set<string>();
+    for (const it of items) {
+      const t = it.assignee?.trim();
+      if (t) set.add(t);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'es'));
+  }, [items]);
 
   const [tablePlatformFilter, setTablePlatformFilter] = useState<'all' | ProjectPlatform>('all');
   const [tableAlertFilter, setTableAlertFilter] = useState<'all' | ProjectAlertLevel>(initialAlertFilter);
@@ -3120,6 +3129,13 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
       );
     }
 
+    if (tableTeamFilter !== 'all') {
+      const targetTeam = tableTeamFilter.trim().toLowerCase();
+      filtered = filtered.filter((g) =>
+        g.items.some((it) => (it.assignee || '').trim().toLowerCase() === targetTeam)
+      );
+    }
+
     const query = tableSearchQuery.trim().toLowerCase();
     if (query) {
       filtered = filtered.filter((g) => {
@@ -3149,6 +3165,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     hiddenReleaseIds,
     releases,
     tableReleaseFilter,
+    tableTeamFilter,
     tableTypeFilter,
     selectedPlatform,
     tablePlatformFilter,
@@ -3219,6 +3236,12 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
         const itemAlertMatches = (it.alertLevel ?? 0) === tableAlertFilter;
         const projAlertMatches = (proj.alertLevel ?? 0) === tableAlertFilter;
         if (!itemAlertMatches && !(showSubtasksOnFilter && projAlertMatches)) {
+          return false;
+        }
+      }
+      if (tableTeamFilter !== 'all') {
+        const targetTeam = tableTeamFilter.trim().toLowerCase();
+        if ((it.assignee || '').trim().toLowerCase() !== targetTeam) {
           return false;
         }
       }
@@ -3426,6 +3449,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
     tableExcludeQuery,
     tableTypeFilter,
     tableReleaseFilter,
+    tableTeamFilter,
     tablePlatformFilter,
     selectedPlatform,
     tableAlertFilter,
@@ -5667,6 +5691,9 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
             releases={releases.filter((r) => !hiddenReleaseIds || !hiddenReleaseIds.includes(r.id))}
             selectedRelease={tableReleaseFilter}
             onChangeSelectedRelease={setTableReleaseFilter}
+            teams={availableTeams}
+            selectedTeam={tableTeamFilter}
+            onChangeSelectedTeam={setTableTeamFilter}
             showSubtasksOnFilter={showSubtasksOnFilter}
             onChangeShowSubtasksOnFilter={setShowSubtasksOnFilter}
             initialShowSearchFieldsMenu={initialShowSearchFieldsMenu}
@@ -5679,6 +5706,7 @@ export const GanttWorkspace: React.FC<GanttWorkspaceProps> = ({
               handleSelectPlatformFilter('all');
               setTableAlertFilter('all');
               setTableReleaseFilter('all');
+              setTableTeamFilter('all');
               setShowSubtasksOnFilter(false);
               setSearchFields({ ...DEFAULT_GANTT_SEARCH_FIELDS });
             }}

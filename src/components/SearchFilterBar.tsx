@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
   Check,
+  ChevronRight,
   Filter,
   Pencil,
   Plus,
@@ -9,6 +10,7 @@ import {
   SlidersHorizontal,
   Smartphone,
   Trash2,
+  Users,
   X,
 } from 'lucide-react';
 import { ProjectAlertLevel, ProjectPlatform, Release } from '../types/gantt';
@@ -70,6 +72,7 @@ export interface StoredSavedFilter {
   selectedPlatform: 'all' | ProjectPlatform;
   selectedAlert: 'all' | ProjectAlertLevel;
   selectedRelease: string;
+  selectedTeam?: string;
   showSubtasksOnFilter?: boolean;
   visibleColKeys?: string[];
   colOrder?: string[];
@@ -97,6 +100,9 @@ export interface SearchFilterBarProps {
   releases: Release[];
   selectedRelease: string;
   onChangeSelectedRelease: (next: string) => void;
+  teams?: string[];
+  selectedTeam?: string;
+  onChangeSelectedTeam?: (next: string) => void;
   showSubtasksOnFilter: boolean;
   onChangeShowSubtasksOnFilter: (next: boolean) => void;
   showSubtasksToggle?: boolean;
@@ -143,6 +149,9 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
   releases,
   selectedRelease,
   onChangeSelectedRelease,
+  teams = [],
+  selectedTeam = 'all',
+  onChangeSelectedTeam,
   showSubtasksOnFilter,
   onChangeShowSubtasksOnFilter,
   showSubtasksToggle = true,
@@ -167,6 +176,7 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
   const [panelOpen, setPanelOpen] = useState<boolean>(
     initialShowAdvancedPanel || initialShowSearchFieldsMenu
   );
+  const [columnsExpanded, setColumnsExpanded] = useState<boolean>(false);
   const [showSaveRow, setShowSaveRow] = useState<boolean>(false);
   const [newFilterName, setNewFilterName] = useState<string>('');
   const [builtInActiveId, setBuiltInActiveId] = useState<string | null>(null);
@@ -254,12 +264,12 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
 
   // Count non-query active criteria for the Gmail sliders badge
   let activeCriteriaCount = 0;
-  if (excludeQuery.trim()) activeCriteriaCount += 1;
   if (!isDefaultSearchFields(searchFields)) activeCriteriaCount += 1;
   if (showTypeFilter && selectedType !== 'all') activeCriteriaCount += 1;
   if (selectedPlatform !== 'all') activeCriteriaCount += 1;
   if (selectedAlert !== 'all') activeCriteriaCount += 1;
   if (selectedRelease !== 'all') activeCriteriaCount += 1;
+  if (selectedTeam && selectedTeam !== 'all') activeCriteriaCount += 1;
   if (showSubtasksToggle && showSubtasksOnFilter) activeCriteriaCount += 1;
   if (hasHiddenCols) activeCriteriaCount += 1;
 
@@ -295,6 +305,7 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
     onChangeSelectedPlatform(f.selectedPlatform || 'all');
     onChangeSelectedAlert(f.selectedAlert ?? 'all');
     onChangeSelectedRelease(f.selectedRelease || 'all');
+    onChangeSelectedTeam?.(f.selectedTeam || 'all');
     onChangeShowSubtasksOnFilter(Boolean(f.showSubtasksOnFilter));
     if (f.visibleColKeys && f.visibleColKeys.length > 0 && onApplySavedColumns) {
       onApplySavedColumns(f.visibleColKeys, f.colOrder);
@@ -329,6 +340,7 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
               selectedPlatform,
               selectedAlert,
               selectedRelease,
+              selectedTeam,
               showSubtasksOnFilter,
               ...(visibleColKeys ? { visibleColKeys } : {}),
             }
@@ -376,13 +388,6 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
 
   // Active chips summary
   const activeChips: { key: string; label: string; onRemove: () => void }[] = [];
-  if (excludeQuery.trim() && onChangeExcludeQuery) {
-    activeChips.push({
-      key: 'exclude',
-      label: `no:"${excludeQuery.trim()}"`,
-      onRemove: () => onChangeExcludeQuery(''),
-    });
-  }
   if (!isDefaultSearchFields(searchFields)) {
     activeChips.push({
       key: 'fields',
@@ -416,6 +421,13 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
       key: 'release',
       label: `release:${selectedRelease}`,
       onRemove: () => onChangeSelectedRelease('all'),
+    });
+  }
+  if (selectedTeam && selectedTeam !== 'all' && onChangeSelectedTeam) {
+    activeChips.push({
+      key: 'team',
+      label: `equipo:${selectedTeam}`,
+      onRemove: () => onChangeSelectedTeam('all'),
     });
   }
   if (showSubtasksToggle && showSubtasksOnFilter) {
@@ -565,24 +577,7 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
             />
           </div>
 
-          {/* Row 2: No contiene */}
-          {onChangeExcludeQuery && (
-            <div className="grid grid-cols-12 items-center gap-2">
-              <label className="col-span-4 text-[11px] font-medium text-[#6B6B66] dark:text-zinc-400">
-                No contiene
-              </label>
-              <input
-                type="text"
-                data-testid={`${testIdPrefix}-exclude-input`}
-                value={excludeQuery}
-                onChange={(e) => onChangeExcludeQuery(e.target.value)}
-                placeholder="Excluir palabras..."
-                className="col-span-8 px-2 py-1 bg-transparent border-b border-zinc-300 dark:border-zinc-700 focus:border-[#0C0C09] dark:focus:border-indigo-400 outline-none text-xs text-zinc-800 dark:text-zinc-100"
-              />
-            </div>
-          )}
-
-          {/* Row 3: Buscar en campos */}
+          {/* Row 2: Buscar en campos */}
           <div className="grid grid-cols-12 items-start gap-2">
             <div className="col-span-4 pt-0.5 space-y-0.5">
               <span
@@ -876,6 +871,30 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
             </div>
           )}
 
+          {/* Row 7b: Equipo */}
+          {onChangeSelectedTeam && (
+            <div className="grid grid-cols-12 items-center gap-2">
+              <label className="col-span-4 text-[11px] font-medium text-[#6B6B66] dark:text-zinc-400 flex items-center gap-1">
+                <Users className="w-3 h-3" />
+                <span>Equipo</span>
+              </label>
+              <select
+                data-testid={`${testIdPrefix}-team-select`}
+                value={selectedTeam}
+                onChange={(e) => onChangeSelectedTeam(e.target.value)}
+                aria-label="Filtrar por equipo"
+                className="col-span-8 px-2 py-1 rounded-[4px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs text-zinc-800 dark:text-zinc-200 outline-none cursor-pointer"
+              >
+                <option value="all">Todos los equipos</option>
+                {teams.map((team) => (
+                  <option key={team} value={team}>
+                    {team}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Row 8: Subtareas */}
           {showSubtasksToggle && (
             <div className="grid grid-cols-12 items-center gap-2">
@@ -898,43 +917,62 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
             </div>
           )}
 
-          {/* Row 9: Columnas visibles (in Planificación) */}
+          {/* Row 9: Columnas visibles (collapsible, collapsed by default) */}
           {columns && columns.length > 0 && onToggleColumn && (
             <div
               data-testid={`${testIdPrefix}-panel-columns-section`}
-              className="grid grid-cols-12 items-start gap-2 pt-2 border-t border-[#E2E2DC] dark:border-zinc-800"
+              className="pt-2 border-t border-[#E2E2DC] dark:border-zinc-800"
             >
-              <div className="col-span-4 pt-0.5 space-y-0.5">
-                <span className="block text-[11px] font-medium text-[#6B6B66] dark:text-zinc-400">
-                  Columnas ({visibleColsCount}/{columns.length})
-                </span>
+              <div className="flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  data-testid={`${testIdPrefix}-panel-columns-toggle`}
+                  data-expanded={columnsExpanded ? 'true' : 'false'}
+                  onClick={() => setColumnsExpanded((prev) => !prev)}
+                  className="flex items-center gap-1.5 text-[11px] font-medium text-[#6B6B66] dark:text-zinc-300 hover:text-[#0C0C09] dark:hover:text-white cursor-pointer select-none"
+                >
+                  <ChevronRight
+                    className={`w-3.5 h-3.5 transition-transform duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                      columnsExpanded ? 'rotate-90' : 'rotate-0'
+                    }`}
+                  />
+                  <span>{`Columnas (${visibleColsCount}/${columns.length})`}</span>
+                </button>
                 {onResetColumns && (
                   <button
                     type="button"
                     onClick={onResetColumns}
-                    className="text-[9px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                    className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
                   >
                     Seleccionar todas
                   </button>
                 )}
               </div>
-              <div className="col-span-8 flex flex-wrap gap-1 max-h-28 overflow-y-auto">
-                {columns.map((col) => (
-                  <button
-                    key={col.key}
-                    type="button"
-                    data-testid={`${testIdPrefix}-panel-col-pill-${col.key}`}
-                    onClick={() => onToggleColumn(col.key)}
-                    className={`px-2 py-0.5 rounded-full border text-[10px] font-medium cursor-pointer transition ${
-                      col.visible
-                        ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-                        : 'border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400'
-                    }`}
-                  >
-                    {col.visible ? '✓ ' : ''}
-                    {col.label}
-                  </button>
-                ))}
+              <div
+                className={`grid transition-[grid-template-rows,opacity] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                  columnsExpanded ? 'grid-rows-[1fr] opacity-100 mt-2' : 'grid-rows-[0fr] opacity-0'
+                }`}
+              >
+                <div className="overflow-hidden">
+                  <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto pb-0.5">
+                    {columns.map((col) => (
+                      <button
+                        key={col.key}
+                        type="button"
+                        data-testid={`${testIdPrefix}-panel-col-pill-${col.key}`}
+                        onClick={() => onToggleColumn(col.key)}
+                        className={`px-2 py-0.5 rounded-full border text-[10px] font-medium cursor-pointer transition ${
+                          col.visible
+                            ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                            : 'border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400'
+                        }`}
+                      >
+                        {col.visible ? '✓ ' : ''}
+                        {col.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           )}

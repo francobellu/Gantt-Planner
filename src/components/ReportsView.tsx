@@ -374,6 +374,7 @@ export interface ReportSavedFilter {
   selectedPlatform: 'all' | ProjectPlatform;
   selectedAlert: 'all' | ProjectAlertLevel;
   selectedRelease: string;
+  selectedTeam?: string;
   showSubtasksOnFilter?: boolean;
   formatPresetId?: string;
   visibleColKeys?: string[];
@@ -390,6 +391,7 @@ export function createSavedFilter(params: {
   selectedPlatform?: 'all' | ProjectPlatform;
   selectedAlert?: 'all' | ProjectAlertLevel;
   selectedRelease?: string;
+  selectedTeam?: string;
   showSubtasksOnFilter?: boolean;
   formatPresetId?: string;
   visibleColKeys?: string[];
@@ -406,6 +408,7 @@ export function createSavedFilter(params: {
     selectedPlatform: params.selectedPlatform ?? 'all',
     selectedAlert: params.selectedAlert ?? 'all',
     selectedRelease: params.selectedRelease ?? 'all',
+    selectedTeam: params.selectedTeam ?? 'all',
     showSubtasksOnFilter: params.showSubtasksOnFilter ?? false,
     formatPresetId: params.formatPresetId,
     visibleColKeys: params.visibleColKeys ? [...params.visibleColKeys] : undefined,
@@ -895,6 +898,17 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const [selectedRelease, setSelectedRelease] = useState<string>(
     initialMatchedSavedFilter?.selectedRelease ?? 'all'
   );
+  const [selectedTeam, setSelectedTeam] = useState<string>(
+    initialMatchedSavedFilter?.selectedTeam ?? 'all'
+  );
+  const availableTeams = useMemo(() => {
+    const set = new Set<string>();
+    for (const it of items) {
+      const t = it.assignee?.trim();
+      if (t) set.add(t);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'es'));
+  }, [items]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<ReportRowContextMenuState | null>(initialContextMenu);
   const contextMenuRef = useRef<HTMLDivElement>(null);
@@ -1262,6 +1276,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     setSelectedPlatform(filter.selectedPlatform ?? 'all');
     setSelectedAlert(filter.selectedAlert ?? 'all');
     setSelectedRelease(filter.selectedRelease ?? 'all');
+    setSelectedTeam(filter.selectedTeam ?? 'all');
 
     if (filter.formatPresetId && filter.formatPresetId !== '__none__' && filter.formatPresetId !== '__current__') {
       const matchedPreset = cronoPresetsList.find((p) => p.id === filter.formatPresetId);
@@ -1357,6 +1372,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               selectedPlatform,
               selectedAlert,
               selectedRelease,
+              selectedTeam,
               ...formatFields,
             }
           : f
@@ -1418,6 +1434,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               selectedPlatform,
               selectedAlert,
               selectedRelease,
+              selectedTeam,
               ...formatFields,
             }
           : f
@@ -1810,6 +1827,17 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       if (selectedRelease !== 'all' && row.releaseCode !== selectedRelease) {
         return false;
       }
+      // Team filter
+      if (selectedTeam !== 'all') {
+        const targetTeam = selectedTeam.trim().toLowerCase();
+        const rowTeams = row.team
+          .split(',')
+          .map((t) => t.trim().toLowerCase())
+          .filter(Boolean);
+        if (!rowTeams.includes(targetTeam)) {
+          return false;
+        }
+      }
       // Alert level filter
       if (selectedAlert !== 'all') {
         if (row.alertLevel !== selectedAlert) {
@@ -1943,7 +1971,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       }
       return false;
     });
-  }, [cronoRows, focusedProjectIds, selectedType, selectedPlatform, selectedAlert, selectedRelease, searchQuery, excludeQuery, searchFields, showSubtasksOnFilter]);
+  }, [cronoRows, focusedProjectIds, selectedType, selectedPlatform, selectedAlert, selectedRelease, selectedTeam, searchQuery, excludeQuery, searchFields, showSubtasksOnFilter]);
 
   // Clear per-node filtered context expansions when filter criteria change (skip initial mount)
   useEffect(() => {
@@ -1952,7 +1980,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       return;
     }
     setExpandedFilteredNodes(new Set());
-  }, [searchQuery, excludeQuery, selectedType, selectedPlatform, selectedAlert, selectedRelease]);
+  }, [searchQuery, excludeQuery, selectedType, selectedPlatform, selectedAlert, selectedRelease, selectedTeam]);
 
   // 2b. Hierarchical tree view for Planificación:
   //     - Supports normal collapse/expand on Releases & Projects (collapse ALWAYS hides descendants)
@@ -1960,6 +1988,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const hasCronoFilters =
     selectedType !== 'all' ||
     selectedRelease !== 'all' ||
+    selectedTeam !== 'all' ||
     selectedAlert !== 'all' ||
     selectedPlatform !== 'all' ||
     Boolean(searchQuery.trim()) ||
@@ -2292,6 +2321,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             releases={releases}
             selectedRelease={selectedRelease}
             onChangeSelectedRelease={setSelectedRelease}
+            teams={availableTeams}
+            selectedTeam={selectedTeam}
+            onChangeSelectedTeam={setSelectedTeam}
             showSubtasksOnFilter={showSubtasksOnFilter}
             onChangeShowSubtasksOnFilter={setShowSubtasksOnFilter}
             showSubtasksToggle={activeTab === 'cronograma'}
@@ -2320,6 +2352,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               setSelectedPlatform('all');
               setSelectedAlert('all');
               setSelectedRelease('all');
+              setSelectedTeam('all');
               setShowSubtasksOnFilter(false);
               setActiveSavedFilterId(null);
               try {
@@ -3702,11 +3735,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 onClear: () => setSearchQuery(''),
               });
             }
-            if (excludeQuery.trim()) {
+            if (selectedTeam !== 'all') {
               statusFilters.push({
-                key: 'exclude',
-                label: `No contiene: "${excludeQuery.trim()}"`,
-                onClear: () => setExcludeQuery(''),
+                key: 'team',
+                label: `Equipo: ${selectedTeam}`,
+                onClear: () => setSelectedTeam('all'),
               });
             }
             if (!isDefaultSearchFields(searchFields)) {
